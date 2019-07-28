@@ -1,0 +1,8 @@
+import "lexer"
+import "io"
+
+def main(): void {
+    let lexer = lexer.create("test");
+    let t = lexer.next_token(&lexer);
+    io.printf("%p\n%p\n%d\n", lexer.current, lexer.source, *lexer.current);
+}

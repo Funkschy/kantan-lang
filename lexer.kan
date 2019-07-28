@@ -1,0 +1,47 @@
+#define TOKEN_INT 1
+#define true 1 == 1
+#define false !(true)
+
+type Token struct {
+    ty: i32,
+    lexeme: string
+}
+
+type Lexer struct {
+    source: string,
+    start: string,
+    current: string
+}
+
+def create(source: string): Lexer {
+    return Lexer { source: source, start: source, current: source };
+}
+
+def next_token(l: *Lexer): Token {
+    skip_whitespace(l);
+    return get_next_token(l);
+}
+
+def get_next_token(l: *Lexer): Token {
+    l.start = l.current;
+
+    return Token { ty: TOKEN_INT, lexeme: "Test" };
+}
+
+def skip_whitespace(l: *Lexer): void {
+    let break = false;
+    while !at_end(l) && !break {
+        let c = *l.current;
+        break = c != 'e';
+        advance(l);
+    }
+}
+
+def at_end(l: *Lexer): bool {
+    return *l.current == '\0';
+}
+
+def advance(l: *Lexer): char {
+    l.current = l.current + 1; 
+    return *(l.current - 1);
+}
