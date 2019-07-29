@@ -1,8 +1,20 @@
 import "lexer"
 import "io"
+import "map"
 
 def main(): void {
     let lexer = lexer.create("test");
     let t = lexer.next_token(&lexer);
     io.printf("%p\n%p\n%d\n", lexer.current, lexer.source, *lexer.current);
+
+    let m = map.with_cap(10);
+    map.insert(&m, "hello", "1" as *void);
+    map.insert(&m, "test", "3" as *void);
+
+    io.printf("%s\n", map.get(&m, "hello") as string);
+    map.insert(&m, "hello", "2" as *void);
+    io.printf("%s\n", map.get(&m, "hello") as string);
+    io.printf("%s\n", map.get(&m, "test") as string);
+
+    map.free_m(m);
 }

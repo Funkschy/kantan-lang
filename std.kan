@@ -1,0 +1,4 @@
+extern def malloc(size: i32): *void;
+extern def calloc(num: i32, size: i32): *void;
+extern def free(obj: *void): void;
+extern def strcmp(s1: string, s2: string): i32;

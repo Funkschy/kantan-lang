@@ -1,5 +1,5 @@
 BIN_NAME = compiler
-K_FILES = main.kan lexer.kan
+K_FILES = main.kan lexer.kan map.kan std.kan
 C_FILES = lib.c
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)

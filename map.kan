@@ -1,0 +1,108 @@
+#define true 1 == 1
+#define false !(true)
+
+import "std"
+import "io"
+
+extern def hash(key: string): i32;
+
+type Map struct {
+    buckets: *Bucket,
+    len: i32,
+    cap: i32
+}
+
+type Bucket struct {
+    item: Item,
+    next: *Bucket
+}
+
+type Item struct  {
+    key: string,
+    value: *void
+}
+
+def create(): Map {
+    return Map { buckets: null, len: 0, cap: 0 };
+}
+
+def with_cap(cap: i32): Map {
+    return Map { buckets: std.calloc(cap, sizeof Bucket) as *Bucket, len: 0, cap: cap };
+}
+
+def free_m(m: Map): void {
+    free_buckets(m.buckets);
+}
+
+def free_buckets(buckets: *Bucket): void {
+    let last = buckets;
+    while last != null {
+        let t = last.next;
+        std.free(last as *void);
+        last = t;
+    }
+}
+
+def insert_if_empty(b: *Bucket, key: string, value: *void): bool {
+    if b.item.key == null {
+        b.item.key = key;
+        b.item.value = value;
+        return true;
+    }
+
+    return false;
+}
+
+def insert(map: *Map, key: string, value: *void): void {
+    let b = map.buckets + hash(key) % map.cap;
+
+    if b.item.key == null {
+        b.item = Item { key: key, value: value };
+        return;
+    } if std.strcmp(b.item.key, key) == 0 {
+        b.item = Item { key: key, value: value };
+        return;
+    }
+
+    b = b.next;
+
+    while b != null {
+        if b.item.key == null {
+            *b = Bucket { item: Item { key: key, value: value }, next: null };
+        }
+
+        if std.strcmp(b.item.key, key) == 0 {
+            b.item.value = value;
+            return;
+        }
+
+        if b.next == null {
+            b.next = new Bucket { item: Item { key: key, value: value }, next: null };
+            return;
+        }
+
+        b = b.next;
+    }
+}
+
+def get(map: *Map, key: string): *void {
+    let b = map.buckets + hash(key) % map.cap;
+
+    while b != null {
+        if b.item.key == null {
+            return null;
+        }
+
+        if std.strcmp(b.item.key, key) == 0 {
+            return b.item.value;
+        }
+
+        if b.next == null {
+            return null;
+        }
+
+        b = b.next;
+    }
+
+    return null;
+}
