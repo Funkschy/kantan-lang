@@ -1,9 +1,13 @@
 #define TOKEN_INT 1
-#define true 1 == 1
-#define false !(true)
+#define TOKEN_IDENT 2
+#define TOKEN_EOF 3
+
+#define true (1 == 1)
+#define false (!true)
 
 type Token struct {
     ty: i32,
+    len: i32,
     lexeme: string
 }
 
@@ -17,23 +21,47 @@ def create(source: string): Lexer {
     return Lexer { source: source, start: source, current: source };
 }
 
+def eof(): i32 {
+    return TOKEN_EOF;
+}
+
 def next_token(l: *Lexer): Token {
     skip_whitespace(l);
     return get_next_token(l);
 }
 
+def is_num(c: char): bool {
+    return c >= '0' && c <= '9';
+}
+
 def get_next_token(l: *Lexer): Token {
     l.start = l.current;
+    let c = *l.current;
 
-    return Token { ty: TOKEN_INT, lexeme: "Test" };
+    if is_num(c) {
+        advance(l);
+        while is_num(*l.current) {
+            advance(l);
+        }
+
+        return Token { ty: TOKEN_INT, len: l.current - l.start, lexeme: l.start };
+    }
+
+    return Token { ty: TOKEN_EOF, len: 0, lexeme: null };
+}
+
+def is_whitespace(c: char): bool {
+    return c == ' ' || c == '\r' || c == '\n' || c == '\t' || c == '\0';
 }
 
 def skip_whitespace(l: *Lexer): void {
-    let break = false;
-    while !at_end(l) && !break {
+    let continue = true;
+    while !at_end(l) && continue {
         let c = *l.current;
-        break = c != 'e';
-        advance(l);
+        continue = is_whitespace(c);
+        if continue {
+            advance(l);
+        }
     }
 }
 
