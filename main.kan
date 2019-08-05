@@ -3,12 +3,16 @@ import "io"
 import "map"
 
 def main(): void {
-    let l = lexer.create("1337 42test");
+    let l = lexer.create("let test = 42;");
 
     let t = lexer.Token { ty: 0, len: 0, lexeme: null };
     while (t = lexer.next_token(&l)).ty != lexer.eof() {
-        io.printf("%d: %.*s\n", t.ty, t.len, t.lexeme);
+        print_tok(&t);
     }
 
-    io.printf("Read %d byte\n", l.current - l.source);
+    io.printf("Read %d bytes\n", l.current - l.source);
+}
+
+def print_tok(t: *lexer.Token): void {
+    io.printf("%s: '%.*s'\n", lexer.token_to_string(t), t.len, t.lexeme);
 }

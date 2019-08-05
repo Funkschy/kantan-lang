@@ -1,9 +1,12 @@
+#define TOKEN_ERR 0
 #define TOKEN_INT 1
 #define TOKEN_IDENT 2
 #define TOKEN_EOF 3
 
 #define true (1 == 1)
 #define false (!true)
+
+extern def tok2str(ty: i32): string;
 
 type Token struct {
     ty: i32,
@@ -30,24 +33,46 @@ def next_token(l: *Lexer): Token {
     return get_next_token(l);
 }
 
+def get_next_token(l: *Lexer): Token {
+    if at_end(l) {
+        return Token { ty: TOKEN_EOF, len: 0, lexeme: null };
+    }
+
+    l.start = l.current;
+    let c = *l.current;
+    advance(l);
+
+    if is_num(c) {
+        return parse_num(l);
+    } else if is_letter(c) {
+        return parse_ident(l);
+    }
+
+    return Token { ty: TOKEN_ERR, len: 1, lexeme: l.start };
+}
+
 def is_num(c: char): bool {
     return c >= '0' && c <= '9';
 }
 
-def get_next_token(l: *Lexer): Token {
-    l.start = l.current;
-    let c = *l.current;
-
-    if is_num(c) {
+def parse_num(l: *Lexer): Token {
+    while is_num(*l.current) {
         advance(l);
-        while is_num(*l.current) {
-            advance(l);
-        }
-
-        return Token { ty: TOKEN_INT, len: l.current - l.start, lexeme: l.start };
     }
 
-    return Token { ty: TOKEN_EOF, len: 0, lexeme: null };
+    return Token { ty: TOKEN_INT, len: l.current - l.start, lexeme: l.start };
+}
+
+def is_letter(c: char): bool {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+def parse_ident(l: *Lexer): Token {
+    while is_letter(*l.current) {
+        advance(l);
+    }
+
+    return Token { ty: TOKEN_IDENT, len: l.current - l.start, lexeme: l.start };
 }
 
 def is_whitespace(c: char): bool {
@@ -72,4 +97,8 @@ def at_end(l: *Lexer): bool {
 def advance(l: *Lexer): char {
     l.current = l.current + 1; 
     return *(l.current - 1);
+}
+
+def token_to_string(token: *Token): string {
+    return tok2str(token.ty);
 }
