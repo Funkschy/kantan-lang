@@ -95,7 +95,7 @@ def at_end(l: *Lexer): bool {
 }
 
 def advance(l: *Lexer): char {
-    l.current = l.current + 1; 
+    l.current = l.current + 1;
     return *(l.current - 1);
 }
 

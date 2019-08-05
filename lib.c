@@ -12,7 +12,7 @@ static char const *const token_strings[] = {
 };
 
 int32_t hash(char const *key) {
-    int32_t h = 0;  
+    int32_t h = 0;
     for (char c = *key; c != '\0'; c++) {
         h = h * HASH_NUM + c;
     }
