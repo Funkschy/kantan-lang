@@ -48,7 +48,7 @@ def get_next_token(l: *Lexer): Token {
         return parse_ident(l);
     }
 
-    return Token { ty: TOKEN_ERR, len: 1, lexeme: l.start };
+    return token_from_start(l, TOKEN_ERR);
 }
 
 def is_num(c: char): bool {
@@ -60,7 +60,7 @@ def parse_num(l: *Lexer): Token {
         advance(l);
     }
 
-    return Token { ty: TOKEN_INT, len: l.current - l.start, lexeme: l.start };
+    return token_from_start(l, TOKEN_INT);
 }
 
 def is_letter(c: char): bool {
@@ -72,7 +72,7 @@ def parse_ident(l: *Lexer): Token {
         advance(l);
     }
 
-    return Token { ty: TOKEN_IDENT, len: l.current - l.start, lexeme: l.start };
+    return token_from_start(l, TOKEN_IDENT);
 }
 
 def is_whitespace(c: char): bool {
@@ -97,6 +97,10 @@ def at_end(l: *Lexer): bool {
 def advance(l: *Lexer): char {
     l.current = l.current + 1; 
     return *(l.current - 1);
+}
+
+def token_from_start(l: *Lexer, ty: i32): Token {
+    return Token { ty: ty, len: l.current - l.start, lexeme: l.start };
 }
 
 def token_to_string(token: *Token): string {

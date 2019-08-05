@@ -4,7 +4,7 @@
 
 #define HASH_NUM 65599
 
-static char *const token_strings[] = {
+static char const *const token_strings[] = {
     "error",
     "integer",
     "identifier",
