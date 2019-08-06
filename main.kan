@@ -3,7 +3,7 @@ import "io"
 import "map"
 
 def main(): void {
-    let l = lexer.create("let test = 42;");
+    let l = lexer.create("let test = 42; import if");
 
     let t = lexer.Token { ty: 0, len: 0, lexeme: null };
     while (t = lexer.next_token(&l)).ty != lexer.eof() {

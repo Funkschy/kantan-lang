@@ -8,8 +8,14 @@ static char const *const token_strings[] = {
     "error",
     "integer",
     "identifier",
-    "eof"
+    "let",
+    "if",
+    "import",
+    "semicolon",
+    "eq",
 };
+
+static size_t const len_token_strings = sizeof(token_strings) / sizeof(char *);
 
 int32_t hash(char const *key) {
     int32_t h = 0;
@@ -20,5 +26,9 @@ int32_t hash(char const *key) {
 }
 
 char const* const tok2str(int32_t type) {
+    if (type > len_token_strings) {
+        return "eof";
+    }
+
     return token_strings[type];
 }

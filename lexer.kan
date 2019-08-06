@@ -1,10 +1,22 @@
 #define TOKEN_ERR 0
+
 #define TOKEN_INT 1
 #define TOKEN_IDENT 2
-#define TOKEN_EOF 3
+
+#define TOKEN_LET 3
+#define TOKEN_IF 4
+#define TOKEN_IMPORT 5
+
+#define TOKEN_SEMI 6
+#define TOKEN_EQ 7
+#define TOKEN_EOF 99
 
 #define true (1 == 1)
 #define false (!true)
+
+import "std"
+// TODO: only debug
+import "io"
 
 extern def tok2str(ty: i32): string;
 
@@ -46,7 +58,12 @@ def get_next_token(l: *Lexer): Token {
         return parse_num(l);
     } else if is_letter(c) {
         return parse_ident(l);
+    } else if c == ';' {
+        return token_from_start(l, TOKEN_SEMI);
+    } else if c == '=' {
+        return token_from_start(l, TOKEN_EQ);
     }
+
 
     return token_from_start(l, TOKEN_ERR);
 }
@@ -67,12 +84,36 @@ def is_letter(c: char): bool {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
+def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: i32): i32 {
+    if l.current - l.start == start + rest_len {
+        if std.memcmp((l.start + start) as *void, rest as *void, rest_len) == 0 {
+            return ty;
+        }
+    }
+
+    return TOKEN_IDENT;
+}
+
+def ident_type(l: *Lexer): i32 {
+    if *l.start == 'l' {
+        return check_keyword(l, 1, 2, "et", TOKEN_LET);
+    } else if *l.start == 'i' && l.current - l.start > 1 {
+        if *(l.start + 1) == 'f' {
+            return TOKEN_IF;
+        } else if *(l.start + 1) == 'm' {
+            return check_keyword(l, 2, 4, "port", TOKEN_IMPORT);
+        }
+    }
+
+    return TOKEN_IDENT;
+}
+
 def parse_ident(l: *Lexer): Token {
     while is_letter(*l.current) {
         advance(l);
     }
 
-    return token_from_start(l, TOKEN_IDENT);
+    return token_from_start(l, ident_type(l));
 }
 
 def is_whitespace(c: char): bool {
