@@ -9,6 +9,10 @@
 
 #define TOKEN_SEMI 6
 #define TOKEN_EQ 7
+
 #define TOKEN_PLUS 8
-#define TOKEN_STAR 9
+#define TOKEN_MINUS 9
+#define TOKEN_STAR 10
+#define TOKEN_SLASH 11
+
 #define TOKEN_EOF 99

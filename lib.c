@@ -11,14 +11,22 @@ static char const *const token_strings[] = {
     "let",
     "if",
     "import",
-    "semicolon",
-    "eq",
+    ";",
+    "=",
+    "+",
+    "-",
+    "*",
+    "/"
 };
 
 static size_t const len_token_strings = sizeof(token_strings) / sizeof(char *);
 
 static char const *const binary_type_ops[] = {
-    "+"
+    "error",
+    "+",
+    "-",
+    "*",
+    "/"
 };
 
 static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *);
@@ -41,7 +49,7 @@ char const *const tok2str(int32_t type) {
 
 char const *const binary2str(int32_t op) {
     if (op > len_binary_strings) {
-        return "";
+        return "error";
     }
 
     return binary_type_ops[op];

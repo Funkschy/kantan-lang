@@ -14,10 +14,13 @@ def main(): void {
     // }
     // io.printf("Read %d bytes\n", l.current - l.source);
 
-    let p = parser.create("420 + 69 1");
+    let p = parser.create("420 - 69 / 1");
     let e = parser.expression(&p);
     if e != null {
         io.printf("%d\n", ast.is_binary(e));
+
+        let test = ast.is_binary(ast.as_binary(e).right);
+        io.printf("%d\n", test);
 
         let s = ast.to_string(e);
         io.printf("%s\n", s);

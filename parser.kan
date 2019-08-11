@@ -30,9 +30,16 @@ def expression(p: *Parser): *ast.Expr {
 def parse_expression(p: *Parser, precedence: i32): *ast.Expr {
     letcheck(left, prefix(p));
 
-    while next_higher_precedence(p, precedence.assign()) {
+    while next_higher_precedence(p, precedence) {
         let token = advance(p);
-        assigncheck(left, infix(p, &token, left));
+
+        let infix = infix(p, &token, left);
+        if infix == null {
+            delete left;
+            return null;
+        }
+
+        left = infix;
     }
 
     return left;
@@ -59,10 +66,28 @@ def prefix(p: *Parser): *ast.Expr {
 }
 
 def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
-    if lexer.is_plus(token) {
+    let found = false;
+    let ty = 0;
+
+    if token.ty == TOKEN_PLUS {
+        found = true;
+        ty = BINARY_ADD;
+    } else if token.ty == TOKEN_MINUS {
+        found = true;
+        ty = BINARY_SUB;
+    } else if token.ty == TOKEN_STAR {
+        found = true;
+        ty = BINARY_MUL;
+    } else if token.ty == TOKEN_SLASH {
+        found = true;
+        ty = BINARY_DIV;
+    }
+
+    // a pattern matched
+    if found {
         let prec = precedence.get(token.ty);
         letcheck(right, parse_expression(p, prec));
-        return new ast.make_binary(BINARY_ADD, left, right);
+        return new ast.make_binary(ty, left, right);
     }
 
     return null;

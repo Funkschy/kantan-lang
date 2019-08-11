@@ -17,10 +17,6 @@ def is_int(t: *Token): bool {
     return t.ty == TOKEN_INT;
 }
 
-def is_plus(t: *Token): bool {
-    return t.ty == TOKEN_PLUS;
-}
-
 type Lexer struct {
     has_peek: bool,
     peek: Token,
@@ -82,8 +78,12 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_EQ);
     } else if c == '+' {
         return token_from_start(l, TOKEN_PLUS);
+    } else if c == '-' {
+        return token_from_start(l, TOKEN_MINUS);
     } else if c == '*' {
         return token_from_start(l, TOKEN_STAR);
+    } else if c == '/' {
+        return token_from_start(l, TOKEN_SLASH);
     }
 
     return token_from_start(l, TOKEN_ERR);
