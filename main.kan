@@ -1,16 +1,30 @@
 import "lexer"
+import "parser"
 import "io"
 import "map"
+import "ast"
+import "std"
 
 def main(): void {
     let l = lexer.create("let test = 42; import if");
 
-    let t = lexer.Token { ty: 0, len: 0, lexeme: null };
-    while (t = lexer.next_token(&l)).ty != lexer.eof() {
-        print_tok(&t);
-    }
+    // let t = lexer.Token { ty: 0, len: 0, lexeme: null };
+    // while (t = lexer.next_token(&l)).ty != lexer.eof() {
+    //     print_tok(&t);
+    // }
+    // io.printf("Read %d bytes\n", l.current - l.source);
 
-    io.printf("Read %d bytes\n", l.current - l.source);
+    let p = parser.create("420 + 69 1");
+    let e = parser.expression(&p);
+    if e != null {
+        io.printf("%d\n", ast.is_binary(e));
+
+        let s = ast.to_string(e);
+        io.printf("%s\n", s);
+        delete s;
+
+        ast.free_expr(e);
+    }
 }
 
 def print_tok(t: *lexer.Token): void {

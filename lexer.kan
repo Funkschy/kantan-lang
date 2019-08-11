@@ -1,18 +1,5 @@
-#define TOKEN_ERR 0
-
-#define TOKEN_INT 1
-#define TOKEN_IDENT 2
-
-#define TOKEN_LET 3
-#define TOKEN_IF 4
-#define TOKEN_IMPORT 5
-
-#define TOKEN_SEMI 6
-#define TOKEN_EQ 7
-#define TOKEN_EOF 99
-
-#define true (1 == 1)
-#define false (!true)
+#include "token_types.h"
+#include "std.h"
 
 import "std"
 // TODO: only debug
@@ -26,21 +13,52 @@ type Token struct {
     lexeme: string
 }
 
+def is_int(t: *Token): bool {
+    return t.ty == TOKEN_INT;
+}
+
+def is_plus(t: *Token): bool {
+    return t.ty == TOKEN_PLUS;
+}
+
 type Lexer struct {
+    has_peek: bool,
+    peek: Token,
     source: string,
     start: string,
     current: string
 }
 
 def create(source: string): Lexer {
-    return Lexer { source: source, start: source, current: source };
+    return Lexer {
+        has_peek: false,
+        peek: Token { ty: TOKEN_ERR, len: 0, lexeme: null },
+        source: source,
+        start: source,
+        current: source
+    };
 }
 
 def eof(): i32 {
     return TOKEN_EOF;
 }
 
+def peek(l: *Lexer): Token {
+    if l.has_peek {
+        return l.peek;
+    }
+
+    l.peek = next_token(l);
+    l.has_peek = true;
+    return l.peek;
+}
+
 def next_token(l: *Lexer): Token {
+    if l.has_peek {
+        l.has_peek = false;
+        return l.peek;
+    }
+
     skip_whitespace(l);
     return get_next_token(l);
 }
@@ -62,8 +80,11 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_SEMI);
     } else if c == '=' {
         return token_from_start(l, TOKEN_EQ);
+    } else if c == '+' {
+        return token_from_start(l, TOKEN_PLUS);
+    } else if c == '*' {
+        return token_from_start(l, TOKEN_STAR);
     }
-
 
     return token_from_start(l, TOKEN_ERR);
 }

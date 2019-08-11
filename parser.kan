@@ -1,0 +1,69 @@
+#include "token_types.h"
+#include "expr_types.h"
+#include "std.h"
+
+import "lexer"
+import "ast"
+import "precedence"
+import "io" // TODO: only debug
+
+type Parser struct {
+    lexer: lexer.Lexer
+}
+
+def create(source: string): Parser {
+    return Parser { lexer: lexer.create(source) };
+}
+
+def advance(p: *Parser): lexer.Token {
+    return lexer.next_token(&p.lexer);
+}
+
+def peek(p: *Parser): lexer.Token {
+    return lexer.peek(&p.lexer);
+}
+
+def expression(p: *Parser): *ast.Expr {
+    return parse_expression(p, precedence.assign());
+}
+
+def parse_expression(p: *Parser, precedence: i32): *ast.Expr {
+    letcheck(left, prefix(p));
+
+    while next_higher_precedence(p, precedence.assign()) {
+        let token = advance(p);
+        assigncheck(left, infix(p, &token, left));
+    }
+
+    return left;
+}
+
+def next_higher_precedence(p: *Parser, precedence: i32): bool {
+    let t = peek(p);
+
+    if t.ty == TOKEN_ERR || t.ty == TOKEN_EOF {
+        return false;
+    }
+
+    return precedence.get(t.ty) > precedence;
+}
+
+def prefix(p: *Parser): *ast.Expr {
+    let token = advance(p);
+
+    if lexer.is_int(&token) {
+        return new ast.make_int(token.len, token.lexeme);
+    }
+
+    return null;
+}
+
+def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
+    if lexer.is_plus(token) {
+        let prec = precedence.get(token.ty);
+        letcheck(right, parse_expression(p, prec));
+        return new ast.make_binary(BINARY_ADD, left, right);
+    }
+
+    return null;
+}

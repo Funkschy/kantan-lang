@@ -1,6 +1,6 @@
 BIN_NAME = compiler
-K_FILES = main.kan lexer.kan map.kan std.kan
-C_FILES = lib.c
+K_FILES = main.kan lexer.kan map.kan std.kan parser.kan ast.kan precedence.kan
+C_FILES = lib.c token_types.h expr_types.h std.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))
@@ -11,7 +11,7 @@ $(BIN_NAME): $(K_FILES) $(C_FILES)
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
 	cd $(BUILD_FOLDER) ; \
-	if kantan $(K_FILES) -o compiler.o; then \
+	if kantan $(K_FILES) -o compiler.o ; then \
 		gcc compiler.o $(NEW_C_FILES) -o $(BIN_NAME) ; \
 		rm compiler.o ; \
 		mv $(BIN_NAME) $(START_FOLDER) ; \

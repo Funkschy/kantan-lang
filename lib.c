@@ -17,6 +17,12 @@ static char const *const token_strings[] = {
 
 static size_t const len_token_strings = sizeof(token_strings) / sizeof(char *);
 
+static char const *const binary_type_ops[] = {
+    "+"
+};
+
+static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *);
+
 int32_t hash(char const *key) {
     int32_t h = 0;
     for (char c = *key; c != '\0'; c++) {
@@ -25,10 +31,18 @@ int32_t hash(char const *key) {
     return h;
 }
 
-char const* const tok2str(int32_t type) {
+char const *const tok2str(int32_t type) {
     if (type > len_token_strings) {
         return "eof";
     }
 
     return token_strings[type];
+}
+
+char const *const binary2str(int32_t op) {
+    if (op > len_binary_strings) {
+        return "";
+    }
+
+    return binary_type_ops[op];
 }

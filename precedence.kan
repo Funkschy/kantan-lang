@@ -1,0 +1,59 @@
+#include "token_types.h"
+
+#define PRECEDENCE_NONE       0
+#define PRECEDENCE_ASSIGN     1
+#define PRECEDENCE_AND        2
+#define PRECEDENCE_EQUALITY   3
+#define PRECEDENCE_COMPARISON 4
+#define PRECEDENCE_SUM        5
+#define PRECEDENCE_PRODUCT    6
+#define PRECEDENCE_UNARY      7
+#define PRECEDENCE_CALL       8
+
+def get(token_type: i32): i32 {
+    if token_type == TOKEN_EQ {
+        return PRECEDENCE_ASSIGN;
+    } else if token_type == TOKEN_PLUS {
+        return PRECEDENCE_SUM;
+    } else if token_type == TOKEN_STAR {
+        return PRECEDENCE_PRODUCT;
+    }
+
+    return PRECEDENCE_NONE;
+}
+
+def none(): i32 {
+    return PRECEDENCE_NONE;
+}
+
+def assign(): i32 {
+    return PRECEDENCE_ASSIGN;
+}
+
+def and(): i32 {
+    return PRECEDENCE_AND;
+}
+
+def equality(): i32 {
+    return PRECEDENCE_EQUALITY;
+}
+
+def comparison(): i32 {
+    return PRECEDENCE_COMPARISON;
+}
+
+def sum(): i32 {
+    return PRECEDENCE_SUM;
+}
+
+def product(): i32 {
+    return PRECEDENCE_PRODUCT;
+}
+
+def unary(): i32 {
+    return PRECEDENCE_UNARY;
+}
+
+def call(): i32 {
+    return PRECEDENCE_CALL;
+}

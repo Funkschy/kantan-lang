@@ -1,0 +1,90 @@
+#include "expr_types.h"
+
+import "std"
+
+extern def binary2str(op: i32): string;
+
+type Expr struct {
+    tag: i32,
+    // needs to contain the biggest possible Expr, a manual union
+    e: BinaryExpr
+}
+
+// TODO: hex, oct ...
+type IntExpr struct {
+    len: i32,
+    ptr: string
+}
+
+def make_int(len: i32, ptr: string): Expr {
+    let e = IntExpr { len: len, ptr: ptr };
+    return Expr {tag: EXPR_INT, e: *(&e as *BinaryExpr) };
+}
+
+def is_int(e: *Expr): bool {
+    return e.tag == EXPR_INT;
+}
+
+def as_int(e: *Expr): *IntExpr {
+    return &e.e as *IntExpr;
+}
+
+type BinaryExpr struct {
+    left: *Expr,
+    right: *Expr,
+    ty: i32
+}
+
+def make_binary(ty: i32, left: *Expr, right: *Expr): Expr {
+    return Expr { tag: EXPR_BINARY, e: BinaryExpr { left: left, right: right, ty: ty } };
+}
+
+def is_binary(e: *Expr): bool {
+    return e.tag == EXPR_BINARY;
+}
+
+def as_binary(e: *Expr): *BinaryExpr {
+    return &e.e as *BinaryExpr;
+}
+
+def free_expr(e: *Expr): void {
+    if is_int(e) {
+        delete e;
+    } else if is_binary(e) {
+        let b_expr = as_binary(e);
+        free_expr(b_expr.left);
+        free_expr(b_expr.right);
+        delete e;
+    }
+}
+
+def to_string(e: *Expr): string {
+    if is_int(e) {
+        let i_expr = as_int(e);
+        return std.strndup(i_expr.ptr, i_expr.len);
+    } else if is_binary(e) {
+        let b_expr = as_binary(e);
+
+        let left = to_string(b_expr.left);
+        let right = to_string(b_expr.right);
+        let tok_str = binary2str(b_expr.ty);
+
+        let left_size = std.strlen(left) * sizeof char;
+        let tok_size = std.strlen(tok_str) * sizeof char;
+        let right_size = std.strlen(right) * sizeof char;
+        let tot_size = left_size + tok_size + right_size + 1; // 1 for \0
+
+        let ptr = std.malloc(tot_size);
+        std.memcpy(ptr, left as *void, left_size);
+        std.memcpy(ptr + left_size, tok_str as *void, tok_size);
+        std.memcpy(ptr + left_size + tok_size, right as *void, right_size);
+        *((ptr + tot_size - 1) as string) = '\0';
+
+        delete left;
+        delete right;
+
+        return ptr as string;
+    }
+
+    return null;
+}
