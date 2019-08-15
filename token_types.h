@@ -15,4 +15,7 @@
 #define TOKEN_STAR 10
 #define TOKEN_SLASH 11
 
+#define TOKEN_LPAREN 12
+#define TOKEN_RPAREN 13
+
 #define TOKEN_EOF 99

@@ -14,7 +14,7 @@ def main(): void {
     // }
     // io.printf("Read %d bytes\n", l.current - l.source);
 
-    let p = parser.create("420 - 69 / 1");
+    let p = parser.create("420 - (69 / 1)");
     let e = parser.expression(&p);
     if e != null {
         io.printf("%d\n", ast.is_binary(e));

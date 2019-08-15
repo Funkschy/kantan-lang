@@ -19,6 +19,15 @@ def advance(p: *Parser): lexer.Token {
     return lexer.next_token(&p.lexer);
 }
 
+def consume(p: *Parser, ty: i32): bool {
+    if peek(p).ty == ty {
+        advance(p);
+        return true;
+    }
+
+    return false;
+}
+
 def peek(p: *Parser): lexer.Token {
     return lexer.peek(&p.lexer);
 }
@@ -58,8 +67,17 @@ def next_higher_precedence(p: *Parser, precedence: i32): bool {
 def prefix(p: *Parser): *ast.Expr {
     let token = advance(p);
 
-    if lexer.is_int(&token) {
+    if token.ty == TOKEN_INT {
         return new ast.make_int(token.len, token.lexeme);
+    } else if token.ty == TOKEN_LPAREN {
+        let e = expression(p);
+
+        if !consume(p, TOKEN_RPAREN) {
+            ast.free_expr(e);
+            return null;
+        }
+
+        return e;
     }
 
     return null;

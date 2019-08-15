@@ -13,10 +13,6 @@ type Token struct {
     lexeme: string
 }
 
-def is_int(t: *Token): bool {
-    return t.ty == TOKEN_INT;
-}
-
 type Lexer struct {
     has_peek: bool,
     peek: Token,
@@ -84,6 +80,10 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_STAR);
     } else if c == '/' {
         return token_from_start(l, TOKEN_SLASH);
+    } else if c == '(' {
+        return token_from_start(l, TOKEN_LPAREN);
+    } else if c == ')' {
+        return token_from_start(l, TOKEN_RPAREN);
     }
 
     return token_from_start(l, TOKEN_ERR);

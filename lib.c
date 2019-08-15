@@ -16,7 +16,9 @@ static char const *const token_strings[] = {
     "+",
     "-",
     "*",
-    "/"
+    "/",
+    "(",
+    ")"
 };
 
 static size_t const len_token_strings = sizeof(token_strings) / sizeof(char *);
