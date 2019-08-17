@@ -6,3 +6,4 @@ extern def strndup(s: string, len: i32): string;
 extern def strlen(s: string): i32;
 extern def memcmp(first: *void, second: *void, size: i32): i32;
 extern def memcpy(dest: *void, src: *void, size: i32): void;
+extern def realloc(ptr: *void, size: i32): *void;

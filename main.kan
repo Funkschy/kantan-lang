@@ -2,6 +2,7 @@ import "lexer"
 import "parser"
 import "io"
 import "map"
+import "vec"
 import "ast"
 import "std"
 
@@ -13,6 +14,7 @@ def main(): void {
     //     print_tok(&t);
     // }
     // io.printf("Read %d bytes\n", l.current - l.source);
+
 
     let p = parser.create("420 - (69 / 1)");
     let e = parser.expression(&p);

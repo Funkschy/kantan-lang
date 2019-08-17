@@ -1,0 +1,50 @@
+#include "std.h"
+
+import "std"
+
+type Vec struct {
+    len: i32,
+    cap: i32,
+    elem_size: i32,
+    elements: *void
+}
+
+def create(elem_size: i32): Vec {
+    return Vec { len: 0, cap: 0, elem_size: elem_size, elements: null };
+}
+
+def with_cap(elem_size: i32, cap: i32): Vec {
+    return Vec { len: 0, cap: cap, elem_size: elem_size, elements: std.malloc(cap * elem_size)};
+}
+
+def push(v: *Vec, elem: *void): void {
+    if v.len + 1 > v.cap {
+        resize(v);
+    }
+
+    std.memcpy(v.elements + v.len * v.elem_size, elem, v.elem_size);
+    v.len = v.len + 1;
+}
+
+def get(v: *Vec, i: i32, ptr: *void): bool {
+    if i < v.len {
+        std.memcpy(ptr, v.elements + i * v.elem_size, v.elem_size);
+        return true;
+    }
+
+    return false;
+}
+
+def resize(v: *Vec): void {
+    if v.elements == null {
+        v.cap = 2;
+        v.elements = std.malloc(v.cap * v.elem_size);
+    } else {
+        v.cap = v.cap * 2;
+        v.elements = std.realloc(v.elements, v.cap * v.elem_size);
+    }
+}
+
+def free_v(v: *Vec): void {
+    delete v.elements;
+}
