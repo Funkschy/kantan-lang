@@ -68,7 +68,7 @@ def prefix(p: *Parser): *ast.Expr {
     let token = advance(p);
 
     if token.ty == TOKEN_INT {
-        return new ast.make_int(token.len, token.lexeme);
+        return ast.make_int(token.len, token.lexeme);
     } else if token.ty == TOKEN_LPAREN {
         let e = expression(p);
 
@@ -105,7 +105,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
     if found {
         let prec = precedence.get(token.ty);
         letcheck(right, parse_expression(p, prec));
-        return new ast.make_binary(ty, left, right);
+        return ast.make_binary(ty, left, right);
     }
 
     return null;

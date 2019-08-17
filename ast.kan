@@ -4,21 +4,30 @@ import "std"
 
 extern def binary2str(op: i32): string;
 
-type Expr struct {
-    tag: i32,
-    // needs to contain the biggest possible Expr, a manual union
-    e: BinaryExpr
+/////////// base stmt ///////////
+
+type Stmt struct {
+    tag: i32
 }
+
+/////////// expr stmt ///////////
+
+type ExprStmt struct {
+    s: Stmt,
+    expr: *Expr
+}
+
+/////////// int expr ///////////
 
 // TODO: hex, oct ...
 type IntExpr struct {
+    e: Expr,
     len: i32,
     ptr: string
 }
 
-def make_int(len: i32, ptr: string): Expr {
-    let e = IntExpr { len: len, ptr: ptr };
-    return Expr {tag: EXPR_INT, e: *(&e as *BinaryExpr) };
+def make_int(len: i32, ptr: string): *Expr {
+    return (new IntExpr {e: Expr { tag: EXPR_INT }, len: len, ptr: ptr }) as *Expr;
 }
 
 def is_int(e: *Expr): bool {
@@ -26,17 +35,20 @@ def is_int(e: *Expr): bool {
 }
 
 def as_int(e: *Expr): *IntExpr {
-    return &e.e as *IntExpr;
+    return e as *IntExpr;
 }
 
+/////////// binary expr ///////////
+
 type BinaryExpr struct {
+    e: Expr,
     left: *Expr,
     right: *Expr,
     ty: i32
 }
 
-def make_binary(ty: i32, left: *Expr, right: *Expr): Expr {
-    return Expr { tag: EXPR_BINARY, e: BinaryExpr { left: left, right: right, ty: ty } };
+def make_binary(ty: i32, left: *Expr, right: *Expr): *Expr {
+    return (new BinaryExpr { e: Expr { tag: EXPR_BINARY}, left: left, right: right, ty: ty }) as *Expr;
 }
 
 def is_binary(e: *Expr): bool {
@@ -44,7 +56,13 @@ def is_binary(e: *Expr): bool {
 }
 
 def as_binary(e: *Expr): *BinaryExpr {
-    return &e.e as *BinaryExpr;
+    return e as *BinaryExpr;
+}
+
+/////////// base expr ///////////
+
+type Expr struct {
+    tag: i32
 }
 
 def free_expr(e: *Expr): void {
