@@ -1,13 +1,37 @@
 #include "expr_types.h"
+#include "stmt_types.h"
 
 import "std"
+import "io" // TODO: only debug
+import "ptrvec"
 
 extern def binary2str(op: i32): string;
 
-/////////// base stmt ///////////
+type CompilationUnit struct {
+    statements: ptrvec.Vec
+}
 
-type Stmt struct {
-    tag: i32
+def cu_create(): CompilationUnit {
+    return CompilationUnit { statements: ptrvec.create() };
+}
+
+def cu_push(cu: *CompilationUnit, stmt: *Stmt): void {
+    io.printf("%p\n", stmt);
+    ptrvec.push(&cu.statements, stmt as *void);
+}
+
+def cu_get(cu: *CompilationUnit, i: i32): *Stmt {
+    return ptrvec.get(&cu.statements, i) as *Stmt;
+}
+
+def cu_free(cu: *CompilationUnit): void {
+    let i = 0;
+    while i < cu.statements.len {
+        stmt_free(cu_get(cu, i));
+        i = i + 1;
+    }
+
+    ptrvec.free_v(&cu.statements);
 }
 
 /////////// expr stmt ///////////
@@ -15,6 +39,31 @@ type Stmt struct {
 type ExprStmt struct {
     s: Stmt,
     expr: *Expr
+}
+
+def make_expr_stmt(e: *Expr): *Stmt {
+    return (new ExprStmt { s: Stmt { tag: STMT_EXPR }, expr: e }) as *Stmt;
+}
+
+def is_expr(s: *Stmt): bool {
+    return s.tag == STMT_EXPR;
+}
+
+def as_expr_stmt(s: *Stmt): *ExprStmt {
+    return s as *ExprStmt;
+}
+
+/////////// base stmt ///////////
+
+type Stmt struct {
+    tag: i32
+}
+
+def stmt_free(s: *Stmt): void {
+    if is_expr(s) {
+        expr_free(as_expr_stmt(s).expr);
+    }
+    delete s;
 }
 
 /////////// int expr ///////////
@@ -48,7 +97,7 @@ type BinaryExpr struct {
 }
 
 def make_binary(ty: i32, left: *Expr, right: *Expr): *Expr {
-    return (new BinaryExpr { e: Expr { tag: EXPR_BINARY}, left: left, right: right, ty: ty }) as *Expr;
+    return (new BinaryExpr { e: Expr { tag: EXPR_BINARY }, left: left, right: right, ty: ty }) as *Expr;
 }
 
 def is_binary(e: *Expr): bool {
@@ -65,26 +114,27 @@ type Expr struct {
     tag: i32
 }
 
-def free_expr(e: *Expr): void {
+def expr_free(e: *Expr): void {
     if is_int(e) {
-        delete e;
+        // nothing to do
     } else if is_binary(e) {
         let b_expr = as_binary(e);
-        free_expr(b_expr.left);
-        free_expr(b_expr.right);
-        delete e;
+        expr_free(b_expr.left);
+        expr_free(b_expr.right);
     }
+
+    delete e;
 }
 
-def to_string(e: *Expr): string {
+def expr_to_string(e: *Expr): string {
     if is_int(e) {
         let i_expr = as_int(e);
         return std.strndup(i_expr.ptr, i_expr.len);
     } else if is_binary(e) {
         let b_expr = as_binary(e);
 
-        let left = to_string(b_expr.left);
-        let right = to_string(b_expr.right);
+        let left = expr_to_string(b_expr.left);
+        let right = expr_to_string(b_expr.right);
         let tok_str = binary2str(b_expr.ty);
 
         let left_size = std.strlen(left) * sizeof char;

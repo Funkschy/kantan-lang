@@ -7,29 +7,25 @@ import "ast"
 import "std"
 
 def main(): void {
-    let l = lexer.create("let test = 42; import if");
-
-    // let t = lexer.Token { ty: 0, len: 0, lexeme: null };
-    // while (t = lexer.next_token(&l)).ty != lexer.eof() {
-    //     print_tok(&t);
-    // }
-    // io.printf("Read %d bytes\n", l.current - l.source);
-
-
     let p = parser.create("420 - (69 / 1)");
-    let e = parser.expression(&p);
+    let cu = parser.parse(&p);
+
+    let s = ast.cu_get(&cu, 0);
+    io.printf("is expr: %d\n", ast.is_expr(s));
+
+    let e = ast.as_expr_stmt(s).expr;
     if e != null {
-        io.printf("%d\n", ast.is_binary(e));
+        io.printf("%is bin d\n", ast.is_binary(e));
 
         let test = ast.is_binary(ast.as_binary(e).right);
-        io.printf("%d\n", test);
+        io.printf("right is bin %d\n", test);
 
-        let s = ast.to_string(e);
+        let s = ast.expr_to_string(e);
         io.printf("%s\n", s);
         delete s;
-
-        ast.free_expr(e);
     }
+
+    ast.cu_free(&cu);
 }
 
 def print_tok(t: *lexer.Token): void {

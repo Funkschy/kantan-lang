@@ -1,0 +1,49 @@
+#include "std.h"
+
+import "std"
+import "io" // TODO only debug
+
+type Vec struct {
+    len: i32,
+    cap: i32,
+    elements: **void
+}
+
+def create(): Vec {
+    return Vec { len: 0, cap: 0, elements: null };
+}
+
+def with_cap(cap: i32): Vec {
+    return Vec { len: 0, cap: cap, elements: std.calloc(cap, sizeof *void) as **void };
+}
+
+def push(v: *Vec, elem: *void): void {
+    if v.len + 1 > v.cap {
+        resize(v);
+    }
+
+    *(v.elements + v.len) = elem;
+    v.len = v.len + 1;
+}
+
+def get(v: *Vec, i: i32): *void {
+    if i < v.len {
+        return *(v.elements + i);
+    }
+
+    return null;
+}
+
+def resize(v: *Vec): void {
+    if v.elements == null {
+        v.cap = 2;
+        v.elements = std.malloc(v.cap * sizeof *void) as **void;
+    } else {
+        v.cap = v.cap * 2;
+        v.elements = std.realloc(v.elements as *void, v.cap * sizeof *void) as **void;
+    }
+}
+
+def free_v(v: *Vec): void {
+    delete v.elements;
+}

@@ -32,6 +32,20 @@ def peek(p: *Parser): lexer.Token {
     return lexer.peek(&p.lexer);
 }
 
+def parse(p: *Parser): ast.CompilationUnit {
+    let cu = ast.cu_create();
+
+    while peek(p).ty != TOKEN_EOF {
+        ast.cu_push(&cu, statement(p));
+    }
+
+    return cu;
+}
+
+def statement(p: *Parser): *ast.Stmt {
+    return ast.make_expr_stmt(expression(p));
+}
+
 def expression(p: *Parser): *ast.Expr {
     return parse_expression(p, precedence.assign());
 }
@@ -73,7 +87,7 @@ def prefix(p: *Parser): *ast.Expr {
         let e = expression(p);
 
         if !consume(p, TOKEN_RPAREN) {
-            ast.free_expr(e);
+            ast.expr_free(e);
             return null;
         }
 
