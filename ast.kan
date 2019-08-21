@@ -16,7 +16,6 @@ def cu_create(): CompilationUnit {
 }
 
 def cu_push(cu: *CompilationUnit, stmt: *Stmt): void {
-    io.printf("%p\n", stmt);
     ptrvec.push(&cu.statements, stmt as *void);
 }
 

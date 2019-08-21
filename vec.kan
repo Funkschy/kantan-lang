@@ -27,7 +27,7 @@ def push(v: *Vec, elem: *void): void {
 }
 
 def get(v: *Vec, i: i32, ptr: *void): bool {
-    if i < v.len {
+    if i >= 0 && i < v.len {
         std.memcpy(ptr, v.elements + i * v.elem_size, v.elem_size);
         return true;
     }

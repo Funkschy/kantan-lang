@@ -36,7 +36,12 @@ def parse(p: *Parser): ast.CompilationUnit {
     let cu = ast.cu_create();
 
     while peek(p).ty != TOKEN_EOF {
-        ast.cu_push(&cu, statement(p));
+        let s = statement(p);
+        if !consume(p, TOKEN_SEMI) {
+            ast.stmt_free(s);
+            return cu;
+        }
+        ast.cu_push(&cu, s);
     }
 
     return cu;

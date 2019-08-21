@@ -1,33 +1,39 @@
-import "lexer"
 import "parser"
 import "io"
-import "map"
-import "vec"
 import "ast"
-import "std"
+import "span"
 
 def main(): void {
-    let p = parser.create("420 - (69 / 1)");
+    let p = parser.create("420 - (69 / 1); 42;");
     let cu = parser.parse(&p);
 
     let s = ast.cu_get(&cu, 0);
-    io.printf("is expr: %d\n", ast.is_expr(s));
 
-    let e = ast.as_expr_stmt(s).expr;
-    if e != null {
-        io.printf("%is bin d\n", ast.is_binary(e));
+    if s == null {
+        return;
+    }
 
-        let test = ast.is_binary(ast.as_binary(e).right);
-        io.printf("right is bin %d\n", test);
+    let is_expr = ast.is_expr(s);
+    io.printf("is expr: %d\n", is_expr);
 
+    if is_expr {
+        let e = ast.as_expr_stmt(s).expr;
         let s = ast.expr_to_string(e);
         io.printf("%s\n", s);
         delete s;
     }
 
     ast.cu_free(&cu);
-}
 
-def print_tok(t: *lexer.Token): void {
-    io.printf("%s: '%.*s'\n", lexer.token_to_string(t), t.len, t.lexeme);
+    let si = span.create_interner();
+    let s = span.create(&si, 0, 32766, 0);
+
+    if span.is_interned(&s) {
+        let s = span.get(&si, s.ctx_or_index);
+        io.printf("interned len: %d\n", s.len);
+    } else {
+        io.printf("inline len: %d\n", s.len_or_tag);
+    }
+
+    span.free_interner(&si);
 }

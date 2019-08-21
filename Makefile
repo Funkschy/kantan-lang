@@ -7,7 +7,8 @@ K_FILES = main.kan \
 		  ast.kan \
 		  precedence.kan \
 		  vec.kan \
-		  ptrvec.kan
+		  ptrvec.kan \
+		  span.kan
 C_FILES = lib.c \
 		  token_types.h \
 		  expr_types.h \
@@ -16,6 +17,7 @@ C_FILES = lib.c \
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))
+KANTAN = kantan
 
 $(BIN_NAME): $(K_FILES) $(C_FILES)
 	mkdir $(BUILD_FOLDER) ; \
@@ -23,7 +25,7 @@ $(BIN_NAME): $(K_FILES) $(C_FILES)
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
 	cd $(BUILD_FOLDER) ; \
-	if kantan $(K_FILES) -o compiler.o ; then \
+	if $(KANTAN) $(K_FILES) -o compiler.o ; then \
 		gcc compiler.o $(NEW_C_FILES) -o $(BIN_NAME) ; \
 		rm compiler.o ; \
 		mv $(BIN_NAME) $(START_FOLDER) ; \
