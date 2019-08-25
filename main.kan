@@ -2,6 +2,8 @@ import "parser"
 import "io"
 import "ast"
 import "span"
+import "path"
+import "file"
 
 def main(): void {
     let p = parser.create("420 - (69 / 1); 42;");
@@ -36,4 +38,13 @@ def main(): void {
     }
 
     span.free_interner(&si);
+
+    let p = path.empty();
+    let res = path.from_string("main.kan", &p);
+    io.printf("result: %d\n", res);
+
+    let f = file.create(p);
+    let s = file.read_to_string(&f);
+    io.printf("%s\n", s);
+    delete s;
 }

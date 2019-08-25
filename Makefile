@@ -8,7 +8,9 @@ K_FILES = main.kan \
 		  precedence.kan \
 		  vec.kan \
 		  ptrvec.kan \
-		  span.kan
+		  span.kan \
+		  file.kan \
+		  path.kan
 C_FILES = lib.c \
 		  token_types.h \
 		  expr_types.h \

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define HASH_NUM 65599
 
@@ -56,3 +57,35 @@ char const *const binary2str(int32_t op) {
 
     return binary_type_ops[op];
 }
+
+char const *const read_file(char const *const path) {
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
+        fprintf(stderr, "Could not open file '%s'\n", path);
+        exit(-1);
+    }
+
+    fseek(file, 0L, SEEK_END);
+    size_t file_size = (size_t) ftell(file);
+    rewind(file);
+
+    char *buffer = malloc(file_size + 1);
+
+    if (buffer == NULL) {
+        fprintf(stderr, "Could not allocate enough memory to open file '%s'\n", path);
+        exit(-2);
+    }
+
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
+
+    if (bytes_read < file_size) {
+        fprintf(stderr, "Could not read file \"%s\".\n", path);
+        exit(-3);
+    }
+
+    buffer[bytes_read] = '\0';
+
+    fclose(file);
+    return buffer;
+}
+

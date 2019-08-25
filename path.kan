@@ -1,0 +1,16 @@
+type Path struct {
+    inner: string
+}
+
+def empty(): Path {
+    return Path { inner: null };
+}
+
+def from_string(s: string, p: *Path): i32 {
+    *p = Path { inner: s };
+    return 0;
+}
+
+def to_string(p: *Path): string {
+    return p.inner;
+}
