@@ -2,8 +2,14 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
+
+#include "./error_code.h"
 
 #define HASH_NUM 65599
+
+// forward decls
+int format_str(char **dest, char const *fmt, va_list args);
 
 static char const *const token_strings[] = {
     "error",
@@ -43,26 +49,53 @@ int32_t hash(char const *key) {
 }
 
 char const *const tok2str(int32_t type) {
-    if (type > len_token_strings) {
-        return "eof";
+    if (type < 0 || type > len_token_strings) {
+        return token_strings[0];
     }
 
     return token_strings[type];
 }
 
 char const *const binary2str(int32_t op) {
-    if (op > len_binary_strings) {
-        return "error";
+    if (op < 0 || op > len_binary_strings) {
+        return binary_type_ops[0];
     }
 
     return binary_type_ops[op];
 }
 
-char const *const read_file(char const *const path) {
+static char const *const error_texts[] = {
+    NULL,
+    "Path was empty",
+    "Could not open file: '%s'",
+    "Could not allocate buffer",
+    "Could not read file: '%s'"
+};
+
+static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
+
+char const *const err2str(int32_t err_code, ...) {
+    if (err_code < 0 || err_code > len_err_strings) {
+        return error_texts[0];
+    }
+
+    char *s = NULL;
+    va_list args;
+    va_start(args, err_code);
+    int32_t size = format_str(&s, error_texts[err_code], args);
+    va_end(args);
+
+    if (size < 0) {
+        return error_texts[0];
+    }
+
+    return s;
+}
+
+int32_t read_file(char const *path, char const **content) {
     FILE *file = fopen(path, "r");
     if (file == NULL) {
-        fprintf(stderr, "Could not open file '%s'\n", path);
-        exit(-1);
+        return COULD_NOT_OPEN_FILE;
     }
 
     fseek(file, 0L, SEEK_END);
@@ -72,20 +105,48 @@ char const *const read_file(char const *const path) {
     char *buffer = malloc(file_size + 1);
 
     if (buffer == NULL) {
-        fprintf(stderr, "Could not allocate enough memory to open file '%s'\n", path);
-        exit(-2);
+        fclose(file);
+        return COULD_NOT_ALLOCATE_BUFFER;
     }
 
     size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
 
     if (bytes_read < file_size) {
-        fprintf(stderr, "Could not read file \"%s\".\n", path);
-        exit(-3);
+        fclose(file);
+        free(buffer);
+        return COULD_NOT_READ_FILE;
     }
 
     buffer[bytes_read] = '\0';
 
     fclose(file);
-    return buffer;
+    *content = buffer;
+
+    return 0;
 }
 
+int format_str(char **dest, char const *fmt, va_list args){
+    int size = 0;
+    va_list tmp_args;
+
+    // vsnprintf modifies the arg list, so we have to copy it here
+    va_copy(tmp_args, args);
+
+    // pass NULL as str, so that we just get the size
+    size = vsnprintf(NULL, 0, fmt, tmp_args);
+
+    va_end(tmp_args);
+
+    if (size < 0) {
+        return size;
+    }
+
+    char *str = malloc(size + 1);
+    if (str == NULL) {
+        return -1;
+    }
+    size = vsprintf(str, fmt, args);
+    *dest = str;
+
+    return size;
+}

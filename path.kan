@@ -1,14 +1,41 @@
+#include "std.h"
+#include "error_code.h"
+
+// TODO: should be platform dependant
+#define DEFAULT_SEPARATOR '/'
+
+import "std"
+
 type Path struct {
-    inner: string
+    inner: string,
+    separator: char
 }
 
 def empty(): Path {
-    return Path { inner: null };
+    return Path { inner: null, separator: DEFAULT_SEPARATOR };
 }
 
 def from_string(s: string, p: *Path): i32 {
-    *p = Path { inner: s };
+    if std.strlen(s) <= 0 {
+        return PATH_EMTPY_ERROR;
+    }
+
+    let separator = find_separator(s);
+
+    *p = Path { inner: s, separator: separator };
     return 0;
+}
+
+def find_separator(s: string): char {
+    let ptr = s;
+    while *ptr != '\0' {
+        if *ptr == '\\' {
+            return '\\';
+        }
+        ptr = ptr + 1;
+    }
+
+    return '/';
 }
 
 def to_string(p: *Path): string {

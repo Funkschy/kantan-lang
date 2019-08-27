@@ -5,6 +5,8 @@ import "span"
 import "path"
 import "file"
 
+extern def err2str(code: i32, ...): string;
+
 def main(): void {
     let p = parser.create("420 - (69 / 1); 42;");
     let cu = parser.parse(&p);
@@ -40,11 +42,20 @@ def main(): void {
     span.free_interner(&si);
 
     let p = path.empty();
-    let res = path.from_string("main.kan", &p);
+    let name = "oof.kan";
+    let res = path.from_string(name, &p);
     io.printf("result: %d\n", res);
 
     let f = file.create(p);
-    let s = file.read_to_string(&f);
-    io.printf("%s\n", s);
-    delete s;
+    let s: string = null;
+
+    let res = file.read_to_string(&f, &s);
+    if res == 0 {
+        io.printf("%s\n", s);
+        delete s;
+    } else {
+        let err_msg = err2str(res, name);
+        io.printf("ERROR: %s\n", err_msg);
+        delete err_msg;
+    }
 }

@@ -1,15 +1,15 @@
 import "path"
 
-extern def read_file(path: string): string;
+extern def read_file(path: string, dest: *string): i32;
 
-type SourceFile struct {
+type File struct {
     path: path.Path
 }
 
-def create(path: path.Path): SourceFile {
-    return SourceFile { path: path };
+def create(path: path.Path): File {
+    return File { path: path };
 }
 
-def read_to_string(s: *SourceFile): string {
-    return read_file(path.to_string(&s.path));
+def read_to_string(s: *File, dest: *string): i32 {
+    return read_file(path.to_string(&s.path), dest);
 }

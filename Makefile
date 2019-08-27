@@ -15,6 +15,7 @@ C_FILES = lib.c \
 		  token_types.h \
 		  expr_types.h \
 		  stmt_types.h \
+		  error_code.h \
 		  std.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)

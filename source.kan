@@ -1,0 +1,21 @@
+import "path"
+import "file"
+
+type SourceFile struct {
+    file: file.File,
+    code: string
+}
+
+def read(p: path.Path, f: *SourceFile): i32 {
+    let file = file.create(p);
+    let s: string = null;
+    let res = file.read_to_string(&file, &s);
+
+    if res != 0 {
+        return res;
+    }
+
+    *f = SourceFile { file: file, code: s };
+
+    return 0;
+}
