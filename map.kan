@@ -1,9 +1,14 @@
 #include "std.h"
 
+#define LOAD_FACTOR 0.75
+
 import "std"
-import "io"
+import "num"
+import "io" // TODO: only debug
 
 extern def hash(key: string): i32;
+extern def get_map_index(cap: i32, key: string): i32;
+extern def next_pow_of_2(i: i32): i32;
 
 type Map struct {
     buckets: *Bucket,
@@ -26,15 +31,25 @@ def create(): Map {
 }
 
 def with_cap(cap: i32): Map {
+    if cap % 2 != 0 {
+        io.printf("Corrected cap from %d", cap);
+        cap = next_pow_of_2(cap);
+        io.printf(" to %d\n", cap);
+    }
     return Map { buckets: std.calloc(cap, sizeof Bucket) as *Bucket, len: 0, cap: cap };
 }
 
 def free_m(m: Map): void {
-    free_buckets(m.buckets);
+    let i = 0;
+    while i < m.cap {
+        free_buckets(m.buckets + i);
+        i = i + 1;
+    }
+    delete m.buckets;
 }
 
 def free_buckets(buckets: *Bucket): void {
-    let last = buckets;
+    let last = buckets.next;
     while last != null {
         let t = last.next;
         std.free(last as *void);
@@ -52,31 +67,73 @@ def insert_if_empty(b: *Bucket, key: string, value: *void): bool {
     return false;
 }
 
-def insert(map: *Map, key: string, value: *void): void {
-    let b = map.buckets + hash(key) % map.cap;
+def resize_if_needed(map: *Map): void {
+    let cap = map.cap;
+    if cap == 0 {
+        map.cap = cap = 16;
+        map.buckets = std.calloc(cap, sizeof Bucket) as *Bucket;
+    }
 
+    if num.int_to_float(map.len) > LOAD_FACTOR * num.int_to_float(cap) {
+        cap = cap * 2;
+
+        let new_buckets = std.calloc(map.cap, sizeof Bucket) as *Bucket;
+        let new_map = Map { buckets: new_buckets, len: map.len, cap: cap };
+
+        insert_all(map, &new_map);
+        *map = new_map;
+    }
+}
+
+def insert_all(old_map: *Map, new_map: *Map): void {
+    let i = 0;
+
+    // iterate over buckets
+    while i < old_map.cap {
+        let b = old_map.buckets + i;
+
+        // iterate over list in bucket
+        while b != null {
+            if b.item.key != null {
+                insert(new_map, b.item.key, b.item.value);
+            }
+
+            b = b.next;
+        }
+
+        i = i + 1;
+    }
+
+}
+
+def insert(map: *Map, key: string, value: *void): void {
+    resize_if_needed(map);
+
+    let b = map.buckets + get_map_index(map.cap, key);
+    let item = Item { key: key, value: value };
+
+    // bucket is empty
     if b.item.key == null {
-        b.item = Item { key: key, value: value };
-        return;
-    } if std.strcmp(b.item.key, key) == 0 {
-        b.item = Item { key: key, value: value };
+        b.item = item;
         return;
     }
 
-    b = b.next;
-
     while b != null {
+        // bucket is empty
         if b.item.key == null {
-            *b = Bucket { item: Item { key: key, value: value }, next: null };
+            b.item = Item { key: key, value: value };
+            return;
         }
 
+        // same key
         if std.strcmp(b.item.key, key) == 0 {
             b.item.value = value;
             return;
         }
 
+        // no next bucket
         if b.next == null {
-            b.next = new Bucket { item: Item { key: key, value: value }, next: null };
+            b.next = new Bucket { item: item, next: null };
             return;
         }
 
@@ -85,7 +142,7 @@ def insert(map: *Map, key: string, value: *void): void {
 }
 
 def get(map: *Map, key: string): *void {
-    let b = map.buckets + hash(key) % map.cap;
+    let b = map.buckets + get_map_index(map.cap, key);
 
     while b != null {
         if b.item.key == null {
@@ -94,10 +151,6 @@ def get(map: *Map, key: string): *void {
 
         if std.strcmp(b.item.key, key) == 0 {
             return b.item.value;
-        }
-
-        if b.next == null {
-            return null;
         }
 
         b = b.next;

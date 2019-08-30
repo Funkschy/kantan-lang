@@ -28,34 +28,4 @@ def main(): void {
     }
 
     ast.cu_free(&cu);
-
-    let si = span.create_interner();
-    let s = span.create(&si, 0, 32766, 0);
-
-    if span.is_interned(&s) {
-        let s = span.get(&si, s.ctx_or_index);
-        io.printf("interned len: %d\n", s.len);
-    } else {
-        io.printf("inline len: %d\n", s.len_or_tag);
-    }
-
-    span.free_interner(&si);
-
-    let p = path.empty();
-    let name = "oof.kan";
-    let res = path.from_string(name, &p);
-    io.printf("result: %d\n", res);
-
-    let f = file.create(p);
-    let s: string = null;
-
-    let res = file.read_to_string(&f, &s);
-    if res == 0 {
-        io.printf("%s\n", s);
-        delete s;
-    } else {
-        let err_msg = err2str(res, name);
-        io.printf("ERROR: %s\n", err_msg);
-        delete err_msg;
-    }
 }

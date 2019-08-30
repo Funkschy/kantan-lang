@@ -40,14 +40,6 @@ static char const *const binary_type_ops[] = {
 
 static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *);
 
-int32_t hash(char const *key) {
-    int32_t h = 0;
-    for (char c = *key; c != '\0'; c++) {
-        h = h * HASH_NUM + c;
-    }
-    return h;
-}
-
 char const *const tok2str(int32_t type) {
     if (type < 0 || type > len_token_strings) {
         return token_strings[0];
@@ -90,6 +82,19 @@ char const *const err2str(int32_t err_code, ...) {
     }
 
     return s;
+}
+
+int32_t hash(char const *const key) {
+    int32_t h = 0;
+    for (char c = *key; c != '\0'; c++) {
+        h = h * HASH_NUM + c;
+    }
+    return h;
+}
+
+int32_t get_map_index(int32_t cap, char const *const key) {
+    int32_t h = hash(key);
+    return h & (cap - 1);
 }
 
 int32_t read_file(char const *path, char const **content) {
@@ -149,4 +154,21 @@ int format_str(char **dest, char const *fmt, va_list args){
     *dest = str;
 
     return size;
+}
+
+uint64_t next_pow_of_2(uint64_t num) {
+    uint64_t n = num - 1;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n |= n >> 32;
+    // if n is 0 add 1
+    n += 1 + (n == 0);
+    return n;
+}
+
+_Float32 int_to_float(int64_t i) {
+    return (_Float32) i;
 }

@@ -10,7 +10,8 @@ K_FILES = main.kan \
 		  ptrvec.kan \
 		  span.kan \
 		  file.kan \
-		  path.kan
+		  path.kan \
+		  num.kan
 C_FILES = lib.c \
 		  token_types.h \
 		  expr_types.h \
