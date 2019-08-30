@@ -39,7 +39,7 @@ def with_cap(cap: i32): Map {
     return Map { buckets: std.calloc(cap, sizeof Bucket) as *Bucket, len: 0, cap: cap };
 }
 
-def free_m(m: Map): void {
+def free_m(m: *Map): void {
     let i = 0;
     while i < m.cap {
         free_buckets(m.buckets + i);
@@ -52,7 +52,7 @@ def free_buckets(buckets: *Bucket): void {
     let last = buckets.next;
     while last != null {
         let t = last.next;
-        std.free(last as *void);
+        delete last;
         last = t;
     }
 }

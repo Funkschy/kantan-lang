@@ -1,13 +1,11 @@
 import "parser"
 import "io"
 import "ast"
-import "span"
-import "path"
-import "file"
+import "reader"
+import "vec"
+import "std"
 
-extern def err2str(code: i32, ...): string;
-
-def main(): void {
+def main(argc: i32, argv: *string): void {
     let p = parser.create("420 - (69 / 1); 42;");
     let cu = parser.parse(&p);
 
@@ -28,4 +26,13 @@ def main(): void {
     }
 
     ast.cu_free(&cu);
+
+    let file_map = reader.create();
+    let res = reader.add_all(&file_map, argc - 1, argv + 1);
+    if res.err_code != 0 {
+        let err_msg = std.err2str(res.err_code, res.file_name);
+        io.printf("%s\n", err_msg);
+        delete err_msg;
+    }
+    reader.free_fm(&file_map);
 }

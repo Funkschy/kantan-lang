@@ -11,7 +11,8 @@ K_FILES = main.kan \
 		  span.kan \
 		  file.kan \
 		  path.kan \
-		  num.kan
+		  num.kan \
+		  reader.kan
 C_FILES = lib.c \
 		  token_types.h \
 		  expr_types.h \

@@ -1,0 +1,79 @@
+import "map"
+import "vec"
+import "path"
+import "file"
+
+type FileAddError struct {
+    file_name: string,
+    err_code: i32
+}
+
+type FileMap struct {
+    file_map: map.Map, // filename to file string
+    files: vec.Vec // file strings (used by span ctx)
+}
+
+def create(): FileMap {
+    return FileMap { file_map: map.create(), files: vec.create(sizeof string) };
+}
+
+def get_by_name(m: *FileMap, file_name: string): string {
+    return map.get(&m.file_map, file_name) as string;
+}
+
+def get_by_idx(m: *FileMap, idx: i32): string {
+    let s: string = null;
+    if vec.get(&m.files, idx, &s as *void) {
+        return s;
+    }
+
+    return null;
+}
+
+def free_fm(m: *FileMap): void {
+    map.free_m(&m.file_map);
+
+    let i = 0;
+    while i < m.files.len {
+        let s: string = null;
+        if vec.get(&m.files, i, &s as *void) {
+            delete s;
+        }
+        i = i + 1;
+    }
+
+    vec.free_v(&m.files);
+}
+
+def add_all(m: *FileMap, len: i32, file_names: *string): FileAddError {
+    let i = 1;
+    while i < len {
+        let file_name = *(file_names + i);
+        let res = 0;
+        if (res = reader.add_file(m, file_name)) != 0 {
+            return FileAddError { file_name: file_name, err_code: res };
+        }
+        i = i + 1;
+    }
+
+    return FileAddError { file_name: null, err_code: 0 };
+}
+
+def add_file(m: *FileMap, name: string): i32 {
+    let p = path.empty();
+    let res = 0;
+    if (res = path.from_string(name, &p)) != 0 {
+        return res;
+    }
+
+    let f = file.create(p);
+    let content: string = null;
+    if (res = file.read_to_string(&f, &content)) != 0 {
+        return res;
+    }
+
+    map.insert(&m.file_map, name, content as *void);
+    vec.push(&m.files, &content as *void);
+
+    return 0;
+}
