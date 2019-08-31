@@ -10,7 +10,6 @@ extern def tok2str(ty: i32): string;
 
 type Token struct {
     ty: i32,
-    len: i32,
     span: span.Span,
     lexeme: string
 }
@@ -29,7 +28,7 @@ def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
     return Lexer {
         has_peek: false,
         ctx: ctx,
-        peek: Token { ty: TOKEN_ERR, len: 0, span: span.empty(), lexeme: null },
+        peek: Token { ty: TOKEN_ERR, span: span.empty(), lexeme: null },
         source: source,
         start: source,
         current: source,
@@ -65,7 +64,6 @@ def get_next_token(l: *Lexer): Token {
     if at_end(l) {
         return Token {
             ty: TOKEN_EOF,
-            len: 0,
             span: span.empty(),
             lexeme: null
         };
@@ -175,7 +173,6 @@ def advance(l: *Lexer): char {
 def token_from_start(l: *Lexer, ty: i32): Token {
     return Token {
         ty: ty,
-        len: l.current - l.start,
         span: span.create(l.span_interner, l.start - l.source, l.current - l.source, l.ctx),
         lexeme: l.start
     };

@@ -88,7 +88,8 @@ def prefix(p: *Parser): *ast.Expr {
     let token = advance(p);
 
     if token.ty == TOKEN_INT {
-        return ast.make_int(token.span, token.len, token.lexeme);
+        let len = span.get(p.lexer.span_interner, token.span).len;
+        return ast.make_int(token.span, len, token.lexeme);
     } else if token.ty == TOKEN_LPAREN {
         let e = expression(p);
 
