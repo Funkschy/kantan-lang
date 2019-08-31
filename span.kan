@@ -21,6 +21,21 @@ type Span struct {
     ctx_or_index: i32
 }
 
+def empty(): Span {
+    return Span { start: 0, len_or_tag: 0, ctx_or_index: 0 };
+}
+
+def merge(si: *SpanInterner, first: Span, second: Span): Span {
+    let first = get(si, first);
+    let second = get(si, second);
+    // spans should be in same file
+    if first.ctx != second.ctx {
+        // TODO: assert
+    }
+
+    return create(si, first.start, second.start + second.len, first.ctx);
+}
+
 def create(si: *SpanInterner, start: i32, end: i32, ctx: i32): Span {
     if end < start {
         let t = start;
@@ -72,7 +87,15 @@ def intern(si: *SpanInterner, span: *BigSpan): i32 {
     return index;
 }
 
-def get(si: *SpanInterner, index: i32): BigSpan {
+def get(si: *SpanInterner, span: Span): BigSpan {
+    if !is_interned(&span) {
+        return BigSpan { start: span.start, len: span.len_or_tag, ctx: span.ctx_or_index };
+    }
+
+    return get_index(si, span.ctx_or_index);
+}
+
+def get_index(si: *SpanInterner, index: i32): BigSpan {
     let span = BigSpan { start: 0, len: 0, ctx: 0 };
     vec.get(&si.spans, index, &span as *void);
     return span;

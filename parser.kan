@@ -5,14 +5,15 @@
 import "lexer"
 import "ast"
 import "precedence"
+import "span"
 import "io" // TODO: only debug
 
 type Parser struct {
     lexer: lexer.Lexer
 }
 
-def create(source: string): Parser {
-    return Parser { lexer: lexer.create(source) };
+def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Parser {
+    return Parser { lexer: lexer.create(source, span_interner, ctx) };
 }
 
 def advance(p: *Parser): lexer.Token {
@@ -87,7 +88,7 @@ def prefix(p: *Parser): *ast.Expr {
     let token = advance(p);
 
     if token.ty == TOKEN_INT {
-        return ast.make_int(token.len, token.lexeme);
+        return ast.make_int(token.span, token.len, token.lexeme);
     } else if token.ty == TOKEN_LPAREN {
         let e = expression(p);
 
@@ -95,6 +96,10 @@ def prefix(p: *Parser): *ast.Expr {
             ast.expr_free(e);
             return null;
         }
+
+        // TODO: this can over/underflow. Needs to be checked for interning
+        e.span.start = e.span.start - 1;
+        e.span.len_or_tag = e.span.len_or_tag + 2;
 
         return e;
     }
@@ -124,7 +129,8 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
     if found {
         let prec = precedence.get(token.ty);
         letcheck(right, parse_expression(p, prec));
-        return ast.make_binary(ty, left, right);
+        let span = span.merge(p.lexer.span_interner, left.span, right.span);
+        return ast.make_binary(span, ty, left, right);
     }
 
     return null;

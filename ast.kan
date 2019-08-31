@@ -4,6 +4,7 @@
 import "std"
 import "io" // TODO: only debug
 import "ptrvec"
+import "span"
 
 extern def binary2str(op: i32): string;
 
@@ -74,8 +75,12 @@ type IntExpr struct {
     ptr: string
 }
 
-def make_int(len: i32, ptr: string): *Expr {
-    return (new IntExpr {e: Expr { tag: EXPR_INT }, len: len, ptr: ptr }) as *Expr;
+def make_int(span: span.Span, len: i32, ptr: string): *Expr {
+    return (new IntExpr {
+        e: Expr { tag: EXPR_INT, span: span },
+        len: len,
+        ptr: ptr
+    }) as *Expr;
 }
 
 def is_int(e: *Expr): bool {
@@ -95,8 +100,13 @@ type BinaryExpr struct {
     ty: i32
 }
 
-def make_binary(ty: i32, left: *Expr, right: *Expr): *Expr {
-    return (new BinaryExpr { e: Expr { tag: EXPR_BINARY }, left: left, right: right, ty: ty }) as *Expr;
+def make_binary(span: span.Span, ty: i32, left: *Expr, right: *Expr): *Expr {
+    return (new BinaryExpr {
+        e: Expr { tag: EXPR_BINARY, span: span },
+        left: left,
+        right: right,
+        ty: ty
+    }) as *Expr;
 }
 
 def is_binary(e: *Expr): bool {
@@ -110,7 +120,8 @@ def as_binary(e: *Expr): *BinaryExpr {
 /////////// base expr ///////////
 
 type Expr struct {
-    tag: i32
+    tag: i32,
+    span: span.Span
 }
 
 def expr_free(e: *Expr): void {

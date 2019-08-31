@@ -2,6 +2,7 @@
 #include "std.h"
 
 import "std"
+import "span"
 // TODO: only debug
 import "io"
 
@@ -10,24 +11,29 @@ extern def tok2str(ty: i32): string;
 type Token struct {
     ty: i32,
     len: i32,
+    span: span.Span,
     lexeme: string
 }
 
 type Lexer struct {
     has_peek: bool,
+    ctx: i32,
     peek: Token,
     source: string,
     start: string,
-    current: string
+    current: string,
+    span_interner: *span.SpanInterner
 }
 
-def create(source: string): Lexer {
+def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
     return Lexer {
         has_peek: false,
-        peek: Token { ty: TOKEN_ERR, len: 0, lexeme: null },
+        ctx: ctx,
+        peek: Token { ty: TOKEN_ERR, len: 0, span: span.empty(), lexeme: null },
         source: source,
         start: source,
-        current: source
+        current: source,
+        span_interner: span_interner
     };
 }
 
@@ -57,7 +63,12 @@ def next_token(l: *Lexer): Token {
 
 def get_next_token(l: *Lexer): Token {
     if at_end(l) {
-        return Token { ty: TOKEN_EOF, len: 0, lexeme: null };
+        return Token {
+            ty: TOKEN_EOF,
+            len: 0,
+            span: span.empty(),
+            lexeme: null
+        };
     }
 
     l.start = l.current;
@@ -162,7 +173,12 @@ def advance(l: *Lexer): char {
 }
 
 def token_from_start(l: *Lexer, ty: i32): Token {
-    return Token { ty: ty, len: l.current - l.start, lexeme: l.start };
+    return Token {
+        ty: ty,
+        len: l.current - l.start,
+        span: span.create(l.span_interner, l.start - l.source, l.current - l.source, l.ctx),
+        lexeme: l.start
+    };
 }
 
 def token_to_string(token: *Token): string {
