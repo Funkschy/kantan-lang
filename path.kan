@@ -17,7 +17,7 @@ def empty(): Path {
 
 def from_string(s: string, p: *Path): i32 {
     if std.strlen(s) <= 0 {
-        return PATH_EMTPY_ERROR;
+        return ERROR_PATH_EMTPY;
     }
 
     let separator = find_separator(s);

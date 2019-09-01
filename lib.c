@@ -58,10 +58,15 @@ char const *const binary2str(int32_t op) {
 
 static char const *const error_texts[] = {
     NULL,
+    // file errors
     "Path was empty",
     "Could not open file: '%s'",
     "Could not allocate buffer",
-    "Could not read file: '%s'"
+    "Could not read file: '%s'",
+    // parse errors
+    "Unexpected end of file",
+    "Expected '%s', but got '%s'",
+    "Unknown symbol: '%.*s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
@@ -100,7 +105,7 @@ int32_t get_map_index(int32_t cap, char const *const key) {
 int32_t read_file(char const *path, char const **content) {
     FILE *file = fopen(path, "r");
     if (file == NULL) {
-        return COULD_NOT_OPEN_FILE;
+        return ERROR_COULD_NOT_OPEN_FILE;
     }
 
     fseek(file, 0L, SEEK_END);
@@ -111,7 +116,7 @@ int32_t read_file(char const *path, char const **content) {
 
     if (buffer == NULL) {
         fclose(file);
-        return COULD_NOT_ALLOCATE_BUFFER;
+        return ERROR_COULD_NOT_ALLOCATE_BUFFER;
     }
 
     size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
@@ -119,7 +124,7 @@ int32_t read_file(char const *path, char const **content) {
     if (bytes_read < file_size) {
         fclose(file);
         free(buffer);
-        return COULD_NOT_READ_FILE;
+        return ERROR_COULD_NOT_READ_FILE;
     }
 
     buffer[bytes_read] = '\0';

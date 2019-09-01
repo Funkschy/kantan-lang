@@ -69,6 +69,7 @@ def get_next_token(l: *Lexer): Token {
         };
     }
 
+    // TODO: unicode support
     l.start = l.current;
     let c = *l.current;
     advance(l);
@@ -176,6 +177,10 @@ def token_from_start(l: *Lexer, ty: i32): Token {
         span: span.create(l.span_interner, l.start - l.source, l.current - l.source, l.ctx),
         lexeme: l.start
     };
+}
+
+def token_ty_to_string(ty: i32): string {
+    return tok2str(ty);
 }
 
 def token_to_string(token: *Token): string {

@@ -1,31 +1,85 @@
-#include "token_types.h"
-#include "expr_types.h"
-#include "std.h"
+#include "./token_types.h"
+#include "./expr_types.h"
+#include "./error_code.h"
+#include "./std.h"
 
 import "lexer"
 import "ast"
 import "precedence"
 import "span"
+import "vec"
+import "std"
+
 import "io" // TODO: only debug
 
+type ParseError struct {
+    span: span.Span,
+    text: string
+}
+
 type Parser struct {
-    lexer: lexer.Lexer
+    lexer: lexer.Lexer,
+    errors: vec.Vec // vector of ParseErrors
 }
 
 def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Parser {
-    return Parser { lexer: lexer.create(source, span_interner, ctx) };
+    return Parser {
+        lexer: lexer.create(source, span_interner, ctx),
+        errors: vec.create(sizeof ParseError)
+    };
+}
+
+def free_p(p: *Parser): void {
+    let i = 0;
+    let elem = ParseError { span: span.empty(), text: null };
+    while i < p.errors.len {
+        vec.get(&p.errors, i, &elem as *void);
+        delete elem.text;
+        i = i + 1;
+    }
+
+    vec.free_v(&p.errors);
+}
+
+def get_err(p: *Parser, idx: i32, dest: *ParseError): bool {
+    return vec.get(&p.errors, idx, dest as *void);
 }
 
 def advance(p: *Parser): lexer.Token {
-    return lexer.next_token(&p.lexer);
+    let next = lexer.next_token(&p.lexer);
+
+    if next.ty == TOKEN_EOF {
+        let error = ParseError { span: next.span, text: std.err2str(ERROR_UNEXPECTED_EOF) };
+        vec.push(&p.errors, &error as *void);
+    } else if next.ty == TOKEN_ERR {
+        // len for lexeme
+        let len = span.get(p.lexer.span_interner, next.span).len;
+
+        let error = ParseError {
+            span: next.span,
+            text: std.err2str(ERROR_UNKNOWN_SYMBOL, len, next.lexeme)
+        };
+        vec.push(&p.errors, &error as *void);
+    }
+
+    return next;
 }
 
 def consume(p: *Parser, ty: i32): bool {
-    if peek(p).ty == ty {
+    let peek = peek(p);
+    if peek.ty == ty {
         advance(p);
         return true;
     }
 
+    let err_str = std.err2str(
+        ERROR_EXPECTED_BUT_GOT,
+        lexer.token_ty_to_string(ty),
+        lexer.token_to_string(&peek)
+    );
+
+    let error = ParseError { span: peek.span, text: err_str };
+    vec.push(&p.errors, &error as *void);
     return false;
 }
 
@@ -39,17 +93,22 @@ def parse(p: *Parser): ast.CompilationUnit {
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
         if !consume(p, TOKEN_SEMI) {
-            ast.stmt_free(s);
+            if s != null {
+                ast.stmt_free(s);
+            }
             return cu;
         }
-        ast.cu_push(&cu, s);
+        if s != null {
+            ast.cu_push(&cu, s);
+        }
     }
 
     return cu;
 }
 
 def statement(p: *Parser): *ast.Stmt {
-    return ast.make_expr_stmt(expression(p));
+    letcheck(expr, expression(p));
+    return ast.make_expr_stmt(expr);
 }
 
 def expression(p: *Parser): *ast.Expr {
@@ -91,7 +150,7 @@ def prefix(p: *Parser): *ast.Expr {
         let len = span.get(p.lexer.span_interner, token.span).len;
         return ast.make_int(token.span, len, token.lexeme);
     } else if token.ty == TOKEN_LPAREN {
-        let e = expression(p);
+        letcheck(e, expression(p));
 
         if !consume(p, TOKEN_RPAREN) {
             ast.expr_free(e);
