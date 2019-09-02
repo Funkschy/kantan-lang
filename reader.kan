@@ -1,7 +1,7 @@
-import "map"
 import "vec"
 import "path"
 import "file"
+import "source"
 
 import "io" // TODO: only debug
 
@@ -11,39 +11,29 @@ type FileAddError struct {
 }
 
 type FileMap struct {
-    file_map: map.Map, // filename to file string
-    files: vec.Vec // file strings (used by span ctx)
+    files: vec.Vec // SourceFiles
 }
 
 def create(): FileMap {
-    return FileMap { file_map: map.create(), files: vec.create(sizeof string) };
+    return FileMap { files: vec.create(sizeof source.SourceFile) };
 }
 
 def num_files(m: *FileMap): i32 {
     return m.files.len;
 }
 
-def get_by_name(m: *FileMap, file_name: string): string {
-    return map.get(&m.file_map, file_name) as string;
-}
-
-def get_by_idx(m: *FileMap, idx: i32): string {
-    let s: string = null;
-    if vec.get(&m.files, idx, &s as *void) {
-        return s;
-    }
-
-    return null;
+def get_by_idx(m: *FileMap, idx: i32): source.SourceFile {
+    let s = source.empty();
+    vec.get(&m.files, idx, &s as *void);
+    return s;
 }
 
 def free_fm(m: *FileMap): void {
-    map.free_m(&m.file_map);
-
     let i = 0;
     while i < m.files.len {
-        let s: string = null;
+        let s = source.empty();
         if vec.get(&m.files, i, &s as *void) {
-            delete s;
+            source.free_sf(&s);
         }
         i = i + 1;
     }
@@ -72,14 +62,12 @@ def add_file(m: *FileMap, name: string): i32 {
         return res;
     }
 
-    let f = file.create(p);
-    let content: string = null;
-    if (res = file.read_to_string(&f, &content)) != 0 {
+    let sf = source.empty();
+    if (res = source.read(p, &sf)) != 0 {
         return res;
     }
 
-    map.insert(&m.file_map, name, content as *void);
-    vec.push(&m.files, &content as *void);
+    vec.push(&m.files, &sf as *void);
 
     return 0;
 }

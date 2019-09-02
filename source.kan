@@ -6,6 +6,22 @@ type SourceFile struct {
     code: string
 }
 
+def empty(): SourceFile {
+    return SourceFile { file: file.empty() };
+}
+
+def free_sf(sf: *SourceFile): void {
+    delete sf.code;
+}
+
+def file_name(sf: *SourceFile): string {
+    return file.name(&sf.file);
+}
+
+def code(sf: *SourceFile): string {
+    return sf.code;
+}
+
 def read(p: path.Path, f: *SourceFile): i32 {
     let file = file.create(p);
     let s: string = null;

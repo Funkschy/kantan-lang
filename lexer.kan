@@ -8,6 +8,8 @@ import "io"
 
 extern def tok2str(ty: i32): string;
 
+// Token
+
 type Token struct {
     ty: i32,
     span: span.Span,
@@ -36,6 +38,8 @@ def token_to_string(token: *Token, si: *span.SpanInterner, dest: *string): bool 
     return false;
 }
 
+// Lexer
+
 type Lexer struct {
     has_peek: bool,
     ctx: i32,
@@ -47,10 +51,13 @@ type Lexer struct {
 }
 
 def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
+    let span = span.create(span_interner, 0, 0, ctx);
+    let init_peek = Token { ty: TOKEN_ERR, span: span, lexeme: null };
+
     return Lexer {
         has_peek: false,
         ctx: ctx,
-        peek: Token { ty: TOKEN_ERR, span: span.empty(), lexeme: null },
+        peek: init_peek,
         source: source,
         start: source,
         current: source,
@@ -86,7 +93,7 @@ def get_next_token(l: *Lexer): Token {
     if at_end(l) {
         return Token {
             ty: TOKEN_EOF,
-            span: span.empty(),
+            span: span.create(l.span_interner, 0, 0, l.ctx),
             lexeme: null
         };
     }

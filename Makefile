@@ -12,6 +12,7 @@ K_FILES = main.kan \
 		  file.kan \
 		  path.kan \
 		  num.kan \
+		  source.kan \
 		  reader.kan
 C_FILES = lib.c \
 		  lib.h \

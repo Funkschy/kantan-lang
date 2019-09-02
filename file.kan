@@ -6,8 +6,16 @@ type File struct {
     path: path.Path
 }
 
+def empty(): File {
+    return File { path: path.empty() };
+}
+
 def create(path: path.Path): File {
     return File { path: path };
+}
+
+def name(f: *File): string {
+    return path.to_string(&f.path);
 }
 
 def read_to_string(s: *File, dest: *string): i32 {
