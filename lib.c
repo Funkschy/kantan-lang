@@ -5,71 +5,28 @@
 #include <stdarg.h>
 
 #include "./error_code.h"
+#include "./lib.h"
 
 #define HASH_NUM 65599
 
 // forward decls
 int format_str(char **dest, char const *fmt, va_list args);
 
-static char const *const token_strings[] = {
-    "error",
-    "integer",
-    "identifier",
-    "let",
-    "if",
-    "import",
-    ";",
-    "=",
-    "+",
-    "-",
-    "*",
-    "/",
-    "(",
-    ")"
-};
-
-static size_t const len_token_strings = sizeof(token_strings) / sizeof(char *);
-
-static char const *const binary_type_ops[] = {
-    "error",
-    "+",
-    "-",
-    "*",
-    "/"
-};
-
-static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *);
-
-char const *const tok2str(int32_t type) {
-    if (type < 0 || type > len_token_strings) {
-        return token_strings[0];
+char const *const get_str(int32_t index, size_t len, char const *const * array) {
+    if (index < 0 || index > len) {
+        return array[0];
     }
 
-    return token_strings[type];
+    return array[index];
+}
+
+char const *const tok2str(int32_t type) {
+    return get_str(type, len_token_strings, token_strings);
 }
 
 char const *const binary2str(int32_t op) {
-    if (op < 0 || op > len_binary_strings) {
-        return binary_type_ops[0];
-    }
-
-    return binary_type_ops[op];
+    return get_str(op, len_binary_strings, binary_type_ops);
 }
-
-static char const *const error_texts[] = {
-    NULL,
-    // file errors
-    "Path was empty",
-    "Could not open file: '%s'",
-    "Could not allocate buffer",
-    "Could not read file: '%s'",
-    // parse errors
-    "Unexpected end of file",
-    "Expected '%s', but got '%s'",
-    "Unknown symbol: '%.*s'"
-};
-
-static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
 
 char const *const err2str(int32_t err_code, ...) {
     if (err_code < 0 || err_code > len_err_strings) {
@@ -103,7 +60,7 @@ int32_t get_map_index(int32_t cap, char const *const key) {
 }
 
 int32_t read_file(char const *path, char const **content) {
-    FILE *file = fopen(path, "r");
+    FILE *file = fopen(path, "rb");
     if (file == NULL) {
         return ERROR_COULD_NOT_OPEN_FILE;
     }

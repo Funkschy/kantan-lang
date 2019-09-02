@@ -3,6 +3,7 @@ extern def calloc(num: i32, size: i32): *void;
 extern def free(obj: *void): void;
 extern def strcmp(s1: string, s2: string): i32;
 extern def strndup(s: string, len: i32): string;
+extern def strdup(s: string): string;
 extern def strlen(s: string): i32;
 extern def memcmp(first: *void, second: *void, size: i32): i32;
 extern def memset(p: *void, val: i32, n: i32): i32;

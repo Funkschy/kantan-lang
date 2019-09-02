@@ -41,6 +41,10 @@ def free_p(p: *Parser): void {
     vec.free_v(&p.errors);
 }
 
+def num_errs(p: *Parser): i32 {
+    return p.errors.len;
+}
+
 def get_err(p: *Parser, idx: i32, dest: *ParseError): bool {
     return vec.get(&p.errors, idx, dest as *void);
 }
@@ -72,11 +76,18 @@ def consume(p: *Parser, ty: i32): bool {
         return true;
     }
 
+    let peek_str: string = null;
+    let needs_free = lexer.token_to_string(&peek, p.lexer.span_interner, &peek_str);
+
     let err_str = std.err2str(
         ERROR_EXPECTED_BUT_GOT,
-        lexer.token_ty_to_string(ty),
-        lexer.token_to_string(&peek)
+        lexer.token_ty_to_static_string(ty),
+        peek_str
     );
+
+    if needs_free {
+        delete peek_str;
+    }
 
     let error = ParseError { span: peek.span, text: err_str };
     vec.push(&p.errors, &error as *void);

@@ -3,6 +3,8 @@ import "vec"
 import "path"
 import "file"
 
+import "io" // TODO: only debug
+
 type FileAddError struct {
     file_name: string,
     err_code: i32
@@ -15,6 +17,10 @@ type FileMap struct {
 
 def create(): FileMap {
     return FileMap { file_map: map.create(), files: vec.create(sizeof string) };
+}
+
+def num_files(m: *FileMap): i32 {
+    return m.files.len;
 }
 
 def get_by_name(m: *FileMap, file_name: string): string {

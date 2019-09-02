@@ -8,7 +8,6 @@ import "io" // TODO: only debug
 
 extern def hash(key: string): i32;
 extern def get_map_index(cap: i32, key: string): i32;
-extern def next_pow_of_2(i: i32): i32;
 
 type Map struct {
     buckets: *Bucket,
@@ -33,7 +32,7 @@ def create(): Map {
 def with_cap(cap: i32): Map {
     if cap % 2 != 0 {
         io.printf("Corrected cap from %d", cap);
-        cap = next_pow_of_2(cap);
+        cap = num.next_pow_of_2(cap);
         io.printf(" to %d\n", cap);
     }
     return Map { buckets: std.calloc(cap, sizeof Bucket) as *Bucket, len: 0, cap: cap };

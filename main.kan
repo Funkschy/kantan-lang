@@ -6,53 +6,65 @@ import "std"
 import "span"
 
 def main(argc: i32, argv: *string): void {
-    let span_interner = span.create_interner();
-
-    let source = "$;420 - (69 / 1); (); (42;";
-    let p = parser.create(source, &span_interner, 0);
-    let cu = parser.parse(&p);
-
-    io.printf("%d errors found\n", p.errors.len);
-    if p.errors.len > 0 {
-        let err = parser.ParseError { span: span.empty(), text: null };
-        let i = 0;
-        while i < p.errors.len {
-            parser.get_err(&p, i, &err);
-            let span = span.get(&span_interner, err.span);
-            io.printf("ERROR: %s at %d:%d\n", err.text, span.start, span.start + span.len);
-            i = i + 1;
-        }
-        parser.free_p(&p);
-    }
-
-    // just get the first stmt
-    let s = ast.cu_get(&cu, 0);
-
-    if s == null {
-        io.printf("statement is null\n");
-        ast.cu_free(&cu);
+    if argc <= 1 {
+        io.printf("ERROR: no input files\n");
         return;
     }
 
-    let is_expr = ast.is_expr(s);
-    io.printf("is expr: %d\n", is_expr);
-
-    if is_expr {
-        let e = ast.as_expr_stmt(s).expr;
-
-        let s = ast.expr_to_string(e);
-        io.printf("%s\n", s);
-        delete s;
-    }
-
-    ast.cu_free(&cu);
+    let span_interner = span.create_interner();
 
     let file_map = reader.create();
-    let res = reader.add_all(&file_map, argc - 1, argv + 1);
+    let res = reader.add_all(&file_map, argc, argv);
     if res.err_code != 0 {
         let err_msg = std.err2str(res.err_code, res.file_name);
-        io.printf("%s\n", err_msg);
+        io.printf("ERROR: %s\n", err_msg);
         delete err_msg;
     }
+
+    let i = 0;
+    while i < reader.num_files(&file_map) {
+        let source = reader.get_by_idx(&file_map, i);
+        let p = parser.create(source, &span_interner, 0);
+        let cu = parser.parse(&p);
+
+        io.printf("%d errors found\n", parser.num_errs(&p));
+        if parser.num_errs(&p) > 0 {
+            print_parse_errors(&p, &span_interner);
+            parser.free_p(&p);
+        }
+
+        // just get the first stmt
+        let s = ast.cu_get(&cu, 0);
+
+        if s != null {
+            let is_expr = ast.is_expr(s);
+            io.printf("is expr: %d\n", is_expr);
+
+            if is_expr {
+                let e = ast.as_expr_stmt(s).expr;
+
+                let s = ast.expr_to_string(e);
+                io.printf("%s\n", s);
+                delete s;
+            }
+        } else {
+            io.printf("ERROR: no valid statement in file\n");
+        }
+
+        ast.cu_free(&cu);
+        i = i + 1;
+    }
+
     reader.free_fm(&file_map);
+}
+
+def print_parse_errors(p: *parser.Parser, si: *span.SpanInterner): void {
+    let err = parser.ParseError { span: span.empty(), text: null };
+    let i = 0;
+    while i < parser.num_errs(p) {
+        parser.get_err(p, i, &err);
+        let span = span.get(si, err.span);
+        io.printf("ERROR: %s at %d:%d\n", err.text, span.start, span.start + span.len);
+        i = i + 1;
+    }
 }

@@ -1,1 +1,2 @@
 extern def int_to_float(i: i32): f32;
+extern def next_pow_of_2(i: i32): i32;

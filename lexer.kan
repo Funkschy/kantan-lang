@@ -14,6 +14,28 @@ type Token struct {
     lexeme: string
 }
 
+// static (don't free!)
+def token_ty_to_static_string(ty: i32): string {
+    return tok2str(ty);
+}
+
+def token_len(token: *Token, si: *span.SpanInterner): i32 {
+    return span.get(si, token.span).len;
+}
+
+// returned boolean indicates if the strings has to be freed
+def token_to_string(token: *Token, si: *span.SpanInterner, dest: *string): bool {
+    // this is the range of tokens, that need to be formatted
+    if token.ty >= TOKEN_INT && token.ty <= TOKEN_IDENT {
+        let len = token_len(token, si);
+        *dest = std.strndup(token.lexeme, len);
+        return true;
+    }
+
+    *dest = tok2str(token.ty);
+    return false;
+}
+
 type Lexer struct {
     has_peek: bool,
     ctx: i32,
@@ -177,12 +199,4 @@ def token_from_start(l: *Lexer, ty: i32): Token {
         span: span.create(l.span_interner, l.start - l.source, l.current - l.source, l.ctx),
         lexeme: l.start
     };
-}
-
-def token_ty_to_string(ty: i32): string {
-    return tok2str(ty);
-}
-
-def token_to_string(token: *Token): string {
-    return tok2str(token.ty);
 }
