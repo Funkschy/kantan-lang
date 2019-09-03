@@ -28,6 +28,20 @@ char const *const binary2str(int32_t op) {
     return get_str(op, len_binary_strings, binary_type_ops);
 }
 
+char const *const vformat_str(char const *fmt, ...) {
+    char *s = NULL;
+    va_list args;
+    va_start(args, fmt);
+    int32_t size = format_str(&s, fmt, args);
+    va_end(args);
+
+    if (size < 0) {
+        return NULL;
+    }
+
+    return s;
+}
+
 char const *const err2str(int32_t err_code, ...) {
     if (err_code < 0 || err_code > len_err_strings) {
         return error_texts[0];

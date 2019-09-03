@@ -12,3 +12,4 @@ extern def realloc(ptr: *void, size: i32): *void;
 
 // in lib.c
 extern def err2str(code: i32, ...): string;
+extern def vformat_str(fmt: string, ...): string;

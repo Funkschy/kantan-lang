@@ -173,21 +173,11 @@ def expr_to_string(e: *Expr): string {
         let right = expr_to_string(b_expr.right);
         let tok_str = binary2str(b_expr.ty);
 
-        let left_size = std.strlen(left) * sizeof char;
-        let tok_size = std.strlen(tok_str) * sizeof char;
-        let right_size = std.strlen(right) * sizeof char;
-        let tot_size = left_size + tok_size + right_size + 1; // 1 for \0
-
-        let ptr = std.malloc(tot_size);
-        std.memcpy(ptr, left as *void, left_size);
-        std.memcpy(ptr + left_size, tok_str as *void, tok_size);
-        std.memcpy(ptr + left_size + tok_size, right as *void, right_size);
-        *((ptr + tot_size - 1) as string) = '\0';
-
+        let s = std.vformat_str("%s%s%s", left, tok_str, right);
         delete left;
         delete right;
 
-        return ptr as string;
+        return s;
     }
 
     return null;
