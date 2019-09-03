@@ -10,7 +10,7 @@
 #define HASH_NUM 65599
 
 // forward decls
-int format_str(char **dest, char const *fmt, va_list args);
+int vformat_str(char **dest, char const *fmt, va_list args);
 
 char const *const get_str(int32_t index, size_t len, char const *const * array) {
     if (index < 0 || index > len) {
@@ -28,11 +28,11 @@ char const *const binary2str(int32_t op) {
     return get_str(op, len_binary_strings, binary_type_ops);
 }
 
-char const *const vformat_str(char const *fmt, ...) {
+char const *const format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, fmt);
-    int32_t size = format_str(&s, fmt, args);
+    int32_t size = vformat_str(&s, fmt, args);
     va_end(args);
 
     if (size < 0) {
@@ -50,7 +50,7 @@ char const *const err2str(int32_t err_code, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, err_code);
-    int32_t size = format_str(&s, error_texts[err_code], args);
+    int32_t size = vformat_str(&s, error_texts[err_code], args);
     va_end(args);
 
     if (size < 0) {
@@ -106,7 +106,7 @@ int32_t read_file(char const *path, char const **content) {
     return 0;
 }
 
-int format_str(char **dest, char const *fmt, va_list args){
+int vformat_str(char **dest, char const *fmt, va_list args){
     int size = 0;
     va_list tmp_args;
 

@@ -173,7 +173,7 @@ def expr_to_string(e: *Expr): string {
         let right = expr_to_string(b_expr.right);
         let tok_str = binary2str(b_expr.ty);
 
-        let s = std.vformat_str("%s%s%s", left, tok_str, right);
+        let s = std.format_str("%s%s%s", left, tok_str, right);
         delete left;
         delete right;
 
