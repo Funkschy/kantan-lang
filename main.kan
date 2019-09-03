@@ -30,8 +30,8 @@ def main(argc: i32, argv: *string): void {
         let p = parser.create(source.code(&src), &span_interner, i);
         let cu = parser.parse(&p);
 
-        io.printf("%d errors found\n", parser.num_errs(&p));
         if parser.num_errs(&p) > 0 {
+            io.printf("%d errors found\n", parser.num_errs(&p));
             print_parse_errors(&p, &span_interner, &file_map);
             parser.free_p(&p);
         }
@@ -68,13 +68,19 @@ def print_parse_errors(p: *parser.Parser, si: *span.SpanInterner, fm: *reader.Fi
         parser.get_err(p, i, &err);
         let span = span.get(si, err.span);
         let src = reader.get_by_idx(fm, span.ctx);
-        io.printf(
-                "ERROR: %s at %s:%d:%d\n",
-                err.text,
-                source.file_name(&src),
-                span.start,
-                span.start + span.len
-        );
+
+        print_parse_error(&err, &span, &src);
+
         i = i + 1;
     }
+}
+
+def print_parse_error(err: *parser.ParseError, span: *span.BigSpan, file: *source.SourceFile): void {
+    io.printf(
+        "ERROR: %s\n--> %s:%d:%d\n\n",
+        err.text,
+        source.file_name(file),
+        span.start,
+        span.start + span.len
+    );
 }

@@ -16,6 +16,10 @@ type Token struct {
     lexeme: string
 }
 
+def empty_token(): Token {
+    return Token { ty: TOKEN_ERR, span: span.empty(), lexeme: null };
+}
+
 // static (don't free!)
 def token_ty_to_static_string(ty: i32): string {
     return tok2str(ty);
@@ -65,10 +69,6 @@ def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
     };
 }
 
-def eof(): i32 {
-    return TOKEN_EOF;
-}
-
 def peek(l: *Lexer): Token {
     if l.has_peek {
         return l.peek;
@@ -91,9 +91,10 @@ def next_token(l: *Lexer): Token {
 
 def get_next_token(l: *Lexer): Token {
     if at_end(l) {
+        let pos = l.current - l.source;
         return Token {
             ty: TOKEN_EOF,
-            span: span.create(l.span_interner, 0, 0, l.ctx),
+            span: span.create(l.span_interner, pos, pos, l.ctx),
             lexeme: null
         };
     }

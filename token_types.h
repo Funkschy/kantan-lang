@@ -18,4 +18,4 @@
 #define TOKEN_LPAREN 12
 #define TOKEN_RPAREN 13
 
-#define TOKEN_EOF 99
+#define TOKEN_EOF 14
