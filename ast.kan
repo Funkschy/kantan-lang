@@ -45,12 +45,36 @@ def make_expr_stmt(e: *Expr): *Stmt {
     return (new ExprStmt { s: Stmt { tag: STMT_EXPR }, expr: e }) as *Stmt;
 }
 
-def is_expr(s: *Stmt): bool {
+def is_expr_stmt(s: *Stmt): bool {
     return s.tag == STMT_EXPR;
 }
 
 def as_expr_stmt(s: *Stmt): *ExprStmt {
     return s as *ExprStmt;
+}
+
+/////////// let stmt ///////////
+
+type LetStmt struct {
+    s: Stmt,
+    ident: lexer.Token,
+    value: *Expr
+}
+
+def make_let_stmt(ident: lexer.Token, value: *Expr): *Stmt {
+    return (new LetStmt {
+        s: Stmt { tag: STMT_LET },
+        ident: ident,
+        value: value
+    }) as *Stmt;
+}
+
+def is_let_stmt(s: *Stmt): bool {
+    return s.tag == STMT_LET;
+}
+
+def as_let_stmt(s: *Stmt): *LetStmt {
+    return s as *LetStmt;
 }
 
 /////////// base stmt ///////////
@@ -60,8 +84,10 @@ type Stmt struct {
 }
 
 def stmt_free(s: *Stmt): void {
-    if is_expr(s) {
+    if is_expr_stmt(s) {
         expr_free(as_expr_stmt(s).expr);
+    } else if is_let_stmt(s) {
+        expr_free(as_let_stmt(s).value);
     }
     delete s;
 }

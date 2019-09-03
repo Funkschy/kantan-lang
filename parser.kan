@@ -51,37 +51,6 @@ def get_err(p: *Parser, idx: i32, dest: *ParseError): bool {
     return vec.get(&p.errors, idx, dest as *void);
 }
 
-def create_error(span: span.Span, text: string): ParseError {
-    return ParseError { span: span, text: text };
-}
-
-def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
-    // len for lexeme
-    let len = span.get(p.lexer.span_interner, next.span).len;
-
-    return create_error(
-        next.span,
-        std.err2str(ERROR_UNKNOWN_SYMBOL, len, next.lexeme)
-    );
-}
-
-def create_consume_error(p: *Parser, peek: *lexer.Token, expected_ty: i32): ParseError {
-    let peek_str: string = null;
-    let needs_free = lexer.token_to_string(peek, p.lexer.span_interner, &peek_str);
-
-    let err_str = std.err2str(
-        ERROR_EXPECTED_BUT_GOT,
-        lexer.token_ty_to_static_string(expected_ty),
-        peek_str
-    );
-
-    if needs_free {
-        delete peek_str;
-    }
-
-    return create_error(peek.span, err_str);
-}
-
 // advances to the next token and saves the new token into dest
 // dest: can be left empty if the result is to be ignored
 // returns: true, if no error occured, false otherwise
@@ -110,9 +79,13 @@ def advance(p: *Parser, dest: *lexer.Token): bool {
 }
 
 def consume(p: *Parser, ty: i32): bool {
+    return consume_token(p, ty, null);
+}
+
+def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
     let peek = peek(p);
     if peek.ty == ty {
-        advance(p, null);
+        advance(p, dest);
         return true;
     }
 
@@ -143,6 +116,7 @@ def parse(p: *Parser): ast.CompilationUnit {
 }
 
 def statement(p: *Parser): *ast.Stmt {
+    // TODO: add generic error if s is null, but no ParseError was added
     let s = parse_statement(p);
     if s == null {
         sync(p);
@@ -150,39 +124,36 @@ def statement(p: *Parser): *ast.Stmt {
     return s;
 }
 
-def sync(p: *Parser): void {
-    p.in_panic_mode = true;
-    inner_sync(p);
-    p.in_panic_mode = false;
-}
-
-// should only be called by sync function
-def inner_sync(p: *Parser): void {
-    let previous = lexer.empty_token();
-    if !advance(p, &previous) {
-        return;
-    }
-
-    let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_ERR {
-        if previous.ty == TOKEN_SEMI {
-            return;
-        }
-
-        if peek.ty == TOKEN_LET {
-            return;
-        }
-
-        if !advance(p, &previous) {
-            return;
-        }
-        peek = peek(p);
-    }
-}
-
 def parse_statement(p: *Parser): *ast.Stmt {
+    let peek = peek(p);
+    if peek.ty == TOKEN_LET {
+        return parse_let_stmt(p);
+    }
+
     letcheck(expr, expression(p));
     return ast.make_expr_stmt(expr);
+}
+
+def parse_let_stmt(p: *Parser): *ast.Stmt {
+    if !consume(p, TOKEN_LET) {
+        return null;
+    }
+
+    let ident = lexer.empty_token();
+    if !consume_token(p, TOKEN_IDENT, &ident) {
+        return null;
+    }
+
+    if !consume(p, TOKEN_EQ) {
+        return null;
+    }
+
+    let e = expression(p);
+    if e == null {
+        // TODO: create error
+        return null;
+    }
+    return ast.make_let_stmt(ident, e);
 }
 
 def expression(p: *Parser): *ast.Expr {
@@ -276,3 +247,65 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
 
     return null;
 }
+
+def sync(p: *Parser): void {
+    p.in_panic_mode = true;
+    inner_sync(p);
+    p.in_panic_mode = false;
+}
+
+// should only be called by sync function
+def inner_sync(p: *Parser): void {
+    let previous = lexer.empty_token();
+    if !advance(p, &previous) {
+        return;
+    }
+
+    let peek = peek(p);
+    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_ERR {
+        if previous.ty == TOKEN_SEMI {
+            return;
+        }
+
+        if peek.ty == TOKEN_LET {
+            return;
+        }
+
+        if !advance(p, &previous) {
+            return;
+        }
+        peek = peek(p);
+    }
+}
+
+def create_error(span: span.Span, text: string): ParseError {
+    return ParseError { span: span, text: text };
+}
+
+def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
+    // len for lexeme
+    let len = span.get(p.lexer.span_interner, next.span).len;
+
+    return create_error(
+        next.span,
+        std.err2str(ERROR_UNKNOWN_SYMBOL, len, next.lexeme)
+    );
+}
+
+def create_consume_error(p: *Parser, peek: *lexer.Token, expected_ty: i32): ParseError {
+    let peek_str: string = null;
+    let needs_free = lexer.token_to_string(peek, p.lexer.span_interner, &peek_str);
+
+    let err_str = std.err2str(
+        ERROR_EXPECTED_BUT_GOT,
+        lexer.token_ty_to_static_string(expected_ty),
+        peek_str
+    );
+
+    if needs_free {
+        delete peek_str;
+    }
+
+    return create_error(peek.span, err_str);
+}
+
