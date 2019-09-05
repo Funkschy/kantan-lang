@@ -60,6 +60,31 @@ char const *const err2str(int32_t err_code, ...) {
     return s;
 }
 
+int32_t read_char(char const *string, int32_t s_len, int32_t *ch) {
+    int32_t c_len = 1;
+
+    if ((*string & 0xf8) == 0xf0) {
+        c_len = 4;
+    } else if ((*string & 0xf0) == 0xe0) {
+        c_len = 3;
+    } else if ((*string & 0xe0) == 0xc0) {
+        c_len = 2;
+    }
+
+    if (c_len > s_len) {
+        return s_len;
+    }
+
+    if (ch != NULL) {
+        char buffer[4] = {0};
+        memcpy(buffer, string, c_len);
+
+        *ch = *(int32_t *)buffer;
+    }
+
+    return c_len;
+}
+
 int32_t hash(char const *const key) {
     int32_t h = 0;
     for (char c = *key; c != '\0'; c++) {
@@ -147,4 +172,8 @@ uint64_t next_pow_of_2(uint64_t num) {
 
 _Float32 int_to_float(int64_t i) {
     return (_Float32) i;
+}
+
+int32_t char_to_int(char c) {
+    return (int32_t) c;
 }
