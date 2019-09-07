@@ -47,6 +47,7 @@ def token_to_string(token: *Token, si: *span.SpanInterner, dest: *string): bool 
 type Lexer struct {
     has_peek: bool,
     ctx: i32,
+    source_len: i32,
     peek: Token,
     source: string,
     start: string,
@@ -61,6 +62,7 @@ def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
     return Lexer {
         has_peek: false,
         ctx: ctx,
+        source_len: std.strlen(source), // TODO: save length while reading file
         peek: init_peek,
         source: source,
         start: source,
@@ -89,60 +91,70 @@ def next_token(l: *Lexer): Token {
     return get_next_token(l);
 }
 
+def current_pos(l: *Lexer): i32 {
+    return l.current - l.source;
+}
+
+def current(l: *Lexer): i32 {
+    let c = 0;
+    let read_bytes = current_pos(l);
+    std.read_char(l.current, l.source_len - read_bytes, &c);
+    return c;
+}
+
 def get_next_token(l: *Lexer): Token {
     if at_end(l) {
-        let pos = l.current - l.source;
+        let pos = current_pos(l);
         return Token {
             ty: TOKEN_EOF,
-            span: span.create(l.span_interner, pos, pos, l.ctx),
+            span: create_span(l, pos, pos),
             lexeme: null
         };
     }
 
-    // TODO: unicode support
     l.start = l.current;
-    let c = *l.current;
-    advance(l);
+    let c = advance(l);
 
     if is_num(c) {
         return parse_num(l);
     } else if is_letter(c) {
         return parse_ident(l);
-    } else if c == ';' {
+    } else if c == std.char_to_int(';') {
         return token_from_start(l, TOKEN_SEMI);
-    } else if c == '=' {
+    } else if c == std.char_to_int('=') {
         return token_from_start(l, TOKEN_EQ);
-    } else if c == '+' {
+    } else if c == std.char_to_int('+') {
         return token_from_start(l, TOKEN_PLUS);
-    } else if c == '-' {
+    } else if c == std.char_to_int('-') {
         return token_from_start(l, TOKEN_MINUS);
-    } else if c == '*' {
+    } else if c == std.char_to_int('*') {
         return token_from_start(l, TOKEN_STAR);
-    } else if c == '/' {
+    } else if c == std.char_to_int('/') {
         return token_from_start(l, TOKEN_SLASH);
-    } else if c == '(' {
+    } else if c == std.char_to_int('(') {
         return token_from_start(l, TOKEN_LPAREN);
-    } else if c == ')' {
+    } else if c == std.char_to_int(')') {
         return token_from_start(l, TOKEN_RPAREN);
     }
 
     return token_from_start(l, TOKEN_ERR);
 }
 
-def is_num(c: char): bool {
-    return c >= '0' && c <= '9';
+def is_num(c: i32): bool {
+    return c >= std.char_to_int('0') && c <= std.char_to_int('9');
 }
 
 def parse_num(l: *Lexer): Token {
-    while is_num(*l.current) {
+    while is_num(current(l)) {
         advance(l);
     }
 
     return token_from_start(l, TOKEN_INT);
 }
 
-def is_letter(c: char): bool {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+def is_letter(c: i32): bool {
+    return (c >= std.char_to_int('a') && c <= std.char_to_int('z'))
+        || (c >= std.char_to_int('A') && c <= std.char_to_int('Z'));
 }
 
 def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: i32): i32 {
@@ -156,12 +168,19 @@ def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: i32): 
 }
 
 def ident_type(l: *Lexer): i32 {
-    if *l.start == 'l' {
+    let bytes_until = l.start - l.source;
+    let start = 0;
+    let len = std.read_char(l.start, l.source_len - bytes_until, &start);
+
+    if start == std.char_to_int('l') {
         return check_keyword(l, 1, 2, "et", TOKEN_LET);
-    } else if *l.start == 'i' && l.current - l.start > 1 {
-        if *(l.start + 1) == 'f' {
+    } else if start == std.char_to_int('i') && l.current - l.start > 1 {
+        let next = 0;
+        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+
+        if next == std.char_to_int('f') {
             return TOKEN_IF;
-        } else if *(l.start + 1) == 'm' {
+        } else if next == std.char_to_int('m') {
             return check_keyword(l, 2, 4, "port", TOKEN_IMPORT);
         }
     }
@@ -170,21 +189,25 @@ def ident_type(l: *Lexer): i32 {
 }
 
 def parse_ident(l: *Lexer): Token {
-    while is_letter(*l.current) {
+    while is_letter(current(l)) {
         advance(l);
     }
 
     return token_from_start(l, ident_type(l));
 }
 
-def is_whitespace(c: char): bool {
-    return c == ' ' || c == '\r' || c == '\n' || c == '\t' || c == '\0';
+def is_whitespace(c: i32): bool {
+    return c == std.char_to_int(' ')
+        || c == std.char_to_int('\r')
+        || c == std.char_to_int('\n')
+        || c == std.char_to_int('\t')
+        || c == std.char_to_int('\0');
 }
 
 def skip_whitespace(l: *Lexer): void {
     let continue = true;
     while !at_end(l) && continue {
-        let c = *l.current;
+        let c = current(l);
         continue = is_whitespace(c);
         if continue {
             advance(l);
@@ -196,15 +219,23 @@ def at_end(l: *Lexer): bool {
     return *l.current == '\0';
 }
 
-def advance(l: *Lexer): char {
-    l.current = l.current + 1;
-    return *(l.current - 1);
+def advance(l: *Lexer): i32 {
+    let read_bytes = current_pos(l);
+    let c = 0;
+    let len = std.read_char(l.current, l.source_len - read_bytes, &c);
+
+    l.current = l.current + len;
+    return c;
+}
+
+def create_span(l: *Lexer, start: i32, end: i32): span.Span {
+    return span.create(l.span_interner, start, end, l.ctx);
 }
 
 def token_from_start(l: *Lexer, ty: i32): Token {
     return Token {
         ty: ty,
-        span: span.create(l.span_interner, l.start - l.source, l.current - l.source, l.ctx),
+        span: create_span(l, l.start - l.source, current_pos(l)),
         lexeme: l.start
     };
 }

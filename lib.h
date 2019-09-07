@@ -40,7 +40,8 @@ static char const *const error_texts[] = {
     // parse errors
     "Unexpected end of file",
     "Expected '%s', but got '%s'",
-    "Unknown symbol: '%.*s'"
+    "Unknown symbol: '%.*s'",
+    "Could not parse statement: '%.*s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

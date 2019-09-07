@@ -63,11 +63,10 @@ def advance(p: *Parser, dest: *lexer.Token): bool {
             vec.push(&p.errors, &error as *void);
         }
         return false;
-    } else if next.ty == TOKEN_ERR {
-        if !p.in_panic_mode {
-            let error = create_lex_error(p, &next);
-            vec.push(&p.errors, &error as *void);
-        }
+    } else if next.ty == TOKEN_ERR && !p.in_panic_mode {
+        // advance should not care about lex errors while in panic mode
+        let error = create_lex_error(p, &next);
+        vec.push(&p.errors, &error as *void);
         return false;
     }
 
@@ -83,13 +82,20 @@ def consume(p: *Parser, ty: i32): bool {
 }
 
 def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
-    let peek = peek(p);
-    if peek.ty == ty {
-        advance(p, dest);
+    let next = lexer.empty_token();
+    if !advance(p, &next) {
+        return false;
+    }
+
+    if dest != null {
+        *dest = next;
+    }
+
+    if next.ty == ty {
         return true;
     }
 
-    let error = create_consume_error(p, &peek, ty);
+    let error = create_consume_error(p, &next, ty);
     vec.push(&p.errors, &error as *void);
     return false;
 }
@@ -105,6 +111,7 @@ def parse(p: *Parser): ast.CompilationUnit {
         let s = statement(p);
         if s != null {
             if !consume(p, TOKEN_SEMI) {
+                sync(p);
                 ast.stmt_free(s);
             } else {
                 ast.cu_push(&cu, s);
@@ -116,10 +123,20 @@ def parse(p: *Parser): ast.CompilationUnit {
 }
 
 def statement(p: *Parser): *ast.Stmt {
-    // TODO: add generic error if s is null, but no ParseError was added
+    let num_errs = num_errs(p);
+    let start = lexer.current_pos(&p.lexer);
+
     let s = parse_statement(p);
     if s == null {
         sync(p);
+
+        // no parse error was added...
+        if num_errs == num_errs(p) {
+            // ... so just add a generic one
+            let end = lexer.current_pos(&p.lexer);
+            let error = create_statement_error(p, start, end);
+            vec.push(&p.errors, &error as *void);
+        }
     }
     return s;
 }
@@ -262,7 +279,7 @@ def inner_sync(p: *Parser): void {
     }
 
     let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_ERR {
+    while peek.ty != TOKEN_EOF {
         if previous.ty == TOKEN_SEMI {
             return;
         }
@@ -280,6 +297,13 @@ def inner_sync(p: *Parser): void {
 
 def create_error(span: span.Span, text: string): ParseError {
     return ParseError { span: span, text: text };
+}
+
+def create_statement_error(p: *Parser, start: i32, end: i32): ParseError {
+    let span = lexer.create_span(&p.lexer, start, end);
+    let len = span.get(p.lexer.span_interner, span).len;
+
+    return create_error(span, std.err2str(ERROR_COULD_NOT_PARSE_STMT, len, p.lexer.source + start));
 }
 
 def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
