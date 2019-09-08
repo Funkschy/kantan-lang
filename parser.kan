@@ -104,8 +104,8 @@ def peek(p: *Parser): lexer.Token {
     return lexer.peek(&p.lexer);
 }
 
-def parse(p: *Parser): ast.CompilationUnit {
-    let cu = ast.cu_create();
+def parse(p: *Parser): ast.Module {
+    let mod = ast.mod_create();
 
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
@@ -114,12 +114,12 @@ def parse(p: *Parser): ast.CompilationUnit {
                 sync(p);
                 ast.stmt_free(s);
             } else {
-                ast.cu_push(&cu, s);
+                ast.mod_push(&mod, s);
             }
         }
     }
 
-    return cu;
+    return mod;
 }
 
 def statement(p: *Parser): *ast.Stmt {

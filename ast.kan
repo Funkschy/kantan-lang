@@ -8,30 +8,30 @@ import "span"
 
 extern def binary2str(op: i32): string;
 
-type CompilationUnit struct {
+type Module struct {
     statements: ptrvec.Vec
 }
 
-def cu_create(): CompilationUnit {
-    return CompilationUnit { statements: ptrvec.create() };
+def mod_create(): Module {
+    return Module { statements: ptrvec.create() };
 }
 
-def cu_push(cu: *CompilationUnit, stmt: *Stmt): void {
-    ptrvec.push(&cu.statements, stmt as *void);
+def mod_push(mod: *Module, stmt: *Stmt): void {
+    ptrvec.push(&mod.statements, stmt as *void);
 }
 
-def cu_get(cu: *CompilationUnit, i: i32): *Stmt {
-    return ptrvec.get(&cu.statements, i) as *Stmt;
+def mod_get(mod: *Module, i: i32): *Stmt {
+    return ptrvec.get(&mod.statements, i) as *Stmt;
 }
 
-def cu_free(cu: *CompilationUnit): void {
+def mod_free(mod: *Module): void {
     let i = 0;
-    while i < cu.statements.len {
-        stmt_free(cu_get(cu, i));
+    while i < mod.statements.len {
+        stmt_free(mod_get(mod, i));
         i = i + 1;
     }
 
-    ptrvec.free_v(&cu.statements);
+    ptrvec.free_v(&mod.statements);
 }
 
 /////////// expr stmt ///////////

@@ -30,7 +30,7 @@ def main(argc: i32, argv: *string): void {
         let src = reader.get_by_idx(&file_map, i);
         io.printf("Compiling %s\n", source.file_name(&src));
         let p = parser.create(source.code(&src), &span_interner, i);
-        let cu = parser.parse(&p);
+        let mod = parser.parse(&p);
 
         if parser.num_errs(&p) > 0 {
             io.printf("%d errors found\n", parser.num_errs(&p));
@@ -39,7 +39,7 @@ def main(argc: i32, argv: *string): void {
         }
 
         // just get the first stmt
-        let s = ast.cu_get(&cu, 0);
+        let s = ast.mod_get(&mod, 0);
 
         if s != null {
             let is_expr = ast.is_expr_stmt(s);
@@ -66,7 +66,7 @@ def main(argc: i32, argv: *string): void {
             io.printf("ERROR: no valid statement in file\n");
         }
 
-        ast.cu_free(&cu);
+        ast.mod_free(&mod);
         i = i + 1;
     }
 
