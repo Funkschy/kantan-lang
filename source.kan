@@ -1,5 +1,5 @@
-import "path"
-import "file"
+import "path";
+import "file";
 
 type SourceFile struct {
     file: file.File,

@@ -1,10 +1,10 @@
 #include "token_types.h"
 #include "std.h"
 
-import "std"
-import "span"
+import "std";
+import "span";
 // TODO: only debug
-import "io"
+import "io";
 
 extern def tok2str(ty: i32): string;
 
@@ -119,6 +119,8 @@ def get_next_token(l: *Lexer): Token {
         return parse_num(l);
     } else if is_letter(c) {
         return parse_ident(l);
+    } else if c == std.char_to_int('"') {
+        return parse_string(l);
     } else if c == std.char_to_int(';') {
         return token_from_start(l, TOKEN_SEMI);
     } else if c == std.char_to_int('=') {
@@ -150,6 +152,15 @@ def parse_num(l: *Lexer): Token {
     }
 
     return token_from_start(l, TOKEN_INT);
+}
+
+def parse_string(l: *Lexer): Token {
+    while !at_end(l) && current(l) != std.char_to_int('"') {
+        advance(l);
+    }
+    advance(l);
+
+    return create_token(l, TOKEN_STRING, l.start + 1, l.current - 1);
 }
 
 def is_letter(c: i32): bool {
@@ -232,10 +243,14 @@ def create_span(l: *Lexer, start: i32, end: i32): span.Span {
     return span.create(l.span_interner, start, end, l.ctx);
 }
 
-def token_from_start(l: *Lexer, ty: i32): Token {
+def create_token(l: *Lexer, ty: i32, start: string, end: string): Token {
     return Token {
         ty: ty,
-        span: create_span(l, l.start - l.source, current_pos(l)),
-        lexeme: l.start
+        span: create_span(l, start - l.source, end - l.source),
+        lexeme: start
     };
+}
+
+def token_from_start(l: *Lexer, ty: i32): Token {
+    return create_token(l, ty, l.start, l.current);
 }

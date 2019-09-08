@@ -4,7 +4,7 @@
 // TODO: should be platform dependant
 #define DEFAULT_SEPARATOR '/'
 
-import "std"
+import "std";
 
 type Path struct {
     inner: string,

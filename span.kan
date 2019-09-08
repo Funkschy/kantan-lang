@@ -5,9 +5,9 @@
 // 0b1111_1111_1111_1111
 #define MAX_CTX 65535
 
-import "io" // TODO: only debug
-import "std"
-import "vec"
+import "io"; // TODO: only debug
+import "std";
+import "vec";
 
 // A position in the source code
 // Strongly inspired by:

@@ -3,14 +3,14 @@
 #include "./error_code.h"
 #include "./std.h"
 
-import "lexer"
-import "ast"
-import "precedence"
-import "span"
-import "vec"
-import "std"
+import "lexer";
+import "ast";
+import "precedence";
+import "span";
+import "vec";
+import "std";
 
-import "io" // TODO: only debug
+import "io"; // TODO: only debug
 
 type ParseError struct {
     span: span.Span,
@@ -137,7 +137,10 @@ def statement(p: *Parser): *ast.Stmt {
             let error = create_statement_error(p, start, end);
             vec.push(&p.errors, &error as *void);
         }
+
+        return null;
     }
+
     return s;
 }
 
@@ -145,10 +148,25 @@ def parse_statement(p: *Parser): *ast.Stmt {
     let peek = peek(p);
     if peek.ty == TOKEN_LET {
         return parse_let_stmt(p);
+    } else if peek.ty == TOKEN_IMPORT {
+        return parse_import_stmt(p);
     }
 
     letcheck(expr, expression(p));
     return ast.make_expr_stmt(expr);
+}
+
+def parse_import_stmt(p: *Parser): *ast.Stmt {
+    if !consume(p, TOKEN_IMPORT) {
+        return null;
+    }
+
+    let mod_path = lexer.empty_token();
+    if !consume_token(p, TOKEN_STRING, &mod_path) {
+        return null;
+    }
+
+    return ast.make_import_stmt(mod_path.span, mod_path.lexeme);
 }
 
 def parse_let_stmt(p: *Parser): *ast.Stmt {

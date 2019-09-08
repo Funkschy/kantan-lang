@@ -1,4 +1,4 @@
-import "path"
+import "path";
 
 extern def read_file(path: string, dest: *string): i32;
 

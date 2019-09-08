@@ -1,9 +1,9 @@
-import "vec"
-import "path"
-import "file"
-import "source"
+import "vec";
+import "path";
+import "file";
+import "source";
 
-import "io" // TODO: only debug
+import "io"; // TODO: only debug
 
 type FileAddError struct {
     file_name: string,

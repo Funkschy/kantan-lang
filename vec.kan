@@ -1,6 +1,6 @@
 #include "std.h"
 
-import "std"
+import "std";
 
 type Vec struct {
     len: i32,

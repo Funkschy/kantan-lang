@@ -1,22 +1,48 @@
 #include "expr_types.h"
 #include "stmt_types.h"
 
-import "std"
-import "io" // TODO: only debug
-import "ptrvec"
-import "span"
+import "std";
+import "ptrvec";
+import "vec";
+import "span";
+
+import "io"; // TODO: only debug
 
 extern def binary2str(op: i32): string;
 
 type Module struct {
-    statements: ptrvec.Vec
+    statements: ptrvec.Vec,
+    imports: vec.Vec // indices into statements
 }
 
 def mod_create(): Module {
-    return Module { statements: ptrvec.create() };
+    return Module { statements: ptrvec.create(), imports: vec.create(sizeof i32) };
+}
+
+def mod_get_import_at(mod: *Module, i: i32): *ImportStmt {
+    let idx = 0;
+    if !vec.get(&mod.imports, i, &idx as *void) {
+        return null;
+    }
+
+    let s: *Stmt = mod_get(mod, idx);
+    if s == null {
+        return null;
+    }
+
+    return as_import_stmt(s);
+}
+
+def mod_num_imports(mod: *Module): i32 {
+    return mod.imports.len;
 }
 
 def mod_push(mod: *Module, stmt: *Stmt): void {
+    if ast.is_import_stmt(stmt) {
+        let idx = mod.statements.len;
+        vec.push(&mod.imports, &idx as *void);
+    }
+
     ptrvec.push(&mod.statements, stmt as *void);
 }
 
@@ -32,6 +58,7 @@ def mod_free(mod: *Module): void {
     }
 
     ptrvec.free_v(&mod.statements);
+    vec.free_v(&mod.imports);
 }
 
 /////////// expr stmt ///////////
@@ -51,6 +78,30 @@ def is_expr_stmt(s: *Stmt): bool {
 
 def as_expr_stmt(s: *Stmt): *ExprStmt {
     return s as *ExprStmt;
+}
+
+/////////// import stmt ///////////
+
+type ImportStmt struct {
+    s: Stmt,
+    path_span: span.Span,
+    mod_path: string
+}
+
+def make_import_stmt(span: span.Span, mod_path: string): *Stmt {
+    return (new ImportStmt {
+        s: Stmt { tag: STMT_IMPORT },
+        path_span: span,
+        mod_path: mod_path
+    }) as *Stmt;
+}
+
+def is_import_stmt(s: *Stmt): bool {
+    return s.tag == STMT_IMPORT;
+}
+
+def as_import_stmt(s: *Stmt): *ImportStmt {
+    return s as *ImportStmt;
 }
 
 /////////// let stmt ///////////

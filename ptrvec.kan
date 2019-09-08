@@ -1,7 +1,7 @@
 #include "std.h"
 
-import "std"
-import "io" // TODO only debug
+import "std";
+import "io"; // TODO only debug
 
 type Vec struct {
     len: i32,
