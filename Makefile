@@ -8,6 +8,7 @@ K_FILES = main.kan \
 		  parser.kan \
 		  ast.kan \
 		  mod.kan \
+		  ident.kan \
 		  precedence.kan \
 		  vec.kan \
 		  ptrvec.kan \

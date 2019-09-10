@@ -3,6 +3,7 @@
 
 import "std";
 import "span";
+import "ident";
 
 import "io"; // TODO: only debug
 
@@ -55,15 +56,15 @@ def as_import_stmt(s: *Stmt): *ImportStmt {
 
 type LetStmt struct {
     s: Stmt,
-    ident: lexer.Token,
-    value: *Expr
+    value: *Expr,
+    ident: ident.Ident
 }
 
 def make_let_stmt(ident: lexer.Token, value: *Expr): *Stmt {
     return (new LetStmt {
         s: Stmt { tag: STMT_LET },
-        ident: ident,
-        value: value
+        value: value,
+        ident: ident.create(ident)
     }) as *Stmt;
 }
 

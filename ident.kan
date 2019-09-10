@@ -1,0 +1,10 @@
+import "span";
+
+type Ident struct {
+    ident: string,
+    ident_span: span.Span
+}
+
+def create(t: lexer.Token): Ident {
+    return Ident { ident: t.lexeme, ident_span: t.span };
+}
