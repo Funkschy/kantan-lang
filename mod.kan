@@ -1,0 +1,55 @@
+import "ptrvec";
+import "vec";
+import "ast"
+
+type Module struct {
+    statements: ptrvec.Vec,
+    imports: vec.Vec // indices into statements
+}
+
+def create(): Module {
+    return Module { statements: ptrvec.create(), imports: vec.create(sizeof i32) };
+}
+
+def get_import_at(mod: *Module, i: i32): *ast.ImportStmt {
+    let idx = 0;
+    if !vec.get(&mod.imports, i, &idx as *void) {
+        return null;
+    }
+
+    let s: *ast.Stmt = get_stmt(mod, idx);
+    if s == null {
+        return null;
+    }
+
+    return ast.as_import_stmt(s);
+}
+
+def num_imports(mod: *Module): i32 {
+    return mod.imports.len;
+}
+
+def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
+    if ast.is_import_stmt(stmt) {
+        let idx = mod.statements.len;
+        vec.push(&mod.imports, &idx as *void);
+    }
+
+    ptrvec.push_ptr(&mod.statements, stmt as *void);
+}
+
+def get_stmt(mod: *Module, i: i32): *ast.Stmt {
+    return ptrvec.get(&mod.statements, i) as *ast.Stmt;
+}
+
+def free_m(mod: *Module): void {
+    let i = 0;
+    while i < mod.statements.len {
+        ast.stmt_free(get_stmt(mod, i));
+        i = i + 1;
+    }
+
+    ptrvec.free_v(&mod.statements);
+    vec.free_v(&mod.imports);
+}
+

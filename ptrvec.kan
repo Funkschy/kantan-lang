@@ -17,7 +17,7 @@ def with_cap(cap: i32): Vec {
     return Vec { len: 0, cap: cap, elements: std.calloc(cap, sizeof *void) as **void };
 }
 
-def push(v: *Vec, elem: *void): void {
+def push_ptr(v: *Vec, elem: *void): void {
     if v.len + 1 > v.cap {
         resize(v);
     }

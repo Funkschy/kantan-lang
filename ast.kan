@@ -2,64 +2,11 @@
 #include "stmt_types.h"
 
 import "std";
-import "ptrvec";
-import "vec";
 import "span";
 
 import "io"; // TODO: only debug
 
 extern def binary2str(op: i32): string;
-
-type Module struct {
-    statements: ptrvec.Vec,
-    imports: vec.Vec // indices into statements
-}
-
-def mod_create(): Module {
-    return Module { statements: ptrvec.create(), imports: vec.create(sizeof i32) };
-}
-
-def mod_get_import_at(mod: *Module, i: i32): *ImportStmt {
-    let idx = 0;
-    if !vec.get(&mod.imports, i, &idx as *void) {
-        return null;
-    }
-
-    let s: *Stmt = mod_get(mod, idx);
-    if s == null {
-        return null;
-    }
-
-    return as_import_stmt(s);
-}
-
-def mod_num_imports(mod: *Module): i32 {
-    return mod.imports.len;
-}
-
-def mod_push(mod: *Module, stmt: *Stmt): void {
-    if ast.is_import_stmt(stmt) {
-        let idx = mod.statements.len;
-        vec.push(&mod.imports, &idx as *void);
-    }
-
-    ptrvec.push(&mod.statements, stmt as *void);
-}
-
-def mod_get(mod: *Module, i: i32): *Stmt {
-    return ptrvec.get(&mod.statements, i) as *Stmt;
-}
-
-def mod_free(mod: *Module): void {
-    let i = 0;
-    while i < mod.statements.len {
-        stmt_free(mod_get(mod, i));
-        i = i + 1;
-    }
-
-    ptrvec.free_v(&mod.statements);
-    vec.free_v(&mod.imports);
-}
 
 /////////// expr stmt ///////////
 

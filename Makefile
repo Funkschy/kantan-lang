@@ -7,6 +7,7 @@ K_FILES = main.kan \
 		  std.kan \
 		  parser.kan \
 		  ast.kan \
+		  mod.kan \
 		  precedence.kan \
 		  vec.kan \
 		  ptrvec.kan \

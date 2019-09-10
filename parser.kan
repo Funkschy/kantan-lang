@@ -9,6 +9,7 @@ import "precedence";
 import "span";
 import "vec";
 import "std";
+import "mod";
 
 import "io"; // TODO: only debug
 
@@ -104,8 +105,8 @@ def peek(p: *Parser): lexer.Token {
     return lexer.peek(&p.lexer);
 }
 
-def parse(p: *Parser): ast.Module {
-    let mod = ast.mod_create();
+def parse(p: *Parser): mod.Module {
+    let mod = mod.create();
 
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
@@ -114,7 +115,7 @@ def parse(p: *Parser): ast.Module {
                 sync(p);
                 ast.stmt_free(s);
             } else {
-                ast.mod_push(&mod, s);
+                mod.push_stmt(&mod, s);
             }
         }
     }
