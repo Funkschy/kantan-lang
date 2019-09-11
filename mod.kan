@@ -4,16 +4,21 @@ import "ast"
 
 type Module struct {
     statements: ptrvec.Vec,
-    imports: vec.Vec // indices into statements
+    imports: vec.Vec, // indices into statements
+    functions: vec.Vec // indices into statements
 }
 
 def create(): Module {
-    return Module { statements: ptrvec.create(), imports: vec.create(sizeof i32) };
+    return Module {
+        statements: ptrvec.create(),
+        imports: vec.create(sizeof i32),
+        functions: vec.create(sizeof i32)
+    };
 }
 
-def get_import_at(mod: *Module, i: i32): *ast.ImportStmt {
+def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: i32): *ast.Stmt {
     let idx = 0;
-    if !vec.get(&mod.imports, i, &idx as *void) {
+    if !vec.get(indices, i, &idx as *void) {
         return null;
     }
 
@@ -22,17 +27,32 @@ def get_import_at(mod: *Module, i: i32): *ast.ImportStmt {
         return null;
     }
 
-    return ast.as_import_stmt(s);
+    return s;
+}
+
+def get_import_at(mod: *Module, i: i32): *ast.ImportStmt {
+    return ast.as_import_stmt(get_special_stmt_at(mod, &mod.imports, i));
 }
 
 def num_imports(mod: *Module): i32 {
     return mod.imports.len;
 }
 
+def get_function_at(mod: *Module, i: i32): *ast.FuncDeclStmt {
+    return ast.as_func_decl_stmt(get_special_stmt_at(mod, &mod.functions, i));
+}
+
+def num_functions(mod: *Module): i32 {
+    return mod.functions.len;
+}
+
 def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
     if ast.is_import_stmt(stmt) {
         let idx = mod.statements.len;
         vec.push(&mod.imports, &idx as *void);
+    } else if ast.is_func_decl_stmt(stmt) {
+        let idx = mod.statements.len;
+        vec.push(&mod.functions, &idx as *void);
     }
 
     ptrvec.push_ptr(&mod.statements, stmt as *void);
@@ -51,5 +71,6 @@ def free_m(mod: *Module): void {
 
     ptrvec.free_v(&mod.statements);
     vec.free_v(&mod.imports);
+    vec.free_v(&mod.functions);
 }
 
