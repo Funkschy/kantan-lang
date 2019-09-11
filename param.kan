@@ -1,0 +1,10 @@
+import "ident"
+
+type Param struct {
+    name: ident.Ident,
+    ty: ident.Ident
+}
+
+def create(name: ident.Ident, ty: ident.Ident): Param {
+    return Param { name: name, ty: ty };
+}

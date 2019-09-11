@@ -4,6 +4,8 @@
 import "std";
 import "span";
 import "ident";
+import "func";
+import "ptrvec"
 
 import "io"; // TODO: only debug
 
@@ -26,6 +28,52 @@ def is_expr_stmt(s: *Stmt): bool {
 
 def as_expr_stmt(s: *Stmt): *ExprStmt {
     return s as *ExprStmt;
+}
+
+/////////// Block stmt ///////////
+
+type BlockStmt struct {
+    s: Stmt,
+    stmts: ptrvec.Vec
+}
+
+def make_block_stmt(statements: ptrvec.Vec): *Stmt {
+    return (new BlockStmt{
+        s: Stmt { tag: STMT_BLOCK },
+        stmts: statements
+    }) as *Stmt;
+}
+
+def is_block_stmt(s: *Stmt): bool {
+    return s.tag == STMT_BLOCK;
+}
+
+def as_block_stmt(s: *Stmt): *BlockStmt {
+    return s as *BlockStmt;
+}
+
+/////////// Func Decl stmt ///////////
+
+type FuncDeclStmt struct {
+    s: Stmt,
+    decl: func.FuncDef,
+    block: *BlockStmt
+}
+
+def make_func_decl_stmt(ident: lexer.Token, params: func.ParamList, ret_ty: ident.Ident, block: *BlockStmt): *Stmt {
+    return (new FuncDeclStmt {
+        s: Stmt { tag: STMT_FUNC_DECL },
+        decl: func.create(ident, params, ret_ty),
+        block: block
+    }) as *Stmt;
+}
+
+def is_func_decl_stmt(s: *Stmt): bool {
+    return s.tag == STMT_FUNC_DECL;
+}
+
+def as_func_decl_stmt(s: *Stmt): *FuncDeclStmt {
+    return s as *FuncDeclStmt;
 }
 
 /////////// import stmt ///////////
@@ -83,11 +131,34 @@ type Stmt struct {
 }
 
 def stmt_free(s: *Stmt): void {
+    if s == null {
+        return;
+    }
+
     if is_expr_stmt(s) {
         expr_free(as_expr_stmt(s).expr);
     } else if is_let_stmt(s) {
         expr_free(as_let_stmt(s).value);
+    } else if is_func_decl_stmt(s) {
+        let f_decl = as_func_decl_stmt(s);
+        let decl = f_decl.decl;
+        func.free_f(&decl);
+        stmt_free(f_decl.block as *Stmt);
+    } else if is_block_stmt(s) {
+        let stmts = as_block_stmt(s).stmts;
+
+        let i = 0;
+        while i < stmts.len {
+            let s = ptrvec.get(&stmts, i);
+            if s != null {
+                stmt_free(s as *Stmt);
+            }
+            i = i + 1;
+        }
+
+        ptrvec.free_v(&stmts);
     }
+
     delete s;
 }
 

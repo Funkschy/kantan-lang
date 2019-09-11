@@ -3,6 +3,8 @@
 #include "./error_code.h"
 #include "./std.h"
 
+#define CONSUME_RET_NULL(ty) if !consume(p, (ty)) { return null; } 0
+
 import "lexer";
 import "ast";
 import "precedence";
@@ -10,6 +12,7 @@ import "span";
 import "vec";
 import "std";
 import "mod";
+import "param";
 
 import "io"; // TODO: only debug
 
@@ -111,12 +114,7 @@ def parse(p: *Parser): mod.Module {
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
         if s != null {
-            if !consume(p, TOKEN_SEMI) {
-                sync(p);
-                ast.stmt_free(s);
-            } else {
-                mod.push_stmt(&mod, s);
-            }
+            mod.push_stmt(&mod, s);
         }
     }
 
@@ -127,7 +125,9 @@ def statement(p: *Parser): *ast.Stmt {
     let num_errs = num_errs(p);
     let start = lexer.current_pos(&p.lexer);
 
-    let s = parse_statement(p);
+    let s: *ast.Stmt = null;
+    let consume_semi = parse_statement(p, &s);
+
     if s == null {
         sync(p);
 
@@ -142,25 +142,42 @@ def statement(p: *Parser): *ast.Stmt {
         return null;
     }
 
+    if consume_semi {
+        if !consume(p, TOKEN_SEMI) {
+            sync(p);
+            ast.stmt_free(s);
+            return null;
+        }
+    }
+
     return s;
 }
 
-def parse_statement(p: *Parser): *ast.Stmt {
+def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
     let peek = peek(p);
     if peek.ty == TOKEN_LET {
-        return parse_let_stmt(p);
+        *dest = parse_let_stmt(p);
+        return true;
     } else if peek.ty == TOKEN_IMPORT {
-        return parse_import_stmt(p);
+        *dest = parse_import_stmt(p);
+        return true;
+    } else if peek.ty == TOKEN_DEF {
+        *dest = parse_func_def(p);
+        return false;
     }
 
-    letcheck(expr, expression(p));
-    return ast.make_expr_stmt(expr);
+    let expr = expression(p);
+    if expr == null {
+        *dest = null;
+        return true;
+    }
+
+    *dest = ast.make_expr_stmt(expr);
+    return true;
 }
 
 def parse_import_stmt(p: *Parser): *ast.Stmt {
-    if !consume(p, TOKEN_IMPORT) {
-        return null;
-    }
+    CONSUME_RET_NULL(TOKEN_IMPORT);
 
     let mod_path = lexer.empty_token();
     if !consume_token(p, TOKEN_STRING, &mod_path) {
@@ -171,18 +188,14 @@ def parse_import_stmt(p: *Parser): *ast.Stmt {
 }
 
 def parse_let_stmt(p: *Parser): *ast.Stmt {
-    if !consume(p, TOKEN_LET) {
-        return null;
-    }
+    CONSUME_RET_NULL(TOKEN_LET);
 
     let ident = lexer.empty_token();
     if !consume_token(p, TOKEN_IDENT, &ident) {
         return null;
     }
 
-    if !consume(p, TOKEN_EQ) {
-        return null;
-    }
+    CONSUME_RET_NULL(TOKEN_EQ);
 
     let e = expression(p);
     if e == null {
@@ -190,6 +203,112 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
     return ast.make_let_stmt(ident, e);
+}
+
+def parse_func_def(p: *Parser): *ast.Stmt {
+    CONSUME_RET_NULL(TOKEN_DEF);
+
+    let ident = lexer.empty_token();
+    if !consume_token(p, TOKEN_IDENT, &ident) {
+        return null;
+    }
+
+    CONSUME_RET_NULL(TOKEN_LPAREN);
+    let params = parse_param_list(p, TOKEN_COMMA, TOKEN_RPAREN);
+    let param_list = func.pl_from_vec(params);
+
+    let block = parse_block(p);
+    if block == null {
+        func.free_pl(&param_list);
+        return null;
+    }
+
+    return ast.make_func_decl_stmt(
+        ident,
+        param_list,
+        ident.empty(),
+        ast.as_block_stmt(block)
+    );
+}
+
+def free_statements(statements: *ptrvec.Vec): void {
+    let i = 0;
+    while i < statements.len {
+        let s = ptrvec.get(statements, i) as *ast.Stmt;
+        ast.stmt_free(s);
+        i = i + 1;
+    }
+
+    ptrvec.free_v(statements);
+}
+
+def parse_block(p: *Parser): *ast.Stmt {
+    CONSUME_RET_NULL(TOKEN_LBRACE);
+    let statements = ptrvec.create();
+
+    let peek = peek(p);
+    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RBRACE {
+        let s = statement(p);
+        if s == null {
+            free_statements(&statements);
+            return null;
+        }
+
+        ptrvec.push_ptr(&statements, s as *void);
+        peek = peek(p);
+    }
+
+    if !consume(p, TOKEN_RBRACE) {
+        free_statements(&statements);
+        return null;
+    }
+
+    return ast.make_block_stmt(statements);
+}
+
+def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
+#define FAIL() vec.free_v(&params); return vec.create(0)
+
+    let params = vec.create(sizeof param.Param);
+
+    let peek = peek(p);
+    while peek.ty != TOKEN_EOF && peek.ty != delim_ty {
+        let ident = lexer.empty_token();
+        if !consume_token(p, TOKEN_IDENT, &ident) {
+            FAIL();
+        }
+        let ident = ident.create(ident);
+
+        if !consume(p, TOKEN_COLON) {
+            FAIL();
+        }
+
+        let ty = lexer.empty_token();
+        if !consume_token(p, TOKEN_IDENT, &ty) {
+            FAIL();
+        }
+        let ty = ident.create(ty);
+
+        let param = param.create(ident, ty);
+        vec.push(&params, &param as *void);
+
+        peek = peek(p);
+
+        // consume separator
+        if peek.ty == sep_ty {
+            if !consume(p, sep_ty) {
+                FAIL();
+            }
+        }
+    }
+
+    if !consume(p, delim_ty) {
+        FAIL();
+    }
+
+    return params;
+
+#undef FAIL
 }
 
 def expression(p: *Parser): *ast.Expr {
@@ -303,7 +422,7 @@ def inner_sync(p: *Parser): void {
             return;
         }
 
-        if peek.ty == TOKEN_LET {
+        if peek.ty == TOKEN_LET || peek.ty == TOKEN_DEF {
             return;
         }
 

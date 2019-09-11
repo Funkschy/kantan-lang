@@ -123,6 +123,10 @@ def get_next_token(l: *Lexer): Token {
         return parse_string(l);
     } else if c == std.char_to_int(';') {
         return token_from_start(l, TOKEN_SEMI);
+    } else if c == std.char_to_int(',') {
+        return token_from_start(l, TOKEN_COMMA);
+    } else if c == std.char_to_int(':') {
+        return token_from_start(l, TOKEN_COLON);
     } else if c == std.char_to_int('=') {
         return token_from_start(l, TOKEN_EQ);
     } else if c == std.char_to_int('+') {
@@ -137,6 +141,10 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_LPAREN);
     } else if c == std.char_to_int(')') {
         return token_from_start(l, TOKEN_RPAREN);
+    } else if c == std.char_to_int('{') {
+        return token_from_start(l, TOKEN_LBRACE);
+    } else if c == std.char_to_int('}') {
+        return token_from_start(l, TOKEN_RBRACE);
     }
 
     return token_from_start(l, TOKEN_ERR);
@@ -194,6 +202,8 @@ def ident_type(l: *Lexer): i32 {
         } else if next == std.char_to_int('m') {
             return check_keyword(l, 2, 4, "port", TOKEN_IMPORT);
         }
+    } else if start == std.char_to_int('d') {
+        return check_keyword(l, 1, 2, "ef", TOKEN_DEF);
     }
 
     return TOKEN_IDENT;

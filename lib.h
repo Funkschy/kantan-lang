@@ -7,7 +7,10 @@ static char const *const token_strings[] = {
     "let",
     "if",
     "import",
+    "def",
     ";",
+    ",",
+    ":",
     "=",
     "+",
     "-",
@@ -15,6 +18,8 @@ static char const *const token_strings[] = {
     "/",
     "(",
     ")",
+    "{",
+    "}",
     "string",
     "EOF"
 };

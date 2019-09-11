@@ -9,6 +9,8 @@ K_FILES = main.kan \
 		  ast.kan \
 		  mod.kan \
 		  ident.kan \
+		  func.kan \
+		  param.kan \
 		  precedence.kan \
 		  vec.kan \
 		  ptrvec.kan \

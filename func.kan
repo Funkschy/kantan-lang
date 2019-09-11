@@ -1,0 +1,39 @@
+import "lexer";
+import "span";
+import "ident"
+import "vec"
+import "param"
+
+type ParamList struct {
+    params: vec.Vec
+}
+
+def pl_from_vec(params: vec.Vec): ParamList {
+    return ParamList { params: params };
+}
+
+def free_pl(pl: *ParamList): void {
+    vec.free_v(&pl.params);
+}
+
+def add_param(pl: *ParamList, p: *param.Param): void {
+    vec.push(&pl.params, p as *void);
+}
+
+type FuncDef struct {
+    name: ident.Ident,
+    ret_ty: ident.Ident,
+    params: ParamList
+}
+
+def create(ident: lexer.Token, params: ParamList, ret_ty: ident.Ident): FuncDef {
+    return FuncDef { name: ident.create(ident), ret_ty: ret_ty, params: params };
+}
+
+def num_params(f: *FuncDef): i32 {
+    return f.params.params.len;
+}
+
+def free_f(f: *FuncDef): void {
+    free_pl(&f.params);
+}

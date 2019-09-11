@@ -8,3 +8,7 @@ type Ident struct {
 def create(t: lexer.Token): Ident {
     return Ident { ident: t.lexeme, ident_span: t.span };
 }
+
+def empty(): Ident {
+    return create(lexer.empty_token());
+}
