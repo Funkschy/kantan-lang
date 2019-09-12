@@ -92,6 +92,10 @@ def next_token(l: *Lexer): Token {
 }
 
 def current_pos(l: *Lexer): i32 {
+    if l.has_peek {
+        return l.peek.span.start;
+    }
+
     return l.current - l.source;
 }
 
