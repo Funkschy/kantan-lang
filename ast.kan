@@ -187,6 +187,31 @@ def as_int(e: *Expr): *IntExpr {
     return e as *IntExpr;
 }
 
+/////////// string expr ///////////
+
+type StringExpr struct {
+    e: Expr,
+    len: i32,
+    ptr: string
+}
+
+def make_string(span: span.Span, len: i32, ptr: string): *Expr {
+    return (new StringExpr {
+        e: Expr { tag: EXPR_STRING, span: span },
+        len: len,
+        ptr: ptr
+    }) as *Expr;
+}
+
+def is_string(e: *Expr): bool {
+    return e.tag == EXPR_STRING;
+}
+
+def as_string(e: *Expr): *StringExpr {
+    return e as *StringExpr;
+}
+
+
 /////////// binary expr ///////////
 
 type BinaryExpr struct {
@@ -221,9 +246,7 @@ type Expr struct {
 }
 
 def expr_free(e: *Expr): void {
-    if is_int(e) {
-        // nothing to do
-    } else if is_binary(e) {
+    if is_binary(e) {
         let b_expr = as_binary(e);
         expr_free(b_expr.left);
         expr_free(b_expr.right);
@@ -236,6 +259,10 @@ def expr_to_string(e: *Expr): string {
     if is_int(e) {
         let i_expr = as_int(e);
         return std.strndup(i_expr.ptr, i_expr.len);
+    } else if is_string(e) {
+        let s_expr = as_string(e);
+        // include the quotes
+        return std.strndup(s_expr.ptr - 1, s_expr.len + 2);
     } else if is_binary(e) {
         let b_expr = as_binary(e);
 
