@@ -127,6 +127,8 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_COMMA);
     } else if c == std.char_to_int(':') {
         return token_from_start(l, TOKEN_COLON);
+    } else if c == std.char_to_int('.') {
+        return token_from_start(l, TOKEN_DOT);
     } else if c == std.char_to_int('=') {
         return token_from_start(l, TOKEN_EQ);
     } else if c == std.char_to_int('+') {
@@ -257,6 +259,14 @@ def create_token(l: *Lexer, ty: i32, start: string, end: string): Token {
     return Token {
         ty: ty,
         span: create_span(l, start - l.source, end - l.source),
+        lexeme: start
+    };
+}
+
+def create_token_from_span(l: *Lexer, ty: i32, start: string, span: span.Span): Token {
+    return Token {
+        ty: ty,
+        span: span,
         lexeme: start
     };
 }

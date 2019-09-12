@@ -31,6 +31,7 @@ def merge(si: *SpanInterner, first: Span, second: Span): Span {
     // spans should be in same file
     if first.ctx != second.ctx {
         // TODO: assert
+        return span.empty();
     }
 
     return create(si, first.start, second.start + second.len, first.ctx);

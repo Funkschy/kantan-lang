@@ -11,17 +11,18 @@
 #define TOKEN_SEMI 7
 #define TOKEN_COMMA 8
 #define TOKEN_COLON 9
-#define TOKEN_EQ 10
+#define TOKEN_DOT 10
+#define TOKEN_EQ 11
 
-#define TOKEN_PLUS 11
-#define TOKEN_MINUS 12
-#define TOKEN_STAR 13
-#define TOKEN_SLASH 14
+#define TOKEN_PLUS 12
+#define TOKEN_MINUS 13
+#define TOKEN_STAR 14
+#define TOKEN_SLASH 15
 
-#define TOKEN_LPAREN 15
-#define TOKEN_RPAREN 16
-#define TOKEN_LBRACE 17
-#define TOKEN_RBRACE 18
-#define TOKEN_STRING 19
+#define TOKEN_LPAREN 16
+#define TOKEN_RPAREN 17
+#define TOKEN_LBRACE 18
+#define TOKEN_RBRACE 19
+#define TOKEN_STRING 20
 
-#define TOKEN_EOF 20
+#define TOKEN_EOF 21

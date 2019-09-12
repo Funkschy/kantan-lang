@@ -85,6 +85,33 @@ def consume(p: *Parser, ty: i32): bool {
     return consume_token(p, ty, null);
 }
 
+def consume_ident(p: *Parser, ident: *lexer.Token, allow_access_expr: bool): bool {
+    if !consume_token(p, TOKEN_IDENT, ident) {
+        return false;
+    }
+
+    if allow_access_expr {
+        while peek(p).ty == TOKEN_DOT {
+            consume(p, TOKEN_DOT);
+
+            let first_part = *ident;
+            if !consume_token(p, TOKEN_IDENT, ident) {
+                return false;
+            }
+
+            let span = span.merge(p.lexer.span_interner, first_part.span, ident.span);
+            *ident = lexer.create_token_from_span(
+                &p.lexer,
+                TOKEN_IDENT,
+                first_part.lexeme,
+                span
+            );
+        }
+    }
+
+    return true;
+}
+
 def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
     let next = lexer.empty_token();
     if !advance(p, &next) {
@@ -191,7 +218,7 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_LET);
 
     let ident = lexer.empty_token();
-    if !consume_token(p, TOKEN_IDENT, &ident) {
+    if !consume_ident(p, &ident, false) {
         return null;
     }
 
@@ -209,13 +236,24 @@ def parse_func_def(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_DEF);
 
     let ident = lexer.empty_token();
-    if !consume_token(p, TOKEN_IDENT, &ident) {
+    if !consume_ident(p, &ident, false) {
         return null;
     }
 
     CONSUME_RET_NULL(TOKEN_LPAREN);
     let params = parse_param_list(p, TOKEN_COMMA, TOKEN_RPAREN);
     let param_list = func.pl_from_vec(params);
+
+    if !consume(p, TOKEN_COLON) {
+        func.free_pl(&param_list);
+        return null;
+    }
+
+    let ret_ty = lexer.empty_token();
+    if !consume_ident(p, &ret_ty, true) {
+        func.free_pl(&param_list);
+        return null;
+    }
 
     let block = parse_block(p);
     if block == null {
@@ -226,7 +264,7 @@ def parse_func_def(p: *Parser): *ast.Stmt {
     return ast.make_func_decl_stmt(
         ident,
         param_list,
-        ident.empty(),
+        ident.create(ret_ty),
         ast.as_block_stmt(block)
     );
 }
@@ -274,7 +312,7 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
     let peek = peek(p);
     while peek.ty != TOKEN_EOF && peek.ty != delim_ty {
         let ident = lexer.empty_token();
-        if !consume_token(p, TOKEN_IDENT, &ident) {
+        if !consume_ident(p, &ident, false) {
             FAIL();
         }
         let ident = ident.create(ident);
@@ -284,7 +322,7 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
         }
 
         let ty = lexer.empty_token();
-        if !consume_token(p, TOKEN_IDENT, &ty) {
+        if !consume_ident(p, &ty, true) {
             FAIL();
         }
         let ty = ident.create(ty);
