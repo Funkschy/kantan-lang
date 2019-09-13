@@ -13,6 +13,7 @@ import "vec";
 import "std";
 import "mod";
 import "param";
+import "ty";
 
 import "io"; // TODO: only debug
 
@@ -36,15 +37,19 @@ def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Parser 
 }
 
 def free_p(p: *Parser): void {
-    let i = 0;
+    free_errs_from(p, 0);
+    vec.free_v(&p.errors);
+}
+
+def free_errs_from(p: *Parser, start: i32): void {
+    let i = start;
     let elem = ParseError { span: span.empty(), text: null };
     while i < p.errors.len {
         vec.get(&p.errors, i, &elem as *void);
         delete elem.text;
         i = i + 1;
     }
-
-    vec.free_v(&p.errors);
+    p.errors.len = p.errors.len - (p.errors.len - start);
 }
 
 def num_errs(p: *Parser): i32 {
@@ -53,6 +58,10 @@ def num_errs(p: *Parser): i32 {
 
 def get_err(p: *Parser, idx: i32, dest: *ParseError): bool {
     return vec.get(&p.errors, idx, dest as *void);
+}
+
+def push_err(p: *Parser, error: ParseError): void {
+    vec.push(&p.errors, &error as *void);
 }
 
 // advances to the next token and saves the new token into dest
@@ -70,7 +79,7 @@ def advance(p: *Parser, dest: *lexer.Token): bool {
     } else if next.ty == TOKEN_ERR && !p.in_panic_mode {
         // advance should not care about lex errors while in panic mode
         let error = create_lex_error(p, &next);
-        vec.push(&p.errors, &error as *void);
+        push_err(p, error);
         return false;
     }
 
@@ -127,8 +136,31 @@ def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
     }
 
     let error = create_consume_error(p, &next, ty);
-    vec.push(&p.errors, &error as *void);
+    push_err(p, error);
     return false;
+}
+
+def consume_type(p: *Parser, dest: *ty.Type): bool {
+    let num_errs = num_errs(p);
+
+    let pointer_count = 0;
+    while peek(p).ty == TOKEN_STAR {
+        consume(p, TOKEN_STAR);
+        pointer_count = pointer_count + 1;
+    }
+
+    let ty = lexer.empty_token();
+    if !consume_ident(p, &ty, true) {
+        if num_errs(p) > num_errs {
+            free_errs_from(p, num_errs);
+            let error = create_consume_error_text(p, &ty, "type");
+            push_err(p, error);
+        }
+
+        return false;
+    }
+    *dest = ty.create_ptr(ident.create(ty), pointer_count);
+    return true;
 }
 
 def peek(p: *Parser): lexer.Token {
@@ -162,7 +194,7 @@ def statement(p: *Parser): *ast.Stmt {
         if num_errs == num_errs(p) {
             // ... so just add a generic one
             let error = create_statement_error(p, start, end);
-            vec.push(&p.errors, &error as *void);
+            push_err(p, error);
         }
 
         return null;
@@ -248,8 +280,8 @@ def parse_func_def(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let ret_ty = lexer.empty_token();
-    if !consume_ident(p, &ret_ty, true) {
+    let ret_ty = ty.empty();
+    if !consume_type(p, &ret_ty) {
         func.free_pl(&param_list);
         return null;
     }
@@ -263,7 +295,7 @@ def parse_func_def(p: *Parser): *ast.Stmt {
     return ast.make_func_decl_stmt(
         ident,
         param_list,
-        ident.create(ret_ty),
+        ret_ty,
         ast.as_block_stmt(block)
     );
 }
@@ -320,11 +352,10 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
             FAIL();
         }
 
-        let ty = lexer.empty_token();
-        if !consume_ident(p, &ty, true) {
+        let ty = ty.empty();
+        if !consume_type(p, &ty) {
             FAIL();
         }
-        let ty = ident.create(ty);
 
         let param = param.create(ident, ty);
         vec.push(&params, &param as *void);
@@ -567,12 +598,20 @@ def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
 }
 
 def create_consume_error(p: *Parser, peek: *lexer.Token, expected_ty: i32): ParseError {
+    return create_consume_error_text(
+        p,
+        peek,
+        lexer.token_ty_to_static_string(expected_ty)
+    );
+}
+
+def create_consume_error_text(p: *Parser, peek: *lexer.Token, text: string): ParseError {
     let peek_str: string = null;
     let needs_free = lexer.token_to_string(peek, p.lexer.span_interner, &peek_str);
 
     let err_str = std.err2str(
         ERROR_EXPECTED_BUT_GOT,
-        lexer.token_ty_to_static_string(expected_ty),
+        text,
         peek_str
     );
 
@@ -582,4 +621,3 @@ def create_consume_error(p: *Parser, peek: *lexer.Token, expected_ty: i32): Pars
 
     return create_error(peek.span, err_str);
 }
-

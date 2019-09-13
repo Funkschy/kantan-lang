@@ -3,6 +3,7 @@ import "span";
 import "ident"
 import "vec"
 import "param"
+import "ty"
 
 type ParamList struct {
     params: vec.Vec
@@ -22,12 +23,16 @@ def add_param(pl: *ParamList, p: *param.Param): void {
 
 type FuncDef struct {
     name: ident.Ident,
-    ret_ty: ident.Ident,
+    ret_ty: ty.Type,
     params: ParamList
 }
 
-def create(ident: lexer.Token, params: ParamList, ret_ty: ident.Ident): FuncDef {
-    return FuncDef { name: ident.create(ident), ret_ty: ret_ty, params: params };
+def create(ident: lexer.Token, params: ParamList, ret_ty: ty.Type): FuncDef {
+    return FuncDef {
+        name: ident.create(ident),
+        ret_ty: ret_ty,
+        params: params
+    };
 }
 
 def num_params(f: *FuncDef): i32 {

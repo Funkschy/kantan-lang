@@ -6,6 +6,7 @@ import "span";
 import "ident";
 import "func";
 import "ptrvec";
+import "ty";
 
 import "io"; // TODO: only debug
 
@@ -60,7 +61,7 @@ type FuncDeclStmt struct {
     block: *BlockStmt
 }
 
-def make_func_decl_stmt(ident: lexer.Token, params: func.ParamList, ret_ty: ident.Ident, block: *BlockStmt): *Stmt {
+def make_func_decl_stmt(ident: lexer.Token, params: func.ParamList, ret_ty: ty.Type, block: *BlockStmt): *Stmt {
     return (new FuncDeclStmt {
         s: Stmt { tag: STMT_FUNC_DECL },
         decl: func.create(ident, params, ret_ty),

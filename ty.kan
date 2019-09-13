@@ -1,0 +1,41 @@
+import "ident"
+import "span"
+
+type Type struct {
+    pointer_count: i32,
+    ident: ident.Ident
+}
+
+def empty(): Type {
+    return create(ident.empty());
+}
+
+def create(ident: ident.Ident): Type {
+    return Type {
+        pointer_count: 0,
+        ident: ident
+    };
+}
+
+def create_ptr(ident: ident.Ident, pointer_count: i32): Type {
+    return Type {
+        pointer_count: pointer_count,
+        ident: ident
+    };
+}
+
+def to_string(ty: *Type, span_interner: *span.SpanInterner): string {
+    let ident = ident.to_string(&ty.ident, span_interner);
+    let ident_len = std.strlen(ident);
+
+    let len = ty.pointer_count + ident_len + 1;
+    let buffer = std.malloc(len);
+    std.memset(buffer, std.char_to_int('*'), ty.pointer_count);
+    std.memcpy(buffer + ty.pointer_count, ident as *void, ident_len);
+    delete ident;
+
+    let buffer = buffer as string;
+    *(buffer + len - 1) = '\0';
+
+    return buffer;
+}
