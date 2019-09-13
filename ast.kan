@@ -5,7 +5,7 @@ import "std";
 import "span";
 import "ident";
 import "func";
-import "ptrvec"
+import "ptrvec";
 
 import "io"; // TODO: only debug
 
@@ -164,6 +164,30 @@ def stmt_free(s: *Stmt): void {
 
 /////////// assign expr ///////////
 
+type CallExpr struct {
+    e: Expr,
+    ident: *IdentExpr,
+    args: ArgList
+}
+
+def make_call(span: span.Span, ident: *IdentExpr, args: ArgList): *Expr {
+    return (new CallExpr {
+        e: Expr { tag: EXPR_CALL, span: span },
+        ident: ident,
+        args: args
+    }) as *Expr;
+}
+
+def is_call(e: *Expr): bool {
+    return e.tag == EXPR_CALL;
+}
+
+def as_call(e: *Expr): *CallExpr {
+    return e as *CallExpr;
+}
+
+/////////// assign expr ///////////
+
 type AssignExpr struct {
     e: Expr,
     left: *Expr,
@@ -296,6 +320,10 @@ def expr_free(e: *Expr): void {
         let a_expr = as_assign(e);
         expr_free(a_expr.left);
         expr_free(a_expr.right);
+    } else if is_call(e) {
+        let c_expr = as_call(e);
+        expr_free(c_expr.ident as *Expr);
+        free_al(&c_expr.args);
     }
 
     delete e;
@@ -306,15 +334,21 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let i_expr = as_int(e);
         let len = span.get(span_interner, e.span).len;
         return std.strndup(i_expr.ptr, len);
-    } else if is_string(e) {
+    }
+
+    if is_string(e) {
         let s_expr = as_string(e);
         let len = span.get(span_interner, e.span).len;
         // include the quotes
         return std.strndup(s_expr.ptr - 1, len + 2);
-    } else if is_ident(e) {
+    }
+
+    if is_ident(e) {
         let i_expr = as_ident(e);
         return ident.to_string(&i_expr.ident, span_interner);
-    } else if is_assign(e) {
+    }
+
+    if is_assign(e) {
         let a_expr = as_assign(e);
 
         let left = expr_to_string(a_expr.left, span_interner);
@@ -325,7 +359,9 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         delete right;
 
         return s;
-    } else if is_binary(e) {
+    }
+
+    if is_binary(e) {
         let b_expr = as_binary(e);
 
         let left = expr_to_string(b_expr.left, span_interner);
@@ -339,5 +375,80 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
+    if is_call(e) {
+        let c_expr = as_call(e);
+
+        let ident = expr_to_string(c_expr.ident as *Expr, span_interner);
+        let args = arg_list_to_string(&c_expr.args, span_interner);
+
+        let s = std.format_str("%s(%s)", ident, args);
+        delete ident;
+        delete args;
+
+        return s;
+    }
+
     return null;
+}
+
+/////////// ArgList ///////////
+// TODO: should be in own file, but can't because compiler can't handle circular imports
+
+type ArgList struct {
+    args: ptrvec.Vec
+}
+
+def create_arg_list(): ArgList {
+    return ArgList { args: ptrvec.create() };
+}
+
+def get_arg_at(al: *ArgList, i: i32): *ast.Expr {
+    return ptrvec.get(&al.args, i) as *ast.Expr;
+}
+
+def push_arg(al: *ArgList, arg: *ast.Expr): void {
+    ptrvec.push_ptr(&al.args, arg as *void);
+}
+
+def free_al(al: *ArgList): void {
+    let i = 0;
+    while i < al.args.len {
+        let e = ptrvec.get(&al.args, i) as *ast.Expr;
+        ast.expr_free(e);
+        i = i + 1;
+    }
+
+    ptrvec.free_v(&al.args);
+}
+
+def arg_list_to_string(al: *ArgList, span_interner: *span.SpanInterner): string {
+    let args = (new '\0') as string;
+
+    let i = 0;
+    while i < al.args.len {
+        let a = get_arg_at(al, i);
+        let s = expr_to_string(a, span_interner);
+
+        let comma_len = 0;
+        if i > 0 {
+            comma_len = 2;
+        }
+
+        let new_len = std.strlen(args) + std.strlen(s) + 1 + comma_len;
+        let new_args = std.malloc(new_len) as string;
+        let old_args = args;
+        args = std.strcpy(new_args, args);
+        delete old_args;
+
+        if comma_len > 0 {
+            args = std.strcat(args, ", ");
+        }
+
+        args = std.strcat(args, s);
+        delete s;
+
+        i = i + 1;
+    }
+
+    return args;
 }

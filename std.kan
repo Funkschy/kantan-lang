@@ -5,6 +5,8 @@ extern def strcmp(s1: string, s2: string): i32;
 extern def strndup(s: string, len: i32): string;
 extern def strdup(s: string): string;
 extern def strlen(s: string): i32;
+extern def strcat(first: string, second: string): string;
+extern def strcpy(dest: string, src: string): string;
 extern def memcmp(first: *void, second: *void, size: i32): i32;
 extern def memset(p: *void, val: i32, n: i32): i32;
 extern def memcpy(dest: *void, src: *void, size: i32): void;

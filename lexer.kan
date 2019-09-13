@@ -71,6 +71,10 @@ def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
     };
 }
 
+def end_pos(l: *Lexer): i32 {
+    return l.source_len - 1;
+}
+
 def peek(l: *Lexer): Token {
     if l.has_peek {
         return l.peek;

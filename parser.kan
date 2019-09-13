@@ -156,12 +156,11 @@ def statement(p: *Parser): *ast.Stmt {
     let consume_semi = parse_statement(p, &s);
 
     if s == null {
-        sync(p);
+        let end = sync(p);
 
         // no parse error was added...
         if num_errs == num_errs(p) {
             // ... so just add a generic one
-            let end = lexer.current_pos(&p.lexer);
             let error = create_statement_error(p, start, end);
             vec.push(&p.errors, &error as *void);
         }
@@ -334,9 +333,7 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
 
         // consume separator
         if peek.ty == sep_ty {
-            if !consume(p, sep_ty) {
-                FAIL();
-            }
+            consume(p, sep_ty);
         }
     }
 
@@ -346,6 +343,29 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
 
     return params;
 
+#undef FAIL
+}
+
+def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32): ast.ArgList {
+#define FAIL() ast.free_al(&args); return ast.create_arg_list()
+    let args = ast.create_arg_list();
+
+    let peek = peek(p);
+    while peek.ty != TOKEN_EOF && peek.ty != delim_ty {
+        let arg = expression(p);
+        if arg == null {
+            FAIL();
+        }
+        ast.push_arg(&args, arg);
+
+        peek = peek(p);
+
+        if peek.ty == sep_ty {
+            consume(p, sep_ty);
+        }
+    }
+
+    return args;
 #undef FAIL
 }
 
@@ -441,6 +461,26 @@ def prefix(p: *Parser): *ast.Expr {
 }
 
 def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
+    // call expr
+    if token.ty == TOKEN_LPAREN {
+        if ast.is_ident(left) {
+            let ident = ast.as_ident(left);
+            let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN);
+
+            let closing_paren = lexer.empty_token();
+            if !consume_token(p, TOKEN_RPAREN, &closing_paren) {
+                ast.free_al(&args);
+                return null;
+            }
+
+            let span = span.merge(p.lexer.span_interner, ident.e.span, closing_paren.span);
+            return ast.make_call(span, ident, args);
+        }
+        return null;
+    }
+
+    // binary expression
+
     let found = false;
     let ty = 0;
 
@@ -469,34 +509,40 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
     return null;
 }
 
-def sync(p: *Parser): void {
+def sync(p: *Parser): i32 {
     p.in_panic_mode = true;
-    inner_sync(p);
+    let pos = inner_sync(p);
     p.in_panic_mode = false;
+    return pos;
 }
 
 // should only be called by sync function
-def inner_sync(p: *Parser): void {
+def inner_sync(p: *Parser): i32 {
     let previous = lexer.empty_token();
     if !advance(p, &previous) {
-        return;
+        return lexer.end_pos(&p.lexer);
     }
 
     let peek = peek(p);
     while peek.ty != TOKEN_EOF {
+        let span = span.get(p.lexer.span_interner, previous.span);
+        let pos = span.start + span.len;
         if previous.ty == TOKEN_SEMI {
-            return;
+            return pos;
         }
 
         if peek.ty == TOKEN_LET || peek.ty == TOKEN_DEF {
-            return;
+            return pos;
         }
 
         if !advance(p, &previous) {
-            return;
+            return pos;
         }
         peek = peek(p);
     }
+
+    let span = span.get(p.lexer.span_interner, previous.span);
+    return span.start + span.len;
 }
 
 def create_error(span: span.Span, text: string): ParseError {

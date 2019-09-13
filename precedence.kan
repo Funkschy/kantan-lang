@@ -21,6 +21,8 @@ def get(token_type: i32): i32 {
         return PRECEDENCE_PRODUCT;
     } else if token_type == TOKEN_SLASH {
         return PRECEDENCE_PRODUCT;
+    } else if token_type == TOKEN_LPAREN {
+        return PRECEDENCE_CALL;
     }
 
     return PRECEDENCE_NONE;
