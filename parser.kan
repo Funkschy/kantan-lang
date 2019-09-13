@@ -404,6 +404,23 @@ def prefix(p: *Parser): *ast.Expr {
     } else if token.ty == TOKEN_STRING {
         return ast.make_string(token.span, token.lexeme);
     } else if token.ty == TOKEN_IDENT {
+        if peek(p).ty == TOKEN_DOT {
+            consume(p, TOKEN_DOT);
+
+            let first_part = token;
+            if !consume_ident(p, &token, true) {
+                return null;
+            }
+
+            let span = span.merge(p.lexer.span_interner, first_part.span, token.span);
+            token = lexer.create_token_from_span(
+                &p.lexer,
+                TOKEN_IDENT,
+                first_part.lexeme,
+                span
+            );
+        }
+
         return ast.make_ident(token);
     } else if token.ty == TOKEN_LPAREN {
         letcheck(e, expression(p));
