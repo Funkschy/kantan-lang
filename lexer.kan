@@ -220,7 +220,7 @@ def ident_type(l: *Lexer): i32 {
 }
 
 def parse_ident(l: *Lexer): Token {
-    while is_letter(current(l)) {
+    while is_letter(current(l)) || is_num(current(l)) || current(l) == std.char_to_int('_') {
         advance(l);
     }
 
