@@ -350,7 +350,15 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
 }
 
 def expression(p: *Parser): *ast.Expr {
-    return parse_expression(p, precedence.assign());
+    let left = parse_expression(p, precedence.assign());
+    while peek(p).ty == TOKEN_EQ {
+        consume(p, TOKEN_EQ);
+        let value = expression(p);
+        let span = span.merge(p.lexer.span_interner, left.span, value.span);
+        left = ast.make_assign(span, left, value);
+    }
+
+    return left;
 }
 
 def parse_expression(p: *Parser, precedence: i32): *ast.Expr {

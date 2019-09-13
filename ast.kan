@@ -162,6 +162,30 @@ def stmt_free(s: *Stmt): void {
     delete s;
 }
 
+/////////// assign expr ///////////
+
+type AssignExpr struct {
+    e: Expr,
+    left: *Expr,
+    right: *Expr
+}
+
+def make_assign(span: span.Span, left: *Expr, right: *Expr): *Expr {
+    return (new AssignExpr {
+        e: Expr { tag: EXPR_ASSIGN, span: span },
+        left: left,
+        right: right
+    }) as *Expr;
+}
+
+def is_assign(e: *Expr): bool {
+    return e.tag == EXPR_ASSIGN;
+}
+
+def as_assign(e: *Expr): *AssignExpr {
+    return e as *AssignExpr;
+}
+
 /////////// ident expr ///////////
 
 type IdentExpr struct {
@@ -268,6 +292,10 @@ def expr_free(e: *Expr): void {
         let b_expr = as_binary(e);
         expr_free(b_expr.left);
         expr_free(b_expr.right);
+    } else if is_assign(e) {
+        let a_expr = as_assign(e);
+        expr_free(a_expr.left);
+        expr_free(a_expr.right);
     }
 
     delete e;
@@ -286,6 +314,17 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     } else if is_ident(e) {
         let i_expr = as_ident(e);
         return ident.to_string(&i_expr.ident, span_interner);
+    } else if is_assign(e) {
+        let a_expr = as_assign(e);
+
+        let left = expr_to_string(a_expr.left, span_interner);
+        let right = expr_to_string(a_expr.right, span_interner);
+
+        let s = std.format_str("%s = %s", left, right);
+        delete left;
+        delete right;
+
+        return s;
     } else if is_binary(e) {
         let b_expr = as_binary(e);
 

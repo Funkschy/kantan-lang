@@ -2,6 +2,7 @@
 #define EXPR_STRING 2
 #define EXPR_BINARY 3
 #define EXPR_IDENT 4
+#define EXPR_ASSIGN 5
 
 #define BINARY_ADD 1
 #define BINARY_SUB 2
