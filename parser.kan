@@ -392,11 +392,9 @@ def prefix(p: *Parser): *ast.Expr {
     }
 
     if token.ty == TOKEN_INT {
-        let len = span.get(p.lexer.span_interner, token.span).len;
-        return ast.make_int(token.span, len, token.lexeme);
+        return ast.make_int(token.span, token.lexeme);
     } else if token.ty == TOKEN_STRING {
-        let len = span.get(p.lexer.span_interner, token.span).len;
-        return ast.make_string(token.span, len, token.lexeme);
+        return ast.make_string(token.span, token.lexeme);
     } else if token.ty == TOKEN_LPAREN {
         letcheck(e, expression(p));
 

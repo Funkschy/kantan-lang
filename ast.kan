@@ -167,14 +167,12 @@ def stmt_free(s: *Stmt): void {
 // TODO: hex, oct ...
 type IntExpr struct {
     e: Expr,
-    len: i32,
     ptr: string
 }
 
-def make_int(span: span.Span, len: i32, ptr: string): *Expr {
+def make_int(span: span.Span, ptr: string): *Expr {
     return (new IntExpr {
         e: Expr { tag: EXPR_INT, span: span },
-        len: len,
         ptr: ptr
     }) as *Expr;
 }
@@ -191,14 +189,12 @@ def as_int(e: *Expr): *IntExpr {
 
 type StringExpr struct {
     e: Expr,
-    len: i32,
     ptr: string
 }
 
-def make_string(span: span.Span, len: i32, ptr: string): *Expr {
+def make_string(span: span.Span, ptr: string): *Expr {
     return (new StringExpr {
         e: Expr { tag: EXPR_STRING, span: span },
-        len: len,
         ptr: ptr
     }) as *Expr;
 }
@@ -255,19 +251,21 @@ def expr_free(e: *Expr): void {
     delete e;
 }
 
-def expr_to_string(e: *Expr): string {
+def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_int(e) {
         let i_expr = as_int(e);
-        return std.strndup(i_expr.ptr, i_expr.len);
+        let len = span.get(span_interner, e.span).len;
+        return std.strndup(i_expr.ptr, len);
     } else if is_string(e) {
         let s_expr = as_string(e);
+        let len = span.get(span_interner, e.span).len;
         // include the quotes
-        return std.strndup(s_expr.ptr - 1, s_expr.len + 2);
+        return std.strndup(s_expr.ptr - 1, len + 2);
     } else if is_binary(e) {
         let b_expr = as_binary(e);
 
-        let left = expr_to_string(b_expr.left);
-        let right = expr_to_string(b_expr.right);
+        let left = expr_to_string(b_expr.left, span_interner);
+        let right = expr_to_string(b_expr.right, span_interner);
         let tok_str = binary2str(b_expr.ty);
 
         let s = std.format_str("%s%s%s", left, tok_str, right);
