@@ -162,6 +162,28 @@ def stmt_free(s: *Stmt): void {
     delete s;
 }
 
+/////////// ident expr ///////////
+
+type IdentExpr struct {
+    e: Expr,
+    ident: ident.Ident
+}
+
+def make_ident(ident: lexer.Token): *Expr {
+    return (new IdentExpr {
+        e: Expr { tag: EXPR_IDENT, span: ident.span },
+        ident: ident.create(ident)
+    }) as *Expr;
+}
+
+def is_ident(e: *Expr): bool {
+    return e.tag == EXPR_IDENT;
+}
+
+def as_ident(e: *Expr): *IdentExpr {
+    return e as *IdentExpr;
+}
+
 /////////// int expr ///////////
 
 // TODO: hex, oct ...
@@ -261,6 +283,9 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let len = span.get(span_interner, e.span).len;
         // include the quotes
         return std.strndup(s_expr.ptr - 1, len + 2);
+    } else if is_ident(e) {
+        let i_expr = as_ident(e);
+        return ident.to_string(&i_expr.ident, span_interner);
     } else if is_binary(e) {
         let b_expr = as_binary(e);
 

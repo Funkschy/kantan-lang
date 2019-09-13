@@ -395,6 +395,8 @@ def prefix(p: *Parser): *ast.Expr {
         return ast.make_int(token.span, token.lexeme);
     } else if token.ty == TOKEN_STRING {
         return ast.make_string(token.span, token.lexeme);
+    } else if token.ty == TOKEN_IDENT {
+        return ast.make_ident(token);
     } else if token.ty == TOKEN_LPAREN {
         letcheck(e, expression(p));
 
