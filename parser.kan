@@ -603,6 +603,9 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     } else if token.ty == TOKEN_DOUBLE_PIPE {
         found = true;
         ty = BINARY_LOG_OR;
+    } else if token.ty == TOKEN_DOUBLE_EQ {
+        found = true;
+        ty = BINARY_EQ;
     }
 
     // a pattern matched

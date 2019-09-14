@@ -17,3 +17,5 @@
 
 #define BINARY_LOG_AND 9
 #define BINARY_LOG_OR 10
+
+#define BINARY_EQ 11

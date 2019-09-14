@@ -110,80 +110,6 @@ def current(l: *Lexer): i32 {
     return c;
 }
 
-def get_next_token(l: *Lexer): Token {
-    if at_end(l) {
-        let pos = current_pos(l);
-        return Token {
-            ty: TOKEN_EOF,
-            span: create_span(l, pos, pos),
-            lexeme: null
-        };
-    }
-
-    l.start = l.current;
-    let c = advance(l);
-
-    if is_num(c) {
-        return parse_num(l);
-    } else if is_letter(c) {
-        return parse_ident(l);
-    } else if c == std.char_to_int('"') {
-        return parse_string(l);
-    } else if c == std.char_to_int(';') {
-        return token_from_start(l, TOKEN_SEMI);
-    } else if c == std.char_to_int(',') {
-        return token_from_start(l, TOKEN_COMMA);
-    } else if c == std.char_to_int(':') {
-        return token_from_start(l, TOKEN_COLON);
-    } else if c == std.char_to_int('.') {
-        return token_from_start(l, TOKEN_DOT);
-    } else if c == std.char_to_int('=') {
-        return token_from_start(l, TOKEN_EQ);
-    } else if c == std.char_to_int('+') {
-        return token_from_start(l, TOKEN_PLUS);
-    } else if c == std.char_to_int('-') {
-        return token_from_start(l, TOKEN_MINUS);
-    } else if c == std.char_to_int('*') {
-        return token_from_start(l, TOKEN_STAR);
-    } else if c == std.char_to_int('/') {
-        return token_from_start(l, TOKEN_SLASH);
-    } else if c == std.char_to_int('(') {
-        return token_from_start(l, TOKEN_LPAREN);
-    } else if c == std.char_to_int(')') {
-        return token_from_start(l, TOKEN_RPAREN);
-    } else if c == std.char_to_int('{') {
-        return token_from_start(l, TOKEN_LBRACE);
-    } else if c == std.char_to_int('}') {
-        return token_from_start(l, TOKEN_RBRACE);
-    } else if c == std.char_to_int('<') {
-        if current(l) == std.char_to_int('=') {
-            advance(l);
-            return token_from_start(l, TOKEN_SMALLER_EQ);
-        }
-        return token_from_start(l, TOKEN_SMALLER);
-    } else if c == std.char_to_int('>') {
-        if current(l) == std.char_to_int('=') {
-            advance(l);
-            return token_from_start(l, TOKEN_GREATER_EQ);
-        }
-        return token_from_start(l, TOKEN_GREATER);
-    } else if c == std.char_to_int('&') {
-        if current(l) == std.char_to_int('&') {
-            advance(l);
-            return token_from_start(l, TOKEN_DOUBLE_AMPERSAND);
-        }
-        return token_from_start(l, TOKEN_AMPERSAND);
-    } else if c == std.char_to_int('|') {
-        if current(l) == std.char_to_int('|') {
-            advance(l);
-            return token_from_start(l, TOKEN_DOUBLE_PIPE);
-        }
-        return token_from_start(l, TOKEN_PIPE);
-    }
-
-    return token_from_start(l, TOKEN_ERR);
-}
-
 def is_num(c: i32): bool {
     return c >= std.char_to_int('0') && c <= std.char_to_int('9');
 }
@@ -308,3 +234,120 @@ def create_token_from_span(l: *Lexer, ty: i32, start: string, span: span.Span): 
 def token_from_start(l: *Lexer, ty: i32): Token {
     return create_token(l, ty, l.start, l.current);
 }
+
+def get_next_token(l: *Lexer): Token {
+    if at_end(l) {
+        let pos = current_pos(l);
+        return Token {
+            ty: TOKEN_EOF,
+            span: create_span(l, pos, pos),
+            lexeme: null
+        };
+    }
+
+    l.start = l.current;
+    let c = advance(l);
+
+    if is_num(c) {
+        return parse_num(l);
+    }
+
+    if is_letter(c) {
+        return parse_ident(l);
+    }
+
+    if c == std.char_to_int('"') {
+        return parse_string(l);
+    }
+
+    if c == std.char_to_int(';') {
+        return token_from_start(l, TOKEN_SEMI);
+    }
+
+    if c == std.char_to_int(',') {
+        return token_from_start(l, TOKEN_COMMA);
+    }
+
+    if c == std.char_to_int(':') {
+        return token_from_start(l, TOKEN_COLON);
+    }
+
+    if c == std.char_to_int('.') {
+        return token_from_start(l, TOKEN_DOT);
+    }
+
+    if c == std.char_to_int('+') {
+        return token_from_start(l, TOKEN_PLUS);
+    }
+
+    if c == std.char_to_int('-') {
+        return token_from_start(l, TOKEN_MINUS);
+    }
+
+    if c == std.char_to_int('*') {
+        return token_from_start(l, TOKEN_STAR);
+    }
+
+    if c == std.char_to_int('/') {
+        return token_from_start(l, TOKEN_SLASH);
+    }
+
+    if c == std.char_to_int('(') {
+        return token_from_start(l, TOKEN_LPAREN);
+    }
+
+    if c == std.char_to_int(')') {
+        return token_from_start(l, TOKEN_RPAREN);
+    }
+
+    if c == std.char_to_int('{') {
+        return token_from_start(l, TOKEN_LBRACE);
+    }
+
+    if c == std.char_to_int('}') {
+        return token_from_start(l, TOKEN_RBRACE);
+    }
+
+    if c == std.char_to_int('<') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TOKEN_SMALLER_EQ);
+        }
+        return token_from_start(l, TOKEN_SMALLER);
+    }
+
+    if c == std.char_to_int('>') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TOKEN_GREATER_EQ);
+        }
+        return token_from_start(l, TOKEN_GREATER);
+    }
+
+    if c == std.char_to_int('&') {
+        if current(l) == std.char_to_int('&') {
+            advance(l);
+            return token_from_start(l, TOKEN_DOUBLE_AMPERSAND);
+        }
+        return token_from_start(l, TOKEN_AMPERSAND);
+    }
+
+    if c == std.char_to_int('|') {
+        if current(l) == std.char_to_int('|') {
+            advance(l);
+            return token_from_start(l, TOKEN_DOUBLE_PIPE);
+        }
+        return token_from_start(l, TOKEN_PIPE);
+    }
+
+    if c == std.char_to_int('=') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TOKEN_DOUBLE_EQ);
+        }
+        return token_from_start(l, TOKEN_EQ);
+    }
+
+    return token_from_start(l, TOKEN_ERR);
+}
+
