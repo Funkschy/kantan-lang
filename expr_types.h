@@ -9,3 +9,7 @@
 #define BINARY_SUB 2
 #define BINARY_MUL 3
 #define BINARY_DIV 4
+#define BINARY_ST 5
+#define BINARY_SE 6
+#define BINARY_GT 7
+#define BINARY_GE 8

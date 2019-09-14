@@ -155,6 +155,18 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_LBRACE);
     } else if c == std.char_to_int('}') {
         return token_from_start(l, TOKEN_RBRACE);
+    } else if c == std.char_to_int('<') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TOKEN_SMALLER_EQ);
+        }
+        return token_from_start(l, TOKEN_SMALLER);
+    } else if c == std.char_to_int('>') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TOKEN_GREATER_EQ);
+        }
+        return token_from_start(l, TOKEN_GREATER);
     }
 
     return token_from_start(l, TOKEN_ERR);

@@ -581,6 +581,19 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     } else if token.ty == TOKEN_SLASH {
         found = true;
         ty = BINARY_DIV;
+    } else if token.ty == TOKEN_SMALLER {
+        found = true;
+        ty = BINARY_ST;
+    } else if token.ty == TOKEN_SMALLER_EQ {
+        found = true;
+        ty = BINARY_SE;
+    } else if token.ty == TOKEN_GREATER {
+        io.printf("test\n");
+        found = true;
+        ty = BINARY_GT;
+    } else if token.ty == TOKEN_GREATER_EQ {
+        found = true;
+        ty = BINARY_GE;
     }
 
     // a pattern matched

@@ -13,13 +13,12 @@
 def get(token_type: i32): i32 {
     if token_type == TOKEN_EQ {
         return PRECEDENCE_ASSIGN;
-    } else if token_type == TOKEN_PLUS {
+    } else if token_type == TOKEN_SMALLER || token_type == TOKEN_SMALLER_EQ
+              || token_type == TOKEN_GREATER || token_type == TOKEN_GREATER_EQ {
+        return PRECEDENCE_COMPARISON;
+    } else if token_type == TOKEN_PLUS || token_type == TOKEN_MINUS {
         return PRECEDENCE_SUM;
-    } else if token_type == TOKEN_MINUS {
-        return PRECEDENCE_SUM;
-    } else if token_type == TOKEN_STAR {
-        return PRECEDENCE_PRODUCT;
-    } else if token_type == TOKEN_SLASH {
+    } else if token_type == TOKEN_STAR || token_type == TOKEN_SLASH {
         return PRECEDENCE_PRODUCT;
     } else if token_type == TOKEN_LPAREN {
         return PRECEDENCE_CALL;
