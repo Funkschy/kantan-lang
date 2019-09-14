@@ -6,6 +6,7 @@ static char const *const token_strings[] = {
     "identifier",
     "let",
     "if",
+    "else",
     "import",
     "def",
     ";",
@@ -48,7 +49,7 @@ static char const *const error_texts[] = {
     "Unexpected end of file",
     "Expected '%s', but got '%s'",
     "Unknown symbol: '%.*s'",
-    "Could not parse statement: '%.*s'"
+    "Could not parse statement: \n%.*s"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

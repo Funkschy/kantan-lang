@@ -222,9 +222,12 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
     } else if peek.ty == TOKEN_DEF {
         *dest = parse_func_def(p);
         return false;
+    } else if peek.ty == TOKEN_IF {
+        *dest = parse_if_stmt(p);
+        return false;
     }
 
-    let expr = expression(p);
+    let expr = expression(p, false);
     if expr == null {
         *dest = null;
         return true;
@@ -255,7 +258,7 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
 
     CONSUME_RET_NULL(TOKEN_EQ);
 
-    let e = expression(p);
+    let e = expression(p, false);
     if e == null {
         // TODO: create error
         return null;
@@ -298,6 +301,52 @@ def parse_func_def(p: *Parser): *ast.Stmt {
         ret_ty,
         ast.as_block_stmt(block)
     );
+}
+
+def parse_if_stmt(p: *Parser): *ast.Stmt {
+    if !consume(p, TOKEN_IF) {
+        return null;
+    }
+
+    let peek = peek(p);
+    let condition = expression(p, true);
+
+    if condition == null {
+        let error = create_consume_error_text(p, &peek, "condition");
+        push_err(p, error);
+        return null;
+    }
+
+    let block = parse_block(p);
+    if block == null {
+        ast.expr_free(condition);
+        return null;
+    }
+
+    let if_stmt = ast.make_if_stmt(condition, ast.as_block_stmt(block), null);
+    if peek(p).ty != TOKEN_ELSE {
+        return if_stmt;
+    }
+    consume(p, TOKEN_ELSE);
+
+    let else_stmt: *ast.Stmt = null;
+    let peek = peek(p);
+    if peek.ty == TOKEN_IF {
+        else_stmt = parse_if_stmt(p);
+    } else if peek.ty == TOKEN_LBRACE {
+        else_stmt = parse_block(p);
+    } else {
+        let error = create_consume_error_text(p, &peek, "either 'if' or '{' after else");
+        push_err(p, error);
+    }
+
+    if else_stmt == null {
+        ast.stmt_free(if_stmt);
+        return null;
+    }
+
+    ast.as_if_stmt(if_stmt).else_stmt = else_stmt;
+    return if_stmt;
 }
 
 def free_statements(statements: *ptrvec.Vec): void {
@@ -377,13 +426,13 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
 #undef FAIL
 }
 
-def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32): ast.ArgList {
+def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32, no_struct: bool): ast.ArgList {
 #define FAIL() ast.free_al(&args); return ast.create_arg_list()
     let args = ast.create_arg_list();
 
     let peek = peek(p);
     while peek.ty != TOKEN_EOF && peek.ty != delim_ty {
-        let arg = expression(p);
+        let arg = expression(p, no_struct);
         if arg == null {
             FAIL();
         }
@@ -400,11 +449,11 @@ def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32): ast.ArgList {
 #undef FAIL
 }
 
-def expression(p: *Parser): *ast.Expr {
-    let left = parse_expression(p, precedence.assign());
+def expression(p: *Parser, no_struct: bool): *ast.Expr {
+    let left = parse_expression(p, precedence.assign(), no_struct);
     while peek(p).ty == TOKEN_EQ {
         consume(p, TOKEN_EQ);
-        let value = expression(p);
+        let value = expression(p, no_struct);
         let span = span.merge(p.lexer.span_interner, left.span, value.span);
         left = ast.make_assign(span, left, value);
     }
@@ -412,17 +461,17 @@ def expression(p: *Parser): *ast.Expr {
     return left;
 }
 
-def parse_expression(p: *Parser, precedence: i32): *ast.Expr {
-    letcheck(left, prefix(p));
+def parse_expression(p: *Parser, precedence: i32, no_struct: bool): *ast.Expr {
+    letcheck(left, prefix(p, no_struct));
 
-    while next_higher_precedence(p, precedence) {
+    while next_higher_precedence(p, precedence, no_struct) {
         let token = lexer.empty_token();
         if !advance(p, &token) {
             delete left;
             return null;
         }
 
-        let infix = infix(p, &token, left);
+        let infix = infix(p, &token, left, no_struct);
         if infix == null {
             delete left;
             return null;
@@ -434,17 +483,21 @@ def parse_expression(p: *Parser, precedence: i32): *ast.Expr {
     return left;
 }
 
-def next_higher_precedence(p: *Parser, precedence: i32): bool {
+def next_higher_precedence(p: *Parser, precedence: i32, no_struct: bool): bool {
     let t = peek(p);
 
     if t.ty == TOKEN_ERR || t.ty == TOKEN_EOF {
         return false;
     }
 
+    if t.ty == TOKEN_LBRACE {
+        return !no_struct && precedence.get(t.ty) > precedence;
+    }
+
     return precedence.get(t.ty) > precedence;
 }
 
-def prefix(p: *Parser): *ast.Expr {
+def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     let token = lexer.empty_token();
     if !advance(p, &token) {
         return null;
@@ -474,7 +527,8 @@ def prefix(p: *Parser): *ast.Expr {
 
         return ast.make_ident(token);
     } else if token.ty == TOKEN_LPAREN {
-        letcheck(e, expression(p));
+        // ignore no_struct, because it's in parens
+        letcheck(e, expression(p, false));
 
         if !consume(p, TOKEN_RPAREN) {
             ast.expr_free(e);
@@ -491,12 +545,12 @@ def prefix(p: *Parser): *ast.Expr {
     return null;
 }
 
-def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
+def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {
     // call expr
     if token.ty == TOKEN_LPAREN {
         if ast.is_ident(left) {
             let ident = ast.as_ident(left);
-            let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN);
+            let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN, no_struct);
 
             let closing_paren = lexer.empty_token();
             if !consume_token(p, TOKEN_RPAREN, &closing_paren) {
@@ -532,7 +586,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr): *ast.Expr {
     // a pattern matched
     if found {
         let prec = precedence.get(token.ty);
-        letcheck(right, parse_expression(p, prec));
+        letcheck(right, parse_expression(p, prec, no_struct));
         let span = span.merge(p.lexer.span_interner, left.span, right.span);
         return ast.make_binary(span, ty, left, right);
     }

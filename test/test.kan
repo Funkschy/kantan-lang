@@ -1,5 +1,14 @@
 function(420 - (69 / 1), test.i.other);
 test.i.other;
+
+if true {
+    let s = "";
+} else if false {
+
+} else {
+
+}
+
 0 - (2;; 420 - (69 / 1); (); 42 520;
 let i = 52;
 i = other = 2;

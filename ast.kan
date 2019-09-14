@@ -31,6 +31,60 @@ def as_expr_stmt(s: *Stmt): *ExprStmt {
     return s as *ExprStmt;
 }
 
+/////////// If stmt ///////////
+
+type IfStmt struct {
+    s: Stmt,
+    condition: *Expr,
+    block: *BlockStmt,
+    else_stmt: *Stmt // either IfStmt or BlockStmt
+}
+
+def make_if_stmt(condition: *Expr, block: *BlockStmt, else_stmt: *Stmt): *Stmt {
+    return (new IfStmt {
+        s: Stmt { tag: STMT_IF },
+        condition: condition,
+        block: block,
+        else_stmt: else_stmt
+    }) as *Stmt;
+}
+
+def is_if_stmt(s: *Stmt): bool {
+    return s.tag == STMT_IF;
+}
+
+def as_if_stmt(s: *Stmt): *IfStmt {
+    return s as *IfStmt;
+}
+
+def else_type(s: *IfStmt): i32 {
+    if s.else_stmt == null {
+        return type_no_else();
+    }
+
+    if is_block_stmt(s.else_stmt) {
+        return type_else_block();
+    }
+
+    if is_if_stmt(s.else_stmt) {
+        return type_else_if();
+    }
+
+    return type_no_else();
+}
+
+def type_no_else(): i32 {
+    return 0;
+}
+
+def type_else_block(): i32 {
+    return 1;
+}
+
+def type_else_if(): i32 {
+    return 2;
+}
+
 /////////// Block stmt ///////////
 
 type BlockStmt struct {
@@ -158,6 +212,11 @@ def stmt_free(s: *Stmt): void {
         }
 
         ptrvec.free_v(&stmts);
+    } else if is_if_stmt(s) {
+        let if_stmt = as_if_stmt(s);
+        expr_free(if_stmt.condition);
+        stmt_free(if_stmt.block as *Stmt);
+        stmt_free(if_stmt.else_stmt);
     }
 
     delete s;

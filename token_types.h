@@ -5,24 +5,25 @@
 
 #define TOKEN_LET 3
 #define TOKEN_IF 4
-#define TOKEN_IMPORT 5
-#define TOKEN_DEF 6
+#define TOKEN_ELSE 5
+#define TOKEN_IMPORT 6
+#define TOKEN_DEF 7
 
-#define TOKEN_SEMI 7
-#define TOKEN_COMMA 8
-#define TOKEN_COLON 9
-#define TOKEN_DOT 10
-#define TOKEN_EQ 11
+#define TOKEN_SEMI 8
+#define TOKEN_COMMA 9
+#define TOKEN_COLON 10
+#define TOKEN_DOT 11
+#define TOKEN_EQ 12
 
-#define TOKEN_PLUS 12
-#define TOKEN_MINUS 13
-#define TOKEN_STAR 14
-#define TOKEN_SLASH 15
+#define TOKEN_PLUS 13
+#define TOKEN_MINUS 14
+#define TOKEN_STAR 15
+#define TOKEN_SLASH 16
 
-#define TOKEN_LPAREN 16
-#define TOKEN_RPAREN 17
-#define TOKEN_LBRACE 18
-#define TOKEN_RBRACE 19
-#define TOKEN_STRING 20
+#define TOKEN_LPAREN 17
+#define TOKEN_RPAREN 18
+#define TOKEN_LBRACE 19
+#define TOKEN_RBRACE 20
+#define TOKEN_STRING 21
 
-#define TOKEN_EOF 21
+#define TOKEN_EOF 22
