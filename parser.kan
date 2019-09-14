@@ -558,7 +558,7 @@ def inner_sync(p: *Parser): i32 {
     while peek.ty != TOKEN_EOF {
         let span = span.get(p.lexer.span_interner, previous.span);
         let pos = span.start + span.len;
-        if previous.ty == TOKEN_SEMI {
+        if previous.ty == TOKEN_SEMI && peek(p).ty != TOKEN_RBRACE {
             return pos;
         }
 
@@ -569,6 +569,12 @@ def inner_sync(p: *Parser): i32 {
         if !advance(p, &previous) {
             return pos;
         }
+
+        if previous.ty == TOKEN_RBRACE {
+            let span = span.get(p.lexer.span_interner, previous.span);
+            return span.start + span.len;
+        }
+
         peek = peek(p);
     }
 
