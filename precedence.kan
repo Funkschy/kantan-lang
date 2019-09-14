@@ -13,14 +13,28 @@
 def get(token_type: i32): i32 {
     if token_type == TOKEN_EQ {
         return PRECEDENCE_ASSIGN;
-    } else if token_type == TOKEN_SMALLER || token_type == TOKEN_SMALLER_EQ
-              || token_type == TOKEN_GREATER || token_type == TOKEN_GREATER_EQ {
+    }
+
+    if token_type == TOKEN_DOUBLE_AMPERSAND || token_type == TOKEN_DOUBLE_PIPE {
+        return PRECEDENCE_AND;
+    }
+
+    if token_type == TOKEN_SMALLER
+        || token_type == TOKEN_SMALLER_EQ
+        || token_type == TOKEN_GREATER
+        || token_type == TOKEN_GREATER_EQ {
         return PRECEDENCE_COMPARISON;
-    } else if token_type == TOKEN_PLUS || token_type == TOKEN_MINUS {
+    }
+
+    if token_type == TOKEN_PLUS || token_type == TOKEN_MINUS {
         return PRECEDENCE_SUM;
-    } else if token_type == TOKEN_STAR || token_type == TOKEN_SLASH {
+    }
+
+    if token_type == TOKEN_STAR || token_type == TOKEN_SLASH {
         return PRECEDENCE_PRODUCT;
-    } else if token_type == TOKEN_LPAREN {
+    }
+
+    if token_type == TOKEN_LPAREN {
         return PRECEDENCE_CALL;
     }
 
