@@ -200,6 +200,15 @@ def is_whitespace(c: i32): bool {
         || c == std.char_to_int('\0');
 }
 
+def skip_until(l: *Lexer, ch: i32): void {
+    while !at_end(l) {
+        advance(l);
+        if current(l) == ch {
+            return;
+        }
+    }
+}
+
 def skip_whitespace(l: *Lexer): void {
     let continue = true;
     while !at_end(l) && continue {
@@ -301,10 +310,6 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_STAR);
     }
 
-    if c == std.char_to_int('/') {
-        return token_from_start(l, TOKEN_SLASH);
-    }
-
     if c == std.char_to_int('(') {
         return token_from_start(l, TOKEN_LPAREN);
     }
@@ -319,6 +324,14 @@ def get_next_token(l: *Lexer): Token {
 
     if c == std.char_to_int('}') {
         return token_from_start(l, TOKEN_RBRACE);
+    }
+
+    if c == std.char_to_int('/') {
+        if current(l) == std.char_to_int('/') {
+            skip_until(l, std.char_to_int('\n'));
+            return next_token(l);
+        }
+        return token_from_start(l, TOKEN_SLASH);
     }
 
     if c == std.char_to_int('<') {
