@@ -426,13 +426,13 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
 #undef FAIL
 }
 
-def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32, no_struct: bool): ast.ArgList {
+def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32): ast.ArgList {
 #define FAIL() ast.free_al(&args); return ast.create_arg_list()
     let args = ast.create_arg_list();
 
     let peek = peek(p);
     while peek.ty != TOKEN_EOF && peek.ty != delim_ty {
-        let arg = expression(p, no_struct);
+        let arg = expression(p, false);
         if arg == null {
             FAIL();
         }
@@ -554,7 +554,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     if token.ty == TOKEN_LPAREN {
         if ast.is_ident(left) {
             let ident = ast.as_ident(left);
-            let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN, no_struct);
+            let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN);
 
             let closing_paren = lexer.empty_token();
             if !consume_token(p, TOKEN_RPAREN, &closing_paren) {
