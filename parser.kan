@@ -22,6 +22,10 @@ type ParseError struct {
     text: string
 }
 
+def empty_err(): ParseError {
+    return ParseError { span: span.empty(), text: null };
+}
+
 type Parser struct {
     in_panic_mode: bool,
     lexer: lexer.Lexer,
@@ -43,7 +47,7 @@ def free_p(p: *Parser): void {
 
 def free_errs_from(p: *Parser, start: i32): void {
     let i = start;
-    let elem = ParseError { span: span.empty(), text: null };
+    let elem = empty_err();
     while i < p.errors.len {
         vec.get(&p.errors, i, &elem as *void);
         delete elem.text;
