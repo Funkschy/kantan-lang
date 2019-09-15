@@ -278,6 +278,10 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_DOT);
     }
 
+    if c == std.char_to_int('!') {
+        return token_from_start(l, TOKEN_BANG);
+    }
+
     if c == std.char_to_int('+') {
         return token_from_start(l, TOKEN_PLUS);
     }

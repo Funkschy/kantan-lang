@@ -506,13 +506,13 @@ def parse_expression(p: *Parser, precedence: i32, no_struct: bool): *ast.Expr {
     while next_higher_precedence(p, precedence, no_struct) {
         let token = lexer.empty_token();
         if !advance(p, &token) {
-            delete left;
+            ast.expr_free(left);
             return null;
         }
 
         let infix = infix(p, &token, left, no_struct);
         if infix == null {
-            delete left;
+            ast.expr_free(left);
             return null;
         }
 
@@ -537,6 +537,12 @@ def next_higher_precedence(p: *Parser, precedence: i32, no_struct: bool): bool {
 }
 
 def prefix(p: *Parser, no_struct: bool): *ast.Expr {
+#define UNARY(tok, unary_ty) if token.ty == (tok) { \
+        letcheck(expr, parse_expression(p, precedence.unary(), no_struct)); \
+        let span = span.merge(p.lexer.span_interner, token.span, expr.span); \
+        return ast.make_unary(span, (unary_ty), expr); \
+    } 0
+
     let token = lexer.empty_token();
     if !advance(p, &token) {
         return null;
@@ -550,17 +556,10 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.make_string(token.span, token.lexeme);
     }
 
-    if token.ty == TOKEN_AMPERSAND {
-        letcheck(expr, parse_expression(p, precedence.unary(), no_struct));
-        let span = span.merge(p.lexer.span_interner, token.span, expr.span);
-        return ast.make_unary(span, UNARY_REF, expr);
-    }
-
-    if token.ty == TOKEN_STAR {
-        letcheck(expr, parse_expression(p, precedence.unary(), no_struct));
-        let span = span.merge(p.lexer.span_interner, token.span, expr.span);
-        return ast.make_unary(span, UNARY_DEREF, expr);
-    }
+    UNARY(TOKEN_AMPERSAND, UNARY_REF);
+    UNARY(TOKEN_STAR, UNARY_DEREF);
+    UNARY(TOKEN_BANG, UNARY_NEG_BOOL);
+    UNARY(TOKEN_MINUS, UNARY_NEG_NUM);
 
     if token.ty == TOKEN_IDENT {
         if peek(p).ty == TOKEN_DOT {
@@ -600,6 +599,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     }
 
     return null;
+#undef UNARY
 }
 
 def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {

@@ -22,3 +22,5 @@
 
 #define UNARY_REF       1
 #define UNARY_DEREF     2
+#define UNARY_NEG_BOOL  3
+#define UNARY_NEG_NUM   4

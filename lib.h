@@ -14,6 +14,7 @@ static char const *const token_strings[] = {
     ",",
     ":",
     ".",
+    "!",
     "=",
     "==",
     "+",
@@ -58,7 +59,9 @@ static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *
 static char const *const unary_type_ops[] = {
     "error",
     "&",
-    "*"
+    "*",
+    "!",
+    "-"
 };
 
 static size_t const len_unary_strings = sizeof(unary_type_ops) / sizeof(char *);
