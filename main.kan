@@ -100,11 +100,14 @@ def print_parse_errors(p: *parser.Parser, si: *span.SpanInterner, fm: *reader.Fi
 }
 
 def print_parse_error(err: *parser.ParseError, span: *span.BigSpan, file: *source.SourceFile): void {
+    let last_nl = 0;
+    let line = source.find_line(span, file, &last_nl);
+
     io.printf(
         "ERROR: %s\n--> %s:%d:%d\n\n",
         err.text,
         source.file_name(file),
-        span.start,
-        span.start + span.len
+        line,
+        span.start - last_nl
     );
 }

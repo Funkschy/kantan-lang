@@ -1,5 +1,6 @@
 import "path";
 import "file";
+import "span";
 
 type SourceFile struct {
     file: file.File,
@@ -35,3 +36,27 @@ def read(p: path.Path, f: *SourceFile): i32 {
 
     return 0;
 }
+
+def find_line(span: *span.BigSpan, file: *SourceFile, last_nl_pos: *i32): i32 {
+    let lines = 1;
+    let last_nl = span.start;
+
+    let ptr = file.code + span.start;
+    while ptr != file.code {
+        if *ptr == '\n' {
+            lines = lines + 1;
+
+            if last_nl == span.start {
+                last_nl = ptr - file.code;
+            }
+        }
+        ptr = ptr - 1;
+    }
+
+    if last_nl_pos != null {
+        *last_nl_pos = last_nl;
+    }
+
+    return lines;
+}
+
