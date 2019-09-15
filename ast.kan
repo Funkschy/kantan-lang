@@ -299,15 +299,44 @@ def stmt_free(s: *Stmt): void {
     delete s;
 }
 
+/////////// access expr ///////////
+
+type AccessExpr struct {
+    e: Expr,
+    left: *Expr,
+    right: *Expr
+}
+
+def make_access(span: span.Span, left: *Expr, right: *Expr): *Expr {
+    return (new AccessExpr {
+        e: Expr { tag: EXPR_ACCESS, span: span },
+        left: left,
+        right: right
+    }) as *Expr;
+}
+
+def is_access(e: *Expr): bool {
+    return e.tag == EXPR_ACCESS;
+}
+
+def as_access(e: *Expr): *AccessExpr {
+    return e as *AccessExpr;
+}
+
 /////////// assign expr ///////////
 
 type CallExpr struct {
     e: Expr,
-    ident: *IdentExpr,
+    ident: *Expr, // either IdentExpr or AccessExpr
     args: ArgList
 }
 
-def make_call(span: span.Span, ident: *IdentExpr, args: ArgList): *Expr {
+def make_call(span: span.Span, ident: *Expr, args: ArgList): *Expr {
+    if !is_ident(ident) && !is_access(ident) {
+        expr_free(ident);
+        return null;
+    }
+
     return (new CallExpr {
         e: Expr { tag: EXPR_CALL, span: span },
         ident: ident,
@@ -481,6 +510,10 @@ def expr_free(e: *Expr): void {
         let a_expr = as_assign(e);
         expr_free(a_expr.left);
         expr_free(a_expr.right);
+    } else if is_access(e) {
+        let a_expr = as_access(e);
+        expr_free(a_expr.left);
+        expr_free(a_expr.right);
     } else if is_call(e) {
         let c_expr = as_call(e);
         expr_free(c_expr.ident as *Expr);
@@ -518,6 +551,19 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let right = expr_to_string(a_expr.right, span_interner);
 
         let s = std.format_str("%s = %s", left, right);
+        delete left;
+        delete right;
+
+        return s;
+    }
+
+    if is_access(e) {
+        let a_expr = as_access(e);
+
+        let left = expr_to_string(a_expr.left, span_interner);
+        let right = expr_to_string(a_expr.right, span_interner);
+
+        let s = std.format_str("%s.%s", left, right);
         delete left;
         delete right;
 

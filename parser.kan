@@ -584,31 +584,14 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.make_string(token.span, token.lexeme);
     }
 
+    if token.ty == TOKEN_IDENT {
+        return ast.make_ident(token);
+    }
+
     UNARY(TOKEN_AMPERSAND, UNARY_REF);
     UNARY(TOKEN_STAR, UNARY_DEREF);
     UNARY(TOKEN_BANG, UNARY_NEG_BOOL);
     UNARY(TOKEN_MINUS, UNARY_NEG_NUM);
-
-    if token.ty == TOKEN_IDENT {
-        if peek(p).ty == TOKEN_DOT {
-            consume(p, TOKEN_DOT);
-
-            let first_part = token;
-            if !consume_ident(p, &token, true) {
-                return null;
-            }
-
-            let span = span.merge(p.lexer.span_interner, first_part.span, token.span);
-            token = lexer.create_token_from_span(
-                &p.lexer,
-                TOKEN_IDENT,
-                first_part.lexeme,
-                span
-            );
-        }
-
-        return ast.make_ident(token);
-    }
 
     if token.ty == TOKEN_LPAREN {
         // ignore no_struct, because it's in parens
@@ -631,22 +614,25 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 }
 
 def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {
+    // access expr
+    if token.ty == TOKEN_DOT {
+        letcheck(right, expression(p, no_struct));
+        let span = span.merge(p.lexer.span_interner, left.span, right.span);
+        return ast.make_access(span, left, right);
+    }
+
     // call expr
     if token.ty == TOKEN_LPAREN {
-        if ast.is_ident(left) {
-            let ident = ast.as_ident(left);
-            let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN);
+        let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN);
 
-            let closing_paren = lexer.empty_token();
-            if !consume_token(p, TOKEN_RPAREN, &closing_paren) {
-                ast.free_al(&args);
-                return null;
-            }
-
-            let span = span.merge(p.lexer.span_interner, ident.e.span, closing_paren.span);
-            return ast.make_call(span, ident, args);
+        let closing_paren = lexer.empty_token();
+        if !consume_token(p, TOKEN_RPAREN, &closing_paren) {
+            ast.free_al(&args);
+            return null;
         }
-        return null;
+
+        let span = span.merge(p.lexer.span_interner, left.span, closing_paren.span);
+        return ast.make_call(span, left, args);
     }
 
     // binary expression

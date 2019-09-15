@@ -9,6 +9,7 @@
 #define PRECEDENCE_PRODUCT    6
 #define PRECEDENCE_UNARY      7
 #define PRECEDENCE_CALL       8
+#define PRECEDENCE_ACCESS     9
 
 def get(token_type: i32): i32 {
     if token_type == TOKEN_EQ {
@@ -40,6 +41,10 @@ def get(token_type: i32): i32 {
 
     if token_type == TOKEN_LPAREN {
         return PRECEDENCE_CALL;
+    }
+
+    if token_type == TOKEN_DOT {
+        return PRECEDENCE_ACCESS;
     }
 
     return PRECEDENCE_NONE;
@@ -79,4 +84,8 @@ def unary(): i32 {
 
 def call(): i32 {
     return PRECEDENCE_CALL;
+}
+
+def access(): i32 {
+    return PRECEDENCE_ACCESS;
 }

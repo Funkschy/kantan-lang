@@ -5,6 +5,7 @@
 #define EXPR_IDENT      5
 #define EXPR_ASSIGN     6
 #define EXPR_CALL       7
+#define EXPR_ACCESS     8
 
 #define BINARY_ADD      1
 #define BINARY_SUB      2
