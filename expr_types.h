@@ -1,9 +1,10 @@
 #define EXPR_INT        1
 #define EXPR_STRING     2
 #define EXPR_BINARY     3
-#define EXPR_IDENT      4
-#define EXPR_ASSIGN     5
-#define EXPR_CALL       6
+#define EXPR_UNARY      4
+#define EXPR_IDENT      5
+#define EXPR_ASSIGN     6
+#define EXPR_CALL       7
 
 #define BINARY_ADD      1
 #define BINARY_SUB      2
@@ -17,5 +18,6 @@
 
 #define BINARY_LOG_AND  9
 #define BINARY_LOG_OR   10
-
 #define BINARY_EQ       11
+
+#define UNARY_REF       1

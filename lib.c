@@ -28,6 +28,10 @@ char const *const binary2str(int32_t op) {
     return get_str(op, len_binary_strings, binary_type_ops);
 }
 
+char const *const unary2str(int32_t op) {
+    return get_str(op, len_unary_strings, unary_type_ops);
+}
+
 char const *const format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;

@@ -11,6 +11,7 @@ import "ty";
 import "io"; // TODO: only debug
 
 extern def binary2str(op: i32): string;
+extern def unary2str(op: i32): string;
 
 /////////// expr stmt ///////////
 
@@ -392,6 +393,30 @@ def as_binary(e: *Expr): *BinaryExpr {
     return e as *BinaryExpr;
 }
 
+/////////// unaryexpr ///////////
+
+type UnaryExpr struct {
+    e: Expr,
+    ty: i32,
+    right: *Expr
+}
+
+def make_unary(span: span.Span, ty: i32, right: *Expr): *Expr {
+    return (new UnaryExpr {
+        e: Expr { tag: EXPR_UNARY, span: span },
+        ty: ty,
+        right: right
+    }) as *Expr;
+}
+
+def is_unary(e: *Expr): bool {
+    return e.tag == EXPR_UNARY;
+}
+
+def as_unary(e: *Expr): *UnaryExpr {
+    return e as *UnaryExpr;
+}
+
 /////////// base expr ///////////
 
 type Expr struct {
@@ -412,6 +437,8 @@ def expr_free(e: *Expr): void {
         let c_expr = as_call(e);
         expr_free(c_expr.ident as *Expr);
         free_al(&c_expr.args);
+    } else if is_unary(e) {
+        expr_free(as_unary(e).right);
     }
 
     delete e;
@@ -449,6 +476,17 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
+    if is_unary(e) {
+        let u_expr = as_unary(e);
+        let right = expr_to_string(u_expr.right, span_interner);
+        let tok_str = unary2str(u_expr.ty);
+
+        let s = std.format_str("(%s%s)", tok_str, right);
+        delete right;
+
+        return s;
+    }
+
     if is_binary(e) {
         let b_expr = as_binary(e);
 
@@ -456,7 +494,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let right = expr_to_string(b_expr.right, span_interner);
         let tok_str = binary2str(b_expr.ty);
 
-        let s = std.format_str("%s%s%s", left, tok_str, right);
+        let s = std.format_str("(%s%s%s)", left, tok_str, right);
         delete left;
         delete right;
 

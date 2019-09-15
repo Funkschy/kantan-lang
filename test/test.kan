@@ -2,6 +2,7 @@
 
 function(420 - (69 / 1), test.i.other);
 1 >= 0;
+&1 + &(1 + 1);
 test.i.other;
 
 if true {

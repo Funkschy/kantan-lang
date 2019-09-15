@@ -544,9 +544,19 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 
     if token.ty == TOKEN_INT {
         return ast.make_int(token.span, token.lexeme);
-    } else if token.ty == TOKEN_STRING {
+    }
+
+    if token.ty == TOKEN_STRING {
         return ast.make_string(token.span, token.lexeme);
-    } else if token.ty == TOKEN_IDENT {
+    }
+
+    if token.ty == TOKEN_AMPERSAND {
+        letcheck(expr, parse_expression(p, precedence.unary(), no_struct));
+        let span = span.merge(p.lexer.span_interner, token.span, expr.span);
+        return ast.make_unary(span, UNARY_REF, expr);
+    }
+
+    if token.ty == TOKEN_IDENT {
         if peek(p).ty == TOKEN_DOT {
             consume(p, TOKEN_DOT);
 
@@ -565,7 +575,9 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         }
 
         return ast.make_ident(token);
-    } else if token.ty == TOKEN_LPAREN {
+    }
+
+    if token.ty == TOKEN_LPAREN {
         // ignore no_struct, because it's in parens
         letcheck(e, expression(p, false));
 
