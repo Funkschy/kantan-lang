@@ -166,6 +166,8 @@ def ident_type(l: *Lexer): i32 {
         return check_keyword(l, 1, 2, "ef", TOKEN_DEF);
     } else if start == std.char_to_int('e') {
         return check_keyword(l, 1, 3, "lse", TOKEN_ELSE);
+    } else if start == std.char_to_int('w') {
+        return check_keyword(l, 1, 4, "hile", TOKEN_WHILE);
     }
 
     return TOKEN_IDENT;

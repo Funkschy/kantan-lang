@@ -213,17 +213,29 @@ def statement(p: *Parser): *ast.Stmt {
 
 def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
     let peek = peek(p);
+
     if peek.ty == TOKEN_LET {
         *dest = parse_let_stmt(p);
         return true;
-    } else if peek.ty == TOKEN_IMPORT {
+    }
+
+    if peek.ty == TOKEN_IMPORT {
         *dest = parse_import_stmt(p);
         return true;
-    } else if peek.ty == TOKEN_DEF {
+    }
+
+    if peek.ty == TOKEN_DEF {
         *dest = parse_func_def(p);
         return false;
-    } else if peek.ty == TOKEN_IF {
+    }
+
+    if peek.ty == TOKEN_IF {
         *dest = parse_if_stmt(p);
+        return false;
+    }
+
+    if peek.ty == TOKEN_WHILE {
+        *dest = parse_while_stmt(p);
         return false;
     }
 
@@ -301,6 +313,29 @@ def parse_func_def(p: *Parser): *ast.Stmt {
         ret_ty,
         ast.as_block_stmt(block)
     );
+}
+
+def parse_while_stmt(p: *Parser): *ast.Stmt {
+    if !consume(p, TOKEN_WHILE) {
+        return null;
+    }
+
+    let peek = peek(p);
+    let condition = expression(p, true);
+
+    if condition == null {
+        let error = create_consume_error_text(p, &peek, "condition");
+        push_err(p, error);
+        return null;
+    }
+
+    let block = parse_block(p);
+    if block == null {
+        ast.expr_free(condition);
+        return null;
+    }
+
+    return ast.make_while_stmt(condition, ast.as_block_stmt(block));
 }
 
 def parse_if_stmt(p: *Parser): *ast.Stmt {

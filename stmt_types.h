@@ -4,3 +4,4 @@
 #define STMT_FUNC_DECL  4
 #define STMT_BLOCK      5
 #define STMT_IF         6
+#define STMT_WHILE      7

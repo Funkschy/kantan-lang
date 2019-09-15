@@ -9,6 +9,7 @@ static char const *const token_strings[] = {
     "else",
     "import",
     "def",
+    "while",
     ";",
     ",",
     ":",

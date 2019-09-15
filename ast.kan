@@ -31,6 +31,30 @@ def as_expr_stmt(s: *Stmt): *ExprStmt {
     return s as *ExprStmt;
 }
 
+/////////// While stmt ///////////
+
+type WhileStmt struct {
+    s: Stmt,
+    condition: *Expr,
+    block: *BlockStmt
+}
+
+def make_while_stmt(condition: *Expr, block: *BlockStmt): *Stmt {
+    return (new WhileStmt {
+        s: Stmt { tag: STMT_WHILE },
+        condition: condition,
+        block: block,
+    }) as *Stmt;
+}
+
+def is_while_stmt(s: *Stmt): bool {
+    return s.tag == STMT_WHILE;
+}
+
+def as_while_stmt(s: *Stmt): *WhileStmt {
+    return s as *WhileStmt;
+}
+
 /////////// If stmt ///////////
 
 type IfStmt struct {
@@ -217,6 +241,10 @@ def stmt_free(s: *Stmt): void {
         expr_free(if_stmt.condition);
         stmt_free(if_stmt.block as *Stmt);
         stmt_free(if_stmt.else_stmt);
+    } else if is_while_stmt(s) {
+        let while_stmt = as_while_stmt(s);
+        expr_free(while_stmt.condition);
+        stmt_free(while_stmt.block as *Stmt);
     }
 
     delete s;
