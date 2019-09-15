@@ -556,6 +556,12 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.make_unary(span, UNARY_REF, expr);
     }
 
+    if token.ty == TOKEN_STAR {
+        letcheck(expr, parse_expression(p, precedence.unary(), no_struct));
+        let span = span.merge(p.lexer.span_interner, token.span, expr.span);
+        return ast.make_unary(span, UNARY_DEREF, expr);
+    }
+
     if token.ty == TOKEN_IDENT {
         if peek(p).ty == TOKEN_DOT {
             consume(p, TOKEN_DOT);

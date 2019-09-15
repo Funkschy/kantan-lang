@@ -21,3 +21,4 @@
 #define BINARY_EQ       11
 
 #define UNARY_REF       1
+#define UNARY_DEREF     2
