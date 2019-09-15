@@ -32,6 +32,50 @@ def as_expr_stmt(s: *Stmt): *ExprStmt {
     return s as *ExprStmt;
 }
 
+/////////// New stmt ///////////
+
+type NewStmt struct {
+    s: Stmt,
+    expr: *Expr
+}
+
+def make_new_stmt(expr: *Expr): *Stmt {
+    return (new NewStmt {
+        s: Stmt { tag: STMT_NEW },
+        expr: expr
+    }) as *Stmt;
+}
+
+def is_new_stmt(s: *Stmt): bool {
+    return s.tag == STMT_NEW;
+}
+
+def as_new_stmt(s: *Stmt): *NewStmt {
+    return s as *NewStmt;
+}
+
+/////////// Delete stmt ///////////
+
+type DeleteStmt struct {
+    s: Stmt,
+    expr: *Expr
+}
+
+def make_delete_stmt(expr: *Expr): *Stmt {
+    return (new DeleteStmt {
+        s: Stmt { tag: STMT_DELETE },
+        expr: expr
+    }) as *Stmt;
+}
+
+def is_delete_stmt(s: *Stmt): bool {
+    return s.tag == STMT_DELETE;
+}
+
+def as_delete_stmt(s: *Stmt): *DeleteStmt {
+    return s as *DeleteStmt;
+}
+
 /////////// While stmt ///////////
 
 type WhileStmt struct {
@@ -219,6 +263,10 @@ def stmt_free(s: *Stmt): void {
         expr_free(as_expr_stmt(s).expr);
     } else if is_let_stmt(s) {
         expr_free(as_let_stmt(s).value);
+    } else if is_new_stmt(s) {
+        expr_free(as_new_stmt(s).expr);
+    } else if is_delete_stmt(s) {
+        expr_free(as_delete_stmt(s).expr);
     } else if is_func_decl_stmt(s) {
         let f_decl = as_func_decl_stmt(s);
         let decl = f_decl.decl;

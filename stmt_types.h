@@ -5,3 +5,5 @@
 #define STMT_BLOCK      5
 #define STMT_IF         6
 #define STMT_WHILE      7
+#define STMT_NEW        8
+#define STMT_DELETE     9

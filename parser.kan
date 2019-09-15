@@ -218,16 +218,6 @@ def statement(p: *Parser): *ast.Stmt {
 def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
     let peek = peek(p);
 
-    if peek.ty == TOKEN_LET {
-        *dest = parse_let_stmt(p);
-        return true;
-    }
-
-    if peek.ty == TOKEN_IMPORT {
-        *dest = parse_import_stmt(p);
-        return true;
-    }
-
     if peek.ty == TOKEN_DEF {
         *dest = parse_func_def(p);
         return false;
@@ -243,6 +233,26 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
         return false;
     }
 
+    if peek.ty == TOKEN_NEW {
+        *dest = parse_new_stmt(p);
+        return true;
+    }
+
+    if peek.ty == TOKEN_DELETE {
+        *dest = parse_delete_stmt(p);
+        return true;
+    }
+
+    if peek.ty == TOKEN_LET {
+        *dest = parse_let_stmt(p);
+        return true;
+    }
+
+    if peek.ty == TOKEN_IMPORT {
+        *dest = parse_import_stmt(p);
+        return true;
+    }
+
     let expr = expression(p, false);
     if expr == null {
         *dest = null;
@@ -251,6 +261,20 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
 
     *dest = ast.make_expr_stmt(expr);
     return true;
+}
+
+def parse_new_stmt(p: *Parser): *ast.Stmt {
+    CONSUME_RET_NULL(TOKEN_NEW);
+
+    letcheck(expr, expression(p, false));
+    return ast.make_new_stmt(expr);
+}
+
+def parse_delete_stmt(p: *Parser): *ast.Stmt {
+    CONSUME_RET_NULL(TOKEN_DELETE);
+
+    letcheck(expr, expression(p, false));
+    return ast.make_delete_stmt(expr);
 }
 
 def parse_import_stmt(p: *Parser): *ast.Stmt {
