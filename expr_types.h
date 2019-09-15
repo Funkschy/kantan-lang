@@ -19,6 +19,7 @@
 #define BINARY_LOG_AND  9
 #define BINARY_LOG_OR   10
 #define BINARY_EQ       11
+#define BINARY_NE       12
 
 #define UNARY_REF       1
 #define UNARY_DEREF     2

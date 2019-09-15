@@ -19,7 +19,7 @@ def get(token_type: i32): i32 {
         return PRECEDENCE_AND;
     }
 
-    if token_type == TOKEN_DOUBLE_EQ {
+    if token_type == TOKEN_DOUBLE_EQ || token_type == TOKEN_BANG_EQ {
         return PRECEDENCE_EQUALITY;
     }
 

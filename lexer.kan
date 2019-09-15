@@ -278,10 +278,6 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_DOT);
     }
 
-    if c == std.char_to_int('!') {
-        return token_from_start(l, TOKEN_BANG);
-    }
-
     if c == std.char_to_int('+') {
         return token_from_start(l, TOKEN_PLUS);
     }
@@ -353,6 +349,15 @@ def get_next_token(l: *Lexer): Token {
         }
         return token_from_start(l, TOKEN_EQ);
     }
+
+    if c == std.char_to_int('!') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TOKEN_BANG_EQ);
+        }
+        return token_from_start(l, TOKEN_BANG);
+    }
+
 
     return token_from_start(l, TOKEN_ERR);
 }
