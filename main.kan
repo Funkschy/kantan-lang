@@ -73,6 +73,11 @@ def main(argc: i32, argv: *string): void {
                 let s = ast.expr_to_string(e, &span_interner);
                 io.printf("%s\n", s);
                 delete s;
+            } else if ast.is_struct_decl_stmt(s) {
+                let decl_s = ast.as_struct_decl_stmt(s);
+                let s = record.to_string(&decl_s.decl, &span_interner);
+                io.printf("%s\n", s);
+                delete s;
             }
         } else {
             io.printf("ERROR: no valid statement in file\n");

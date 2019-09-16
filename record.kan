@@ -1,0 +1,137 @@
+#include "std.h"
+
+import "ident";
+import "ty";
+import "map";
+import "vec";
+
+type Field struct {
+    ident: ident.Ident,
+    ty: ty.Type
+}
+
+def empty_field(): Field {
+    return Field { ident: ident.empty(), ty: ty.empty() };
+}
+
+def create_field(ident: ident.Ident, ty: ty.Type): Field {
+    return Field { ident: ident, ty: ty };
+}
+
+type Fields struct {
+    field_map: map.Map, // from ident to index into fields
+    fields: vec.Vec // actual fields
+}
+
+def free_fields(fs: *Fields): void {
+    map.free_m(&fs.field_map);
+    vec.free_v(&fs.fields);
+}
+
+def create_fields(si: *span.SpanInterner, fields: vec.Vec): Fields {
+    let field_map = map.with_cap(fields.len);
+
+    let i = 0;
+    while i < fields.len {
+        let field = empty_field();
+        vec.get(&fields, i, &field as *void);
+
+        let s = ty.to_string(&field.ty, si);
+        delete s;
+
+        let key = map.key_from_ident(si, &field.ident);
+        let index = *(&i as **void);
+
+        map.insert(&field_map, key, index);
+        i = i + 1;
+    }
+
+    return Fields { field_map: field_map, fields: fields };
+}
+
+def fields_get_field_at(fs: *Fields, i: i32, dest: *Field): bool {
+    return vec.get(&fs.fields, i, dest as *void);
+}
+
+def fields_to_string(fs: *Fields, span_interner: *span.SpanInterner): string {
+    let fields = (new '\0') as string;
+
+    let i = 0;
+    while i < fs.fields.len {
+        let f = empty_field();
+        if !fields_get_field_at(fs, i, &f) {
+            delete fields;
+            return null;
+        }
+        let n = ident.to_string(&f.ident, span_interner);
+        let t = ty.to_string(&f.ty, span_interner);
+
+        let extra_len = 2; // ': '
+        if i > 0 {
+            extra_len = 4; // ': ..., '
+        }
+
+        let new_len = std.strlen(fields) + std.strlen(n) + std.strlen(t) + 1 + extra_len;
+        let new_fields = std.malloc(new_len) as string;
+        let old_fields = fields;
+        fields = std.strcpy(new_fields, fields);
+        delete old_fields;
+
+        if extra_len > 2 {
+            fields = std.strcat(fields, ", ");
+        }
+
+        fields = std.strcat(fields, n);
+        fields = std.strcat(fields, ": ");
+        fields = std.strcat(fields, t);
+        delete n;
+        delete t;
+
+        i = i + 1;
+    }
+
+    return fields;
+}
+
+type StructDecl struct {
+    name: ident.Ident,
+    fields: Fields
+}
+
+def create_struct(si: *span.SpanInterner, name: ident.Ident, fields: vec.Vec): StructDecl {
+    let fields = create_fields(si, fields);
+    return StructDecl { name: name, fields: fields };
+}
+
+def free_struct(s: *StructDecl): void {
+    free_fields(&s.fields);
+}
+
+def num_fields(s: *StructDecl): i32 {
+    return s.fields.fields.len;
+}
+
+def field_at(s: *StructDecl, i: i32, dest: *Field): bool {
+    return fields_get_field_at(&s.fields, i, dest);
+}
+
+def field_by_ident(s: *StructDecl, name: ident.Ident, si: *span.SpanInterner, dest: *Field): bool {
+    // since the map can only save pointers, the i32 is inside a *void
+    let ptr = map.get(&s.fields.field_map, map.key_from_ident(si, &name));
+    if ptr == null {
+        return false;
+    }
+
+    return field_at(s, std.ptr_to_int(ptr), dest);
+}
+
+def to_string(s: *StructDecl, span_interner: *span.SpanInterner): string {
+    let name = ident.to_string(&s.name, span_interner);
+    let fields = fields_to_string(&s.fields, span_interner);
+    let s = std.format_str("type %s struct { %s }", name, fields);
+
+    delete name;
+    delete fields;
+
+    return s;
+}

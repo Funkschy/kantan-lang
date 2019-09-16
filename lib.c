@@ -89,16 +89,16 @@ int32_t read_char(char const *string, int32_t s_len, int32_t *ch) {
     return c_len;
 }
 
-int32_t hash(char const *const key) {
+int32_t hash(char const *const key, int32_t len) {
     int32_t h = 0;
-    for (char c = *key; c != '\0'; c++) {
-        h = h * HASH_NUM + c;
+    for (int32_t i = 0; i < len; i++) {
+        h = h * HASH_NUM + key[i];
     }
     return h;
 }
 
-int32_t get_map_index(int32_t cap, char const *const key) {
-    int32_t h = hash(key);
+int32_t get_map_index(int32_t cap, char const *const key, int32_t key_len) {
+    int32_t h = hash(key, key_len);
     return h & (cap - 1);
 }
 
@@ -180,4 +180,8 @@ _Float32 int_to_float(int64_t i) {
 
 int32_t char_to_int(char c) {
     return (int32_t) c;
+}
+
+int32_t ptr_to_int(void* ptr) {
+    return (int32_t)((size_t) ptr);
 }

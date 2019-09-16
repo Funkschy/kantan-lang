@@ -1,3 +1,8 @@
+type Test struct {
+    test_ident: TestType,
+    other: *Test
+}
+
 span.get(&span_interner, function(420 - (69 / 1), test.i.other)).len;
 delete 1;
 1 == !1 && 1 == 1 || (-1 + -1) != 0;

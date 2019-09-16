@@ -233,6 +233,11 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
         return false;
     }
 
+    if peek.ty == TOKEN_TYPE {
+        *dest = parse_type_stmt(p);
+        return false;
+    }
+
     if peek.ty == TOKEN_NEW {
         *dest = parse_new_stmt(p);
         return true;
@@ -306,6 +311,25 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
     return ast.make_let_stmt(ident, e);
 }
 
+def parse_type_stmt(p: *Parser): *ast.Stmt {
+    CONSUME_RET_NULL(TOKEN_TYPE);
+
+    let ident = lexer.empty_token();
+    if !consume_ident(p, &ident, false) {
+        return null;
+    }
+
+    CONSUME_RET_NULL(TOKEN_STRUCT);
+    CONSUME_RET_NULL(TOKEN_LBRACE);
+    let fields = parse_field_list(p);
+
+    return ast.make_struct_decl_stmt(
+        p.lexer.span_interner,
+        ident.create(ident),
+        fields
+    );
+}
+
 def parse_func_def(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_DEF);
 
@@ -315,7 +339,7 @@ def parse_func_def(p: *Parser): *ast.Stmt {
     }
 
     CONSUME_RET_NULL(TOKEN_LPAREN);
-    let params = parse_param_list(p, TOKEN_COMMA, TOKEN_RPAREN);
+    let params = parse_param_list(p);
     let param_list = func.pl_from_vec(params);
 
     if !consume(p, TOKEN_COLON) {
@@ -447,13 +471,56 @@ def parse_block(p: *Parser): *ast.Stmt {
     return ast.make_block_stmt(statements);
 }
 
-def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
+def parse_field_list(p: *Parser): vec.Vec {
+#define FAIL() vec.free_v(&fields); return vec.create(0)
+
+    let fields = vec.create(sizeof record.Field);
+
+    let peek = peek(p);
+    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RBRACE {
+        let ident = lexer.empty_token();
+        if !consume_ident(p, &ident, false) {
+            FAIL();
+        }
+        let ident = ident.create(ident);
+
+        if !consume(p, TOKEN_COLON) {
+            FAIL();
+        }
+
+        let ty = ty.empty();
+        if !consume_type(p, &ty) {
+            FAIL();
+        }
+
+        let field = record.create_field(ident, ty);
+        vec.push(&fields, &field as *void);
+
+        peek = peek(p);
+
+        // consume separator
+        if peek.ty == TOKEN_COMMA {
+            consume(p, TOKEN_COMMA);
+        }
+    }
+
+    if !consume(p, TOKEN_RBRACE) {
+        FAIL();
+    }
+
+    return fields;
+
+#undef FAIL
+}
+
+
+def parse_param_list(p: *Parser): vec.Vec {
 #define FAIL() vec.free_v(&params); return vec.create(0)
 
     let params = vec.create(sizeof param.Param);
 
     let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != delim_ty {
+    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RPAREN {
         let ident = lexer.empty_token();
         if !consume_ident(p, &ident, false) {
             FAIL();
@@ -475,12 +542,12 @@ def parse_param_list(p: *Parser, sep_ty: i32, delim_ty: i32): vec.Vec {
         peek = peek(p);
 
         // consume separator
-        if peek.ty == sep_ty {
-            consume(p, sep_ty);
+        if peek.ty == TOKEN_COMMA {
+            consume(p, TOKEN_COMMA);
         }
     }
 
-    if !consume(p, delim_ty) {
+    if !consume(p, TOKEN_RPAREN) {
         FAIL();
     }
 

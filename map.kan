@@ -4,10 +4,12 @@
 
 import "std";
 import "num";
+import "ident";
+import "span";
+
 import "io"; // TODO: only debug
 
-extern def hash(key: string): i32;
-extern def get_map_index(cap: i32, key: string): i32;
+extern def get_map_index(cap: i32, key: string, key_len: i32): i32;
 
 type Map struct {
     buckets: *Bucket,
@@ -20,8 +22,18 @@ type Bucket struct {
     next: *Bucket
 }
 
+type Key struct {
+    len: i32,
+    value: string
+}
+
+def key_from_ident(span_interner: *span.SpanInterner, ident: *ident.Ident): Key {
+    let len = span.get(span_interner, ident.ident_span).len;
+    return Key { len: len, value: ident.ident };
+}
+
 type Item struct  {
-    key: string,
+    key: Key,
     value: *void
 }
 
@@ -31,9 +43,7 @@ def create(): Map {
 
 def with_cap(cap: i32): Map {
     if cap % 2 != 0 {
-        io.printf("Corrected cap from %d", cap);
         cap = num.next_pow_of_2(cap);
-        io.printf(" to %d\n", cap);
     }
     return Map { buckets: std.calloc(cap, sizeof Bucket) as *Bucket, len: 0, cap: cap };
 }
@@ -56,16 +66,6 @@ def free_buckets(buckets: *Bucket): void {
     }
 }
 
-def insert_if_empty(b: *Bucket, key: string, value: *void): bool {
-    if b.item.key == null {
-        b.item.key = key;
-        b.item.value = value;
-        return true;
-    }
-
-    return false;
-}
-
 def resize_if_needed(map: *Map): void {
     let cap = map.cap;
     if cap == 0 {
@@ -84,6 +84,18 @@ def resize_if_needed(map: *Map): void {
     }
 }
 
+def key_eq(first: *Key, second: *Key): bool {
+    if first.len != second.len {
+        return false;
+    }
+
+    return std.strncmp(first.value, second.value, first.len) == 0;
+}
+
+def bucket_is_empty(b: *Bucket): bool {
+    return b.item.key.value == null;
+}
+
 def insert_all(old_map: *Map, new_map: *Map): void {
     let i = 0;
 
@@ -93,7 +105,7 @@ def insert_all(old_map: *Map, new_map: *Map): void {
 
         // iterate over list in bucket
         while b != null {
-            if b.item.key != null {
+            if bucket_is_empty(b) {
                 insert(new_map, b.item.key, b.item.value);
             }
 
@@ -105,27 +117,25 @@ def insert_all(old_map: *Map, new_map: *Map): void {
 
 }
 
-def insert(map: *Map, key: string, value: *void): void {
+def insert(map: *Map, key: Key, value: *void): void {
     resize_if_needed(map);
 
-    let b = map.buckets + get_map_index(map.cap, key);
+    let b = map.buckets + get_map_index(map.cap, key.value, key.len);
     let item = Item { key: key, value: value };
 
-    // bucket is empty
-    if b.item.key == null {
+    if bucket_is_empty(b) {
         b.item = item;
         return;
     }
 
     while b != null {
-        // bucket is empty
-        if b.item.key == null {
+        if bucket_is_empty(b) {
             b.item = Item { key: key, value: value };
             return;
         }
 
         // same key
-        if std.strcmp(b.item.key, key) == 0 {
+        if key_eq(&b.item.key, &key) {
             b.item.value = value;
             return;
         }
@@ -140,15 +150,15 @@ def insert(map: *Map, key: string, value: *void): void {
     }
 }
 
-def get(map: *Map, key: string): *void {
-    let b = map.buckets + get_map_index(map.cap, key);
+def get(map: *Map, key: Key): *void {
+    let b = map.buckets + get_map_index(map.cap, key.value, key.len);
 
     while b != null {
-        if b.item.key == null {
+        if bucket_is_empty(b) {
             return null;
         }
 
-        if std.strcmp(b.item.key, key) == 0 {
+        if key_eq(&b.item.key, &key) {
             return b.item.value;
         }
 

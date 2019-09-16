@@ -5,6 +5,7 @@ import "std";
 import "span";
 import "ident";
 import "func";
+import "record";
 import "ptrvec";
 import "ty";
 
@@ -200,6 +201,28 @@ def as_func_decl_stmt(s: *Stmt): *FuncDeclStmt {
     return s as *FuncDeclStmt;
 }
 
+/////////// Struct Decl stmt ///////////
+
+type StructDeclStmt struct {
+    s: Stmt,
+    decl: record.StructDecl
+}
+
+def make_struct_decl_stmt(si: *span.SpanInterner, name: ident.Ident, fields: vec.Vec): *Stmt {
+    return (new StructDeclStmt {
+        s: Stmt { tag: STMT_STRUCT_DECL },
+        decl: record.create_struct(si, name, fields)
+    }) as *Stmt;
+}
+
+def is_struct_decl_stmt(s: *Stmt): bool {
+    return s.tag == STMT_STRUCT_DECL;
+}
+
+def as_struct_decl_stmt(s: *Stmt): *StructDeclStmt {
+    return s as *StructDeclStmt;
+}
+
 /////////// import stmt ///////////
 
 type ImportStmt struct {
@@ -294,6 +317,9 @@ def stmt_free(s: *Stmt): void {
         let while_stmt = as_while_stmt(s);
         expr_free(while_stmt.condition);
         stmt_free(while_stmt.block as *Stmt);
+    } else if is_struct_decl_stmt(s) {
+        let s_stmt = as_struct_decl_stmt(s);
+        record.free_struct(&s_stmt.decl);
     }
 
     delete s;
