@@ -30,22 +30,23 @@
 #define TOKEN_MINUS             25
 #define TOKEN_STAR              26
 #define TOKEN_SLASH             27
+#define TOKEN_PERCENT           28
 
-#define TOKEN_SMALLER           28
-#define TOKEN_SMALLER_EQ        29
-#define TOKEN_GREATER           30
-#define TOKEN_GREATER_EQ        31
+#define TOKEN_SMALLER           29
+#define TOKEN_SMALLER_EQ        30
+#define TOKEN_GREATER           31
+#define TOKEN_GREATER_EQ        32
 
-#define TOKEN_AMPERSAND         32
-#define TOKEN_DOUBLE_AMPERSAND  33
-#define TOKEN_PIPE              34
-#define TOKEN_DOUBLE_PIPE       35
+#define TOKEN_AMPERSAND         33
+#define TOKEN_DOUBLE_AMPERSAND  34
+#define TOKEN_PIPE              35
+#define TOKEN_DOUBLE_PIPE       36
 
-#define TOKEN_LPAREN            36
-#define TOKEN_RPAREN            37
-#define TOKEN_LBRACE            38
-#define TOKEN_RBRACE            39
-#define TOKEN_STRING            40
-#define TOKEN_CHAR              41
+#define TOKEN_LPAREN            37
+#define TOKEN_RPAREN            38
+#define TOKEN_LBRACE            39
+#define TOKEN_RBRACE            40
+#define TOKEN_STRING            41
+#define TOKEN_CHAR              42
 
-#define TOKEN_EOF               42
+#define TOKEN_EOF               43

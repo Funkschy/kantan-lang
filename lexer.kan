@@ -362,6 +362,10 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_RBRACE);
     }
 
+    if c == std.char_to_int('%') {
+        return token_from_start(l, TOKEN_PERCENT);
+    }
+
     if c == std.char_to_int('/') {
         if current(l) == std.char_to_int('/') {
             skip_until(l, std.char_to_int('\n'));

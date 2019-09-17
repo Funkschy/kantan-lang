@@ -791,6 +791,9 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     } else if token.ty == TOKEN_SLASH {
         found = true;
         ty = BINARY_DIV;
+    } else if token.ty == TOKEN_PERCENT {
+        found = true;
+        ty = BINARY_MOD;
     } else if token.ty == TOKEN_SMALLER {
         found = true;
         ty = BINARY_ST;
