@@ -1,3 +1,10 @@
+Test {
+    test_ident: TestType {
+        field: span.get(&span_interner, function(420 - (69 / 1), test.i.other)).len
+    },
+    other: null
+};
+
 type Test struct {
     test_ident: TestType,
     other: *Test
@@ -5,7 +12,7 @@ type Test struct {
 
 return 1;
 
-span.get(&span_interner, function(420 - (69 / 1), test.i.other)).len;
+;
 delete 1;
 1 == !1 && 1 == 1 || (-1 + -1) != 0;
 

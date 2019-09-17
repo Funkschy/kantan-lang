@@ -39,7 +39,7 @@ def get(token_type: i32): i32 {
         return PRECEDENCE_PRODUCT;
     }
 
-    if token_type == TOKEN_LPAREN {
+    if token_type == TOKEN_LPAREN || token_type == TOKEN_LBRACE {
         return PRECEDENCE_CALL;
     }
 

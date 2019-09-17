@@ -373,7 +373,7 @@ def as_access(e: *Expr): *AccessExpr {
     return e as *AccessExpr;
 }
 
-/////////// assign expr ///////////
+/////////// call expr ///////////
 
 type CallExpr struct {
     e: Expr,
@@ -400,6 +400,35 @@ def is_call(e: *Expr): bool {
 
 def as_call(e: *Expr): *CallExpr {
     return e as *CallExpr;
+}
+
+/////////// Init expr ///////////
+
+type InitExpr struct {
+    e: Expr,
+    ident: *Expr, // either IdentExpr or AccessExpr
+    inits: InitList
+}
+
+def make_init(span: span.Span, ident: *Expr, inits: InitList): *Expr {
+    if !is_ident(ident) && !is_access(ident) {
+        expr_free(ident);
+        return null;
+    }
+
+    return (new InitExpr {
+        e: Expr { tag: EXPR_INIT, span: span },
+        ident: ident,
+        inits: inits
+    }) as *Expr;
+}
+
+def is_init(e: *Expr): bool {
+    return e.tag == EXPR_INIT;
+}
+
+def as_init(e: *Expr): *InitExpr {
+    return e as *InitExpr;
 }
 
 /////////// assign expr ///////////
@@ -568,6 +597,10 @@ def expr_free(e: *Expr): void {
         let c_expr = as_call(e);
         expr_free(c_expr.ident as *Expr);
         free_al(&c_expr.args);
+    } else if is_init(e) {
+        let i_expr = as_init(e);
+        expr_free(i_expr.ident as *Expr);
+        free_il(&i_expr.inits);
     } else if is_unary(e) {
         expr_free(as_unary(e).right);
     }
@@ -658,6 +691,19 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
+    if is_init(e) {
+        let i_expr = as_init(e);
+
+        let ident = expr_to_string(i_expr.ident as *Expr, span_interner);
+        let inits = init_list_to_string(&i_expr.inits, span_interner);
+
+        let s = std.format_str("%s{%s}", ident, inits);
+        delete ident;
+        delete inits;
+
+        return s;
+    }
+
     return null;
 }
 
@@ -721,4 +767,88 @@ def arg_list_to_string(al: *ArgList, span_interner: *span.SpanInterner): string 
     }
 
     return args;
+}
+
+/////////// InitList ///////////
+// TODO: should be in own file, but can't because compiler can'e handle circular imports
+
+type Init struct {
+    ident: ident.Ident,
+    expr: *Expr
+}
+
+def create_init(ident: ident.Ident, expr: *Expr): Init {
+    return Init { ident: ident, expr: expr };
+}
+
+def empty_init(): Init {
+    return Init { ident: ident.empty(), expr: null };
+}
+
+type InitList struct {
+    inits: vec.Vec
+}
+
+def create_init_list(): InitList {
+    return InitList { inits: vec.create(sizeof Init) };
+}
+
+def get_init_at(il: *InitList, i: i32, dest: *Init): bool {
+    return vec.get(&il.inits, i, dest as *void);
+}
+
+def push_init(il: *InitList, init: Init): void {
+    vec.push(&il.inits, &init as *void);
+}
+
+def free_il(il: *InitList): void {
+    let i = 0;
+    while i < il.inits.len {
+        let init = empty_init();
+        get_init_at(il, i, &init);
+        ast.expr_free(init.expr);
+        i = i + 1;
+    }
+
+    vec.free_v(&il.inits);
+}
+
+def init_list_to_string(il: *InitList, span_interner: *span.SpanInterner): string {
+    let inits = (new '\0') as string;
+
+    let i = 0;
+    while i < il.inits.len {
+        let init = empty_init();
+        if !get_init_at(il, i, &init) {
+            delete inits;
+            return null;
+        }
+        let n = ident.to_string(&init.ident, span_interner);
+        let e = expr_to_string(init.expr, span_interner);
+
+        let extra_len = 2; // ': '
+        if i > 0 {
+            extra_len = 4; // ': ..., '
+        }
+
+        let new_len = std.strlen(inits) + std.strlen(n) + std.strlen(e) + 1 + extra_len;
+        let new_inits = std.malloc(new_len) as string;
+        let old_inits = inits;
+        inits = std.strcpy(new_inits, inits);
+        delete old_inits;
+
+        if extra_len > 2 {
+            inits = std.strcat(inits, ", ");
+        }
+
+        inits = std.strcat(inits, n);
+        inits = std.strcat(inits, ": ");
+        inits = std.strcat(inits, e);
+        delete n;
+        delete e;
+
+        i = i + 1;
+    }
+
+    return inits;
 }

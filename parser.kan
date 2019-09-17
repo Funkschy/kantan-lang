@@ -568,12 +568,12 @@ def parse_param_list(p: *Parser): vec.Vec {
 #undef FAIL
 }
 
-def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32): ast.ArgList {
+def parse_arg_list(p: *Parser): ast.ArgList {
 #define FAIL() ast.free_al(&args); return ast.create_arg_list()
     let args = ast.create_arg_list();
 
     let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != delim_ty {
+    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RPAREN {
         let arg = expression(p, false);
         if arg == null {
             FAIL();
@@ -582,12 +582,46 @@ def parse_arg_list(p: *Parser, sep_ty: i32, delim_ty: i32): ast.ArgList {
 
         peek = peek(p);
 
-        if peek.ty == sep_ty {
-            consume(p, sep_ty);
+        if peek.ty == TOKEN_COMMA {
+            consume(p, TOKEN_COMMA);
         }
     }
 
     return args;
+#undef FAIL
+}
+
+def parse_init_list(p: *Parser): ast.InitList {
+#define FAIL() ast.free_il(&inits); return ast.create_init_list()
+    let inits = ast.create_init_list();
+
+    let peek = peek(p);
+    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RBRACE {
+        let ident = lexer.empty_token();
+        if !consume_ident(p, &ident, false) {
+            FAIL();
+        }
+
+        if !consume(p, TOKEN_COLON) {
+            FAIL();
+        }
+
+        let val = expression(p, false);
+        if val == null {
+            FAIL();
+        }
+
+        let init = ast.create_init(ident.create(ident), val);
+        ast.push_init(&inits, init);
+
+        peek = peek(p);
+
+        if peek.ty == TOKEN_COMMA {
+            consume(p, TOKEN_COMMA);
+        }
+    }
+
+    return inits;
 #undef FAIL
 }
 
@@ -702,7 +736,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
 
     // call expr
     if token.ty == TOKEN_LPAREN {
-        let args = parse_arg_list(p, TOKEN_COMMA, TOKEN_RPAREN);
+        let args = parse_arg_list(p);
 
         let closing_paren = lexer.empty_token();
         if !consume_token(p, TOKEN_RPAREN, &closing_paren) {
@@ -712,6 +746,20 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
 
         let span = span.merge(p.lexer.span_interner, left.span, closing_paren.span);
         return ast.make_call(span, left, args);
+    }
+
+    // init expr
+    if token.ty == TOKEN_LBRACE {
+        let inits = parse_init_list(p);
+
+        let closing_brace = lexer.empty_token();
+        if !consume_token(p, TOKEN_RBRACE, &closing_brace) {
+            ast.free_il(&inits);
+            return null;
+        }
+
+        let span = span.merge(p.lexer.span_interner, left.span, closing_brace.span);
+        return ast.make_init(span, left, inits);
     }
 
     // binary expression
