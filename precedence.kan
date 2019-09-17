@@ -35,7 +35,9 @@ def get(token_type: i32): i32 {
         return PRECEDENCE_SUM;
     }
 
-    if token_type == TOKEN_STAR || token_type == TOKEN_SLASH {
+    if token_type == TOKEN_STAR
+        || token_type == TOKEN_SLASH
+        || token_type == TOKEN_AS {
         return PRECEDENCE_PRODUCT;
     }
 

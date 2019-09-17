@@ -238,11 +238,6 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
         return false;
     }
 
-    if peek.ty == TOKEN_NEW {
-        *dest = parse_new_stmt(p);
-        return true;
-    }
-
     if peek.ty == TOKEN_DELETE {
         *dest = parse_delete_stmt(p);
         return true;
@@ -271,13 +266,6 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
 
     *dest = ast.make_expr_stmt(expr);
     return true;
-}
-
-def parse_new_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_NEW);
-
-    letcheck(expr, expression(p, false));
-    return ast.make_new_stmt(expr);
 }
 
 def parse_delete_stmt(p: *Parser): *ast.Stmt {
@@ -705,6 +693,12 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.make_ident(token);
     }
 
+    if token.ty == TOKEN_NEW {
+        letcheck(e, expression(p, no_struct));
+        let span = span.merge(p.lexer.span_interner, token.span, e.span);
+        return ast.make_new(span, e);
+    }
+
     UNARY(TOKEN_AMPERSAND, UNARY_REF);
     UNARY(TOKEN_STAR, UNARY_DEREF);
     UNARY(TOKEN_BANG, UNARY_NEG_BOOL);
@@ -764,6 +758,16 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
 
         let span = span.merge(p.lexer.span_interner, left.span, closing_brace.span);
         return ast.make_init(span, left, inits);
+    }
+
+    if token.ty == TOKEN_AS {
+        let ty = tyid.empty();
+        if !consume_type(p, &ty) {
+            return null;
+        }
+
+        let span = span.merge(p.lexer.span_interner, left.span, tyid.span(&ty));
+        return ast.make_as(span, left, ty);
     }
 
     // binary expression

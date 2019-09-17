@@ -33,28 +33,6 @@ def as_expr_stmt(s: *Stmt): *ExprStmt {
     return s as *ExprStmt;
 }
 
-/////////// New stmt ///////////
-
-type NewStmt struct {
-    s: Stmt,
-    expr: *Expr
-}
-
-def make_new_stmt(expr: *Expr): *Stmt {
-    return (new NewStmt {
-        s: Stmt { tag: STMT_NEW },
-        expr: expr
-    }) as *Stmt;
-}
-
-def is_new_stmt(s: *Stmt): bool {
-    return s.tag == STMT_NEW;
-}
-
-def as_new_stmt(s: *Stmt): *NewStmt {
-    return s as *NewStmt;
-}
-
 /////////// Delete stmt ///////////
 
 type DeleteStmt struct {
@@ -308,8 +286,6 @@ def stmt_free(s: *Stmt): void {
         expr_free(as_expr_stmt(s).expr);
     } else if is_let_stmt(s) {
         expr_free(as_let_stmt(s).value);
-    } else if is_new_stmt(s) {
-        expr_free(as_new_stmt(s).expr);
     } else if is_delete_stmt(s) {
         expr_free(as_delete_stmt(s).expr);
     } else if is_return_stmt(s) {
@@ -371,6 +347,52 @@ def is_access(e: *Expr): bool {
 
 def as_access(e: *Expr): *AccessExpr {
     return e as *AccessExpr;
+}
+
+/////////// as expr ///////////
+
+type AsExpr struct {
+    e: Expr,
+    expr: *Expr,
+    ty: tyid.Type
+}
+
+def make_as(span: span.Span, expr: *Expr, ty: tyid.Type): *Expr {
+    return (new AsExpr {
+        e: Expr { tag: EXPR_AS, span: span },
+        expr: expr,
+        ty: ty
+    }) as *Expr;
+}
+
+def is_as(e: *Expr): bool {
+    return e.tag == EXPR_AS;
+}
+
+def as_as(e: *Expr): *AsExpr {
+    return e as *AsExpr;
+}
+
+/////////// new expr ///////////
+
+type NewExpr struct {
+    e: Expr,
+    expr: *Expr
+}
+
+def make_new(span: span.Span, expr: *Expr): *Expr {
+    return (new NewExpr {
+        e: Expr { tag: EXPR_NEW, span: span },
+        expr: expr,
+    }) as *Expr;
+}
+
+def is_new(e: *Expr): bool {
+    return e.tag == EXPR_NEW;
+}
+
+def as_new(e: *Expr): *NewExpr {
+    return e as *NewExpr;
 }
 
 /////////// call expr ///////////
@@ -607,6 +629,10 @@ def expr_free(e: *Expr): void {
         free_il(&i_expr.inits);
     } else if is_unary(e) {
         expr_free(as_unary(e).right);
+    } else if is_as(e) {
+        expr_free(as_as(e).expr);
+    } else if is_new(e) {
+        expr_free(as_new(e).expr);
     }
 
     delete e;
@@ -629,6 +655,26 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_ident(e) {
         let i_expr = as_ident(e);
         return ident.to_string(&i_expr.ident, span_interner);
+    }
+
+    if is_new(e) {
+        let n_expr = as_new(e);
+        let expr_s = expr_to_string(n_expr.expr, span_interner);
+        let s = std.format_str("new %s", expr_s);
+
+        delete expr_s;
+        return s;
+    }
+
+    if is_as(e) {
+        let a_expr = as_as(e);
+        let expr_s = expr_to_string(a_expr.expr, span_interner);
+        let ty_s = tyid.to_string(&a_expr.ty, span_interner);
+        let s = std.format_str("%s as %s", expr_s, ty_s);
+
+        delete expr_s;
+        delete ty_s;
+        return s;
     }
 
     if is_assign(e) {

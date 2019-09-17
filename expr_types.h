@@ -7,6 +7,8 @@
 #define EXPR_CALL       7
 #define EXPR_INIT       8
 #define EXPR_ACCESS     9
+#define EXPR_AS         10
+#define EXPR_NEW        11
 
 #define BINARY_ADD      1
 #define BINARY_SUB      2

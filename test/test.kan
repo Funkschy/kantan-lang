@@ -10,6 +10,8 @@ type Test struct {
     other: *Test
 }
 
+test as *TestType;
+
 return 1;
 delete 1;
 

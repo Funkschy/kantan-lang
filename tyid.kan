@@ -17,6 +17,10 @@ def create(ident: ident.Ident): Type {
     };
 }
 
+def span(t: *Type): span.Span {
+    return t.ident.ident_span;
+}
+
 def create_ptr(ident: ident.Ident, pointer_count: i32): Type {
     return Type {
         pointer_count: pointer_count,
