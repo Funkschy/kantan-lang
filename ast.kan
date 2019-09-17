@@ -581,6 +581,10 @@ type Expr struct {
 }
 
 def expr_free(e: *Expr): void {
+    if e == null {
+        return;
+    }
+
     if is_binary(e) {
         let b_expr = as_binary(e);
         expr_free(b_expr.left);

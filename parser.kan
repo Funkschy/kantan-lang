@@ -290,6 +290,10 @@ def parse_delete_stmt(p: *Parser): *ast.Stmt {
 def parse_return_stmt(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_RETURN);
 
+    if peek(p).ty == TOKEN_SEMI {
+        return ast.make_return_stmt(null);
+    }
+
     letcheck(expr, expression(p, false));
     return ast.make_return_stmt(expr);
 }
