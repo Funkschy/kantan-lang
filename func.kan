@@ -1,9 +1,9 @@
 import "lexer";
 import "span";
-import "ident"
-import "vec"
-import "param"
-import "ty"
+import "ident";
+import "vec";
+import "param";
+import "ty";
 
 type ParamList struct {
     params: vec.Vec

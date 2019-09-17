@@ -11,9 +11,8 @@ type Test struct {
 }
 
 return 1;
-
-;
 delete 1;
+
 1 == !1 && 1 == 1 || (-1 + -1) != 0;
 
 1 >= 0;
