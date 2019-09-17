@@ -6,7 +6,7 @@ import "std";
 import "span";
 import "source";
 import "mod";
-import "ty";
+import "tyid";
 
 def main(argc: i32, argv: *string): void {
     if argc <= 1 {
@@ -53,7 +53,7 @@ def main(argc: i32, argv: *string): void {
         io.printf("%d functions\n", mod.num_functions(&mod));
         if mod.num_functions(&mod) > 0 {
             let first = mod.get_function_at(&mod, 0);
-            let s = ty.to_string(&first.decl.ret_ty, &span_interner);
+            let s = tyid.to_string(&first.decl.ret_ty, &span_interner);
             let name = ident.to_string(&first.decl.name, &span_interner);
             io.printf("def %s: %s\n", name, s);
             delete s;

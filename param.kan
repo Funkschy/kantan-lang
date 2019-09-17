@@ -1,11 +1,11 @@
 import "ident"
-import "ty"
+import "tyid"
 
 type Param struct {
     name: ident.Ident,
-    ty: ty.Type
+    ty: tyid.Type
 }
 
-def create(name: ident.Ident, ty: ty.Type): Param {
+def create(name: ident.Ident, ty: tyid.Type): Param {
     return Param { name: name, ty: ty };
 }

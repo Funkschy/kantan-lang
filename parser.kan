@@ -13,7 +13,7 @@ import "vec";
 import "std";
 import "mod";
 import "param";
-import "ty";
+import "tyid";
 
 import "io"; // TODO: only debug
 
@@ -144,7 +144,7 @@ def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
     return false;
 }
 
-def consume_type(p: *Parser, dest: *ty.Type): bool {
+def consume_type(p: *Parser, dest: *tyid.Type): bool {
     let num_errs = num_errs(p);
 
     let pointer_count = 0;
@@ -163,7 +163,7 @@ def consume_type(p: *Parser, dest: *ty.Type): bool {
 
         return false;
     }
-    *dest = ty.create_ptr(ident.create(ty), pointer_count);
+    *dest = tyid.create_ptr(ident.create(ty), pointer_count);
     return true;
 }
 
@@ -359,7 +359,7 @@ def parse_func_def(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let ret_ty = ty.empty();
+    let ret_ty = tyid.empty();
     if !consume_type(p, &ret_ty) {
         func.free_pl(&param_list);
         return null;
@@ -500,7 +500,7 @@ def parse_field_list(p: *Parser): vec.Vec {
             FAIL();
         }
 
-        let ty = ty.empty();
+        let ty = tyid.empty();
         if !consume_type(p, &ty) {
             FAIL();
         }
@@ -543,7 +543,7 @@ def parse_param_list(p: *Parser): vec.Vec {
             FAIL();
         }
 
-        let ty = ty.empty();
+        let ty = tyid.empty();
         if !consume_type(p, &ty) {
             FAIL();
         }
