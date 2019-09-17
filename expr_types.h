@@ -1,14 +1,15 @@
 #define EXPR_INT        1
 #define EXPR_STRING     2
-#define EXPR_BINARY     3
-#define EXPR_UNARY      4
-#define EXPR_IDENT      5
-#define EXPR_ASSIGN     6
-#define EXPR_CALL       7
-#define EXPR_INIT       8
-#define EXPR_ACCESS     9
-#define EXPR_AS         10
-#define EXPR_NEW        11
+#define EXPR_CHAR       3
+#define EXPR_BINARY     4
+#define EXPR_UNARY      5
+#define EXPR_IDENT      6
+#define EXPR_ASSIGN     7
+#define EXPR_CALL       8
+#define EXPR_INIT       9
+#define EXPR_ACCESS     10
+#define EXPR_AS         11
+#define EXPR_NEW        12
 
 #define BINARY_ADD      1
 #define BINARY_SUB      2

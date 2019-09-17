@@ -80,7 +80,7 @@ def advance(p: *Parser, dest: *lexer.Token): bool {
             vec.push(&p.errors, &error as *void);
         }
         return false;
-    } else if next.ty == TOKEN_ERR && !p.in_panic_mode {
+    } else if lexer.is_err(&next) && !p.in_panic_mode {
         // advance should not care about lex errors while in panic mode
         let error = create_lex_error(p, &next);
         push_err(p, error);
@@ -658,7 +658,7 @@ def parse_expression(p: *Parser, precedence: i32, no_struct: bool): *ast.Expr {
 def next_higher_precedence(p: *Parser, precedence: i32, no_struct: bool): bool {
     let t = peek(p);
 
-    if t.ty == TOKEN_ERR || t.ty == TOKEN_EOF {
+    if lexer.is_err(&t) || t.ty == TOKEN_EOF {
         return false;
     }
 
@@ -687,6 +687,10 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 
     if token.ty == TOKEN_STRING {
         return ast.make_string(token.span, token.lexeme);
+    }
+
+    if token.ty == TOKEN_CHAR {
+        return ast.make_char(token.span, token.lexeme);
     }
 
     if token.ty == TOKEN_IDENT {
@@ -879,11 +883,16 @@ def create_statement_error(p: *Parser, start: i32, end: i32): ParseError {
 
 def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
     // len for lexeme
-    let len = span.get(p.lexer.span_interner, next.span).len;
+    let len = lexer.token_len(next, p.lexer.span_interner);
+    let err_ty = ERROR_UNKNOWN_SYMBOL;
+
+    if next.ty == TOKEN_CHAR_ERR {
+        err_ty = ERROR_CHAR_LIT_LEN;
+    }
 
     return create_error(
         next.span,
-        std.err2str(ERROR_UNKNOWN_SYMBOL, len, next.lexeme)
+        std.err2str(err_ty, len, next.lexeme)
     );
 }
 

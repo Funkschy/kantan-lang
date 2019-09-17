@@ -1,7 +1,8 @@
 #include <stdlib.h>
 
 static char const *const token_strings[] = {
-    "error",
+    "unknown token",
+    "invalid char literal",
     "integer",
     "identifier",
     "let",
@@ -41,6 +42,7 @@ static char const *const token_strings[] = {
     "{",
     "}",
     "string",
+    "char",
     "EOF"
 };
 
@@ -85,6 +87,7 @@ static char const *const error_texts[] = {
     "Unexpected end of file",
     "Expected '%s', but got '%s'",
     "Unknown symbol: '%.*s'",
+    "Char literal with length %1$d: '%.*s'",
     "Could not parse statement: \n%.*s"
 };
 

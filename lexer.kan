@@ -17,7 +17,11 @@ type Token struct {
 }
 
 def empty_token(): Token {
-    return Token { ty: TOKEN_ERR, span: span.empty(), lexeme: null };
+    return Token { ty: TOKEN_UNKNOWN_ERR, span: span.empty(), lexeme: null };
+}
+
+def is_err(token: *Token): bool {
+    return token.ty == TOKEN_UNKNOWN_ERR || token.ty == TOKEN_CHAR_ERR;
 }
 
 // static (don't free!)
@@ -35,6 +39,12 @@ def token_to_string(token: *Token, si: *span.SpanInterner, dest: *string): bool 
     if token.ty >= TOKEN_INT && token.ty <= TOKEN_IDENT {
         let len = token_len(token, si);
         *dest = std.strndup(token.lexeme, len);
+        return true;
+    }
+
+    if token.ty == TOKEN_STRING || token.ty == TOKEN_CHAR {
+        let len = token_len(token, si);
+        *dest = std.strndup(token.lexeme - 1, len + 2);
         return true;
     }
 
@@ -57,7 +67,7 @@ type Lexer struct {
 
 def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
     let span = span.create(span_interner, 0, 0, ctx);
-    let init_peek = Token { ty: TOKEN_ERR, span: span, lexeme: null };
+    let init_peek = Token { ty: TOKEN_UNKNOWN_ERR, span: span, lexeme: null };
 
     return Lexer {
         has_peek: false,
@@ -112,23 +122,6 @@ def current(l: *Lexer): i32 {
 
 def is_num(c: i32): bool {
     return c >= std.char_to_int('0') && c <= std.char_to_int('9');
-}
-
-def parse_num(l: *Lexer): Token {
-    while is_num(current(l)) {
-        advance(l);
-    }
-
-    return token_from_start(l, TOKEN_INT);
-}
-
-def parse_string(l: *Lexer): Token {
-    while !at_end(l) && current(l) != std.char_to_int('"') {
-        advance(l);
-    }
-    advance(l);
-
-    return create_token(l, TOKEN_STRING, l.start + 1, l.current - 1);
 }
 
 def is_letter(c: i32): bool {
@@ -192,12 +185,43 @@ def ident_type(l: *Lexer): i32 {
     return TOKEN_IDENT;
 }
 
-def parse_ident(l: *Lexer): Token {
+def lex_ident(l: *Lexer): Token {
     while is_letter(current(l)) || is_num(current(l)) || current(l) == std.char_to_int('_') {
         advance(l);
     }
 
     return token_from_start(l, ident_type(l));
+}
+
+def lex_num(l: *Lexer): Token {
+    while is_num(current(l)) {
+        advance(l);
+    }
+
+    return token_from_start(l, TOKEN_INT);
+}
+
+def lex_string(l: *Lexer): Token {
+    while !at_end(l) && current(l) != std.char_to_int('"') {
+        advance(l);
+    }
+    advance(l);
+
+    return create_token(l, TOKEN_STRING, l.start + 1, l.current - 1);
+}
+
+def lex_char(l: *Lexer): Token {
+    while !at_end(l) && current(l) != std.char_to_int(*"'") {
+        advance(l);
+    }
+    advance(l);
+
+    let len = l.current - l.start;
+    if len != 3 {
+        return create_token(l, TOKEN_CHAR_ERR, l.start + 1, l.current - 1);
+    }
+
+    return create_token(l, TOKEN_CHAR, l.start + 1, l.current - 1);
 }
 
 def is_whitespace(c: i32): bool {
@@ -279,15 +303,19 @@ def get_next_token(l: *Lexer): Token {
     let c = advance(l);
 
     if is_num(c) {
-        return parse_num(l);
+        return lex_num(l);
     }
 
     if is_letter(c) {
-        return parse_ident(l);
+        return lex_ident(l);
     }
 
     if c == std.char_to_int('"') {
-        return parse_string(l);
+        return lex_string(l);
+    }
+
+    if c == std.char_to_int(*"'") {
+        return lex_char(l);
     }
 
     if c == std.char_to_int(';') {
@@ -391,6 +419,6 @@ def get_next_token(l: *Lexer): Token {
     }
 
 
-    return token_from_start(l, TOKEN_ERR);
+    return token_from_start(l, TOKEN_UNKNOWN_ERR);
 }
 

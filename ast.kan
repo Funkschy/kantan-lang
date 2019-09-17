@@ -544,6 +544,27 @@ def as_string(e: *Expr): *StringExpr {
     return e as *StringExpr;
 }
 
+/////////// char expr ///////////
+
+type CharExpr struct {
+    e: Expr,
+    ptr: string
+}
+
+def make_char(span: span.Span, ptr: string): *Expr {
+    return (new CharExpr {
+        e: Expr { tag: EXPR_CHAR, span: span },
+        ptr: ptr
+    }) as *Expr;
+}
+
+def is_char(e: *Expr): bool {
+    return e.tag == EXPR_CHAR;
+}
+
+def as_char(e: *Expr): *CharExpr {
+    return e as *CharExpr;
+}
 
 /////////// binary expr ///////////
 
@@ -650,6 +671,13 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let len = span.get(span_interner, e.span).len;
         // include the quotes
         return std.strndup(s_expr.ptr - 1, len + 2);
+    }
+
+    if is_char(e) {
+        let c_expr = as_char(e);
+        let len = span.get(span_interner, e.span).len;
+        // include the quotes
+        return std.strndup(c_expr.ptr - 1, len + 2);
     }
 
     if is_ident(e) {
