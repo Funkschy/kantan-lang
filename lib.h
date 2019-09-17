@@ -12,6 +12,7 @@ static char const *const token_strings[] = {
     "while",
     "new",
     "delete",
+    "return",
     "type",
     "struct",
     ";",

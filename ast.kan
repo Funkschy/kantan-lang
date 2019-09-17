@@ -77,6 +77,28 @@ def as_delete_stmt(s: *Stmt): *DeleteStmt {
     return s as *DeleteStmt;
 }
 
+/////////// Return stmt ///////////
+
+type ReturnStmt struct {
+    s: Stmt,
+    expr: *Expr
+}
+
+def make_return_stmt(expr: *Expr): *Stmt {
+    return (new ReturnStmt {
+        s: Stmt { tag: STMT_RETURN },
+        expr: expr
+    }) as *Stmt;
+}
+
+def is_return_stmt(s: *Stmt): bool {
+    return s.tag == STMT_RETURN;
+}
+
+def as_return_stmt(s: *Stmt): *ReturnStmt {
+    return s as *ReturnStmt;
+}
+
 /////////// While stmt ///////////
 
 type WhileStmt struct {
@@ -290,6 +312,8 @@ def stmt_free(s: *Stmt): void {
         expr_free(as_new_stmt(s).expr);
     } else if is_delete_stmt(s) {
         expr_free(as_delete_stmt(s).expr);
+    } else if is_return_stmt(s) {
+        expr_free(as_return_stmt(s).expr);
     } else if is_func_decl_stmt(s) {
         let f_decl = as_func_decl_stmt(s);
         let decl = f_decl.decl;

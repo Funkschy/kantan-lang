@@ -248,6 +248,11 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
         return true;
     }
 
+    if peek.ty == TOKEN_RETURN {
+        *dest = parse_return_stmt(p);
+        return true;
+    }
+
     if peek.ty == TOKEN_LET {
         *dest = parse_let_stmt(p);
         return true;
@@ -280,6 +285,13 @@ def parse_delete_stmt(p: *Parser): *ast.Stmt {
 
     letcheck(expr, expression(p, false));
     return ast.make_delete_stmt(expr);
+}
+
+def parse_return_stmt(p: *Parser): *ast.Stmt {
+    CONSUME_RET_NULL(TOKEN_RETURN);
+
+    letcheck(expr, expression(p, false));
+    return ast.make_return_stmt(expr);
 }
 
 def parse_import_stmt(p: *Parser): *ast.Stmt {
