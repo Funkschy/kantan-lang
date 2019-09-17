@@ -158,7 +158,7 @@ def ident_type(l: *Lexer): i32 {
         std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
 
         if next == std.char_to_int('f') {
-            return TOKEN_IF;
+            return check_keyword(l, 2, 0, "", TOKEN_IF);
         } else if next == std.char_to_int('m') {
             return check_keyword(l, 2, 4, "port", TOKEN_IMPORT);
         }
