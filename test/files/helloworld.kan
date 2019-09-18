@@ -1,0 +1,5 @@
+import "io";
+
+def main(): void {
+    io.printf("Hello World\n");
+}

@@ -1,0 +1,10 @@
+import "io";
+
+extern def calloc(num: i32, size: i32): *void;
+
+def main(): void {
+    let p: **void = calloc(1, sizeof *void) as **void;
+    io.printf("%d\n", *p == null);
+
+    delete p;
+}

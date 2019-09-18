@@ -1,0 +1,9 @@
+import "io";
+
+def main(): void {
+    io.printf("%d", 1.0 > 0.0);
+    io.printf("%d", 1.0 >= 0.0);
+    io.printf("%d", 1.0 < 0.0);
+    io.printf("%d", 1.0 <= 0.0);
+    io.printf("%d\n", 1.0 == 1.0);
+}

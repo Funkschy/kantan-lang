@@ -1,0 +1,8 @@
+type Struct struct {
+}
+
+def main(): void {
+    Struct { };
+
+    let empty = Struct { };
+}

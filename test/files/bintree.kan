@@ -1,0 +1,91 @@
+import "io";
+
+type Person struct {
+    name: string,
+    age: i32
+}
+
+type Node struct {
+    data: Person,
+    left: *Node,
+    right: *Node
+}
+
+type Tree struct {
+    root: *Node
+}
+
+def insert(tree: *Tree, person: Person): void {
+    if tree.root == null {
+        tree.root = new_node(person);
+        return;
+    }
+
+    insert_node(tree.root, person);
+}
+
+def new_node(person: Person): *Node {
+    return new Node { data: person, left: null, right: null };
+}
+
+def insert_node(node: *Node, person: Person): void {
+    if person.age < node.data.age {
+        if node.left == null {
+            node.left = new_node(person);
+        } else {
+            insert_node(node.left, person);
+        }
+    } else if person.age > node.data.age {
+        if node.right == null {
+            node.right = new_node(person);
+        } else {
+            insert_node(node.right, person);
+        }
+    }
+}
+
+def traverse(tree: *Tree): void {
+    if tree.root == null {
+        return;
+    }
+
+    traverse_node(tree.root);
+}
+
+def traverse_node(node: *Node): void {
+    if node == null {
+        return;
+    }
+
+    traverse_node(node.left);
+    io.printf("%s is %d years old\n", node.data.name, node.data.age);
+    traverse_node(node.right);
+}
+
+def delete_tree(tree: *Tree): void {
+    if tree.root != null {
+        delete_node(tree.root);
+    }
+}
+
+def delete_node(node: *Node): void {
+    if node == null {
+        return;
+    }
+
+    delete_node(node.left);
+    delete_node(node.right);
+    delete node;
+}
+
+def main(): void {
+    let tree = new Tree { root: null };
+    insert(tree, Person { name: "Jan", age: 22 });
+    insert(tree, Person { name: "Felix", age: 20 });
+    insert(tree, Person { name: "Robin", age: 23 });
+
+    traverse(tree);
+
+    delete_tree(tree);
+    delete tree;
+}

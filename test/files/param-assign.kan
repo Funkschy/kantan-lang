@@ -1,0 +1,12 @@
+import "io";
+
+def f(i: i32): void {
+    i = 42;
+    io.printf("%d\n", i);
+}
+
+def main(): void {
+    let i = 2;
+    f(i);
+    io.printf("%d\n", i);
+}

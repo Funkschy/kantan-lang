@@ -1,0 +1,8 @@
+import "io";
+
+def main(): void {
+    let i = 0;
+    let j = 0;
+    i = j = 4;
+    io.printf("%d %d\n", i, j);
+}

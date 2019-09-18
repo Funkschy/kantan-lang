@@ -1,0 +1,7 @@
+import "io";
+
+def main(): void {
+    let s = "asdf";
+    let f = 1.5 + 0.5;
+    io.printf("%.2f\n", f);
+}

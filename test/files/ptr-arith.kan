@@ -1,0 +1,15 @@
+import "io";
+
+def main(): void {
+    let s = new "World Hello";
+    let s2 = "Hello World";
+
+    let str = 6 + *s;
+    io.printf("%s\n", str);
+
+    str = 7 + s2;
+    str = str - 1;
+    io.printf("%s\n", str);
+
+    delete s;
+}
