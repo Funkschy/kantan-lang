@@ -82,4 +82,5 @@ def run_tests(exe, testdir):
         compare_result(result, expected, f)
 
 if __name__ == '__main__':
-    run_tests('../compiler', './files')
+    p = pathlib.Path(__file__).parent
+    run_tests(str(p) + '/../compiler', str(p) + '/files')
