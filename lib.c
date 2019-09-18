@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
+#include <sys/stat.h>
 
 #include "./error_code.h"
 #include "./lib.h"
@@ -102,7 +104,20 @@ int32_t get_map_index(int32_t cap, char const *const key, int32_t key_len) {
     return h & (cap - 1);
 }
 
+bool is_file(char const *path) {
+    struct stat s;
+    if (stat(path, &s) == 0) {
+        return s.st_mode & S_IFREG;
+    }
+    return false;
+}
+
 int32_t read_file(char const *path, char const **content) {
+    if (!is_file(path)) {
+        // TODO: custom error, and check if this works on windows
+        return ERROR_COULD_NOT_OPEN_FILE;
+    }
+
     FILE *file = fopen(path, "rb");
     if (file == NULL) {
         return ERROR_COULD_NOT_OPEN_FILE;
