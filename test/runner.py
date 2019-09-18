@@ -53,7 +53,7 @@ def compare_result(result, expected, f):
 
     if result.stdout != expected.text:
         diff = get_first_diff(str(result.stdout), expected.text)
-        print('FAILED: wrong output, expected\n\'{}\',\nbut got\n\'{}\'\n: {}'.format(
+        print('FAILED: wrong output, expected\n\'{}\',\nbut got:\n{}\nin {}'.format(
             expected.text[diff:], str(result.stdout)[diff:], f
         ))
 
@@ -65,7 +65,8 @@ def run_tests(exe, testdir):
             continue
 
         if osp.isdir(f):
-            result = compile(exe, os.listdir(f))
+            files = list(map(lambda child: osp.join(f, child), os.listdir(f)))
+            result = compile(exe, files)
         elif f.endswith('.kan'):
             result = compile(exe, [f])
         else: continue
@@ -81,4 +82,4 @@ def run_tests(exe, testdir):
         compare_result(result, expected, f)
 
 if __name__ == '__main__':
-    run_tests('../compiler', './')
+    run_tests('../compiler', './files')
