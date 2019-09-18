@@ -357,7 +357,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     }
 
     CONSUME_RET_NULL(TOKEN_LPAREN);
-    let params = parse_param_list(p);
+    let params = parse_param_list(p, is_extern);
     let param_list = func.pl_from_vec(params);
 
     if !consume(p, TOKEN_COLON) {
@@ -536,7 +536,7 @@ def parse_field_list(p: *Parser): vec.Vec {
 }
 
 
-def parse_param_list(p: *Parser): vec.Vec {
+def parse_param_list(p: *Parser, allow_va: bool): vec.Vec {
 #define FAIL() vec.free_v(&params); return vec.create(0)
 
     let params = vec.create(sizeof param.Param);
@@ -544,20 +544,26 @@ def parse_param_list(p: *Parser): vec.Vec {
     let peek = peek(p);
     while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RPAREN {
         let ident = lexer.empty_token();
-        if !consume_ident(p, &ident, false) {
-            FAIL();
-        }
-        let ident = ident.create(ident);
-
-        if !consume(p, TOKEN_COLON) {
-            FAIL();
-        }
-
         let ty = tyid.empty();
-        if !consume_type(p, &ty) {
-            FAIL();
+
+        if allow_va && peek(p).ty == TOKEN_TRIPLE_DOT {
+            consume_token(p, TOKEN_TRIPLE_DOT, &ident);
+        } else {
+            ident = lexer.empty_token();
+            if !consume_ident(p, &ident, false) {
+                FAIL();
+            }
+
+            if !consume(p, TOKEN_COLON) {
+                FAIL();
+            }
+
+            if !consume_type(p, &ty) {
+                FAIL();
+            }
         }
 
+        let ident = ident.create(ident);
         let param = param.create(ident, ty);
         vec.push(&params, &param as *void);
 

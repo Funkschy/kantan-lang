@@ -22,6 +22,7 @@ static char const *const token_strings[] = {
     ",",
     ":",
     ".",
+    "...",
     "!",
     "!=",
     "=",

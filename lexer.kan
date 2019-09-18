@@ -337,10 +337,6 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TOKEN_COLON);
     }
 
-    if c == std.char_to_int('.') {
-        return token_from_start(l, TOKEN_DOT);
-    }
-
     if c == std.char_to_int('+') {
         return token_from_start(l, TOKEN_PLUS);
     }
@@ -371,6 +367,16 @@ def get_next_token(l: *Lexer): Token {
 
     if c == std.char_to_int('%') {
         return token_from_start(l, TOKEN_PERCENT);
+    }
+
+    if c == std.char_to_int('.') {
+        if std.memcmp(l.start as *void, "..." as *void, 3) == 0 {
+            advance(l);
+            advance(l);
+            return token_from_start(l, TOKEN_TRIPLE_DOT);
+        }
+
+        return token_from_start(l, TOKEN_DOT);
     }
 
     if c == std.char_to_int('/') {

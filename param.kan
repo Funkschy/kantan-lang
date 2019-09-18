@@ -9,3 +9,7 @@ type Param struct {
 def create(name: ident.Ident, ty: tyid.Type): Param {
     return Param { name: name, ty: ty };
 }
+
+def is_varargs(p: *Param): bool {
+    return std.memcmp(&p.name.ident as *void, "..." as *void, 3) == 0;
+}
