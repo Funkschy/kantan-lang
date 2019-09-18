@@ -305,6 +305,14 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
+    let ty = tyid.empty();
+    if peek(p).ty == TOKEN_COLON {
+        CONSUME_RET_NULL(TOKEN_COLON);
+        if !consume_type(p, &ty) {
+            return null;
+        }
+    }
+
     CONSUME_RET_NULL(TOKEN_EQ);
 
     let e = expression(p, false);
@@ -312,7 +320,7 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
         // TODO: create error
         return null;
     }
-    return ast.make_let_stmt(ident, e);
+    return ast.make_let_stmt(ident, ty, e);
 }
 
 def parse_type_stmt(p: *Parser): *ast.Stmt {

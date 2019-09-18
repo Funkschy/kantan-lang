@@ -89,6 +89,24 @@ def main(argc: i32, argv: *string): i32 {
                 let s = record.to_string(&decl_s.decl, &span_interner);
                 io.printf("%s\n", s);
                 delete s;
+            } else if ast.is_let_stmt(s) {
+                let ls = ast.as_let_stmt(s);
+
+                let ident: string = ls.ident.ident;
+                let ident_len = span.get(&span_interner, ls.ident.ident_span).len;
+                let value = ast.expr_to_string(ls.value, &span_interner);
+
+                let ty = (new '\0') as string;
+                if ast.has_type_decl(ls) {
+                    delete ty;
+                    let tys = tyid.to_string(&ls.ty, &span_interner);
+                    ty = std.format_str(": %s", tys);
+                    delete tys;
+                }
+
+                io.printf("let %.*s%s = %s;\n", ident_len, ident, ty, value);
+                delete value;
+                delete ty;
             }
 #endif
         } else {

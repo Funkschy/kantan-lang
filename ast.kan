@@ -252,14 +252,16 @@ def as_import_stmt(s: *Stmt): *ImportStmt {
 type LetStmt struct {
     s: Stmt,
     value: *Expr,
-    ident: ident.Ident
+    ident: ident.Ident,
+    ty: tyid.Type
 }
 
-def make_let_stmt(ident: lexer.Token, value: *Expr): *Stmt {
+def make_let_stmt(ident: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
     return (new LetStmt {
         s: Stmt { tag: STMT_LET },
         value: value,
-        ident: ident.create(ident)
+        ident: ident.create(ident),
+        ty: ty
     }) as *Stmt;
 }
 
@@ -269,6 +271,10 @@ def is_let_stmt(s: *Stmt): bool {
 
 def as_let_stmt(s: *Stmt): *LetStmt {
     return s as *LetStmt;
+}
+
+def has_type_decl(s: *LetStmt): bool {
+    return !tyid.is_empty(&s.ty);
 }
 
 /////////// base stmt ///////////

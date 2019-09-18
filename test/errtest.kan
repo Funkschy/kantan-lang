@@ -11,6 +11,7 @@ type Test struct {
 }
 
 test as *TestType;
+let test: i32 = 0;
 
 return 1;
 delete 1;
