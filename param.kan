@@ -1,5 +1,5 @@
-import "ident"
-import "tyid"
+import "ident";
+import "tyid";
 
 type Param struct {
     name: ident.Ident,

@@ -1,6 +1,6 @@
 import "ptrvec";
 import "vec";
-import "ast"
+import "ast";
 
 type Module struct {
     statements: ptrvec.Vec,

@@ -224,6 +224,11 @@ def lex_char(l: *Lexer): Token {
     advance(l);
 
     let len = l.current - l.start;
+    if len == 4 && *(l.start + 1) == '\\' {
+        // TODO: add checks for allowed escape sequences
+        return create_token(l, TOKEN_CHAR, l.start + 1, l.current - 1);
+    }
+
     if len != 3 {
         return create_token(l, TOKEN_CHAR_ERR, l.start + 1, l.current - 1);
     }

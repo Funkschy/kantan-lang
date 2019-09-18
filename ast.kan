@@ -89,7 +89,7 @@ def make_while_stmt(condition: *Expr, block: *BlockStmt): *Stmt {
     return (new WhileStmt {
         s: Stmt { tag: STMT_WHILE },
         condition: condition,
-        block: block,
+        block: block
     }) as *Stmt;
 }
 
@@ -395,7 +395,7 @@ type NewExpr struct {
 def make_new(span: span.Span, expr: *Expr): *Expr {
     return (new NewExpr {
         e: Expr { tag: EXPR_NEW, span: span },
-        expr: expr,
+        expr: expr
     }) as *Expr;
 }
 

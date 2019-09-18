@@ -1,6 +1,6 @@
-import "ident"
-import "span"
-import "std"
+import "ident";
+import "span";
+import "std";
 
 type Type struct {
     pointer_count: i32,
