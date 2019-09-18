@@ -1,0 +1,29 @@
+# ret 6
+Compiling ./errtest.kan
+6 errors found
+ERROR: Expected ')', but got ';'
+--> ./errtest.kan:36:7
+
+ERROR: Could not parse statement: 
+();
+--> ./errtest.kan:36:26
+
+ERROR: Expected ';', but got '520'
+--> ./errtest.kan:36:33
+
+ERROR: Unknown symbol: 'あ'
+--> ./errtest.kan:48:5
+
+ERROR: Char literal with length 0: ''
+--> ./errtest.kan:51:2
+
+ERROR: Char literal with length 2: 'te'
+--> ./errtest.kan:53:2
+
+import 'test'
+import 'oof'
+1 functions
+def function: *test.Test
+is expr: 1
+Test{test_ident: TestType{field: span.get((&span_interner), function((420-(69/1)), test.i.other)).len}, other: null}
+
