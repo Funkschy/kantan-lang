@@ -219,7 +219,7 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
     let peek = peek(p);
 
     if peek.ty == TOKEN_DEF {
-        *dest = parse_func_def(p);
+        *dest = parse_func_def(p, false);
         return false;
     }
 
@@ -236,6 +236,12 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
     if peek.ty == TOKEN_TYPE {
         *dest = parse_type_stmt(p);
         return false;
+    }
+
+    if peek.ty == TOKEN_EXTERN {
+        consume(p, TOKEN_EXTERN);
+        *dest = parse_func_def(p, true);
+        return true;
     }
 
     if peek.ty == TOKEN_DELETE {
@@ -342,7 +348,7 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
     );
 }
 
-def parse_func_def(p: *Parser): *ast.Stmt {
+def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_DEF);
 
     let ident = lexer.empty_token();
@@ -365,16 +371,20 @@ def parse_func_def(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let block = parse_block(p);
-    if block == null {
-        func.free_pl(&param_list);
-        return null;
+    let block: *ast.Stmt = null;
+    if !is_extern {
+        block = parse_block(p);
+        if block == null {
+            func.free_pl(&param_list);
+            return null;
+        }
     }
 
     return ast.make_func_decl_stmt(
         ident,
         param_list,
         ret_ty,
+        is_extern,
         ast.as_block_stmt(block)
     );
 }

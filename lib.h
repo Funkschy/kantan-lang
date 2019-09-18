@@ -17,6 +17,7 @@ static char const *const token_strings[] = {
     "type",
     "struct",
     "as",
+    "extern",
     ";",
     ",",
     ":",

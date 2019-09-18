@@ -166,8 +166,15 @@ def ident_type(l: *Lexer): i32 {
         } else if next == std.char_to_int('l') {
             return check_keyword(l, 1, 5, "elete", TOKEN_DELETE);
         }
-    } else if start == std.char_to_int('e') {
-        return check_keyword(l, 1, 3, "lse", TOKEN_ELSE);
+    } else if start == std.char_to_int('e') && l.current - l.start > 3 {
+        let next = 0;
+        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+
+        if next == std.char_to_int('x') {
+            return check_keyword(l, 1, 5, "xtern", TOKEN_EXTERN);
+        } else if next == std.char_to_int('l') {
+            return check_keyword(l, 1, 3, "lse", TOKEN_ELSE);
+        }
     } else if start == std.char_to_int('w') {
         return check_keyword(l, 1, 4, "hile", TOKEN_WHILE);
     } else if start == std.char_to_int('n') {

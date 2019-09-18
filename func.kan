@@ -22,13 +22,15 @@ def add_param(pl: *ParamList, p: *param.Param): void {
 }
 
 type FuncDef struct {
+    is_extern: bool,
     name: ident.Ident,
     ret_ty: tyid.Type,
     params: ParamList
 }
 
-def create(ident: lexer.Token, params: ParamList, ret_ty: tyid.Type): FuncDef {
+def create(ident: lexer.Token, params: ParamList, ret_ty: tyid.Type, is_extern: bool): FuncDef {
     return FuncDef {
+        is_extern: is_extern,
         name: ident.create(ident),
         ret_ty: ret_ty,
         params: params
