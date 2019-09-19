@@ -21,7 +21,7 @@ type ExprStmt struct {
     expr: *Expr
 }
 
-def make_expr_stmt(e: *Expr): *Stmt {
+def new_expr_stmt(e: *Expr): *Stmt {
     return (new ExprStmt { s: Stmt { tag: STMT_EXPR }, expr: e }) as *Stmt;
 }
 
@@ -40,7 +40,7 @@ type DeleteStmt struct {
     expr: *Expr
 }
 
-def make_delete_stmt(expr: *Expr): *Stmt {
+def new_delete_stmt(expr: *Expr): *Stmt {
     return (new DeleteStmt {
         s: Stmt { tag: STMT_DELETE },
         expr: expr
@@ -62,7 +62,7 @@ type ReturnStmt struct {
     expr: *Expr
 }
 
-def make_return_stmt(expr: *Expr): *Stmt {
+def new_return_stmt(expr: *Expr): *Stmt {
     return (new ReturnStmt {
         s: Stmt { tag: STMT_RETURN },
         expr: expr
@@ -85,7 +85,7 @@ type WhileStmt struct {
     block: *BlockStmt
 }
 
-def make_while_stmt(condition: *Expr, block: *BlockStmt): *Stmt {
+def new_while_stmt(condition: *Expr, block: *BlockStmt): *Stmt {
     return (new WhileStmt {
         s: Stmt { tag: STMT_WHILE },
         condition: condition,
@@ -110,7 +110,7 @@ type IfStmt struct {
     else_stmt: *Stmt // either IfStmt or BlockStmt
 }
 
-def make_if_stmt(condition: *Expr, block: *BlockStmt, else_stmt: *Stmt): *Stmt {
+def new_if_stmt(condition: *Expr, block: *BlockStmt, else_stmt: *Stmt): *Stmt {
     return (new IfStmt {
         s: Stmt { tag: STMT_IF },
         condition: condition,
@@ -162,7 +162,7 @@ type BlockStmt struct {
     stmts: ptrvec.Vec
 }
 
-def make_block_stmt(statements: ptrvec.Vec): *Stmt {
+def new_block_stmt(statements: ptrvec.Vec): *Stmt {
     return (new BlockStmt{
         s: Stmt { tag: STMT_BLOCK },
         stmts: statements
@@ -185,7 +185,7 @@ type FuncDeclStmt struct {
     block: *BlockStmt
 }
 
-def make_func_decl_stmt(
+def new_func_decl_stmt(
     ident: lexer.Token,
     params: func.ParamList,
     ret_ty: tyid.Type,
@@ -214,7 +214,7 @@ type StructDeclStmt struct {
     decl: record.StructDecl
 }
 
-def make_struct_decl_stmt(si: *span.SpanInterner, name: ident.Ident, fields: vec.Vec): *Stmt {
+def new_struct_decl_stmt(si: *span.SpanInterner, name: ident.Ident, fields: vec.Vec): *Stmt {
     return (new StructDeclStmt {
         s: Stmt { tag: STMT_STRUCT_DECL },
         decl: record.create_struct(si, name, fields)
@@ -237,7 +237,7 @@ type ImportStmt struct {
     mod_path: string
 }
 
-def make_import_stmt(span: span.Span, mod_path: string): *Stmt {
+def new_import_stmt(span: span.Span, mod_path: string): *Stmt {
     return (new ImportStmt {
         s: Stmt { tag: STMT_IMPORT },
         path_span: span,
@@ -262,7 +262,7 @@ type LetStmt struct {
     ty: tyid.Type
 }
 
-def make_let_stmt(ident: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
+def new_let_stmt(ident: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
     return (new LetStmt {
         s: Stmt { tag: STMT_LET },
         value: value,
@@ -345,7 +345,7 @@ type AccessExpr struct {
     right: *Expr
 }
 
-def make_access(span: span.Span, left: *Expr, right: *Expr): *Expr {
+def new_access_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
     return (new AccessExpr {
         e: Expr { tag: EXPR_ACCESS, span: span },
         left: left,
@@ -353,11 +353,11 @@ def make_access(span: span.Span, left: *Expr, right: *Expr): *Expr {
     }) as *Expr;
 }
 
-def is_access(e: *Expr): bool {
+def is_access_expr(e: *Expr): bool {
     return e.tag == EXPR_ACCESS;
 }
 
-def as_access(e: *Expr): *AccessExpr {
+def as_access_expr(e: *Expr): *AccessExpr {
     return e as *AccessExpr;
 }
 
@@ -369,7 +369,7 @@ type AsExpr struct {
     ty: tyid.Type
 }
 
-def make_as(span: span.Span, expr: *Expr, ty: tyid.Type): *Expr {
+def new_as_expr(span: span.Span, expr: *Expr, ty: tyid.Type): *Expr {
     return (new AsExpr {
         e: Expr { tag: EXPR_AS, span: span },
         expr: expr,
@@ -377,11 +377,11 @@ def make_as(span: span.Span, expr: *Expr, ty: tyid.Type): *Expr {
     }) as *Expr;
 }
 
-def is_as(e: *Expr): bool {
+def is_as_expr(e: *Expr): bool {
     return e.tag == EXPR_AS;
 }
 
-def as_as(e: *Expr): *AsExpr {
+def as_as_expr(e: *Expr): *AsExpr {
     return e as *AsExpr;
 }
 
@@ -392,18 +392,18 @@ type NewExpr struct {
     expr: *Expr
 }
 
-def make_new(span: span.Span, expr: *Expr): *Expr {
+def new_new_expr(span: span.Span, expr: *Expr): *Expr {
     return (new NewExpr {
         e: Expr { tag: EXPR_NEW, span: span },
         expr: expr
     }) as *Expr;
 }
 
-def is_new(e: *Expr): bool {
+def is_new_expr(e: *Expr): bool {
     return e.tag == EXPR_NEW;
 }
 
-def as_new(e: *Expr): *NewExpr {
+def as_new_expr(e: *Expr): *NewExpr {
     return e as *NewExpr;
 }
 
@@ -415,8 +415,8 @@ type CallExpr struct {
     args: ArgList
 }
 
-def make_call(span: span.Span, ident: *Expr, args: ArgList): *Expr {
-    if !is_ident(ident) && !is_access(ident) {
+def new_call_expr(span: span.Span, ident: *Expr, args: ArgList): *Expr {
+    if !is_ident_expr(ident) && !is_access_expr(ident) {
         expr_free(ident);
         return null;
     }
@@ -428,11 +428,11 @@ def make_call(span: span.Span, ident: *Expr, args: ArgList): *Expr {
     }) as *Expr;
 }
 
-def is_call(e: *Expr): bool {
+def is_call_expr(e: *Expr): bool {
     return e.tag == EXPR_CALL;
 }
 
-def as_call(e: *Expr): *CallExpr {
+def as_call_expr(e: *Expr): *CallExpr {
     return e as *CallExpr;
 }
 
@@ -444,8 +444,8 @@ type InitExpr struct {
     inits: InitList
 }
 
-def make_init(span: span.Span, ident: *Expr, inits: InitList): *Expr {
-    if !is_ident(ident) && !is_access(ident) {
+def new_init_expr(span: span.Span, ident: *Expr, inits: InitList): *Expr {
+    if !is_ident_expr(ident) && !is_access_expr(ident) {
         expr_free(ident);
         return null;
     }
@@ -457,11 +457,11 @@ def make_init(span: span.Span, ident: *Expr, inits: InitList): *Expr {
     }) as *Expr;
 }
 
-def is_init(e: *Expr): bool {
+def is_init_expr(e: *Expr): bool {
     return e.tag == EXPR_INIT;
 }
 
-def as_init(e: *Expr): *InitExpr {
+def as_init_expr(e: *Expr): *InitExpr {
     return e as *InitExpr;
 }
 
@@ -473,7 +473,7 @@ type AssignExpr struct {
     right: *Expr
 }
 
-def make_assign(span: span.Span, left: *Expr, right: *Expr): *Expr {
+def new_assign_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
     return (new AssignExpr {
         e: Expr { tag: EXPR_ASSIGN, span: span },
         left: left,
@@ -481,11 +481,11 @@ def make_assign(span: span.Span, left: *Expr, right: *Expr): *Expr {
     }) as *Expr;
 }
 
-def is_assign(e: *Expr): bool {
+def is_assign_expr(e: *Expr): bool {
     return e.tag == EXPR_ASSIGN;
 }
 
-def as_assign(e: *Expr): *AssignExpr {
+def as_assign_expr(e: *Expr): *AssignExpr {
     return e as *AssignExpr;
 }
 
@@ -496,18 +496,18 @@ type IdentExpr struct {
     ident: ident.Ident
 }
 
-def make_ident(ident: lexer.Token): *Expr {
+def new_ident_expr(ident: lexer.Token): *Expr {
     return (new IdentExpr {
         e: Expr { tag: EXPR_IDENT, span: ident.span },
         ident: ident.create(ident)
     }) as *Expr;
 }
 
-def is_ident(e: *Expr): bool {
+def is_ident_expr(e: *Expr): bool {
     return e.tag == EXPR_IDENT;
 }
 
-def as_ident(e: *Expr): *IdentExpr {
+def as_ident_expr(e: *Expr): *IdentExpr {
     return e as *IdentExpr;
 }
 
@@ -519,18 +519,18 @@ type IntExpr struct {
     ptr: string
 }
 
-def make_int(span: span.Span, ptr: string): *Expr {
+def new_int_expr(span: span.Span, ptr: string): *Expr {
     return (new IntExpr {
         e: Expr { tag: EXPR_INT, span: span },
         ptr: ptr
     }) as *Expr;
 }
 
-def is_int(e: *Expr): bool {
+def is_int_expr(e: *Expr): bool {
     return e.tag == EXPR_INT;
 }
 
-def as_int(e: *Expr): *IntExpr {
+def as_int_expr(e: *Expr): *IntExpr {
     return e as *IntExpr;
 }
 
@@ -541,18 +541,18 @@ type StringExpr struct {
     ptr: string
 }
 
-def make_string(span: span.Span, ptr: string): *Expr {
+def new_string_expr(span: span.Span, ptr: string): *Expr {
     return (new StringExpr {
         e: Expr { tag: EXPR_STRING, span: span },
         ptr: ptr
     }) as *Expr;
 }
 
-def is_string(e: *Expr): bool {
+def is_string_expr(e: *Expr): bool {
     return e.tag == EXPR_STRING;
 }
 
-def as_string(e: *Expr): *StringExpr {
+def as_string_expr(e: *Expr): *StringExpr {
     return e as *StringExpr;
 }
 
@@ -563,18 +563,18 @@ type CharExpr struct {
     ptr: string
 }
 
-def make_char(span: span.Span, ptr: string): *Expr {
+def new_char_expr(span: span.Span, ptr: string): *Expr {
     return (new CharExpr {
         e: Expr { tag: EXPR_CHAR, span: span },
         ptr: ptr
     }) as *Expr;
 }
 
-def is_char(e: *Expr): bool {
+def is_char_expr(e: *Expr): bool {
     return e.tag == EXPR_CHAR;
 }
 
-def as_char(e: *Expr): *CharExpr {
+def as_char_expr(e: *Expr): *CharExpr {
     return e as *CharExpr;
 }
 
@@ -587,7 +587,7 @@ type BinaryExpr struct {
     ty: i32
 }
 
-def make_binary(span: span.Span, ty: i32, left: *Expr, right: *Expr): *Expr {
+def new_binary_expr(span: span.Span, ty: i32, left: *Expr, right: *Expr): *Expr {
     return (new BinaryExpr {
         e: Expr { tag: EXPR_BINARY, span: span },
         left: left,
@@ -596,11 +596,11 @@ def make_binary(span: span.Span, ty: i32, left: *Expr, right: *Expr): *Expr {
     }) as *Expr;
 }
 
-def is_binary(e: *Expr): bool {
+def is_binary_expr(e: *Expr): bool {
     return e.tag == EXPR_BINARY;
 }
 
-def as_binary(e: *Expr): *BinaryExpr {
+def as_binary_expr(e: *Expr): *BinaryExpr {
     return e as *BinaryExpr;
 }
 
@@ -612,7 +612,7 @@ type UnaryExpr struct {
     right: *Expr
 }
 
-def make_unary(span: span.Span, ty: i32, right: *Expr): *Expr {
+def new_unary_expr(span: span.Span, ty: i32, right: *Expr): *Expr {
     return (new UnaryExpr {
         e: Expr { tag: EXPR_UNARY, span: span },
         ty: ty,
@@ -620,11 +620,11 @@ def make_unary(span: span.Span, ty: i32, right: *Expr): *Expr {
     }) as *Expr;
 }
 
-def is_unary(e: *Expr): bool {
+def is_unary_expr(e: *Expr): bool {
     return e.tag == EXPR_UNARY;
 }
 
-def as_unary(e: *Expr): *UnaryExpr {
+def as_unary_expr(e: *Expr): *UnaryExpr {
     return e as *UnaryExpr;
 }
 
@@ -640,65 +640,65 @@ def expr_free(e: *Expr): void {
         return;
     }
 
-    if is_binary(e) {
-        let b_expr = as_binary(e);
+    if is_binary_expr(e) {
+        let b_expr = as_binary_expr(e);
         expr_free(b_expr.left);
         expr_free(b_expr.right);
-    } else if is_assign(e) {
-        let a_expr = as_assign(e);
+    } else if is_assign_expr(e) {
+        let a_expr = as_assign_expr(e);
         expr_free(a_expr.left);
         expr_free(a_expr.right);
-    } else if is_access(e) {
-        let a_expr = as_access(e);
+    } else if is_access_expr(e) {
+        let a_expr = as_access_expr(e);
         expr_free(a_expr.left);
         expr_free(a_expr.right);
-    } else if is_call(e) {
-        let c_expr = as_call(e);
+    } else if is_call_expr(e) {
+        let c_expr = as_call_expr(e);
         expr_free(c_expr.ident as *Expr);
         free_al(&c_expr.args);
-    } else if is_init(e) {
-        let i_expr = as_init(e);
+    } else if is_init_expr(e) {
+        let i_expr = as_init_expr(e);
         expr_free(i_expr.ident as *Expr);
         free_il(&i_expr.inits);
-    } else if is_unary(e) {
-        expr_free(as_unary(e).right);
-    } else if is_as(e) {
-        expr_free(as_as(e).expr);
-    } else if is_new(e) {
-        expr_free(as_new(e).expr);
+    } else if is_unary_expr(e) {
+        expr_free(as_unary_expr(e).right);
+    } else if is_as_expr(e) {
+        expr_free(as_as_expr(e).expr);
+    } else if is_new_expr(e) {
+        expr_free(as_new_expr(e).expr);
     }
 
     delete e;
 }
 
 def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
-    if is_int(e) {
-        let i_expr = as_int(e);
+    if is_int_expr(e) {
+        let i_expr = as_int_expr(e);
         let len = span.get(span_interner, e.span).len;
         return std.strndup(i_expr.ptr, len);
     }
 
-    if is_string(e) {
-        let s_expr = as_string(e);
+    if is_string_expr(e) {
+        let s_expr = as_string_expr(e);
         let len = span.get(span_interner, e.span).len;
         // include the quotes
         return std.strndup(s_expr.ptr - 1, len + 2);
     }
 
-    if is_char(e) {
-        let c_expr = as_char(e);
+    if is_char_expr(e) {
+        let c_expr = as_char_expr(e);
         let len = span.get(span_interner, e.span).len;
         // include the quotes
         return std.strndup(c_expr.ptr - 1, len + 2);
     }
 
-    if is_ident(e) {
-        let i_expr = as_ident(e);
+    if is_ident_expr(e) {
+        let i_expr = as_ident_expr(e);
         return ident.to_string(&i_expr.ident, span_interner);
     }
 
-    if is_new(e) {
-        let n_expr = as_new(e);
+    if is_new_expr(e) {
+        let n_expr = as_new_expr(e);
         let expr_s = expr_to_string(n_expr.expr, span_interner);
         let s = std.format_str("new %s", expr_s);
 
@@ -706,8 +706,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
-    if is_as(e) {
-        let a_expr = as_as(e);
+    if is_as_expr(e) {
+        let a_expr = as_as_expr(e);
         let expr_s = expr_to_string(a_expr.expr, span_interner);
         let ty_s = tyid.to_string(&a_expr.ty, span_interner);
         let s = std.format_str("%s as %s", expr_s, ty_s);
@@ -717,8 +717,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
-    if is_assign(e) {
-        let a_expr = as_assign(e);
+    if is_assign_expr(e) {
+        let a_expr = as_assign_expr(e);
 
         let left = expr_to_string(a_expr.left, span_interner);
         let right = expr_to_string(a_expr.right, span_interner);
@@ -730,8 +730,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
-    if is_access(e) {
-        let a_expr = as_access(e);
+    if is_access_expr(e) {
+        let a_expr = as_access_expr(e);
 
         let left = expr_to_string(a_expr.left, span_interner);
         let right = expr_to_string(a_expr.right, span_interner);
@@ -743,8 +743,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
-    if is_unary(e) {
-        let u_expr = as_unary(e);
+    if is_unary_expr(e) {
+        let u_expr = as_unary_expr(e);
         let right = expr_to_string(u_expr.right, span_interner);
         let tok_str = unary2str(u_expr.ty);
 
@@ -754,8 +754,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
-    if is_binary(e) {
-        let b_expr = as_binary(e);
+    if is_binary_expr(e) {
+        let b_expr = as_binary_expr(e);
 
         let left = expr_to_string(b_expr.left, span_interner);
         let right = expr_to_string(b_expr.right, span_interner);
@@ -768,8 +768,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
-    if is_call(e) {
-        let c_expr = as_call(e);
+    if is_call_expr(e) {
+        let c_expr = as_call_expr(e);
 
         let ident = expr_to_string(c_expr.ident as *Expr, span_interner);
         let args = arg_list_to_string(&c_expr.args, span_interner);
@@ -781,8 +781,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         return s;
     }
 
-    if is_init(e) {
-        let i_expr = as_init(e);
+    if is_init_expr(e) {
+        let i_expr = as_init_expr(e);
 
         let ident = expr_to_string(i_expr.ident as *Expr, span_interner);
         let inits = init_list_to_string(&i_expr.inits, span_interner);

@@ -270,7 +270,7 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
         return true;
     }
 
-    *dest = ast.make_expr_stmt(expr);
+    *dest = ast.new_expr_stmt(expr);
     return true;
 }
 
@@ -278,18 +278,18 @@ def parse_delete_stmt(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_DELETE);
 
     letcheck(expr, expression(p, false));
-    return ast.make_delete_stmt(expr);
+    return ast.new_delete_stmt(expr);
 }
 
 def parse_return_stmt(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_RETURN);
 
     if peek(p).ty == TOKEN_SEMI {
-        return ast.make_return_stmt(null);
+        return ast.new_return_stmt(null);
     }
 
     letcheck(expr, expression(p, false));
-    return ast.make_return_stmt(expr);
+    return ast.new_return_stmt(expr);
 }
 
 def parse_import_stmt(p: *Parser): *ast.Stmt {
@@ -300,7 +300,7 @@ def parse_import_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    return ast.make_import_stmt(mod_path.span, mod_path.lexeme);
+    return ast.new_import_stmt(mod_path.span, mod_path.lexeme);
 }
 
 def parse_let_stmt(p: *Parser): *ast.Stmt {
@@ -326,7 +326,7 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
         // TODO: create error
         return null;
     }
-    return ast.make_let_stmt(ident, ty, e);
+    return ast.new_let_stmt(ident, ty, e);
 }
 
 def parse_type_stmt(p: *Parser): *ast.Stmt {
@@ -341,7 +341,7 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_LBRACE);
     let fields = parse_field_list(p);
 
-    return ast.make_struct_decl_stmt(
+    return ast.new_struct_decl_stmt(
         p.lexer.span_interner,
         ident.create(ident),
         fields
@@ -380,7 +380,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
         }
     }
 
-    return ast.make_func_decl_stmt(
+    return ast.new_func_decl_stmt(
         ident,
         param_list,
         ret_ty,
@@ -409,7 +409,7 @@ def parse_while_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    return ast.make_while_stmt(condition, ast.as_block_stmt(block));
+    return ast.new_while_stmt(condition, ast.as_block_stmt(block));
 }
 
 def parse_if_stmt(p: *Parser): *ast.Stmt {
@@ -432,7 +432,7 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let if_stmt = ast.make_if_stmt(condition, ast.as_block_stmt(block), null);
+    let if_stmt = ast.new_if_stmt(condition, ast.as_block_stmt(block), null);
     if peek(p).ty != TOKEN_ELSE {
         return if_stmt;
     }
@@ -490,7 +490,7 @@ def parse_block(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    return ast.make_block_stmt(statements);
+    return ast.new_block_stmt(statements);
 }
 
 def parse_field_list(p: *Parser): vec.Vec {
@@ -651,7 +651,7 @@ def expression(p: *Parser, no_struct: bool): *ast.Expr {
             return null;
         }
         let span = span.merge(p.lexer.span_interner, left.span, value.span);
-        left = ast.make_assign(span, left, value);
+        left = ast.new_assign_expr(span, left, value);
     }
 
     return left;
@@ -697,7 +697,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 #define UNARY(tok, unary_ty) if token.ty == (tok) { \
         letcheck(expr, parse_expression(p, precedence.unary(), no_struct)); \
         let span = span.merge(p.lexer.span_interner, token.span, expr.span); \
-        return ast.make_unary(span, (unary_ty), expr); \
+        return ast.new_unary_expr(span, (unary_ty), expr); \
     } 0
 
     let token = lexer.empty_token();
@@ -706,25 +706,25 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     }
 
     if token.ty == TOKEN_INT {
-        return ast.make_int(token.span, token.lexeme);
+        return ast.new_int_expr(token.span, token.lexeme);
     }
 
     if token.ty == TOKEN_STRING {
-        return ast.make_string(token.span, token.lexeme);
+        return ast.new_string_expr(token.span, token.lexeme);
     }
 
     if token.ty == TOKEN_CHAR {
-        return ast.make_char(token.span, token.lexeme);
+        return ast.new_char_expr(token.span, token.lexeme);
     }
 
     if token.ty == TOKEN_IDENT {
-        return ast.make_ident(token);
+        return ast.new_ident_expr(token);
     }
 
     if token.ty == TOKEN_NEW {
         letcheck(e, expression(p, no_struct));
         let span = span.merge(p.lexer.span_interner, token.span, e.span);
-        return ast.make_new(span, e);
+        return ast.new_new_expr(span, e);
     }
 
     UNARY(TOKEN_AMPERSAND, UNARY_REF);
@@ -757,7 +757,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     if token.ty == TOKEN_DOT {
         letcheck(right, expression(p, no_struct));
         let span = span.merge(p.lexer.span_interner, left.span, right.span);
-        return ast.make_access(span, left, right);
+        return ast.new_access_expr(span, left, right);
     }
 
     // call expr
@@ -771,7 +771,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
         }
 
         let span = span.merge(p.lexer.span_interner, left.span, closing_paren.span);
-        return ast.make_call(span, left, args);
+        return ast.new_call_expr(span, left, args);
     }
 
     // init expr
@@ -785,7 +785,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
         }
 
         let span = span.merge(p.lexer.span_interner, left.span, closing_brace.span);
-        return ast.make_init(span, left, inits);
+        return ast.new_init_expr(span, left, inits);
     }
 
     if token.ty == TOKEN_AS {
@@ -795,7 +795,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
         }
 
         let span = span.merge(p.lexer.span_interner, left.span, tyid.span(&ty));
-        return ast.make_as(span, left, ty);
+        return ast.new_as_expr(span, left, ty);
     }
 
     // binary expression
@@ -849,7 +849,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
         let prec = precedence.get(token.ty);
         letcheck(right, parse_expression(p, prec, no_struct));
         let span = span.merge(p.lexer.span_interner, left.span, right.span);
-        return ast.make_binary(span, ty, left, right);
+        return ast.new_binary_expr(span, ty, left, right);
     }
 
     return null;
