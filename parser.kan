@@ -26,6 +26,10 @@ def empty_err(): ParseError {
     return ParseError { span: span.empty(), text: null };
 }
 
+def err_is_empty(err: *ParseError): bool {
+    return err.text == null;
+}
+
 type Parser struct {
     in_panic_mode: bool,
     lexer: lexer.Lexer,
@@ -144,6 +148,43 @@ def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
     return false;
 }
 
+def consume_type_ident(p: *Parser, ident: *lexer.Token, err: *ParseError): bool {
+    if !consume_token(p, TOKEN_IDENT, ident) {
+        return false;
+    }
+
+    let dots = 0;
+    while peek(p).ty == TOKEN_DOT {
+        consume(p, TOKEN_DOT);
+
+        let first_part = *ident;
+        if !consume_token(p, TOKEN_IDENT, ident) {
+            return false;
+        }
+
+        let span = span.merge(p.lexer.span_interner, first_part.span, ident.span);
+        *ident = lexer.create_token_from_span(
+            &p.lexer,
+            TOKEN_IDENT,
+            first_part.lexeme,
+            span
+        );
+        dots = dots + 1;
+    }
+
+    if dots > 1 {
+        *err = create_type_ident_error(
+            p,
+            ident.span,
+            ident.lexeme,
+            "type identifiers may not contain more than one '.'"
+        );
+        return false;
+    }
+
+    return true;
+}
+
 def consume_type(p: *Parser, dest: *tyid.Type): bool {
     let num_errs = num_errs(p);
 
@@ -154,11 +195,16 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
     }
 
     let ty = lexer.empty_token();
-    if !consume_ident(p, &ty, true) {
+    let illegal_type_err = empty_err();
+    if !consume_type_ident(p, &ty, &illegal_type_err) {
         if num_errs(p) > num_errs {
             free_errs_from(p, num_errs);
             let error = create_consume_error_text(p, &ty, "type");
             push_err(p, error);
+        }
+
+        if !err_is_empty(&illegal_type_err) {
+            push_err(p, illegal_type_err);
         }
 
         return false;
@@ -903,6 +949,11 @@ def inner_sync(p: *Parser): i32 {
 
 def create_error(span: span.Span, text: string): ParseError {
     return ParseError { span: span, text: text };
+}
+
+def create_type_ident_error(p: *Parser, span: span.Span, text: string, reason: string): ParseError {
+    let len = span.get(p.lexer.span_interner, span).len;
+    return create_error(span, std.err2str(ERROR_INVALID_TYPE_IDENT, len, text, reason));
 }
 
 def create_statement_error(p: *Parser, start: i32, end: i32): ParseError {

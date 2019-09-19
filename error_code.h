@@ -8,3 +8,4 @@
 #define ERROR_UNKNOWN_SYMBOL            7
 #define ERROR_CHAR_LIT_LEN              8
 #define ERROR_COULD_NOT_PARSE_STMT      9
+#define ERROR_INVALID_TYPE_IDENT        10

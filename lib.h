@@ -92,7 +92,8 @@ static char const *const error_texts[] = {
     "Expected '%s', but got '%s'",
     "Unknown symbol: '%.*s'",
     "Char literal with length %1$d: '%.*s'",
-    "Could not parse statement: \n%.*s"
+    "Could not parse statement: \n%.*s",
+    "Illegal type identifier '%.*s': %s"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
