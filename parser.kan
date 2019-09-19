@@ -340,6 +340,10 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_STRUCT);
     CONSUME_RET_NULL(TOKEN_LBRACE);
     let fields = parse_field_list(p);
+    if fields.elem_size == 0 {
+        vec.free_v(&fields);
+        return null;
+    }
 
     return ast.new_struct_decl_stmt(
         p.lexer.span_interner,

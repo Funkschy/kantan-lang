@@ -4,15 +4,18 @@ import "ast";
 
 type Module struct {
     statements: ptrvec.Vec,
-    imports: vec.Vec, // indices into statements
-    functions: vec.Vec // indices into statements
+     // the following vecs just contain indices into the statements ptrvec
+    imports: vec.Vec,
+    functions: vec.Vec,
+    structs: vec.Vec
 }
 
 def create(): Module {
     return Module {
         statements: ptrvec.create(),
         imports: vec.create(sizeof i32),
-        functions: vec.create(sizeof i32)
+        functions: vec.create(sizeof i32),
+        structs: vec.create(sizeof i32)
     };
 }
 
@@ -46,6 +49,14 @@ def num_functions(mod: *Module): i32 {
     return mod.functions.len;
 }
 
+def get_struct_at(mod: *Module, i: i32): *ast.StructDeclStmt {
+    return ast.as_struct_decl_stmt(get_special_stmt_at(mod, &mod.structs, i));
+}
+
+def num_structs(mod: *Module): i32 {
+    return mod.structs.len;
+}
+
 def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
     if ast.is_import_stmt(stmt) {
         let idx = mod.statements.len;
@@ -53,6 +64,9 @@ def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
     } else if ast.is_func_decl_stmt(stmt) {
         let idx = mod.statements.len;
         vec.push(&mod.functions, &idx as *void);
+    } else if ast.is_struct_decl_stmt(stmt) {
+        let idx = mod.statements.len;
+        vec.push(&mod.structs, &idx as *void);
     }
 
     ptrvec.push_ptr(&mod.statements, stmt as *void);
@@ -72,5 +86,6 @@ def free_m(mod: *Module): void {
     ptrvec.free_v(&mod.statements);
     vec.free_v(&mod.imports);
     vec.free_v(&mod.functions);
+    vec.free_v(&mod.structs);
 }
 

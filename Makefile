@@ -41,7 +41,7 @@ $(BIN_NAME): $(K_FILES) $(C_FILES)
 	done
 	pushd $(BUILD_FOLDER) ; \
 	if $(KANTAN) $(K_FILES) -o compiler.o ; then \
-		gcc compiler.o $(NEW_C_FILES) -o $(BIN_NAME) ; \
+		gcc -Wall compiler.o $(NEW_C_FILES) -o $(BIN_NAME) ; \
 		rm compiler.o ; \
 		mv $(BIN_NAME) $(START_FOLDER) ; \
 		popd ; \
