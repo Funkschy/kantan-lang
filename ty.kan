@@ -1,0 +1,142 @@
+#include "std.h"
+
+import "ptrvec";
+import "ast";
+
+#define WIDTH_UNKNOWN -1
+#define TY_I32 1
+#define TY_FUNC 2
+
+/////////// i32 type ///////////
+
+type I32 struct {
+    t: Type
+}
+
+def new_i32(): *Type {
+    return (new I32 {
+        t: create_type(TY_I32)
+    }) as *Type;
+}
+
+def is_i32(t: *Type): bool {
+    return t.tag == TY_I32;
+}
+
+def as_i32(t: *Type): *I32 {
+    return t as *I32;
+}
+
+/////////// func type ///////////
+
+type Func struct {
+    t: Type,
+    ret: *Type,
+    params: TypeList,
+    name: *ast.IdentExpr
+}
+
+def new_func(ret: *Type, params: ptrvec.Vec, name: *ast.IdentExpr): *Type {
+    let params = create_type_list(params);
+    return (new Func {
+        t: create_type(TY_FUNC),
+        ret: ret,
+        params: params,
+        name: name
+    }) as *Type;
+}
+
+def is_func(t: *Type): bool {
+    return t.tag == TY_FUNC;
+}
+
+def as_func(t: *Type): *Func {
+    return t as *Func;
+}
+
+/////////// base type ///////////
+
+type Type struct {
+    tag: i32,
+    width: i32, // width in bytes
+    align: i32
+}
+
+def create_type(tag: i32): Type {
+    let t = Type {
+        tag: tag,
+        width: 0,
+        align: 0
+    };
+
+    fill_width_align(&t);
+    return t;
+}
+
+type TypeList struct {
+    types: ptrvec.Vec
+}
+
+def create_type_list(types: ptrvec.Vec): TypeList {
+    return TypeList { types: types };
+}
+
+def type_at(tl: *TypeList, i: i32): *Type {
+    return ptrvec.get(&tl.types, i) as *Type;
+}
+
+def type_list_free(tl: *TypeList): void {
+    let i = 0;
+    while i < tl.types.len {
+        type_free(type_at(tl, i));
+        i = i + 1;
+    }
+    ptrvec.free_v(&tl.types);
+}
+
+def type_free(t: *Type): void {
+    if t == null {
+        return;
+    }
+
+    if is_func(t) {
+        let f_ty = as_func(t);
+        type_free(f_ty.ret);
+        type_list_free(&f_ty.params);
+    }
+
+    delete t;
+}
+
+/////////// align utils ///////////
+// TODO: should be in separate file, but can't because of circular imports
+
+def width_was_calculated(t: *ty.Type): bool {
+    return t.align > 0;
+}
+
+// returns true, if the types width/alignment could be calculated
+def fill_width_align(t: *ty.Type): bool {
+    if width_was_calculated(t) {
+        return true;
+    }
+
+    // if align is 0 at end of this function, use width as align
+    let align = 0;
+    let width = WIDTH_UNKNOWN;
+
+    if t.tag == TY_I32 {
+        width = 4;
+    }
+
+    if width != WIDTH_UNKNOWN {
+        t.width = width;
+        if align == 0 {
+            align = width;
+        }
+        t.align = align;
+        return true;
+    }
+
+    return false;
+}
