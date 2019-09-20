@@ -12,6 +12,9 @@ import "mod";
 import "tyid";
 import "record";
 
+import "ty";
+import "ptrvec";
+
 def main(argc: i32, argv: *string): i32 {
     if argc <= 1 {
         io.printf("ERROR: no input files\n");
@@ -79,6 +82,12 @@ def print_dbg_stmt_info(s: *ast.Stmt, span_interner: *span.SpanInterner): void {
         let s = ast.expr_to_string(e, span_interner);
         io.printf("%s\n", s);
         delete s;
+
+        if ast.is_int_expr(e) {
+            ty.make_i32(e.ty);
+            io.printf("width: %d, align: %d\n", e.ty.width, e.ty.align);
+        }
+
     } else if ast.is_struct_decl_stmt(s) {
         let decl_s = ast.as_struct_decl_stmt(s);
         let s = record.to_string(&decl_s.decl, span_interner);

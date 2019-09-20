@@ -8,6 +8,7 @@ import "func";
 import "record";
 import "ptrvec";
 import "tyid";
+import "ty";
 
 import "io"; // TODO: only debug
 
@@ -347,7 +348,7 @@ type AccessExpr struct {
 
 def new_access_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
     return (new AccessExpr {
-        e: Expr { tag: EXPR_ACCESS, span: span },
+        e: create_expr(EXPR_ACCESS, span),
         left: left,
         right: right
     }) as *Expr;
@@ -371,7 +372,7 @@ type AsExpr struct {
 
 def new_as_expr(span: span.Span, expr: *Expr, ty: tyid.Type): *Expr {
     return (new AsExpr {
-        e: Expr { tag: EXPR_AS, span: span },
+        e: create_expr(EXPR_AS, span),
         expr: expr,
         ty: ty
     }) as *Expr;
@@ -394,7 +395,7 @@ type NewExpr struct {
 
 def new_new_expr(span: span.Span, expr: *Expr): *Expr {
     return (new NewExpr {
-        e: Expr { tag: EXPR_NEW, span: span },
+        e: create_expr(EXPR_NEW, span),
         expr: expr
     }) as *Expr;
 }
@@ -422,7 +423,7 @@ def new_call_expr(span: span.Span, ident: *Expr, args: ArgList): *Expr {
     }
 
     return (new CallExpr {
-        e: Expr { tag: EXPR_CALL, span: span },
+        e: create_expr(EXPR_CALL, span),
         ident: ident,
         args: args
     }) as *Expr;
@@ -451,7 +452,7 @@ def new_init_expr(span: span.Span, ident: *Expr, inits: InitList): *Expr {
     }
 
     return (new InitExpr {
-        e: Expr { tag: EXPR_INIT, span: span },
+        e: create_expr(EXPR_INIT, span),
         ident: ident,
         inits: inits
     }) as *Expr;
@@ -475,7 +476,7 @@ type AssignExpr struct {
 
 def new_assign_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
     return (new AssignExpr {
-        e: Expr { tag: EXPR_ASSIGN, span: span },
+        e: create_expr(EXPR_ASSIGN, span),
         left: left,
         right: right
     }) as *Expr;
@@ -498,7 +499,7 @@ type IdentExpr struct {
 
 def new_ident_expr(ident: lexer.Token): *Expr {
     return (new IdentExpr {
-        e: Expr { tag: EXPR_IDENT, span: ident.span },
+        e: create_expr(EXPR_IDENT, ident.span),
         ident: ident.create(ident)
     }) as *Expr;
 }
@@ -521,7 +522,7 @@ type IntExpr struct {
 
 def new_int_expr(span: span.Span, ptr: string): *Expr {
     return (new IntExpr {
-        e: Expr { tag: EXPR_INT, span: span },
+        e: create_expr(EXPR_INT, span),
         ptr: ptr
     }) as *Expr;
 }
@@ -543,7 +544,7 @@ type StringExpr struct {
 
 def new_string_expr(span: span.Span, ptr: string): *Expr {
     return (new StringExpr {
-        e: Expr { tag: EXPR_STRING, span: span },
+        e: create_expr(EXPR_STRING, span),
         ptr: ptr
     }) as *Expr;
 }
@@ -565,7 +566,7 @@ type CharExpr struct {
 
 def new_char_expr(span: span.Span, ptr: string): *Expr {
     return (new CharExpr {
-        e: Expr { tag: EXPR_CHAR, span: span },
+        e: create_expr(EXPR_CHAR, span),
         ptr: ptr
     }) as *Expr;
 }
@@ -589,7 +590,7 @@ type BinaryExpr struct {
 
 def new_binary_expr(span: span.Span, ty: i32, left: *Expr, right: *Expr): *Expr {
     return (new BinaryExpr {
-        e: Expr { tag: EXPR_BINARY, span: span },
+        e: create_expr(EXPR_BINARY, span),
         left: left,
         right: right,
         ty: ty
@@ -614,7 +615,7 @@ type UnaryExpr struct {
 
 def new_unary_expr(span: span.Span, ty: i32, right: *Expr): *Expr {
     return (new UnaryExpr {
-        e: Expr { tag: EXPR_UNARY, span: span },
+        e: create_expr(EXPR_UNARY, span),
         ty: ty,
         right: right
     }) as *Expr;
@@ -632,7 +633,12 @@ def as_unary_expr(e: *Expr): *UnaryExpr {
 
 type Expr struct {
     tag: i32,
+    ty: *ty.Type,
     span: span.Span
+}
+
+def create_expr(tag: i32, span: span.Span): Expr {
+    return Expr { tag: tag, ty: ty.new_type(), span: span };
 }
 
 def expr_free(e: *Expr): void {
@@ -668,6 +674,7 @@ def expr_free(e: *Expr): void {
         expr_free(as_new_expr(e).expr);
     }
 
+    ty.type_free(e.ty);
     delete e;
 }
 

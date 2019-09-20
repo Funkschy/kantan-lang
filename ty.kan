@@ -4,77 +4,73 @@ import "ptrvec";
 import "ast";
 
 #define WIDTH_UNKNOWN -1
+
+#define TY_UNKNOWN 0
 #define TY_I32 1
 #define TY_FUNC 2
 
 /////////// i32 type ///////////
 
-type I32 struct {
-    t: Type
-}
-
-def new_i32(): *Type {
-    return (new I32 {
-        t: create_type(TY_I32)
-    }) as *Type;
-}
-
 def is_i32(t: *Type): bool {
-    return t.tag == TY_I32;
+    return t.kind == TY_I32;
 }
 
-def as_i32(t: *Type): *I32 {
-    return t as *I32;
+def make_i32(t: *Type): void {
+    t.kind = TY_I32;
+    fill_width_align(t);
 }
 
 /////////// func type ///////////
 
 type Func struct {
-    t: Type,
     ret: *Type,
     params: TypeList,
     name: *ast.IdentExpr
 }
 
-def new_func(ret: *Type, params: ptrvec.Vec, name: *ast.IdentExpr): *Type {
+def make_func(t: *Type, func: *Func): void {
+    t.kind = TY_FUNC;
+    t.extra = func as *void;
+    fill_width_align(t);
+}
+
+def new_func(ret: *Type, params: ptrvec.Vec, name: *ast.IdentExpr): *Func {
     let params = create_type_list(params);
-    return (new Func {
-        t: create_type(TY_FUNC),
+    return new Func {
         ret: ret,
         params: params,
         name: name
-    }) as *Type;
+    };
 }
 
 def is_func(t: *Type): bool {
-    return t.tag == TY_FUNC;
-}
-
-def as_func(t: *Type): *Func {
-    return t as *Func;
+    return t.kind == TY_FUNC;
 }
 
 /////////// base type ///////////
 
 type Type struct {
-    tag: i32,
+    kind: i32,
     width: i32, // width in bytes
-    align: i32
+    align: i32,
+    extra: *void
 }
 
-def create_type(tag: i32): Type {
-    let t = Type {
-        tag: tag,
+def new_type(): *Type {
+    return new Type {
+        kind: TY_UNKNOWN,
         width: 0,
-        align: 0
+        align: 0,
+        extra: null
     };
-
-    fill_width_align(&t);
-    return t;
 }
 
 type TypeList struct {
     types: ptrvec.Vec
+}
+
+def empty_type_list(): TypeList {
+    return TypeList { types: ptrvec.create() };
 }
 
 def create_type_list(types: ptrvec.Vec): TypeList {
@@ -100,9 +96,10 @@ def type_free(t: *Type): void {
     }
 
     if is_func(t) {
-        let f_ty = as_func(t);
+        let f_ty = t.extra as *Func;
         type_free(f_ty.ret);
         type_list_free(&f_ty.params);
+        delete t.extra;
     }
 
     delete t;
@@ -125,7 +122,7 @@ def fill_width_align(t: *ty.Type): bool {
     let align = 0;
     let width = WIDTH_UNKNOWN;
 
-    if t.tag == TY_I32 {
+    if t.kind == TY_I32 {
         width = 4;
     }
 
