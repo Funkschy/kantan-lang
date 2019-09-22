@@ -1,4 +1,3 @@
-42;
 Test {
     test_ident: TestType {
         field: span.get(&span_interner, function(420 - (69 / 1), test.i.other)).len
