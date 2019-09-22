@@ -1,0 +1,22 @@
+import "ast";
+import "ptrvec";
+import "span";
+import "mod";
+import "map";
+
+type ModMap struct {
+    mods: map.Map
+}
+
+type Ctx struct {
+    mod: *mod.Module
+}
+
+type TypeChecker struct {
+    span_interner: *span.SpanInterner,
+    ctx: Ctx
+}
+
+def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
+    return e;
+}
