@@ -679,6 +679,10 @@ def expr_free(e: *Expr): void {
 }
 
 def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
+    if e == null {
+        return std.strdup("(nil)");
+    }
+
     if is_int_expr(e) {
         let i_expr = as_int_expr(e);
         let len = span.get(span_interner, e.span).len;
@@ -815,6 +819,10 @@ def create_arg_list(): ArgList {
     return ArgList { args: ptrvec.create() };
 }
 
+def num_args(al: *ArgList): i32 {
+    return al.args.len;
+}
+
 def get_arg_at(al: *ArgList, i: i32): *ast.Expr {
     return ptrvec.get(&al.args, i) as *ast.Expr;
 }
@@ -888,6 +896,18 @@ type InitList struct {
 
 def create_init_list(): InitList {
     return InitList { inits: vec.create(sizeof Init) };
+}
+
+def num_inits(il: *InitList): i32 {
+    return il.inits.len;
+}
+
+def get_init_expr_at(il: *InitList, i: i32): *Expr {
+    let init = empty_init();
+    if !get_init_at(il, i, &init) {
+        return null;
+    }
+    return init.expr;
 }
 
 def get_init_at(il: *InitList, i: i32, dest: *Init): bool {
