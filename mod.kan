@@ -89,3 +89,19 @@ def free_m(mod: *Module): void {
     vec.free_v(&mod.structs);
 }
 
+type Map struct {
+    mods: ptrvec.Vec
+}
+
+def map_with_cap(size: i32): Map {
+    return Map { mods: ptrvec.with_cap(size) };
+}
+
+def add_mod(mm: *Map, idx: i32, mod: *Module): void {
+    ptrvec.set(&mm.mods, idx, mod as *void);
+}
+
+def map_free(mm: *Map): void {
+    ptrvec.free_v(&mm.mods);
+}
+

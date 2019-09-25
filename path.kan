@@ -2,42 +2,119 @@
 #include "error_code.h"
 
 // TODO: should be platform dependant
-#define DEFAULT_SEPARATOR '/'
+#define SYSTEM_SEPARATOR '/'
 
 import "std";
 
+extern def getcwd(buf: string, buf_size: i32): string;
+
 type Path struct {
-    inner: string,
-    separator: char
+    len: i32,
+    inner: string
 }
 
 def empty(): Path {
-    return Path { inner: null, separator: DEFAULT_SEPARATOR };
+    return Path { len: 0, inner: null };
 }
 
-def from_string(s: string, p: *Path): i32 {
-    if std.strlen(s) <= 0 {
+def create(value: string, len: i32): Path {
+    return Path { len: len, inner: value };
+}
+
+def from_str(s: string, p: *Path): i32 {
+    let len = std.strlen(s);
+    if len <= 0 {
         return ERROR_PATH_EMTPY;
     }
 
-    let separator = find_separator(s);
-
-    *p = Path { inner: s, separator: separator };
+    *p = Path { len: len, inner: s };
     return 0;
 }
 
-def find_separator(s: string): char {
-    let ptr = s;
-    while *ptr != '\0' {
-        if *ptr == '\\' {
-            return '\\';
-        }
-        ptr = ptr + 1;
+def parent(p: *Path): Path {
+    if is_root(p) {
+        return *p;
     }
 
-    return '/';
+    let ptr = p.inner + p.len - 1;
+    while ptr > p.inner {
+        ptr = ptr - 1;
+        if *ptr == SYSTEM_SEPARATOR {
+            return create(p.inner, ptr - p.inner);
+        }
+    }
+
+    return *p;
+}
+
+def is_abs(p: *Path): bool {
+    // TODO: windows support
+    return *p.inner == SYSTEM_SEPARATOR;
+}
+
+def is_root(p: *Path): bool {
+    // TODO: windows support
+    return is_abs(p) && std.strlen(p.inner) == 1;
 }
 
 def to_string(p: *Path): string {
-    return p.inner;
+    return std.strndup(p.inner, p.len);
+}
+
+def get_cwd(): PathBuf {
+    let buf_size = 255;
+    let buf = std.malloc(buf_size * sizeof char) as string;
+
+    // TODO: windows support
+    if getcwd(buf, buf_size) == null {
+        delete buf;
+        return buf_from(empty());
+    }
+
+    return create_path_buf(buf);
+}
+
+type PathBuf struct {
+    inner: Path
+}
+
+def new_path_buf(path: string): PathBuf {
+    return create_path_buf(std.strdup(path));
+}
+
+def create_path_buf(path: string): PathBuf {
+    let p = empty();
+    from_str(path, &p); // TODO: handle error
+    return PathBuf {
+        inner: p
+    };
+}
+
+def buf_from(path: Path): PathBuf {
+    return PathBuf { inner: path };
+}
+
+def merge_abs_rel(base: *Path, child: *Path): PathBuf {
+    if base.len == 0 || is_abs(child) {
+        return new_path_buf(child.inner);
+    }
+
+    if is_root(base) {
+        let combined = std.format_str("%.*s%.*s", base.len, base.inner, child.len, child.inner);
+        return create_path_buf(combined);
+    }
+
+    let combined = std.format_str(
+        "%.*s%c%.*s",
+        base.len,
+        base.inner,
+        SYSTEM_SEPARATOR,
+        child.len,
+        child.inner
+    );
+    return create_path_buf(combined);
+}
+
+def free_pb(pb: *PathBuf): void {
+    delete pb.inner.inner;
 }

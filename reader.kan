@@ -41,12 +41,12 @@ def free_fm(m: *FileMap): void {
     vec.free_v(&m.files);
 }
 
-def add_all(m: *FileMap, len: i32, file_names: *string): FileAddError {
+def add_all(m: *FileMap, bin_path: *path.Path, len: i32, file_names: *string): FileAddError {
     let i = 1;
     while i < len {
         let file_name = *(file_names + i);
         let res = 0;
-        if (res = reader.add_file(m, file_name)) != 0 {
+        if (res = reader.add_file(m, bin_path, file_name)) != 0 {
             return FileAddError { file_name: file_name, err_code: res };
         }
         i = i + 1;
@@ -55,15 +55,17 @@ def add_all(m: *FileMap, len: i32, file_names: *string): FileAddError {
     return FileAddError { file_name: null, err_code: 0 };
 }
 
-def add_file(m: *FileMap, name: string): i32 {
+def add_file(m: *FileMap, bin_path: *path.Path, name: string): i32 {
     let p = path.empty();
     let res = 0;
-    if (res = path.from_string(name, &p)) != 0 {
+    if (res = path.from_str(name, &p)) != 0 {
         return res;
     }
 
+    let abs_path = path.merge_abs_rel(bin_path, &p);
+
     let sf = source.empty();
-    if (res = source.read(p, &sf)) != 0 {
+    if (res = source.read(abs_path, &sf)) != 0 {
         return res;
     }
 

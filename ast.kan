@@ -234,15 +234,13 @@ def as_struct_decl_stmt(s: *Stmt): *StructDeclStmt {
 
 type ImportStmt struct {
     s: Stmt,
-    path_span: span.Span,
-    mod_path: string
+    mod: ident.Ident
 }
 
 def new_import_stmt(span: span.Span, mod_path: string): *Stmt {
     return (new ImportStmt {
         s: Stmt { tag: STMT_IMPORT },
-        path_span: span,
-        mod_path: mod_path
+        mod: ident.from_str(span, mod_path)
     }) as *Stmt;
 }
 
