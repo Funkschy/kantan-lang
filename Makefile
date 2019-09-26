@@ -23,7 +23,7 @@ K_FILES = main.kan \
 		  reader.kan \
 		  tyid.kan \
 		  ty.kan \
-		  typecheck.kan
+		  tychk.kan
 C_FILES = lib.c \
 		  lib.h \
 		  token_types.h \

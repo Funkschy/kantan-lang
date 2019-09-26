@@ -14,7 +14,7 @@ import "record";
 
 import "ty";
 import "ptrvec";
-import "typecheck";
+import "tychk";
 import "path";
 
 // TODO:
