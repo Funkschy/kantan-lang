@@ -217,13 +217,13 @@ def peek(p: *Parser): lexer.Token {
     return lexer.peek(&p.lexer);
 }
 
-def parse(p: *Parser): mod.Module {
-    let mod = mod.create();
+def parse(p: *Parser): *mod.Module {
+    let mod = new mod.create();
 
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
         if s != null {
-            mod.push_stmt(&mod, s);
+            mod.push_stmt(mod, s);
         }
     }
 

@@ -3,14 +3,47 @@ import "ptrvec";
 import "span";
 import "mod";
 
+extern def isort(arr: *i32, len: i32): *i32;
+
 type Ctx struct {
     mod: *mod.Module
 }
 
+def empty_ctx(): Ctx {
+    return Ctx { mod: null };
+}
+
 type TypeChecker struct {
     span_interner: *span.SpanInterner,
-    mods: mod.Map,
+    mods: *mod.Map,
+    sorted_mods: *i32,
     ctx: Ctx
+}
+
+def create(span_interner: *span.SpanInterner, mods: *mod.Map): TypeChecker {
+    return TypeChecker {
+        span_interner: span_interner,
+        mods: mods,
+        sorted_mods: sorted_mods(mods),
+        ctx: empty_ctx()
+    };
+}
+
+def sorted_mods(mods: *mod.Map): *i32 {
+    let num_mods = mod.num_mods(mods);
+    let import_nums = std.malloc(num_mods * sizeof i32) as *i32;
+
+    let i = 0;
+    while i < num_mods {
+        let m = mod.get_mod(mods, i);
+        *(import_nums + i) = mod.num_imports(m);
+        i = i + 1;
+    }
+
+    let sorted_mods = isort(import_nums, num_mods);
+    delete import_nums;
+
+    return sorted_mods;
 }
 
 def ty_eq(tc: *TypeChecker): void {
@@ -19,4 +52,8 @@ def ty_eq(tc: *TypeChecker): void {
 
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
     return e;
+}
+
+def free_tc(tc: *TypeChecker): void {
+    delete tc.sorted_mods;
 }

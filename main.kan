@@ -72,11 +72,11 @@ def main(argc: i32, argv: *string): i32 {
             parser.free_p(&p);
         }
 
-        mod.add_mod(&mm, i, &mod);
-        print_dbg_mod_info(&mod, &span_interner);
+        mod.add_mod(&mm, mod);
+        print_dbg_mod_info(mod, &span_interner);
 
         // just get the first stmt
-        let s = mod.get_stmt(&mod, 0);
+        let s = mod.get_stmt(mod, 0);
 
         if s != null {
             print_dbg_stmt_info(s, &span_interner);
@@ -84,10 +84,25 @@ def main(argc: i32, argv: *string): i32 {
             io.printf("ERROR: no valid statement in file\n");
         }
 
-        mod.free_m(&mod);
         i = i + 1;
     }
 
+    io.printf("%d\n", mod.num_mods(&mm));
+    let tchk = tychk.create(&span_interner, &mm);
+    let i = 0;
+    while i < mod.num_mods(&mm) {
+        io.printf("%d: %d, ", i, mod.num_imports(mod.get_mod(&mm, i)));
+        i = i + 1;
+    }
+    io.printf("\n");
+    i = 0;
+    while i < mod.num_mods(&mm) {
+        io.printf("%d, ", *(tchk.sorted_mods + i));
+        i = i + 1;
+    }
+    io.printf("\n");
+
+    tychk.free_tc(&tchk);
     reader.free_fm(&file_map);
     mod.map_free(&mm);
     path.free_pb(&cwd);

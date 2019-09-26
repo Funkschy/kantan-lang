@@ -25,6 +25,7 @@ K_FILES = main.kan \
 		  ty.kan \
 		  tychk.kan
 C_FILES = lib.c \
+		  modsort.c \
 		  lib.h \
 		  token_types.h \
 		  expr_types.h \
