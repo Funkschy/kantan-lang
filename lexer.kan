@@ -3,6 +3,7 @@
 
 import "std";
 import "span";
+import "source";
 // TODO: only debug
 import "io";
 
@@ -59,24 +60,24 @@ type Lexer struct {
     ctx: i32,
     source_len: i32,
     peek: Token,
-    source: string,
+    source: source.SourceFile,
     start: string,
     current: string,
     span_interner: *span.SpanInterner
 }
 
-def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Lexer {
+def create(src: source.SourceFile, span_interner: *span.SpanInterner, ctx: i32): Lexer {
     let span = span.create(span_interner, 0, 0, ctx);
     let init_peek = Token { ty: TOKEN_UNKNOWN_ERR, span: span, lexeme: null };
 
     return Lexer {
         has_peek: false,
         ctx: ctx,
-        source_len: std.strlen(source), // TODO: save length while reading file
+        source_len: std.strlen(src.code), // TODO: save length while reading file
         peek: init_peek,
-        source: source,
-        start: source,
-        current: source,
+        source: src,
+        start: src.code,
+        current: src.code,
         span_interner: span_interner
     };
 }
@@ -110,7 +111,7 @@ def current_pos(l: *Lexer): i32 {
         return l.peek.span.start;
     }
 
-    return l.current - l.source;
+    return l.current - l.source.code;
 }
 
 def current(l: *Lexer): i32 {
@@ -140,7 +141,7 @@ def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: i32): 
 }
 
 def ident_type(l: *Lexer): i32 {
-    let bytes_until = l.start - l.source;
+    let bytes_until = l.start - l.source.code;
     let start = 0;
     let len = std.read_char(l.start, l.source_len - bytes_until, &start);
 
@@ -284,7 +285,7 @@ def create_span(l: *Lexer, start: i32, end: i32): span.Span {
 def create_token(l: *Lexer, ty: i32, start: string, end: string): Token {
     return Token {
         ty: ty,
-        span: create_span(l, start - l.source, end - l.source),
+        span: create_span(l, start - l.source.code, end - l.source.code),
         lexeme: start
     };
 }

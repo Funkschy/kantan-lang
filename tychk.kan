@@ -2,15 +2,29 @@ import "ast";
 import "ptrvec";
 import "span";
 import "mod";
+import "map";
 
 extern def isort(arr: *i32, len: i32): *i32;
 
 type Ctx struct {
-    mod: *mod.Module
+    mod: *mod.Module,
+    import_map: map.Map
 }
 
 def empty_ctx(): Ctx {
-    return Ctx { mod: null };
+    return Ctx { mod: null, import_map: map.create() };
+}
+
+def create_ctx(mod: *mod.Module): Ctx {
+    let import_map = map.with_cap(mod.num_imports(mod));
+    return Ctx {
+        mod: mod,
+        import_map: import_map
+    };
+}
+
+def free_ctx(ctx: *Ctx): void {
+    map.free_m(&ctx.import_map);
 }
 
 type TypeChecker struct {
@@ -46,8 +60,25 @@ def sorted_mods(mods: *mod.Map): *i32 {
     return sorted_mods;
 }
 
-def ty_eq(tc: *TypeChecker): void {
+def check(tc: *TypeChecker): void {
+    let i = 0;
+    while i < mod.num_mods(tc.mods) {
+        let idx = *(tc.sorted_mods + i);
+        let m = mod.get_mod(tc.mods, idx);
 
+        check_mod(tc, m);
+
+        i = i + 1;
+    }
+}
+
+def check_mod(tc: *TypeChecker, mod: *mod.Module): void {
+     // free previous context
+    free_ctx(&tc.ctx);
+    tc.ctx = create_ctx(mod);
+    let s = path.to_string(&mod.path);
+    io.printf("%s %d\n", s, mod.num_imports(mod));
+    delete s;
 }
 
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
@@ -55,5 +86,6 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
 }
 
 def free_tc(tc: *TypeChecker): void {
+    free_ctx(&tc.ctx);
     delete tc.sorted_mods;
 }

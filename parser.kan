@@ -14,6 +14,7 @@ import "std";
 import "mod";
 import "param";
 import "tyid";
+import "source";
 
 import "io"; // TODO: only debug
 
@@ -36,7 +37,7 @@ type Parser struct {
     errors: vec.Vec // vector of ParseErrors
 }
 
-def create(source: string, span_interner: *span.SpanInterner, ctx: i32): Parser {
+def create(source: source.SourceFile, span_interner: *span.SpanInterner, ctx: i32): Parser {
     return Parser {
         in_panic_mode: false,
         lexer: lexer.create(source, span_interner, ctx),
@@ -218,7 +219,9 @@ def peek(p: *Parser): lexer.Token {
 }
 
 def parse(p: *Parser): *mod.Module {
-    let mod = new mod.create();
+    // TODO: getter
+    let path = p.lexer.source.file.path.inner;
+    let mod = new mod.create(path);
 
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
@@ -960,7 +963,14 @@ def create_statement_error(p: *Parser, start: i32, end: i32): ParseError {
     let span = lexer.create_span(&p.lexer, start, end);
     let len = span.get(p.lexer.span_interner, span).len;
 
-    return create_error(span, std.err2str(ERROR_COULD_NOT_PARSE_STMT, len, p.lexer.source + start));
+    return create_error(
+        span,
+        std.err2str(
+            ERROR_COULD_NOT_PARSE_STMT,
+            len,
+            source.code(&p.lexer.source) + start
+        )
+    );
 }
 
 def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {

@@ -54,7 +54,9 @@ def free_m(m: *Map): void {
         free_buckets(m.buckets + i);
         i = i + 1;
     }
-    delete m.buckets;
+    if m.buckets != null {
+        delete m.buckets;
+    }
 }
 
 def free_buckets(buckets: *Bucket): void {
