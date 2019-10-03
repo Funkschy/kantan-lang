@@ -27,9 +27,13 @@ type Key struct {
     value: string
 }
 
+def create_key(len: i32, value: string): Key {
+    return Key { len: len, value: value };
+}
+
 def key_from_ident(span_interner: *span.SpanInterner, ident: *ident.Ident): Key {
     let len = span.get(span_interner, ident.ident_span).len;
-    return Key { len: len, value: ident.ident };
+    return create_key(len, ident.ident);
 }
 
 type Item struct  {
@@ -119,7 +123,9 @@ def insert_all(old_map: *Map, new_map: *Map): void {
 
 }
 
-def insert(map: *Map, key: Key, value: *void): void {
+// inserts value into map at key
+// returns: true if a value with the same key was replaced
+def insert(map: *Map, key: Key, value: *void): bool {
     resize_if_needed(map);
 
     let b = map.buckets + get_map_index(map.cap, key.value, key.len);
@@ -127,29 +133,33 @@ def insert(map: *Map, key: Key, value: *void): void {
 
     if bucket_is_empty(b) {
         b.item = item;
-        return;
+        return false;
     }
 
     while b != null {
         if bucket_is_empty(b) {
             b.item = Item { key: key, value: value };
-            return;
+            return false;
         }
 
         // same key
         if key_eq(&b.item.key, &key) {
             b.item.value = value;
-            return;
+            return true;
         }
 
         // no next bucket
         if b.next == null {
             b.next = new Bucket { item: item, next: null };
-            return;
+            return false;
         }
 
         b = b.next;
     }
+
+    // should be unreachable, so just abort
+    std.abort();
+    return false;
 }
 
 def get(map: *Map, key: Key): *void {

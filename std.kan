@@ -14,8 +14,10 @@ extern def memcpy(dest: *void, src: *void, size: i32): void;
 extern def memmove(dest: *void, src: *void, size: i32): void;
 extern def realloc(ptr: *void, size: i32): *void;
 extern def abort(): void;
+extern def strerror(err: i32): string;
 
 // in lib.c
+extern def get_errno(): i32;
 extern def err2str(code: i32, ...): string;
 extern def format_str(fmt: string, ...): string;
 extern def read_char(s: string, s_len: i32, dest: *i32): i32;

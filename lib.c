@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <errno.h>
 #include <sys/stat.h>
 
 #include "./error_code.h"
@@ -13,6 +14,10 @@
 
 // forward decls
 int vformat_str(char **dest, char const *fmt, va_list args);
+
+int32_t get_errno() {
+    return errno;
+}
 
 char const *const get_str(int32_t index, size_t len, char const *const * array) {
     if (index < 0 || index > len) {

@@ -6,7 +6,11 @@
 
 import "std";
 
+// TODO: only debug
+import "io";
+
 extern def getcwd(buf: string, buf_size: i32): string;
+extern def realpath(path: string, resolved: string): string;
 
 type Path struct {
     len: i32,
@@ -31,6 +35,15 @@ def from_str(s: string, p: *Path): i32 {
     return 0;
 }
 
+def ends_with(p: *Path, s: string): bool {
+    let len = std.strlen(s);
+    if len > p.len {
+        return false;
+    }
+
+    return std.strncmp(p.inner + (p.len - len), s, len) == 0;
+}
+
 def parent(p: *Path): Path {
     if is_root(p) {
         return *p;
@@ -45,6 +58,22 @@ def parent(p: *Path): Path {
     }
 
     return *p;
+}
+
+// TODO: windows support
+// this function resolves stuff like .. or . in place
+def canonicalize(p: *Path, dest: *PathBuf): i32 {
+    let buf = std.strndup(p.inner, p.len);
+    let real = realpath(buf, null);
+    delete buf;
+
+    if real == null {
+        return std.get_errno();
+    }
+
+    *dest = create_path_buf(real);
+
+    return 0;
 }
 
 def is_abs(p: *Path): bool {
@@ -94,27 +123,54 @@ def buf_from(path: Path): PathBuf {
     return PathBuf { inner: path };
 }
 
-def merge_abs_rel(base: *Path, child: *Path): PathBuf {
+def merge_abs_rel(base: *Path, child: *Path, dest: *PathBuf): i32 {
+    return merge_abs_rel_suffix(base, child, null, dest);
+}
+
+def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathBuf): i32 {
     if base.len == 0 || is_abs(child) {
-        return new_path_buf(child.inner);
+        *dest = new_path_buf(child.inner);
+        return 0;
     }
 
-    if is_root(base) {
-        let combined = std.format_str("%.*s%.*s", base.len, base.inner, child.len, child.inner);
-        return create_path_buf(combined);
+    let combined: string = null;
+    if suffix != null {
+        combined = std.format_str(
+            "%.*s%c%.*s%s",
+            base.len,
+            base.inner,
+            SYSTEM_SEPARATOR,
+            child.len,
+            child.inner,
+            suffix
+        );
+    } else {
+        combined = std.format_str(
+            "%.*s%c%.*s",
+            base.len,
+            base.inner,
+            SYSTEM_SEPARATOR,
+            child.len,
+            child.inner
+        );
     }
 
-    let combined = std.format_str(
-        "%.*s%c%.*s",
-        base.len,
-        base.inner,
-        SYSTEM_SEPARATOR,
-        child.len,
-        child.inner
-    );
-    return create_path_buf(combined);
+    let pb = create_path_buf(combined);
+    let error = canonicalize(&pb.inner, &pb);
+
+    if error != 0 {
+        free_pb(&pb);
+        return error;
+    }
+
+    delete combined;
+    *dest = pb;
+
+    return 0;
 }
 
 def free_pb(pb: *PathBuf): void {
-    delete pb.inner.inner;
+    if pb.inner.inner != null {
+        delete pb.inner.inner;
+    }
 }

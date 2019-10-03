@@ -23,7 +23,8 @@ K_FILES = main.kan \
 		  reader.kan \
 		  tyid.kan \
 		  ty.kan \
-		  tychk.kan
+		  tychk.kan \
+		  scope.kan
 C_FILES = lib.c \
 		  modsort.c \
 		  lib.h \

@@ -2,6 +2,7 @@ import "vec";
 import "path";
 import "file";
 import "source";
+import "std";
 
 import "io"; // TODO: only debug
 
@@ -62,10 +63,15 @@ def add_file(m: *FileMap, bin_path: *path.Path, name: string): i32 {
         return res;
     }
 
-    let abs_path = path.merge_abs_rel(bin_path, &p);
+    let abs_path = path.buf_from(path.empty());
+    let error = path.merge_abs_rel(bin_path, &p, &abs_path);
+    if error != 0 {
+        return error;
+    }
 
     let sf = source.empty();
     if (res = source.read(abs_path, &sf)) != 0 {
+        path.free_pb(&abs_path);
         return res;
     }
 

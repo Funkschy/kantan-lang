@@ -45,9 +45,8 @@ def function(oof: test): *test.Test {
 }
 
 other;
-import "test";
 let あ　= 0;
-import "oof";
+import "files/empty";
 
 '';
 't';

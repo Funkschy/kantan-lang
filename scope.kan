@@ -1,0 +1,37 @@
+import "map";
+import "vec";
+import "ty";
+import "ident";
+import "span";
+
+type Scope struct {
+    bindings: map.Map // ident to *Type
+}
+
+def create(): Scope {
+    return Scope { bindings: map.create() };
+}
+
+def bind(s: *Scope, span_interner: *span.SpanInterner, ident: *ident.Ident, value: *ty.Type): bool {
+    return map.insert(
+        &s.bindings,
+        map.key_from_ident(span_interner, ident),
+        value as *void
+    );
+}
+
+type ScopeStack struct {
+    scopes: vec.Vec, // vec of Scopes
+    span_interner: *span.SpanInterner // redundant, but leads to a nicer interface
+}
+
+def empty_stack(): ScopeStack {
+    return ScopeStack { scopes: vec.create(0), span_interner: null };
+}
+
+def create_stack(span_interner: *span.SpanInterner): ScopeStack {
+    return ScopeStack {
+        scopes: vec.create(sizeof Scope),
+        span_interner: span_interner
+    };
+}

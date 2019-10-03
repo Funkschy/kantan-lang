@@ -2,6 +2,8 @@ import "ptrvec";
 import "vec";
 import "ast";
 import "path";
+import "map";
+import "std";
 
 type Module struct {
     statements: ptrvec.Vec,
@@ -95,11 +97,12 @@ def free_m(mod: *Module): void {
 }
 
 type Map struct {
-    mods: ptrvec.Vec
+    mods: ptrvec.Vec,
+    mod_paths: map.Map // full mod path -> index in mods
 }
 
 def map_with_cap(size: i32): Map {
-    return Map { mods: ptrvec.with_cap(size) };
+    return Map { mods: ptrvec.with_cap(size), mod_paths: map.with_cap(size) };
 }
 
 def num_mods(mm: *Map): i32 {
@@ -107,11 +110,35 @@ def num_mods(mm: *Map): i32 {
 }
 
 def add_mod(mm: *Map, mod: *Module): void {
+    let idx = mm.mods.len;
     ptrvec.push_ptr(&mm.mods, mod as *void);
+
+    let idx = *(&idx as **void);
+    let key = map.create_key(mod.path.len, mod.path.inner);
+    map.insert(&mm.mod_paths, key, idx);
 }
 
 def get_mod(mm: *Map, idx: i32): *Module {
     return ptrvec.get(&mm.mods, idx) as *Module;
+}
+
+// returns -1 if not found
+def get_mod_idx(mm: *Map, abs_path: *path.Path): i32 {
+    let key = map.create_key(abs_path.len, abs_path.inner);
+    let ptr = map.get(&mm.mod_paths, key);
+    if ptr == null {
+        return -1;
+    }
+
+    return std.ptr_to_int(ptr);
+}
+
+def get_mod_by_path(mm: *Map, abs_path: *path.Path): *Module {
+    let idx = get_mod_idx(mm, abs_path);
+    if idx < 0 {
+        return null;
+    }
+    return get_mod(mm, idx);
 }
 
 def map_free(mm: *Map): void {
@@ -122,5 +149,6 @@ def map_free(mm: *Map): void {
         i = i + 1;
     }
     ptrvec.free_v(&mm.mods);
+    map.free_m(&mm.mod_paths);
 }
 
