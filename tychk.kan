@@ -9,6 +9,7 @@ import "path";
 // TODO: only temp solution
 import "std";
 import "io";
+import "ident";
 
 extern def isort(arr: *i32, len: i32): *i32;
 
@@ -49,7 +50,15 @@ def create_ctx(mods: *mod.Map, mod: *mod.Module, span_interner: *span.SpanIntern
 
         if error != 0 {
             // TODO: file does not exist error
-            io.printf("%s\n", std.strerror(error));
+            let p = path.parent(&mod.path);
+            let mod_s = path.to_string(&p);
+            let imp_s = ident.to_string(&imp.mod, span_interner);
+
+            io.printf("%s/%s.kan: %s\n", mod_s, imp_s, std.strerror(error));
+
+            delete imp_s;
+            delete mod_s;
+
             std.abort();
         }
 
