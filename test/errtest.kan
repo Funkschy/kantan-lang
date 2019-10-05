@@ -44,6 +44,7 @@ def function(oof: test): *test.Test {
     1 + 1;
 }
 
+let other = 0;
 other;
 let あ　= 0;
 import "files/empty";

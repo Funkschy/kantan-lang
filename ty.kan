@@ -1,6 +1,7 @@
 #include "std.h"
 
 import "ptrvec";
+import "std";
 import "ast";
 
 #define WIDTH_UNKNOWN -1
@@ -11,40 +12,49 @@ import "ast";
 
 /////////// i32 type ///////////
 
+type I32 struct {
+    t: Type
+}
+
+def new_i32(): *Type {
+    return (new I32 {
+        t: create_type(TY_I32)
+    }) as *Type;
+}
+
 def is_i32(t: *Type): bool {
     return t.kind == TY_I32;
 }
 
-def make_i32(t: *Type): void {
-    t.kind = TY_I32;
-    fill_width_align(t);
+def as_i32(t: *Type): *I32 {
+    return t as *I32;
 }
 
 /////////// func type ///////////
 
 type Func struct {
+    t: Type,
     ret: *Type,
     params: TypeList,
     name: *ast.IdentExpr
 }
 
-def make_func(t: *Type, func: *Func): void {
-    t.kind = TY_FUNC;
-    t.extra = func as *void;
-    fill_width_align(t);
-}
-
-def new_func(ret: *Type, params: ptrvec.Vec, name: *ast.IdentExpr): *Func {
+def new_func(ret: *Type, params: ptrvec.Vec, name: *ast.IdentExpr): *Type {
     let params = create_type_list(params);
-    return new Func {
+    return (new Func {
+        t: create_type(TY_FUNC),
         ret: ret,
         params: params,
         name: name
-    };
+    }) as *Type;
 }
 
 def is_func(t: *Type): bool {
     return t.kind == TY_FUNC;
+}
+
+def as_func(t: *Type): *Func {
+    return t as *Func;
 }
 
 /////////// base type ///////////
@@ -52,17 +62,18 @@ def is_func(t: *Type): bool {
 type Type struct {
     kind: i32,
     width: i32, // width in bytes
-    align: i32,
-    extra: *void
+    align: i32
 }
 
-def new_type(): *Type {
-    return new Type {
-        kind: TY_UNKNOWN,
+def create_type(kind: i32): Type {
+    let t = Type {
+        kind: kind,
         width: 0,
-        align: 0,
-        extra: null
+        align: 0
     };
+
+    fill_width_align(&t);
+    return t;
 }
 
 type TypeList struct {
@@ -96,10 +107,9 @@ def type_free(t: *Type): void {
     }
 
     if is_func(t) {
-        let f_ty = t.extra as *Func;
+        let f_ty = as_func(t);
         type_free(f_ty.ret);
         type_list_free(&f_ty.params);
-        delete t.extra;
     }
 
     delete t;
@@ -108,12 +118,12 @@ def type_free(t: *Type): void {
 /////////// align utils ///////////
 // TODO: should be in separate file, but can't because of circular imports
 
-def width_was_calculated(t: *ty.Type): bool {
+def width_was_calculated(t: *Type): bool {
     return t.align > 0;
 }
 
 // returns true, if the types width/alignment could be calculated
-def fill_width_align(t: *ty.Type): bool {
+def fill_width_align(t: *Type): bool {
     if width_was_calculated(t) {
         return true;
     }
@@ -136,4 +146,33 @@ def fill_width_align(t: *ty.Type): bool {
     }
 
     return false;
+}
+
+def to_string(t: *Type, span_interner: *span.SpanInterner): string {
+    if t == null {
+        return null;
+    }
+
+    if is_i32(t) {
+        return std.strdup("i32");
+    }
+
+    if is_func(t) {
+        // TODO: resolve cyclic dependencies
+        let name = "name";
+        let s = std.format_str("def %s(...): ...", name);
+        return s;
+    }
+
+    return null;
+}
+
+def clone(t: *Type): *Type {
+    if t == null {
+        return null;
+    }
+
+    let nt = std.malloc(sizeof Type);
+    std.memcpy(nt, t as *void, sizeof Type);
+    return nt as *Type;
 }

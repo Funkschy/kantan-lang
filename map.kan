@@ -163,6 +163,10 @@ def insert(map: *Map, key: Key, value: *void): bool {
 }
 
 def get(map: *Map, key: Key): *void {
+    if map.buckets == null {
+        return null;
+    }
+
     let b = map.buckets + get_map_index(map.cap, key.value, key.len);
 
     while b != null {

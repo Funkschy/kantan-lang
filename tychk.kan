@@ -79,14 +79,19 @@ def create_ctx(mods: *mod.Map, mod: *mod.Module, span_interner: *span.SpanIntern
         i = i + 1;
     }
 
+    let scopes = scope.create_stack(span_interner);
+    scope.open_scope(&scopes);
+
     return Ctx {
         mod: mod,
-        import_map: import_map
+        import_map: import_map,
+        scopes: scopes
     };
 }
 
 def free_ctx(ctx: *Ctx): void {
     map.free_m(&ctx.import_map);
+    scope.free_stack(&ctx.scopes);
 }
 
 type TypeChecker struct {
@@ -122,6 +127,10 @@ def sorted_mods(mods: *mod.Map): *i32 {
     return sorted_mods;
 }
 
+def lookup_ident(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
+    return scope.lookup(&tc.ctx.scopes, ident);
+}
+
 def check(tc: *TypeChecker): void {
     let i = 0;
     while i < mod.num_mods(tc.mods) {
@@ -142,9 +151,67 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): void {
     let s = path.to_string(&mod.path);
     io.printf("%s %d\n", s, mod.num_imports(mod));
     delete s;
+
+    let i = 0;
+    while i < mod.num_stmts(mod) {
+        check_stmt(tc, mod.get_stmt_at(mod, i));
+        i = i + 1;
+    }
+}
+
+def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
+    // STMT_IMPORT
+    // STMT_FUNC_DECL
+    // STMT_STRUCT_DECL
+    // STMT_BLOCK
+    // STMT_IF
+    // STMT_WHILE
+    // STMT_DELETE
+    // STMT_RETURN
+
+    // STMT_LET
+    if ast.is_let_stmt(s) {
+        let l_s = ast.as_let_stmt(s);
+        l_s.value = check_expr(tc, l_s.value);
+        scope.bind(&tc.ctx.scopes, &l_s.ident, l_s.value.ty);
+        return s;
+    }
+
+    // STMT_EXPR
+    if ast.is_expr_stmt(s) {
+        let e_s = ast.as_expr_stmt(s);
+        e_s.expr = check_expr(tc, e_s.expr);
+        return s;
+    }
+
+    return null;
 }
 
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
+    let s = ast.expr_to_string(e, tc.span_interner);
+    io.printf("%s\n", s);
+    delete s;
+
+    if ast.is_int_expr(e) {
+        e.ty = ty.new_i32();
+        return e;
+    }
+
+    if ast.is_ident_expr(e) {
+        e.ty = ty.clone(lookup_ident(tc, &ast.as_ident_expr(e).ident));
+
+        // TODO: error
+        if e.ty == null {
+            return e;
+        }
+
+        let s = ty.to_string(e.ty, tc.span_interner);
+        io.printf("type: %s\n", s);
+        delete s;
+
+        return e;
+    }
+
     return e;
 }
 

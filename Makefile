@@ -1,30 +1,30 @@
 SHELL := /bin/bash
 
 BIN_NAME = compiler
-K_FILES = main.kan \
-		  lexer.kan \
-		  map.kan \
-		  std.kan \
-		  parser.kan \
-		  ast.kan \
-		  mod.kan \
-		  ident.kan \
-		  record.kan \
-		  func.kan \
-		  param.kan \
-		  precedence.kan \
-		  vec.kan \
-		  ptrvec.kan \
-		  span.kan \
+K_FILES = ast.kan \
 		  file.kan \
-		  path.kan \
+		  func.kan \
+		  ident.kan \
+		  lexer.kan \
+		  main.kan \
+		  map.kan \
+		  mod.kan \
 		  num.kan \
-		  source.kan \
+		  param.kan \
+		  parser.kan \
+		  path.kan \
+		  precedence.kan \
+		  ptrvec.kan \
 		  reader.kan \
-		  tyid.kan \
+		  record.kan \
+		  scope.kan \
+		  source.kan \
+		  span.kan \
+		  std.kan \
 		  ty.kan \
 		  tychk.kan \
-		  scope.kan
+		  tyid.kan \
+		  vec.kan
 C_FILES = lib.c \
 		  modsort.c \
 		  lib.h \

@@ -35,6 +35,14 @@ def get(v: *Vec, i: i32, ptr: *void): bool {
     return false;
 }
 
+def get_ptr(v: *Vec, i: i32): *void {
+    if i >= 0 && i < v.len {
+        return v.elements + i * v.elem_size;
+    }
+
+    return null;
+}
+
 def resize(v: *Vec): void {
     if v.elements == null {
         v.cap = 2;

@@ -24,6 +24,14 @@ def create(p: path.Path): Module {
     };
 }
 
+def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {
+    return ptrvec.get(&mod.statements, i) as *ast.Stmt;
+}
+
+def num_stmts(mod: *Module): i32 {
+    return mod.statements.len;
+}
+
 def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: i32): *ast.Stmt {
     let idx = 0;
     if !vec.get(indices, i, &idx as *void) {
@@ -92,8 +100,6 @@ def free_m(mod: *Module): void {
     vec.free_v(&mod.imports);
     vec.free_v(&mod.functions);
     vec.free_v(&mod.structs);
-
-    delete mod;
 }
 
 type Map struct {
@@ -146,6 +152,7 @@ def map_free(mm: *Map): void {
     while i < num_mods(mm) {
         let m = get_mod(mm, i);
         free_m(m);
+        delete m;
         i = i + 1;
     }
     ptrvec.free_v(&mm.mods);

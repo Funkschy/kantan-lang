@@ -607,14 +607,14 @@ def as_binary_expr(e: *Expr): *BinaryExpr {
 
 type UnaryExpr struct {
     e: Expr,
-    ty: i32,
+    kind: i32,
     right: *Expr
 }
 
-def new_unary_expr(span: span.Span, ty: i32, right: *Expr): *Expr {
+def new_unary_expr(span: span.Span, kind: i32, right: *Expr): *Expr {
     return (new UnaryExpr {
         e: create_expr(EXPR_UNARY, span),
-        ty: ty,
+        kind: kind,
         right: right
     }) as *Expr;
 }
@@ -636,7 +636,7 @@ type Expr struct {
 }
 
 def create_expr(tag: i32, span: span.Span): Expr {
-    return Expr { tag: tag, ty: ty.new_type(), span: span };
+    return Expr { tag: tag, ty: null, span: span };
 }
 
 def expr_free(e: *Expr): void {
@@ -755,7 +755,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_unary_expr(e) {
         let u_expr = as_unary_expr(e);
         let right = expr_to_string(u_expr.right, span_interner);
-        let tok_str = unary2str(u_expr.ty);
+        let tok_str = unary2str(u_expr.kind);
 
         let s = std.format_str("(%s%s)", tok_str, right);
         delete right;
