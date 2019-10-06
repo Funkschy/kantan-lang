@@ -5,6 +5,8 @@ import "path";
 import "map";
 import "std";
 
+#define KANTAN_FILE_ENDING ".kan"
+
 type Module struct {
     statements: ptrvec.Vec,
     path: path.Path,
@@ -159,3 +161,67 @@ def map_free(mm: *Map): void {
     map.free_m(&mm.mod_paths);
 }
 
+def get_abs_import_path(
+    current: *mod.Module,
+    imp: *ast.ImportStmt,
+    span_interner: *span.SpanInterner,
+    dest: *path.PathBuf
+): i32 {
+    let len = span.get(span_interner, imp.mod.ident_span).len;
+    let imp_path = path.create(imp.mod.ident, len);
+    let dir = path.parent(&current.path);
+
+    return path.merge_abs_rel_suffix(&dir, &imp_path, KANTAN_FILE_ENDING, dest);
+}
+
+def try_get_mod_from_import(
+    mm: *Map,
+    mod: *Module,
+    span_interner: *span.SpanInterner,
+    imp: *ast.ImportStmt
+): *Module {
+    let plen = ident.len(&imp.mod, span_interner);
+    let path_str = std.format_str("%.*s%s", plen, imp.mod.ident, KANTAN_FILE_ENDING);
+    let p = path.create(path_str, plen + 4);
+
+    let imported_mod = get_mod_by_path(mm, &p);
+    delete path_str;
+
+    // if not in stdlib, try absolute path
+    if imported_mod == null {
+        let abs = path.buf_from(path.empty());
+        let error = get_abs_import_path(mod, imp, span_interner, &abs);
+
+        if error != 0 {
+            // TODO: file does not exist error
+            let p = path.parent(&mod.path);
+            let mod_s = path.to_string(&p);
+            let imp_s = ident.to_string(&imp.mod, span_interner);
+
+            // print error (only temporarily)
+            io.printf("%s/%s%s: %s\n", mod_s, imp_s, KANTAN_FILE_ENDING, std.strerror(error));
+
+            delete imp_s;
+            delete mod_s;
+
+            return null;
+        }
+
+        imported_mod = get_mod_by_path(mm, &abs.inner);
+
+        if imported_mod == null {
+            // TODO: remove this
+            let s = path.to_string(&abs.inner);
+            io.printf("ERROR: %s is not being compiled\n", s);
+            delete s;
+
+            // TODO: module does not exist error
+            path.free_pb(&abs);
+            return null;
+        }
+
+        path.free_pb(&abs);
+    }
+
+    return imported_mod;
+}

@@ -6,17 +6,26 @@ import "std";
 
 import "io"; // TODO: only debug
 
-type FileAddError struct {
+extern def num_builtin_files(): i32;
+extern def get_builtin_files(): *string;
+
+type FileAddResult struct {
     file_name: string,
     err_code: i32
 }
 
 type FileMap struct {
+    home_dir: string,
     files: vec.Vec // SourceFiles
 }
 
 def create(): FileMap {
-    return FileMap { files: vec.create(sizeof source.SourceFile) };
+    // TODO: windows support
+    // TODO: respond to home not found
+    return FileMap {
+        home_dir: std.getenv("HOME"),
+        files: vec.create(sizeof source.SourceFile)
+    };
 }
 
 def num_files(m: *FileMap): i32 {
@@ -27,6 +36,10 @@ def get_by_idx(m: *FileMap, idx: i32): source.SourceFile {
     let s = source.empty();
     vec.get(&m.files, idx, &s as *void);
     return s;
+}
+
+def get_ptr_by_idx(m: *FileMap, idx: i32): *source.SourceFile {
+    return vec.get_ptr(&m.files, idx) as *source.SourceFile;
 }
 
 def free_fm(m: *FileMap): void {
@@ -42,18 +55,55 @@ def free_fm(m: *FileMap): void {
     vec.free_v(&m.files);
 }
 
-def add_all(m: *FileMap, bin_path: *path.Path, len: i32, file_names: *string): FileAddError {
-    let i = 1;
+def add_std_lib(m: *FileMap, bin_path: *path.Path): FileAddResult {
+    let len = num_builtin_files();
+    let file_names = get_builtin_files();
+
+    // TODO: users should be able to change this using env vars
+    let std_dir = std.format_str("%s/.kantan/std", m.home_dir);
+
+    let i = 0;
+    while i < len {
+        let file_name = *(file_names + i);
+
+        let full_file_name = std.format_str("%s/%s", std_dir, file_name);
+
+        let res = 0;
+        if (res = reader.add_file(m, bin_path, full_file_name)) != 0 {
+            delete std_dir;
+            return FileAddResult { file_name: file_name, err_code: res };
+        }
+
+        let idx = num_files(m) - 1;
+        let sptr = get_ptr_by_idx(m, idx);
+
+        if sptr != null {
+            let new_path = path.new_path_buf(file_name);
+            file.free_f(&sptr.file);
+            sptr.file.path = new_path;
+        }
+
+        delete full_file_name;
+
+        i = i + 1;
+    }
+
+    delete std_dir;
+    return FileAddResult { file_name: null, err_code: 0 };
+}
+
+def add_all(m: *FileMap, bin_path: *path.Path, len: i32, file_names: *string): FileAddResult {
+    let i = 0;
     while i < len {
         let file_name = *(file_names + i);
         let res = 0;
         if (res = reader.add_file(m, bin_path, file_name)) != 0 {
-            return FileAddError { file_name: file_name, err_code: res };
+            return FileAddResult { file_name: file_name, err_code: res };
         }
         i = i + 1;
     }
 
-    return FileAddError { file_name: null, err_code: 0 };
+    return FileAddResult { file_name: null, err_code: 0 };
 }
 
 def add_file(m: *FileMap, bin_path: *path.Path, name: string): i32 {

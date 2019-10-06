@@ -78,7 +78,7 @@ def canonicalize(p: *Path, dest: *PathBuf): i32 {
 
 def is_abs(p: *Path): bool {
     // TODO: windows support
-    return *p.inner == SYSTEM_SEPARATOR;
+    return *p.inner == SYSTEM_SEPARATOR || *p.inner == '~';
 }
 
 def is_root(p: *Path): bool {
@@ -129,7 +129,14 @@ def merge_abs_rel(base: *Path, child: *Path, dest: *PathBuf): i32 {
 
 def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathBuf): i32 {
     if base.len == 0 || is_abs(child) {
-        *dest = new_path_buf(child.inner);
+        *dest = create_path_buf(child.inner);
+
+        let error = canonicalize(&dest.inner, dest);
+        if error != 0 {
+            free_pb(dest);
+            return error;
+        }
+
         return 0;
     }
 

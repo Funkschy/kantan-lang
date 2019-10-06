@@ -15,6 +15,7 @@ extern def memmove(dest: *void, src: *void, size: i32): void;
 extern def realloc(ptr: *void, size: i32): *void;
 extern def abort(): void;
 extern def strerror(err: i32): string;
+extern def getenv(name: string): string;
 
 // in lib.c
 extern def get_errno(): i32;

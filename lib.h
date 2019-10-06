@@ -1,4 +1,19 @@
 #include <stdlib.h>
+#include <stdint.h>
+
+static char const *const builtin_files[] = {
+    "io.kan"
+};
+
+static size_t const len_builtin_files = sizeof(builtin_files) / sizeof(char *);
+
+int32_t num_builtin_files() {
+    return len_builtin_files;
+}
+
+char const *const *get_builtin_files() {
+    return builtin_files;
+}
 
 static char const *const token_strings[] = {
     "unknown token",

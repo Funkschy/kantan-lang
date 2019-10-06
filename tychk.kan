@@ -23,19 +23,6 @@ def empty_ctx(): Ctx {
     return Ctx { mod: null, import_map: map.create(), scopes: scope.empty_stack() };
 }
 
-def get_abs_import_path(
-    current: *mod.Module,
-    imp: *ast.ImportStmt,
-    span_interner: *span.SpanInterner,
-    dest: *path.PathBuf
-): i32 {
-    let len = span.get(span_interner, imp.mod.ident_span).len;
-    let imp_path = path.create(imp.mod.ident, len);
-    let dir = path.parent(&current.path);
-
-    return path.merge_abs_rel_suffix(&dir, &imp_path, ".kan", dest);
-}
-
 def create_ctx(mods: *mod.Map, mod: *mod.Module, span_interner: *span.SpanInterner): Ctx {
     let num_imports = mod.num_imports(mod);
     let import_map = map.with_cap(num_imports);
@@ -43,38 +30,12 @@ def create_ctx(mods: *mod.Map, mod: *mod.Module, span_interner: *span.SpanIntern
     let i = 0;
     while i < num_imports {
         let imp = mod.get_import_at(mod, i);
-        let key = map.key_from_ident(span_interner, &imp.mod);
-
-        let abs = path.buf_from(path.empty());
-        let error = get_abs_import_path(mod, imp, span_interner, &abs);
-
-        if error != 0 {
-            // TODO: file does not exist error
-            let p = path.parent(&mod.path);
-            let mod_s = path.to_string(&p);
-            let imp_s = ident.to_string(&imp.mod, span_interner);
-
-            io.printf("%s/%s.kan: %s\n", mod_s, imp_s, std.strerror(error));
-
-            delete imp_s;
-            delete mod_s;
-
-            std.abort();
-        }
-
-        let imported_mod = mod.get_mod_by_path(mods, &abs.inner);
-
+        let imported_mod = mod.try_get_mod_from_import(mods, mod, span_interner, imp);
         if imported_mod == null {
-            let s = path.to_string(&abs.inner);
-            io.printf("ERROR: %s is not being compiled\n", s);
-            delete s;
-
-            // TODO: module does not exist error
-            path.free_pb(&abs);
             std.abort();
         }
-        path.free_pb(&abs);
 
+        let key = map.key_from_ident(span_interner, &imp.mod);
         map.insert(&import_map, key, imported_mod as *void);
         i = i + 1;
     }
@@ -149,7 +110,7 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): void {
     tc.ctx = create_ctx(tc.mods, mod, tc.span_interner);
 
     let s = path.to_string(&mod.path);
-    io.printf("%s %d\n", s, mod.num_imports(mod));
+    // io.printf("%s %d\n", s, mod.num_imports(mod));
     delete s;
 
     let i = 0;

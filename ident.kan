@@ -18,6 +18,10 @@ def empty(): Ident {
     return create(lexer.empty_token());
 }
 
+def len(i: *Ident, span_interner: *span.SpanInterner): i32 {
+    return span.get(span_interner, i.ident_span).len;
+}
+
 // this does a strdup and needs to be freed
 def to_string(i: *Ident, span_interner: *span.SpanInterner): string {
     let len = span.get(span_interner, i.ident_span).len;

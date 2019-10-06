@@ -54,7 +54,18 @@ def main(argc: i32, argv: *string): i32 {
     let span_interner = span.create_interner();
 
     let file_map = reader.create();
-    let res = reader.add_all(&file_map, &compiler_path, argc, argv);
+    let res = reader.add_std_lib(&file_map, &compiler_path);
+    if res.err_code != 0 {
+        let err_msg = std.err2str(res.err_code, res.file_name);
+        io.printf("ERROR: %s\n", err_msg);
+        delete err_msg;
+
+        reader.free_fm(&file_map);
+        path.free_pb(&abs_compiler_path);
+        return -2;
+    }
+
+    let res = reader.add_all(&file_map, &compiler_path, argc - 1, argv + 1);
     if res.err_code != 0 {
         let err_msg = std.err2str(res.err_code, res.file_name);
         io.printf("ERROR: %s\n", err_msg);
