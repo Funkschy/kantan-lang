@@ -63,6 +63,11 @@ def open_scope(s: *ScopeStack): void {
     vec.push(&s.scopes, &scope as *void);
 }
 
+def close_scope(s: *ScopeStack): void {
+    free_s(top(s));
+    s.scopes.len = s.scopes.len - 1;
+}
+
 def scope_at(s: *ScopeStack, i: i32): *Scope {
     return vec.get_ptr(&s.scopes, i) as *Scope;
 }

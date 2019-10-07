@@ -174,12 +174,17 @@ def get_abs_import_path(
     return path.merge_abs_rel_suffix(&dir, &imp_path, KANTAN_FILE_ENDING, dest);
 }
 
+// on error, this will return null and fill (if not null) the
+// supplied errdest parameter with a heap allocated error message!
 def try_get_mod_from_import(
     mm: *Map,
     mod: *Module,
     span_interner: *span.SpanInterner,
-    imp: *ast.ImportStmt
+    imp: *ast.ImportStmt,
+    errdest: *string
 ): *Module {
+    // TODO: extract errors to lib.h with the ususal error code system
+
     let plen = ident.len(&imp.mod, span_interner);
     let path_str = std.format_str("%.*s%s", plen, imp.mod.ident, KANTAN_FILE_ENDING);
     let p = path.create(path_str, plen + 4);
@@ -187,41 +192,51 @@ def try_get_mod_from_import(
     let imported_mod = get_mod_by_path(mm, &p);
     delete path_str;
 
+    if imported_mod != null {
+        return imported_mod;
+    }
+
     // if not in stdlib, try absolute path
-    if imported_mod == null {
-        let abs = path.buf_from(path.empty());
-        let error = get_abs_import_path(mod, imp, span_interner, &abs);
+    let abs = path.buf_from(path.empty());
+    let error = get_abs_import_path(mod, imp, span_interner, &abs);
 
-        if error != 0 {
-            // TODO: file does not exist error
-            let p = path.parent(&mod.path);
-            let mod_s = path.to_string(&p);
-            let imp_s = ident.to_string(&imp.mod, span_interner);
+    if error != 0 {
+        let p = path.parent(&mod.path);
+        let mod_s = path.to_string(&p);
+        let imp_s = ident.to_string(&imp.mod, span_interner);
 
-            // print error (only temporarily)
-            io.printf("%s/%s%s: %s\n", mod_s, imp_s, KANTAN_FILE_ENDING, std.strerror(error));
+        if errdest != null {
+            let err = std.format_str(
+                "%s: %s/%s%s",
+                std.strerror(error),
+                mod_s,
+                imp_s,
+                KANTAN_FILE_ENDING
+            );
 
-            delete imp_s;
-            delete mod_s;
-
-            return null;
+            *errdest = err;
         }
 
-        imported_mod = get_mod_by_path(mm, &abs.inner);
+        delete imp_s;
+        delete mod_s;
 
-        if imported_mod == null {
-            // TODO: remove this
+        return null;
+    }
+
+    imported_mod = get_mod_by_path(mm, &abs.inner);
+
+    // nothing we can do...
+    if imported_mod == null {
+        if errdest != null {
             let s = path.to_string(&abs.inner);
-            io.printf("ERROR: %s is not being compiled\n", s);
+            *errdest = std.format_str("%s is not being compiled", s);
             delete s;
-
-            // TODO: module does not exist error
-            path.free_pb(&abs);
-            return null;
         }
 
         path.free_pb(&abs);
+        return null;
     }
 
+    path.free_pb(&abs);
     return imported_mod;
 }

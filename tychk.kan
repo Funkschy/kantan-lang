@@ -15,7 +15,7 @@ extern def isort(arr: *i32, len: i32): *i32;
 
 type Ctx struct {
     mod: *mod.Module,
-    import_map: map.Map, // Map of *PathBuf
+    import_map: map.Map, // Map of *Module
     scopes: scope.ScopeStack
 }
 
@@ -30,8 +30,19 @@ def create_ctx(mods: *mod.Map, mod: *mod.Module, span_interner: *span.SpanIntern
     let i = 0;
     while i < num_imports {
         let imp = mod.get_import_at(mod, i);
-        let imported_mod = mod.try_get_mod_from_import(mods, mod, span_interner, imp);
+
+        let error: string = null;
+        let imported_mod = mod.try_get_mod_from_import(
+            mods,
+            mod,
+            span_interner,
+            imp,
+            &error
+        );
+
         if imported_mod == null {
+            // TODO: this is only temporary
+            io.printf("%s\n", error);
             std.abort();
         }
 
@@ -89,7 +100,20 @@ def sorted_mods(mods: *mod.Map): *i32 {
 }
 
 def lookup_ident(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
-    return scope.lookup(&tc.ctx.scopes, ident);
+    let res = scope.lookup(&tc.ctx.scopes, ident);
+    if res != null {
+        return ty.clone(res);
+    }
+
+    // if the requested type is not in any scopes,
+    // try to find it inside the imported modules
+    let key = map.key_from_ident(tc.span_interner, ident);
+    let mod = map.get(&tc.ctx.import_map, key) as *mod.Module;
+    if mod != null {
+        return ty.new_mod(mod);
+    }
+
+    return null;
 }
 
 def check(tc: *TypeChecker): void {
