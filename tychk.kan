@@ -1,68 +1,52 @@
 import "ast";
 import "ptrvec";
+import "vec";
 import "span";
 import "mod";
 import "map";
 import "scope";
 import "path";
+import "ident";
 
 // TODO: only temp solution
 import "std";
 import "io";
-import "ident";
 
 extern def isort(arr: *i32, len: i32): *i32;
 
+type TypeError struct {
+    text: string,
+    span: span.Span
+}
+
+def err(tc: *TypeChecker, text: string, span: span.Span): TypeError {
+    return TypeError { text: text, span: span };
+}
+
+def free_err(err: *TypeError): void {
+    delete err.text;
+}
+
 type Ctx struct {
     mod: *mod.Module,
-    import_map: map.Map, // Map of *Module
     scopes: scope.ScopeStack
 }
 
 def empty_ctx(): Ctx {
-    return Ctx { mod: null, import_map: map.create(), scopes: scope.empty_stack() };
+    return Ctx { mod: null, scopes: scope.empty_stack() };
 }
 
 def create_ctx(mods: *mod.Map, mod: *mod.Module, span_interner: *span.SpanInterner): Ctx {
-    let num_imports = mod.num_imports(mod);
-    let import_map = map.with_cap(num_imports);
-
-    let i = 0;
-    while i < num_imports {
-        let imp = mod.get_import_at(mod, i);
-
-        let error: string = null;
-        let imported_mod = mod.try_get_mod_from_import(
-            mods,
-            mod,
-            span_interner,
-            imp,
-            &error
-        );
-
-        if imported_mod == null {
-            // TODO: this is only temporary
-            io.printf("%s\n", error);
-            std.abort();
-        }
-
-        let key = map.key_from_ident(span_interner, &imp.mod);
-        map.insert(&import_map, key, imported_mod as *void);
-        i = i + 1;
-    }
-
     let scopes = scope.create_stack(span_interner);
     scope.open_scope(&scopes);
 
     return Ctx {
         mod: mod,
-        import_map: import_map,
         scopes: scopes
     };
 }
 
 def free_ctx(ctx: *Ctx): void {
-    map.free_m(&ctx.import_map);
     scope.free_stack(&ctx.scopes);
 }
 
@@ -70,7 +54,10 @@ type TypeChecker struct {
     span_interner: *span.SpanInterner,
     mods: *mod.Map,
     sorted_mods: *i32,
-    ctx: Ctx
+    // types that get created during type checking and need to be freed afterwards
+    temp_types: ptrvec.Vec,
+    ctx: Ctx,
+    errors: vec.Vec // <TypeError>
 }
 
 def create(span_interner: *span.SpanInterner, mods: *mod.Map): TypeChecker {
@@ -78,8 +65,27 @@ def create(span_interner: *span.SpanInterner, mods: *mod.Map): TypeChecker {
         span_interner: span_interner,
         mods: mods,
         sorted_mods: sorted_mods(mods),
-        ctx: empty_ctx()
+        temp_types: ptrvec.with_cap(256),
+        ctx: empty_ctx(),
+        errors: vec.create(sizeof TypeError)
     };
+}
+
+def num_errs(tc: *TypeChecker): i32 {
+    return tc.errors.len;
+}
+
+def push_err(tc: *TypeChecker, error: TypeError): void {
+    vec.push(&tc.errors, &error as *void);
+}
+
+def push_mk_err(tc: *TypeChecker, text: string, span: span.Span): void {
+    let error = err(tc, text, span);
+    vec.push(&tc.errors, &error as *void);
+}
+
+def get_err(tc: *TypeChecker, i: i32): *TypeError {
+    return vec.get_ptr(&tc.errors, i) as *TypeError;
 }
 
 def sorted_mods(mods: *mod.Map): *i32 {
@@ -100,20 +106,7 @@ def sorted_mods(mods: *mod.Map): *i32 {
 }
 
 def lookup_ident(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
-    let res = scope.lookup(&tc.ctx.scopes, ident);
-    if res != null {
-        return ty.clone(res);
-    }
-
-    // if the requested type is not in any scopes,
-    // try to find it inside the imported modules
-    let key = map.key_from_ident(tc.span_interner, ident);
-    let mod = map.get(&tc.ctx.import_map, key) as *mod.Module;
-    if mod != null {
-        return ty.new_mod(mod);
-    }
-
-    return null;
+    return scope.lookup(&tc.ctx.scopes, ident);
 }
 
 def check(tc: *TypeChecker): void {
@@ -139,33 +132,95 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): void {
 
     let i = 0;
     while i < mod.num_stmts(mod) {
-        check_stmt(tc, mod.get_stmt_at(mod, i));
+        let result = check_stmt(tc, mod.get_stmt_at(mod, i));
+
+        if result != null {
+            mod.set_stmt_at(mod, i, result);
+        }
+
         i = i + 1;
     }
 }
 
+def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): void {
+    ptrvec.push_ptr(&tc.temp_types, ty as *void);
+}
+
+def make_mod_type(tc: *TypeChecker, mod: *mod.Module): *ty.Type {
+    let mod_ty = ty.new_mod(mod);
+    push_tmp_ty(tc, mod_ty);
+    return mod_ty;
+}
+
+def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
+    scope.bind(&tc.ctx.scopes, ident, ty);
+}
+
+// returns the statement which should replace the old one
+// if a new statement is created, this function will free the old one
 def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
-    // STMT_IMPORT
     // STMT_FUNC_DECL
-    // STMT_STRUCT_DECL
     // STMT_BLOCK
     // STMT_IF
     // STMT_WHILE
     // STMT_DELETE
     // STMT_RETURN
 
+    // STMT_IMPORT
+    if ast.is_import_stmt(s) {
+        let i_s = ast.as_import_stmt(s);
+
+        let error: string = null;
+        let imported_mod = mod.try_get_mod_from_import(
+            tc.mods,
+            tc.ctx.mod,
+            tc.span_interner,
+            i_s,
+            &error
+        );
+
+        if imported_mod == null {
+            push_mk_err(tc, error, i_s.mod.ident_span);
+            return null;
+        }
+
+        let mod_ty = make_mod_type(tc, imported_mod);
+        bind(tc, &i_s.mod, mod_ty);
+
+        return s;
+    }
+
+    // STMT_STRUCT_DECL
+    if ast.is_struct_decl_stmt(s) {
+        let sd = &ast.as_struct_decl_stmt(s).decl;
+
+        let s_ty = ty.new_struct(sd.name, vec.create(sizeof ty.StructField));
+        push_tmp_ty(tc, s_ty);
+        bind(tc, &sd.name, s_ty);
+
+        return s;
+    }
+
     // STMT_LET
     if ast.is_let_stmt(s) {
         let l_s = ast.as_let_stmt(s);
-        l_s.value = check_expr(tc, l_s.value);
-        scope.bind(&tc.ctx.scopes, &l_s.ident, l_s.value.ty);
+        let value = check_expr(tc, l_s.value);
+        if value == null {
+            return null;
+        }
+        l_s.value = value;
+        bind(tc, &l_s.ident, l_s.value.ty);
         return s;
     }
 
     // STMT_EXPR
     if ast.is_expr_stmt(s) {
         let e_s = ast.as_expr_stmt(s);
-        e_s.expr = check_expr(tc, e_s.expr);
+        let expr = check_expr(tc, e_s.expr);
+        if expr == null {
+            return null;
+        }
+        e_s.expr = expr;
         return s;
     }
 
@@ -173,28 +228,73 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 }
 
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
-    let s = ast.expr_to_string(e, tc.span_interner);
-    io.printf("%s\n", s);
-    delete s;
+    // EXPR_CHAR
+    // EXPR_BINARY
+    // EXPR_UNARY
+    // EXPR_ASSIGN
+    // EXPR_CALL
+    // EXPR_INIT
+    // EXPR_AS
+    // EXPR_NEW
 
+    // let s = ast.expr_to_string(e, tc.span_interner);
+    // io.printf("%s\n", s);
+    // delete s;
+
+    // EXPR_INT
     if ast.is_int_expr(e) {
         e.ty = ty.new_i32();
+        push_tmp_ty(tc, e.ty);
         return e;
     }
 
+    // EXPR_STRING
+    if ast.is_string_expr(e) {
+        e.ty = ty.new_string();
+        push_tmp_ty(tc, e.ty);
+        return e;
+    }
+
+    // EXPR_IDENT
     if ast.is_ident_expr(e) {
-        e.ty = ty.clone(lookup_ident(tc, &ast.as_ident_expr(e).ident));
+        e.ty = lookup_ident(tc, &ast.as_ident_expr(e).ident);
 
         // TODO: error
         if e.ty == null {
-            return e;
+            return null;
         }
 
         let s = ty.to_string(e.ty, tc.span_interner);
-        io.printf("type: %s\n", s);
+        io.printf("i type: %s\n", s);
         delete s;
 
         return e;
+    }
+
+    // EXPR_ACCESS
+    if ast.is_access_expr(e) {
+        let a_e = ast.as_access_expr(e);
+        let left = check_expr(tc, a_e.left);
+
+        if left == null {
+            return null;
+        }
+
+        a_e.left = left;
+
+        // TODO: remove, only debug
+        let s = ty.to_string(a_e.left.ty, tc.span_interner);
+        io.printf("a type: %s\n", s);
+        delete s;
+
+        if !ty.is_scoped(a_e.left.ty) {
+            let ty_s = ty.to_string(a_e.left.ty, tc.span_interner);
+            let error = std.format_str("'%s' cannot be accessed with '.' operator", ty_s);
+            delete ty_s;
+
+            push_mk_err(tc, error, a_e.left.span);
+            return null;
+        }
     }
 
     return e;
@@ -202,5 +302,20 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
 
 def free_tc(tc: *TypeChecker): void {
     free_ctx(&tc.ctx);
+
+    let i = 0;
+    while i < tc.temp_types.len {
+        ty.type_free(ptrvec.get(&tc.temp_types, i) as *ty.Type);
+        i = i + 1;
+    }
+
+    ptrvec.free_v(&tc.temp_types);
     delete tc.sorted_mods;
+
+    i = 0;
+    while i < tc.errors.len {
+        free_err(get_err(tc, i));
+        i = i + 1;
+    }
+    vec.free_v(&tc.errors);
 }

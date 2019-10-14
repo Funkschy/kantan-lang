@@ -672,7 +672,6 @@ def expr_free(e: *Expr): void {
         expr_free(as_new_expr(e).expr);
     }
 
-    ty.type_free(e.ty);
     delete e;
 }
 

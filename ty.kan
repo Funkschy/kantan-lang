@@ -1,14 +1,27 @@
 #include "std.h"
 
 import "ptrvec";
+import "vec";
 import "std";
-import "ast";
+import "ident";
+
+// TODO: this should be imported, but can't because of circular dependencies
+// for some reason, this works anyway
+// import "mod";
 
 #define WIDTH_UNKNOWN -1
 
-#define TY_UNKNOWN 0
-#define TY_I32 1
-#define TY_FUNC 2
+#define TY_UNKNOWN  0
+#define TY_I32      1
+#define TY_STRING   2
+#define TY_FUNC     3
+#define TY_MOD      4
+#define TY_STRUCT   5
+
+#define FLAG_SCOPED 1
+
+extern def flag_set(flags: *i32, flag: i32): void;
+extern def flag_get(flags: *i32, flag: i32): bool;
 
 /////////// i32 type ///////////
 
@@ -17,9 +30,12 @@ type I32 struct {
 }
 
 def new_i32(): *Type {
-    return (new I32 {
+    let t = (new I32 {
         t: create_type(TY_I32)
     }) as *Type;
+
+    fill_width_align(t);
+    return t;
 }
 
 def is_i32(t: *Type): bool {
@@ -30,23 +46,87 @@ def as_i32(t: *Type): *I32 {
     return t as *I32;
 }
 
+/////////// string type ///////////
+
+type String struct {
+    t: Type
+}
+
+def new_string(): *Type {
+    let t = (new String {
+        t: create_type(TY_STRING)
+    }) as *Type;
+
+    fill_width_align(t);
+    return t;
+}
+
+def is_string(t: *Type): bool {
+    return t.kind == TY_STRING;
+}
+
+def as_string(t: *Type): *String {
+    return t as *String;
+}
+
+/////////// func type ///////////
+
+type StructField struct {
+    name: ident.Ident,
+    ty: *Type
+}
+
+type Struct struct {
+    t: Type,
+    name: ident.Ident,
+    fields: vec.Vec // <StructField>
+}
+
+def new_struct(name: ident.Ident, fields: vec.Vec): *Type {
+    let t = (new Struct {
+        t: create_type(TY_STRUCT),
+        name: name,
+        fields: fields
+    }) as *Type;
+
+    flag_set(&t.flags, FLAG_SCOPED);
+    fill_width_align(t);
+
+    return t;
+}
+
+def is_struct(t: *Type): bool {
+    return t.kind == TY_STRUCT;
+}
+
+def as_struct(t: *Type): *Struct {
+    return t as *Struct;
+}
+
+def field_at(t: *Struct, i: i32): *StructField {
+    return vec.get_ptr(&t.fields, i) as *StructField;
+}
+
 /////////// func type ///////////
 
 type Func struct {
     t: Type,
     ret: *Type,
     params: TypeList,
-    name: *ast.IdentExpr
+    name: ident.Ident
 }
 
-def new_func(ret: *Type, params: ptrvec.Vec, name: *ast.IdentExpr): *Type {
+def new_func(ret: *Type, params: ptrvec.Vec, name: ident.Ident): *Type {
     let params = create_type_list(params);
-    return (new Func {
+    let t = (new Func {
         t: create_type(TY_FUNC),
         ret: ret,
         params: params,
         name: name
     }) as *Type;
+
+    fill_width_align(t);
+    return t;
 }
 
 def is_func(t: *Type): bool {
@@ -57,23 +137,56 @@ def as_func(t: *Type): *Func {
     return t as *Func;
 }
 
+/////////// mod type ///////////
+
+type Mod struct {
+    t: Type,
+    mod: *mod.Module
+}
+
+def new_mod(mod: *mod.Module): *Type {
+    let t = (new Mod {
+        t: create_type(TY_MOD),
+        mod: mod
+    }) as *Type;
+
+    flag_set(&t.flags, FLAG_SCOPED);
+
+    return t;
+}
+
+def is_mod(t: *Type): bool {
+    return t.kind == TY_MOD;
+}
+
+def as_mod(t: *Type): *Mod {
+    return t as *Mod;
+}
+
 /////////// base type ///////////
 
 type Type struct {
     kind: i32,
     width: i32, // width in bytes
-    align: i32
+    align: i32,
+    flags: i32
 }
 
 def create_type(kind: i32): Type {
-    let t = Type {
+    return Type {
         kind: kind,
         width: 0,
-        align: 0
+        align: 0,
+        flags: 0
     };
+}
 
-    fill_width_align(&t);
-    return t;
+def is_scoped(t: *Type): bool {
+    if t == null {
+        return false;
+    }
+
+    return flag_get(&t.flags, FLAG_SCOPED);
 }
 
 type TypeList struct {
@@ -112,6 +225,18 @@ def type_free(t: *Type): void {
         type_list_free(&f_ty.params);
     }
 
+    if is_struct(t) {
+        let s_ty = as_struct(t);
+        let i = 0;
+        while i < s_ty.fields.len {
+            let f = field_at(s_ty, i);
+            if f != null {
+                type_free(f.ty);
+            }
+            i = i + 1;
+        }
+    }
+
     delete t;
 }
 
@@ -132,8 +257,27 @@ def fill_width_align(t: *Type): bool {
     let align = 0;
     let width = WIDTH_UNKNOWN;
 
-    if t.kind == TY_I32 {
+    if is_i32(t) {
         width = 4;
+    } if is_string(t) {
+        width = 8;
+    } else if is_struct(t) {
+        let s_ty = as_struct(t);
+        let max_width = width;
+
+        let i = 0;
+        while i < s_ty.fields.len {
+            let f = field_at(s_ty, i);
+            if f != null {
+                let w = f.ty.width;
+                if w > max_width {
+                    max_width = w;
+                }
+            }
+            i = i + 1;
+        }
+
+        width = max_width;
     }
 
     if width != WIDTH_UNKNOWN {
@@ -157,11 +301,20 @@ def to_string(t: *Type, span_interner: *span.SpanInterner): string {
         return std.strdup("i32");
     }
 
+    if is_string(t) {
+        return std.strdup("string");
+    }
+
     if is_func(t) {
         // TODO: resolve cyclic dependencies
         let name = "name";
         let s = std.format_str("def %s(...): ...", name);
         return s;
+    }
+
+    if is_mod(t) {
+        // TODO: use mod name
+        return std.strdup("mod");
     }
 
     return null;

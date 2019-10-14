@@ -194,6 +194,14 @@ uint64_t next_pow_of_2(uint64_t num) {
     return n;
 }
 
+void flag_set(uint32_t *flags, uint32_t flag) {
+    *flags |= flag;
+}
+
+bool flag_get(uint32_t *flags, uint32_t flag) {
+    return *flags & flag;
+}
+
 _Float32 int_to_float(int64_t i) {
     return (_Float32) i;
 }

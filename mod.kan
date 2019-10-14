@@ -30,6 +30,10 @@ def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {
     return ptrvec.get(&mod.statements, i) as *ast.Stmt;
 }
 
+def set_stmt_at(mod: *Module, i: i32, s: *ast.Stmt): void {
+    ptrvec.set(&mod.statements, i, s as *void);
+}
+
 def num_stmts(mod: *Module): i32 {
     return mod.statements.len;
 }

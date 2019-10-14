@@ -65,8 +65,8 @@ def num_errs(p: *Parser): i32 {
     return p.errors.len;
 }
 
-def get_err(p: *Parser, idx: i32, dest: *ParseError): bool {
-    return vec.get(&p.errors, idx, dest as *void);
+def get_err(p: *Parser, idx: i32): *ParseError {
+    return vec.get_ptr(&p.errors, idx) as *ParseError;
 }
 
 def push_err(p: *Parser, error: ParseError): void {
