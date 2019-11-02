@@ -5,6 +5,7 @@ import subprocess
 import os
 from os import path as osp
 
+
 class Expected(object):
     def __init__(self, path):
         with open(path, 'r') as f:
@@ -20,12 +21,15 @@ class Expected(object):
 
         return int(self.string.splitlines()[0][6:])
 
+
 def run_cmd(command_list):
     return subprocess.run(command_list, stdout=subprocess.PIPE, encoding='utf-8')
+
 
 def compile(exe, files):
     args = [exe] + files
     return run_cmd(args)
+
 
 def get_expected(f):
     e = pathlib.Path(f).with_suffix('.expected')
@@ -34,6 +38,7 @@ def get_expected(f):
         return None
 
     return Expected(e)
+
 
 def get_first_diff(first, second):
     if len(first) != len(second):
@@ -44,6 +49,7 @@ def get_first_diff(first, second):
             return i
 
     return 0
+
 
 def compare_result(result, expected, f):
     if result.returncode != expected.returncode:
@@ -57,6 +63,7 @@ def compare_result(result, expected, f):
             expected.text[diff:], str(result.stdout)[diff:], f
         ))
 
+
 def run_tests(exe, testdir):
     files = map(lambda f: osp.join(testdir, f), os.listdir(testdir))
 
@@ -69,7 +76,8 @@ def run_tests(exe, testdir):
             result = compile(exe, files)
         elif f.endswith('.kan'):
             result = compile(exe, [f])
-        else: continue
+        else:
+            continue
 
         expected = get_expected(f)
         if expected is None:
@@ -80,6 +88,7 @@ def run_tests(exe, testdir):
             continue
 
         compare_result(result, expected, f)
+
 
 if __name__ == '__main__':
     p = pathlib.Path(__file__).parent
