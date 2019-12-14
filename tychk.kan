@@ -36,7 +36,7 @@ def empty_ctx(): Ctx {
     return Ctx { mod: null, scopes: scope.empty_stack() };
 }
 
-def create_ctx(mods: *mod.Map, mod: *mod.Module, span_interner: *span.SpanInterner): Ctx {
+def create_ctx(mod: *mod.Module, span_interner: *span.SpanInterner): Ctx {
     let scopes = scope.create_stack(span_interner);
     scope.open_scope(&scopes);
 
@@ -124,7 +124,7 @@ def check(tc: *TypeChecker): void {
 def check_mod(tc: *TypeChecker, mod: *mod.Module): void {
      // free previous context
     free_ctx(&tc.ctx);
-    tc.ctx = create_ctx(tc.mods, mod, tc.span_interner);
+    tc.ctx = create_ctx(mod, tc.span_interner);
 
     let s = path.to_string(&mod.path);
     // io.printf("%s %d\n", s, mod.num_imports(mod));
