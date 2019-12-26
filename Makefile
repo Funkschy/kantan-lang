@@ -32,6 +32,7 @@ C_FILES = lib.c \
 		  expr_types.h \
 		  stmt_types.h \
 		  error_code.h \
+		  ty_types.h \
 		  std.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)

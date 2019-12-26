@@ -29,8 +29,25 @@ def bind_in(
     );
 }
 
+def s_bind_in(
+    s: *Scope,
+    ident_len: i32,
+    ident: string,
+    value: *ty.Type
+): bool {
+    return map.insert(
+        &s.bindings,
+        map.create_key(ident_len, ident),
+        value as *void
+    );
+}
+
 def get_in(s: *Scope, span_interner: *span.SpanInterner, ident: *ident.Ident): *ty.Type {
     return map.get(&s.bindings, map.key_from_ident(span_interner, ident)) as *ty.Type;
+}
+
+def s_get_in(s: *Scope, key_len: i32, key: string): *ty.Type {
+    return map.get(&s.bindings, map.create_key(key_len, key)) as *ty.Type;
 }
 
 type ScopeStack struct {
@@ -50,7 +67,7 @@ def create_stack(span_interner: *span.SpanInterner): ScopeStack {
 }
 
 def free_stack(s: *ScopeStack): void {
-    let i = 0;
+    let i = 2; // dont free global scopes
     while i < num_scopes(s) {
         free_s(scope_at(s, i));
         i = i + 1;
@@ -61,6 +78,10 @@ def free_stack(s: *ScopeStack): void {
 def open_scope(s: *ScopeStack): void {
     let scope = create();
     vec.push(&s.scopes, &scope as *void);
+}
+
+def push_scope(s: *ScopeStack, scope: *Scope): void {
+    vec.push(&s.scopes, scope as *void);
 }
 
 def close_scope(s: *ScopeStack): void {

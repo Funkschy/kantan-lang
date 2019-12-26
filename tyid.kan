@@ -38,6 +38,10 @@ def create_ptr(ident: ident.Ident, pointer_count: i32): Type {
     };
 }
 
+def is_ptr(t: *Type): bool {
+    return t.pointer_count > 0;
+}
+
 def to_string(ty: *Type, span_interner: *span.SpanInterner): string {
     let ident = ident.to_string(&ty.ident, span_interner);
     let ident_len = std.strlen(ident);

@@ -1,3 +1,6 @@
+#include "ty_types.h"
+#include "std.h"
+
 import "ast";
 import "ptrvec";
 import "vec";
@@ -7,6 +10,7 @@ import "map";
 import "scope";
 import "path";
 import "ident";
+import "record";
 
 // TODO: only temp solution
 import "std";
@@ -29,25 +33,38 @@ def free_err(err: *TypeError): void {
 
 type Ctx struct {
     mod: *mod.Module,
+    imports: map.Map, // <string, *mod.Module>
     scopes: scope.ScopeStack
 }
 
 def empty_ctx(): Ctx {
-    return Ctx { mod: null, scopes: scope.empty_stack() };
+    return Ctx {
+        mod: null,
+        imports: map.create(),
+        scopes: scope.empty_stack()
+    };
 }
 
-def create_ctx(mod: *mod.Module, span_interner: *span.SpanInterner): Ctx {
-    let scopes = scope.create_stack(span_interner);
+def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): Ctx {
+    let scopes = scope.create_stack(si);
+    scope.push_scope(&scopes, global);
+    scope.push_scope(&scopes, &mod.ty.scope);
     scope.open_scope(&scopes);
 
     return Ctx {
         mod: mod,
+        imports: map.create(),
         scopes: scopes
     };
 }
 
 def free_ctx(ctx: *Ctx): void {
     scope.free_stack(&ctx.scopes);
+    map.free_m(&ctx.imports);
+}
+
+def get_mod_by_alias(ctx: *Ctx, alias_len: i32, alias: string): *mod.Module {
+    return map.get(&ctx.imports, map.create_key(alias_len, alias)) as *mod.Module;
 }
 
 type TypeChecker struct {
@@ -57,18 +74,30 @@ type TypeChecker struct {
     // types that get created during type checking and need to be freed afterwards
     temp_types: ptrvec.Vec,
     ctx: Ctx,
+    globals: scope.Scope,
     errors: vec.Vec // <TypeError>
 }
 
 def create(span_interner: *span.SpanInterner, mods: *mod.Map): TypeChecker {
-    return TypeChecker {
+    let tc = TypeChecker {
         span_interner: span_interner,
         mods: mods,
-        sorted_mods: sorted_mods(mods),
+        sorted_mods: sorted_mods(mods, span_interner),
         temp_types: ptrvec.with_cap(256),
         ctx: empty_ctx(),
+        globals: scope.create(),
         errors: vec.create(sizeof TypeError)
     };
+
+    tc.globals = create_global_scope(&tc);
+    return tc;
+}
+
+def create_global_scope(tc: *TypeChecker): scope.Scope {
+    // TODO: this should be defined in builtin.kan
+    let scope = scope.create();
+    scope.s_bind_in(&scope, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
+    return scope;
 }
 
 def num_errs(tc: *TypeChecker): i32 {
@@ -88,7 +117,12 @@ def get_err(tc: *TypeChecker, i: i32): *TypeError {
     return vec.get_ptr(&tc.errors, i) as *TypeError;
 }
 
-def sorted_mods(mods: *mod.Map): *i32 {
+def add_import_alias(tc: *TypeChecker, ident: *ident.Ident, mod: *mod.Module): void {
+    map.insert(&tc.ctx.imports, map.key_from_ident(tc.span_interner, ident), mod as *void);
+}
+
+// sorts the mods after the number of imports inside
+def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
     let num_mods = mod.num_mods(mods);
     let import_nums = std.malloc(num_mods * sizeof i32) as *i32;
 
@@ -105,8 +139,52 @@ def sorted_mods(mods: *mod.Map): *i32 {
     return sorted_mods;
 }
 
+def make_mod_type(tc: *TypeChecker, m: *mod.Module, si: *span.SpanInterner): *ty.Mod {
+    let mod_ty = ty.new_mod() as *ty.Mod;
+
+    // TODO: functions
+    let i = 0;
+    let num_structs = mod.num_structs(m);
+    while i < num_structs {
+        let s = &mod.get_struct_at(m, i).decl;
+
+        // placeholder types
+        // TODO: check for duplicates
+        let s_ty = ty.new_type(TY_STRUCT, sizeof ty.Struct);
+        push_tmp_ty(tc, s_ty);
+
+        let name = ident.to_string(&s.name, si);
+        io.printf("DBG: Creating placeholder for '%s'\n", name);
+        delete name;
+
+        scope.bind_in(&mod_ty.scope, si, &s.name, s_ty);
+
+        i = i + 1;
+    }
+
+    return mod_ty;
+}
+
 def lookup_ident(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
-    return scope.lookup(&tc.ctx.scopes, ident);
+    let len = ident.len(ident, tc.span_interner);
+    let dot_index = ident.index_of(ident, len, '.');
+    if dot_index < 0 {
+        return scope.lookup(&tc.ctx.scopes, ident);
+    }
+
+    let mod = get_mod_by_alias(&tc.ctx, dot_index, ident.ident);
+    if mod == null {
+        io.printf("DBG ERROR %.*s mod not found\n", len, ident.ident);
+        return null;
+    }
+
+    let ty = mod.s_lookup(mod, len - dot_index - 1, ident.ident + dot_index + 1);
+    if ty == null {
+        io.printf("DBG ERROR %.*s type not found\n", len, ident.ident);
+        return null;
+    }
+
+    return ty;
 }
 
 def check(tc: *TypeChecker): void {
@@ -121,14 +199,22 @@ def check(tc: *TypeChecker): void {
     }
 }
 
-def check_mod(tc: *TypeChecker, mod: *mod.Module): void {
-     // free previous context
-    free_ctx(&tc.ctx);
-    tc.ctx = create_ctx(mod, tc.span_interner);
+def check_mod(tc: *TypeChecker, mod: *mod.Module): *ty.Mod {
+    // this module has already been resolved
+    if mod.ty != null {
+        return mod.ty;
+    }
 
-    let s = path.to_string(&mod.path);
-    // io.printf("%s %d\n", s, mod.num_imports(mod));
-    delete s;
+    // resolve definitions in mod and put them into the module struct
+    mod.ty = make_mod_type(tc, mod, tc.span_interner);
+
+    // TODO: don't free previous context, but instead create a map <Mod, Ctx>
+    // so that we can context switch at arbitrary points
+    // free previous context
+    free_ctx(&tc.ctx);
+    tc.ctx = create_ctx(mod, tc.span_interner, &tc.globals);
+
+    io.printf("Checking %.*s\n", mod.path.len, mod.path.inner);
 
     let i = 0;
     while i < mod.num_stmts(mod) {
@@ -140,20 +226,94 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): void {
 
         i = i + 1;
     }
+
+    return mod.ty;
 }
 
-def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): void {
+def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
     ptrvec.push_ptr(&tc.temp_types, ty as *void);
-}
-
-def make_mod_type(tc: *TypeChecker, mod: *mod.Module): *ty.Type {
-    let mod_ty = ty.new_mod(mod);
-    push_tmp_ty(tc, mod_ty);
-    return mod_ty;
+    return ty;
 }
 
 def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
     scope.bind(&tc.ctx.scopes, ident, ty);
+}
+
+def fill_struct_fields(
+    tc: *TypeChecker,
+    s_decl: *record.StructDecl,
+    s_ty: *ty.Struct
+): void {
+    let error = false;
+    // init the width first, so we can check for cicles
+    s_ty.t.width = 0;
+
+    let nf = record.num_fields(s_decl);
+    let i = 0;
+    while i < nf {
+        let f = record.empty_field();
+        if !record.field_at(s_decl, i, &f) {
+            // TODO: error
+            io.printf("DBG ERROR: TODO\n");
+            return;
+        }
+
+        let s = ident.to_string(&f.ty.ident, tc.span_interner);
+        io.printf("DBG field_ty: %s\n", s);
+        delete s;
+
+        let field_ty = lookup_ident(tc, &f.ty.ident);
+        if field_ty != null {
+            // pointers are ok, because their size is known
+            let is_ptr = tyid.is_ptr(&f.ty);
+            if !ty.is_initialized(field_ty) && !is_ptr {
+                io.printf("DBG TODO: resolve field_ty here\n");
+                if ty.is_struct(field_ty) {
+                    // TODO: resolve field_ty here or maybe wait?? dunno
+                    // perform a context switch and resolve the other module
+                    io.printf("Field ty is struct\n");
+                } else {
+                    io.printf("\n\nDBG: unreachable?\n\n");
+                }
+            } else {
+                if is_ptr {
+                    field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
+                    push_tmp_ty(tc, field_ty);
+                }
+
+                ty.push_field(s_ty, f.ident, field_ty);
+            }
+        } else {
+            error = true;
+            // TODO: real error
+            let s = ident.to_string(&f.ty.ident, tc.span_interner);
+            io.printf("DBG ERROR: TODO '%s' is null\n", s);
+            delete s;
+        }
+
+        i = i + 1;
+    }
+
+    let s = ident.to_string(&s_decl.name, tc.span_interner);
+
+    if !error {
+        ty.fill_width_align(s_ty as *ty.Type);
+
+        io.printf("DBG %s has a width of %d, align of %d\n", s, s_ty.t.width, s_ty.t.align);
+        delete s;
+
+        return;
+    }
+
+    io.printf("DBG ERROR while filling %s\n", s);
+    delete s;
+}
+
+def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): *ident.Ident {
+    // when we support "import as" constructs, this will become more interesting
+    // TODO: this should only take the last part of the path, otherwise stuff
+    // like import "./test" does not work
+    return &imp.mod;
 }
 
 // returns the statement which should replace the old one
@@ -179,13 +339,28 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             &error
         );
 
+        // no such module
         if imported_mod == null {
             push_mk_err(tc, error, i_s.mod.ident_span);
             return null;
         }
+        let alias = get_import_alias(tc, i_s);
+        add_import_alias(tc, alias, imported_mod);
 
-        let mod_ty = make_mod_type(tc, imported_mod);
-        bind(tc, &i_s.mod, mod_ty);
+        let mod_ty = imported_mod.ty;
+        // the imported module has not yet been resolved
+        if mod_ty == null {
+            // safe current context
+            let ctx = tc.ctx;
+            tc.ctx = empty_ctx();
+            mod_ty = check_mod(tc, imported_mod);
+            free_ctx(&tc.ctx);
+            // and restore it after resolving the module
+            tc.ctx = ctx;
+        }
+
+        // Bind mod type to mod ident
+        bind(tc, &i_s.mod, mod_ty as *ty.Type);
 
         return s;
     }
@@ -194,10 +369,16 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_struct_decl_stmt(s) {
         let sd = &ast.as_struct_decl_stmt(s).decl;
 
-        let s_ty = ty.new_struct(sd.name, vec.create(sizeof ty.StructField));
-        push_tmp_ty(tc, s_ty);
-        bind(tc, &sd.name, s_ty);
+        let definition = lookup_ident(tc, &sd.name);
+        if definition == null {
+            let name = ident.to_string(&sd.name, tc.span_interner);
+            // TODO: is it possible to hit this?
+            io.printf("DBG ERROR '%s' was not defined\n", name);
+            delete name;
+        }
 
+        ty.init_struct(definition, sd.name);
+        fill_struct_fields(tc, sd, definition as *ty.Struct);
         return s;
     }
 
@@ -264,9 +445,10 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
             return null;
         }
 
-        let s = ty.to_string(e.ty, tc.span_interner);
-        io.printf("i type: %s\n", s);
-        delete s;
+        // TODO: remove, only debug
+        // let s = ty.to_string(e.ty, tc.span_interner);
+        // io.printf("i type: %s\n", s);
+        // delete s;
 
         return e;
     }
@@ -283,9 +465,9 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
         a_e.left = left;
 
         // TODO: remove, only debug
-        let s = ty.to_string(a_e.left.ty, tc.span_interner);
-        io.printf("a type: %s\n", s);
-        delete s;
+        // let s = ty.to_string(a_e.left.ty, tc.span_interner);
+        // io.printf("a type: %s\n", s);
+        // delete s;
 
         if !ty.is_scoped(a_e.left.ty) {
             let ty_s = ty.to_string(a_e.left.ty, tc.span_interner);
@@ -318,4 +500,6 @@ def free_tc(tc: *TypeChecker): void {
         i = i + 1;
     }
     vec.free_v(&tc.errors);
+
+    scope.free_s(&tc.globals);
 }

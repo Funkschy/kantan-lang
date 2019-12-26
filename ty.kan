@@ -1,27 +1,20 @@
 #include "std.h"
+#include "ty_types.h"
 
 import "ptrvec";
 import "vec";
 import "std";
 import "ident";
+import "span";
+import "scope";
 
 // TODO: this should be imported, but can't because of circular dependencies
 // for some reason, this works anyway
 // import "mod";
 
 #define WIDTH_UNKNOWN -1
-
-#define TY_UNKNOWN  0
-#define TY_I32      1
-#define TY_STRING   2
-#define TY_FUNC     3
-#define TY_MOD      4
-#define TY_STRUCT   5
-
-#define FLAG_SCOPED 1
-
-extern def flag_set(flags: *i32, flag: i32): void;
-extern def flag_get(flags: *i32, flag: i32): bool;
+#define FLAG_SCOPED  1
+#define FLAG_UNSIZED 2
 
 /////////// i32 type ///////////
 
@@ -44,6 +37,33 @@ def is_i32(t: *Type): bool {
 
 def as_i32(t: *Type): *I32 {
     return t as *I32;
+}
+
+/////////// pointer type ///////////
+
+type Ptr struct {
+    t: Type,
+    count: i32,
+    inner: *ty.Type
+}
+
+def new_ptr(count: i32, inner: *ty.Type): *Type {
+    let t = (new Ptr {
+        t: create_type(TY_PTR),
+        count: count,
+        inner: inner
+    }) as *Type;
+
+    fill_width_align(t);
+    return t;
+}
+
+def is_ptr(t: *Type): bool {
+    return t.kind == TY_PTR;
+}
+
+def as_ptr(t: *Type): *Ptr {
+    return t as *Ptr;
 }
 
 /////////// string type ///////////
@@ -69,7 +89,7 @@ def as_string(t: *Type): *String {
     return t as *String;
 }
 
-/////////// func type ///////////
+/////////// struct type ///////////
 
 type StructField struct {
     name: ident.Ident,
@@ -89,10 +109,23 @@ def new_struct(name: ident.Ident, fields: vec.Vec): *Type {
         fields: fields
     }) as *Type;
 
-    flag_set(&t.flags, FLAG_SCOPED);
+    std.flag_set(&t.flags, FLAG_SCOPED);
     fill_width_align(t);
 
     return t;
+}
+
+// this function is used to initialize the placeholder structs of tychk
+def init_struct(t: *Type, name: ident.Ident): void {
+    let s = Struct {
+        t: create_type(TY_STRUCT),
+        name: name,
+        fields: vec.create(sizeof StructField)
+    };
+    std.flag_set(&s.t.flags, FLAG_SCOPED);
+    fill_width_align(&s as *Type);
+
+    std.memcpy(t as *void, &s as *void, sizeof Struct);
 }
 
 def is_struct(t: *Type): bool {
@@ -103,8 +136,17 @@ def as_struct(t: *Type): *Struct {
     return t as *Struct;
 }
 
+def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
+    let field = StructField { name: name, ty: ty };
+    vec.push(&t.fields, &field as *void);
+}
+
 def field_at(t: *Struct, i: i32): *StructField {
     return vec.get_ptr(&t.fields, i) as *StructField;
+}
+
+def num_fields(t: *Struct): i32 {
+    return t.fields.len;
 }
 
 /////////// func type ///////////
@@ -141,16 +183,17 @@ def as_func(t: *Type): *Func {
 
 type Mod struct {
     t: Type,
-    mod: *mod.Module
+    scope: scope.Scope
 }
 
-def new_mod(mod: *mod.Module): *Type {
+def new_mod(): *Type {
     let t = (new Mod {
         t: create_type(TY_MOD),
-        mod: mod
+        scope: scope.create()
     }) as *Type;
 
-    flag_set(&t.flags, FLAG_SCOPED);
+    std.flag_set(&t.flags, FLAG_SCOPED);
+    std.flag_set(&t.flags, FLAG_UNSIZED);
 
     return t;
 }
@@ -172,13 +215,26 @@ type Type struct {
     flags: i32
 }
 
+def new_type(kind: i32, size: i32): *Type {
+    let mem = std.malloc(size);
+    let ty = create_type(kind);
+    std.memcpy(mem, &ty as *void, sizeof Type);
+    return mem as *Type;
+}
+
 def create_type(kind: i32): Type {
     return Type {
         kind: kind,
-        width: 0,
+        width: WIDTH_UNKNOWN,
         align: 0,
         flags: 0
     };
+}
+
+// if the type is not unsized and the with is unknown it wasn't
+// constructed correctly
+def is_initialized(t: *Type): bool {
+    return t.width != WIDTH_UNKNOWN || std.flag_get(&t.flags, FLAG_UNSIZED);
 }
 
 def is_scoped(t: *Type): bool {
@@ -186,7 +242,7 @@ def is_scoped(t: *Type): bool {
         return false;
     }
 
-    return flag_get(&t.flags, FLAG_SCOPED);
+    return std.flag_get(&t.flags, FLAG_SCOPED);
 }
 
 type TypeList struct {
@@ -219,6 +275,11 @@ def type_free(t: *Type): void {
         return;
     }
 
+    if !is_initialized(t) {
+        delete t;
+        return;
+    }
+
     if is_func(t) {
         let f_ty = as_func(t);
         type_free(f_ty.ret);
@@ -227,14 +288,13 @@ def type_free(t: *Type): void {
 
     if is_struct(t) {
         let s_ty = as_struct(t);
-        let i = 0;
-        while i < s_ty.fields.len {
-            let f = field_at(s_ty, i);
-            if f != null {
-                type_free(f.ty);
-            }
-            i = i + 1;
-        }
+        // the inner types are garbage collected by tychk
+        vec.free_v(&s_ty.fields);
+    }
+
+    if is_mod(t) {
+        let m_ty = as_mod(t);
+        scope.free_s(&m_ty.scope);
     }
 
     delete t;
@@ -257,27 +317,34 @@ def fill_width_align(t: *Type): bool {
     let align = 0;
     let width = WIDTH_UNKNOWN;
 
-    if is_i32(t) {
+    if is_ptr(t){
+        width = 8; // TODO: determine pointer width based on target
+    } else if is_i32(t) {
         width = 4;
-    } if is_string(t) {
-        width = 8;
+    } else if is_string(t) {
+        width = 8; // TODO: determine pointer width based on target
     } else if is_struct(t) {
         let s_ty = as_struct(t);
-        let max_width = width;
+        let max_align = align;
+        let width_sum = 0;
 
         let i = 0;
         while i < s_ty.fields.len {
             let f = field_at(s_ty, i);
             if f != null {
-                let w = f.ty.width;
-                if w > max_width {
-                    max_width = w;
+                let a = f.ty.align;
+                if a > max_align {
+                    max_align = a;
                 }
+
+                let w = f.ty.width;
+                width_sum = width_sum + w;
             }
             i = i + 1;
         }
 
-        width = max_width;
+        width = width_sum;
+        align = max_align;
     }
 
     if width != WIDTH_UNKNOWN {
@@ -313,7 +380,6 @@ def to_string(t: *Type, span_interner: *span.SpanInterner): string {
     }
 
     if is_mod(t) {
-        // TODO: use mod name
         return std.strdup("mod");
     }
 

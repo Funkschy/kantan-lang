@@ -198,6 +198,10 @@ void flag_set(uint32_t *flags, uint32_t flag) {
     *flags |= flag;
 }
 
+void flag_unset(uint32_t *flags, uint32_t flag) {
+    *flags &= flag;
+}
+
 bool flag_get(uint32_t *flags, uint32_t flag) {
     return *flags & flag;
 }

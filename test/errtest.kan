@@ -1,5 +1,17 @@
 import "io";
+import "other";
 io.test;
+
+type S1 struct {
+    f: other.MyStruct
+}
+
+type Test struct {
+    test_ident: TestType,
+    other: *Test
+}
+
+type TestType struct {}
 
 let test = Test {
     test_ident: TestType {
@@ -9,11 +21,6 @@ let test = Test {
 };
 
 test.test_ident;
-
-type Test struct {
-    test_ident: TestType,
-    other: *Test
-}
 
 test as *TestType;
 let test: i32 = 0;

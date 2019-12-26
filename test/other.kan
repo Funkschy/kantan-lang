@@ -1,0 +1,14 @@
+import "io";
+import "files/empty";
+import "errtest";
+
+type MyStruct struct {
+    o: *Other,
+    t: errtest.Test,
+    i: i32
+}
+
+type Other struct {
+    t: errtest.Test,
+    t: MyStruct
+}
