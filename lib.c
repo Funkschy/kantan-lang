@@ -198,12 +198,14 @@ void flag_set(uint32_t *flags, uint32_t flag) {
     *flags |= flag;
 }
 
-void flag_unset(uint32_t *flags, uint32_t flag) {
-    *flags &= flag;
-}
-
 bool flag_get(uint32_t *flags, uint32_t flag) {
     return *flags & flag;
+}
+
+void flag_unset(uint32_t *flags, uint32_t flag) {
+    if (flag_get(flags, flag)) {
+        *flags ^= flag;
+    }
 }
 
 _Float32 int_to_float(int64_t i) {

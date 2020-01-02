@@ -1,4 +1,6 @@
 import "other";
+import "io";
+import "files/empty";
 io.test;
 
 type S1 struct {

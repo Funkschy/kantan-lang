@@ -30,6 +30,7 @@ type WaitingRequest struct {
     kind: i32,
     field_idx: i32,
     to_fill: *ty.Type,
+    to_fill_mod: *mod.Module,
     waiting_for_ty: *ty.Type,
     waiting_for_mod: *mod.Module
 }
@@ -37,6 +38,7 @@ type WaitingRequest struct {
 def create_waiting_request(
     kind: i32,
     to_fill: *ty.Type,
+    to_fill_mod: *mod.Module,
     waiting_for_ty: *ty.Type,
     waiting_for_mod: *mod.Module,
     field_idx: i32
@@ -45,6 +47,7 @@ def create_waiting_request(
         kind: kind,
         field_idx: field_idx,
         to_fill: to_fill,
+        to_fill_mod: to_fill_mod,
         waiting_for_ty: waiting_for_ty,
         waiting_for_mod: waiting_for_mod
     };
@@ -80,7 +83,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
     let ident = req_waiting_for_ident(&request);
     // ------
     let s = ident.to_string(ident, si);
-    io.printf("DBG: Adding request for '%s'\n", s);
+    io.printf("DBG: >>> Adding request for '%s'\n", s);
     delete s;
     // ------
 
@@ -89,7 +92,6 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
     let idx = -1;
 
     if std.ptr_to_int(request_idx) == 0 {
-        io.printf("1\n");
         // create new vector
         idx = wrm.requests.len;
         let v = vec.create(sizeof WaitingRequest);
@@ -100,7 +102,6 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
         // add one, to be able to tell null apart from 0
         map.insert(&wrm.request_map, key, request_idx + 1);
     } else {
-        io.printf("2\n");
         idx = std.ptr_to_int(request_idx) - 1;
     }
 
@@ -221,11 +222,7 @@ def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
     add_request(map, tc.span_interner, req);
 }
 
-def get_waiting_map(tc: *TypeChecker): *WaitingRequestMap {
-    return get_waiting_map_mod(tc, tc.ctx.mod);
-}
-
-def get_waiting_map_mod(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
+def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
     return vec.get_ptr(&tc.requests, mod.idx) as *WaitingRequestMap;
 }
 
@@ -390,6 +387,8 @@ def fill_struct_fields(
     s_decl: *record.StructDecl,
     s_ty: *ty.Struct
 ): void {
+    // TODO: handle self fields
+
     if ty.is_initialized(s_ty as *ty.Type) {
         return;
     }
@@ -400,8 +399,6 @@ def fill_struct_fields(
 
     let error = false;
     let waiting = false;
-    // init the width first, so we can check for cycles
-    s_ty.t.width = 0;
 
     let nf = record.num_fields(s_decl);
     let i = 0;
@@ -413,7 +410,7 @@ def fill_struct_fields(
             return;
         }
 
-        let s = ident.to_string(&f.ty.ident, tc.span_interner);
+        let s = tyid.to_string(&f.ty, tc.span_interner);
         io.printf("DBG: field_ty %s\n", s);
         delete s;
 
@@ -423,16 +420,14 @@ def fill_struct_fields(
         if field_ty != null {
             // pointers are ok, because their size is known
             let is_ptr = tyid.is_ptr(&f.ty);
-            if !ty.is_initialized(field_ty) && !is_ptr {
 
+            if !ty.is_initialized(field_ty) && !is_ptr {
                 if ty.is_struct(field_ty) {
                     // same module
                     if mod == null {
                         mod = tc.ctx.mod;
                     }
 
-                    // TODO: resolve field_ty here or maybe wait?? dunno
-                    // perform a context switch and resolve the other module
                     io.printf("DBG: Field ty is struct, creating placeholder\n");
 
                     let placeholder = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
@@ -441,14 +436,10 @@ def fill_struct_fields(
 
                     ty.push_field(s_ty, f.ident, placeholder);
 
-                    let field_s_ty = ty.as_struct(field_ty);
-                    let field_s = ident.to_string(&field_s_ty.name, tc.span_interner);
-                    io.printf("DBG: Waiting for %s\n", field_s);
-                    delete field_s;
-
                     let request = create_waiting_request(
                         WAITING_STRUCT,
                         s_ty as *ty.Type,
+                        tc.ctx.mod,
                         field_ty,
                         mod,
                         i
@@ -489,7 +480,7 @@ def fill_struct_fields(
         io.printf("DBG: %s has a width of %d, align of %d\n", s, ty.width, ty.align);
         delete s;
 
-        update_waiting(tc, ty, &s_ty.name);
+        update_waiting(tc, tc.ctx.mod, ty, &s_ty.name);
         return;
     }
 
@@ -500,13 +491,16 @@ def fill_struct_fields(
     delete s;
 }
 
-def update_waiting(tc: *TypeChecker, ty: *ty.Type, ident: *ident.Ident): void {
-    let waiting_map = get_waiting_map(tc);
+def update_waiting(tc: *TypeChecker, mod: *mod.Module, resolved_ty: *ty.Type, ident: *ident.Ident): void {
+    let waiting_map = get_waiting_map(tc, mod);
     let waiting = get_waiting(waiting_map, tc.span_interner, ident);
 
     if waiting == null {
         let name = ident.to_string(ident, tc.span_interner);
-        io.printf("DBG: no other types waiting for %s\n", name);
+        io.printf(
+            "DBG: no other types waiting for %s width: %d, align: %d\n",
+            name, resolved_ty.width, resolved_ty.align
+        );
         delete name;
         return;
     }
@@ -517,24 +511,31 @@ def update_waiting(tc: *TypeChecker, ty: *ty.Type, ident: *ident.Ident): void {
 
     let i = 0;
     while i < waiting.len {
-        io.printf("DBG: updating waiting type\n");
         let req = vec.get_ptr(waiting, i) as *WaitingRequest;
 
         // currently only structs are supported
-        let waiting = req.to_fill;
-        let s_ty = waiting as *ty.Struct;
-        let placeholder = ty.field_at(s_ty, req.field_idx);
+        let waiting_ty = req.to_fill;
+        let waiting_mod = req.to_fill_mod;
+        let waiting_s_ty = waiting_ty as *ty.Struct;
+        let waiting_ident = &waiting_s_ty.name;
 
-        placeholder.ty = ty;
-        ty.fill_width_align(waiting);
+        let placeholder = ty.field_at(waiting_s_ty, req.field_idx);
+        placeholder.ty = resolved_ty;
 
-        // TODO: update recursivly
-        let s = ident.to_string(&s_ty.name, tc.span_interner);
-        io.printf("DBG %s has a width of %d, align of %d\n", s, waiting.width, waiting.align);
-        delete s;
+        let no_placeholders = ty.fill_width_align(waiting_ty);
+        if no_placeholders {
+                let name = ident.to_string(waiting_ident, tc.span_interner);
+                io.printf("DBG: '%s' has no placeholder left\n", name);
+                delete name;
+            update_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
+        }
 
         i = i + 1;
     }
+
+    let s = ident.to_string(ident, tc.span_interner);
+    io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
+    delete s;
 }
 
 def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): *ident.Ident {

@@ -13,6 +13,7 @@ import "scope";
 // import "mod";
 
 #define WIDTH_UNKNOWN -1
+
 #define FLAG_SCOPED  1
 #define FLAG_UNSIZED 2
 #define FLAG_PLACEHOLDER 4
@@ -119,7 +120,7 @@ def new_struct(name: ident.Ident, fields: vec.Vec): *Type {
 // this function is used to initialize the placeholder structs of tychk
 def init_struct(t: *Type, name: ident.Ident): void {
     let s = Struct {
-        t: create_type(TY_STRUCT),
+        t: *t,
         name: name,
         fields: vec.create(sizeof StructField)
     };
@@ -278,11 +279,6 @@ def type_free(t: *Type): void {
         return;
     }
 
-    if !is_initialized(t) {
-        delete t;
-        return;
-    }
-
     if is_func(t) {
         let f_ty = as_func(t);
         type_free(f_ty.ret);
@@ -316,11 +312,10 @@ def fill_width_align(t: *Type): bool {
         return true;
     }
 
-    std.flag_unset(&t.flags, FLAG_PLACEHOLDER);
-
     // if align is 0 at end of this function, use width as align
     let align = 0;
     let width = WIDTH_UNKNOWN;
+    let has_placeholders = false;
 
     if is_ptr(t){
         width = 8; // TODO: determine pointer width based on target
@@ -336,7 +331,13 @@ def fill_width_align(t: *Type): bool {
         let i = 0;
         while i < s_ty.fields.len {
             let f = field_at(s_ty, i);
-            if f != null {
+            let is_placeholder = std.flag_get(&f.ty.flags, FLAG_PLACEHOLDER);
+
+            if is_placeholder {
+                has_placeholders = true;
+            }
+
+            if f != null && !is_placeholder {
                 let a = f.ty.align;
                 if a > max_align {
                     max_align = a;
@@ -345,11 +346,16 @@ def fill_width_align(t: *Type): bool {
                 let w = f.ty.width;
                 width_sum = width_sum + w;
             }
+
             i = i + 1;
         }
 
         width = width_sum;
         align = max_align;
+    }
+
+    if has_placeholders {
+        return false;
     }
 
     if width != WIDTH_UNKNOWN {
@@ -358,6 +364,8 @@ def fill_width_align(t: *Type): bool {
             align = width;
         }
         t.align = align;
+
+        std.flag_unset(&t.flags, FLAG_PLACEHOLDER);
         return true;
     }
 
