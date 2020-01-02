@@ -139,7 +139,8 @@ def add_mod(mm: *Map, mod: *Module): void {
     ptrvec.push_ptr(&mm.mods, mod as *void);
     mod.idx = idx;
 
-    let idx = std.int_to_ptr(idx);
+    // add one, to be able to tell null apart from 0
+    let idx = std.int_to_ptr(idx + 1);
     let key = map.create_key(mod.path.len, mod.path.inner);
     map.insert(&mm.mod_paths, key, idx);
 }
@@ -156,7 +157,7 @@ def get_mod_idx(mm: *Map, abs_path: *path.Path): i32 {
         return -1;
     }
 
-    return std.ptr_to_int(ptr);
+    return std.ptr_to_int(ptr) - 1;
 }
 
 def get_mod_by_path(mm: *Map, abs_path: *path.Path): *Module {
@@ -205,7 +206,7 @@ def try_get_mod_from_import(
 
     let plen = ident.len(&imp.mod, span_interner);
     let path_str = std.format_str("%.*s%s", plen, imp.mod.ident, KANTAN_FILE_ENDING);
-    let p = path.create(path_str, plen + 4);
+    let p = path.create(path_str, plen + std.strlen(KANTAN_FILE_ENDING));
 
     let imported_mod = get_mod_by_path(mm, &p);
     delete path_str;
