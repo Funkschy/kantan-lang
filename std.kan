@@ -24,6 +24,7 @@ extern def format_str(fmt: string, ...): string;
 extern def read_char(s: string, s_len: i32, dest: *i32): i32;
 extern def char_to_int(c: char): i32;
 extern def ptr_to_int(p: *void): i32;
+extern def int_to_ptr(i: i32): *void;
 extern def flag_set(flags: *i32, flag: i32): void;
 extern def flag_unset(flags: *i32, flag: i32): void;
 extern def flag_get(flags: *i32, flag: i32): bool;

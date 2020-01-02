@@ -2,13 +2,13 @@ import "io";
 import "files/empty";
 import "errtest";
 
+type Other struct {
+    t: errtest.Test,
+    t: MyStruct
+}
+
 type MyStruct struct {
     o: *Other,
     t: errtest.Test,
     i: i32
-}
-
-type Other struct {
-    t: errtest.Test,
-    t: MyStruct
 }

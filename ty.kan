@@ -15,6 +15,7 @@ import "scope";
 #define WIDTH_UNKNOWN -1
 #define FLAG_SCOPED  1
 #define FLAG_UNSIZED 2
+#define FLAG_PLACEHOLDER 4
 
 /////////// i32 type ///////////
 
@@ -123,7 +124,6 @@ def init_struct(t: *Type, name: ident.Ident): void {
         fields: vec.create(sizeof StructField)
     };
     std.flag_set(&s.t.flags, FLAG_SCOPED);
-    fill_width_align(&s as *Type);
 
     std.memcpy(t as *void, &s as *void, sizeof Struct);
 }
@@ -215,9 +215,12 @@ type Type struct {
     flags: i32
 }
 
-def new_type(kind: i32, size: i32): *Type {
+def new_placeholder_type(kind: i32, size: i32): *Type {
     let mem = std.malloc(size);
+
     let ty = create_type(kind);
+    std.flag_set(&ty.flags, FLAG_PLACEHOLDER);
+
     std.memcpy(mem, &ty as *void, sizeof Type);
     return mem as *Type;
 }
@@ -312,6 +315,8 @@ def fill_width_align(t: *Type): bool {
     if width_was_calculated(t) {
         return true;
     }
+
+    std.flag_unset(&t.flags, FLAG_PLACEHOLDER);
 
     // if align is 0 at end of this function, use width as align
     let align = 0;

@@ -26,6 +26,11 @@ def push(v: *Vec, elem: *void): void {
     v.len = v.len + 1;
 }
 
+def init_zero(v: *Vec): void {
+    v.len = v.cap;
+    std.memset(v.elements, 0, v.elem_size * v.cap);
+}
+
 def get(v: *Vec, i: i32, ptr: *void): bool {
     if i >= 0 && i < v.len {
         std.memcpy(ptr, v.elements + i * v.elem_size, v.elem_size);

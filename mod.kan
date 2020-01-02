@@ -15,7 +15,8 @@ type Module struct {
     imports: vec.Vec,
     functions: vec.Vec,
     structs: vec.Vec,
-    ty: *ty.Mod // the Type containing the bindings
+    ty: *ty.Mod, // the Type containing the bindings
+    idx: i32 // index in modmap used for faster access
 }
 
 def create(p: path.Path): Module {
@@ -25,7 +26,8 @@ def create(p: path.Path): Module {
         imports: vec.create(sizeof i32),
         functions: vec.create(sizeof i32),
         structs: vec.create(sizeof i32),
-        ty: null
+        ty: null,
+        idx: -1
     };
 }
 
@@ -118,7 +120,7 @@ def free_m(mod: *Module): void {
 
 type Map struct {
     mods: ptrvec.Vec,
-    mod_paths: map.Map // full mod path -> index in mods/contexts(located in TypeChecker)
+    mod_paths: map.Map // full mod path -> index in mods
 }
 
 def map_with_cap(size: i32): Map {
@@ -135,8 +137,9 @@ def num_mods(mm: *Map): i32 {
 def add_mod(mm: *Map, mod: *Module): void {
     let idx = mm.mods.len;
     ptrvec.push_ptr(&mm.mods, mod as *void);
+    mod.idx = idx;
 
-    let idx = *(&idx as **void);
+    let idx = std.int_to_ptr(idx);
     let key = map.create_key(mod.path.len, mod.path.inner);
     map.insert(&mm.mod_paths, key, idx);
 }

@@ -4,6 +4,7 @@ import "ident";
 import "tyid";
 import "map";
 import "vec";
+import "std";
 
 type Field struct {
     ident: ident.Ident,
@@ -40,7 +41,7 @@ def create_fields(si: *span.SpanInterner, fields: vec.Vec): Fields {
         delete s;
 
         let key = map.key_from_ident(si, &field.ident);
-        let index = *(&i as **void);
+        let index = std.int_to_ptr(i);
 
         map.insert(&field_map, key, index);
         i = i + 1;

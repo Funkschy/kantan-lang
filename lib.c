@@ -217,3 +217,8 @@ int32_t char_to_int(char c) {
 int32_t ptr_to_int(void* ptr) {
     return (int32_t)((size_t) ptr);
 }
+
+void *int_to_ptr(int32_t i) {
+    size_t s = i;
+    return *((void **)&s);
+}
