@@ -299,6 +299,18 @@ def type_free(t: *Type): void {
     delete t;
 }
 
+// looks for an ident in types with FLAG_SCOPED
+def lookup(t: *Type, ident: *ident.Ident, si: *span.SpanInterner): *Type {
+    if is_mod(t) {
+        return scope.get_in(&as_mod(t).scope, si, ident);
+    }
+
+    // FIXME
+    // TODO: lookup in structs aswell
+
+    return null;
+}
+
 /////////// align utils ///////////
 // TODO: should be in separate file, but can't because of circular imports
 
@@ -394,6 +406,10 @@ def to_string(t: *Type, span_interner: *span.SpanInterner): string {
 
     if is_mod(t) {
         return std.strdup("mod");
+    }
+
+    if is_struct(t) {
+        return std.strdup("struct");
     }
 
     return null;

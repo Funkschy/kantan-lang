@@ -97,6 +97,7 @@ static size_t const len_unary_strings = sizeof(unary_type_ops) / sizeof(char *);
 
 static char const *const error_texts[] = {
     NULL,
+    "Internal error: '%s'",
     // file errors
     "Path was empty",
     "Could not open file: '%s'",
@@ -108,7 +109,11 @@ static char const *const error_texts[] = {
     "Unknown symbol: '%.*s'",
     "Char literal with length %1$d: '%.*s'",
     "Could not parse statement: \n%.*s",
-    "Illegal type identifier '%.*s': %s"
+    "Illegal type identifier '%.*s': %s",
+    // type errors
+    "Duplicate definition '%.*s'",
+    "'%.*s' is not defined",
+    "'%s' cannot be accessed with '%s' operator"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

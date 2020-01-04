@@ -1,4 +1,5 @@
 #include "ty_types.h"
+#include "error_code.h"
 #include "std.h"
 
 import "ast";
@@ -280,18 +281,24 @@ def make_mod_type(tc: *TypeChecker, m: *mod.Module, si: *span.SpanInterner): *ty
     let num_structs = mod.num_structs(m);
     while i < num_structs {
         let s = &mod.get_struct_at(m, i).decl;
+        let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &s.name);
 
-        // placeholder types
-        // TODO: check for duplicates
-        let s_ty = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
-        ty.init_struct(s_ty, s.name);
-        push_tmp_ty(tc, s_ty);
+        // if declared is not null, there is already a type with this name in scope
+        if declared == null {
+            // placeholder types
+            let s_ty = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
+            ty.init_struct(s_ty, s.name);
+            push_tmp_ty(tc, s_ty);
 
-        let name = ident.to_string(&s.name, si);
-        io.printf("DBG: Creating placeholder for '%s'\n", name);
-        delete name;
+            let name = ident.to_string(&s.name, si);
+            io.printf("DBG: Creating placeholder for '%s'\n", name);
+            delete name;
 
-        scope.bind_in(&mod_ty.scope, si, &s.name, s_ty);
+            scope.bind_in(&mod_ty.scope, si, &s.name, s_ty);
+        } else {
+            // TODO: reference previous defintion
+            push_duplicate_def_error(tc, &s.name);
+        }
 
         i = i + 1;
     }
@@ -382,6 +389,39 @@ def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
     scope.bind(&tc.ctx.scopes, ident, ty);
 }
 
+def wait_for_struct_field(
+    tc: *TypeChecker,
+    mod: *mod.Module,
+    field_ty: *ty.Type,
+    field: *record.Field,
+    field_idx: i32,
+    s_ty: *ty.Struct
+): void {
+    // same module
+    if mod == null {
+        mod = tc.ctx.mod;
+    }
+
+    io.printf("DBG: Field ty is struct, creating placeholder\n");
+
+    let placeholder = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
+    ty.init_struct(placeholder, field.ty.ident);
+    push_tmp_ty(tc, placeholder);
+
+    ty.push_field(s_ty, field.ident, placeholder);
+
+    let request = create_waiting_request(
+        WAITING_STRUCT,
+        s_ty as *ty.Type,
+        tc.ctx.mod,
+        field_ty,
+        mod,
+        field_idx
+    );
+
+    wait_for(tc, request);
+}
+
 def fill_struct_fields(
     tc: *TypeChecker,
     s_decl: *record.StructDecl,
@@ -405,8 +445,7 @@ def fill_struct_fields(
     while i < nf {
         let f = record.empty_field();
         if !record.field_at(s_decl, i, &f) {
-            // TODO: error
-            io.printf("DBG ERROR: TODO\n");
+            push_internal_error(tc, s_decl.name.ident_span, "could not get field");
             return;
         }
 
@@ -423,33 +462,11 @@ def fill_struct_fields(
 
             if !ty.is_initialized(field_ty) && !is_ptr {
                 if ty.is_struct(field_ty) {
-                    // same module
-                    if mod == null {
-                        mod = tc.ctx.mod;
-                    }
-
-                    io.printf("DBG: Field ty is struct, creating placeholder\n");
-
-                    let placeholder = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
-                    ty.init_struct(placeholder, f.ty.ident);
-                    push_tmp_ty(tc, placeholder);
-
-                    ty.push_field(s_ty, f.ident, placeholder);
-
-                    let request = create_waiting_request(
-                        WAITING_STRUCT,
-                        s_ty as *ty.Type,
-                        tc.ctx.mod,
-                        field_ty,
-                        mod,
-                        i
-                    );
-
-                    wait_for(tc, request);
+                    wait_for_struct_field(tc, mod, field_ty, &f, i, s_ty);
                     waiting = true;
-
                 } else {
-                    io.printf("\n\nDBG: unreachable?\n\n");
+                    push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
+                    return;
                 }
 
             } else {
@@ -462,10 +479,7 @@ def fill_struct_fields(
             }
         } else {
             error = true;
-            // TODO: real error
-            let s = ident.to_string(&f.ty.ident, tc.span_interner);
-            io.printf("DBG ERROR: TODO '%s' is null\n", s);
-            delete s;
+            push_not_defined_error(tc, &f.ty.ident);
         }
 
         i = i + 1;
@@ -482,10 +496,6 @@ def fill_struct_fields(
 
         update_waiting(tc, tc.ctx.mod, ty, &s_ty.name);
         return;
-    }
-
-    if error {
-        io.printf("DBG: ERROR while filling %s\n", s);
     }
 
     delete s;
@@ -647,6 +657,7 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
     // EXPR_AS
     // EXPR_NEW
 
+    // TODO: debug remove
     // let s = ast.expr_to_string(e, tc.span_interner);
     // io.printf("%s\n", s);
     // delete s;
@@ -667,17 +678,13 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
 
     // EXPR_IDENT
     if ast.is_ident_expr(e) {
-        e.ty = lookup_ident(tc, &ast.as_ident_expr(e).ident);
+        let ident = &ast.as_ident_expr(e).ident;
+        e.ty = lookup_ident(tc, ident);
 
-        // TODO: error
         if e.ty == null {
+            push_not_defined_error(tc, ident);
             return null;
         }
-
-        // TODO: remove, only debug
-        // let s = ty.to_string(e.ty, tc.span_interner);
-        // io.printf("i type: %s\n", s);
-        // delete s;
 
         return e;
     }
@@ -693,19 +700,31 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
 
         a_e.left = left;
 
-        // TODO: remove, only debug
-        // let s = ty.to_string(a_e.left.ty, tc.span_interner);
-        // io.printf("a type: %s\n", s);
-        // delete s;
-
         if !ty.is_scoped(a_e.left.ty) {
             let ty_s = ty.to_string(a_e.left.ty, tc.span_interner);
-            let error = std.format_str("'%s' cannot be accessed with '.' operator", ty_s);
+            let error = std.err2str(ERROR_NOT_ACCESSIBLE_WITH_OP, ty_s, ".");
             delete ty_s;
 
             push_mk_err(tc, error, a_e.left.span);
             return null;
         }
+
+        if !ast.is_ident_expr(a_e.right) {
+            push_internal_error(tc, e.span, "rightmost expr in access not ident");
+            return null;
+        }
+
+        let right = ast.as_ident_expr(a_e.right);
+        let right_ty = ty.lookup(a_e.left.ty, &right.ident, tc.span_interner);
+
+        if right_ty == null {
+            push_not_defined_error(tc, &right.ident);
+            return null;
+        }
+
+        a_e.right.ty = right_ty;
+
+        return e;
     }
 
     return e;
@@ -739,4 +758,25 @@ def free_tc(tc: *TypeChecker): void {
         i = i + 1;
     }
     vec.free_v(&tc.requests);
+}
+
+def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
+    let text = std.err2str(ERROR_INTERNAL, text);
+    push_mk_err(tc, text, span);
+}
+
+def push_simple_error(tc: *TypeChecker, code: i32, ident: *ident.Ident): void {
+    let span = ident.ident_span;
+    let len = span.get(tc.span_interner, span).len;
+    let text = std.err2str(code, len, ident.ident);
+
+    push_mk_err(tc, text, span);
+}
+
+def push_duplicate_def_error(tc: *TypeChecker, name: *ident.Ident): void {
+    push_simple_error(tc, ERROR_DUPLICATE_DEFINTION, name);
+}
+
+def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident): void {
+    push_simple_error(tc, ERROR_NOT_DEFINED, name);
 }
