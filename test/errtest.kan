@@ -61,7 +61,7 @@ let i = 52;
 i = other = 2;
 
 
-def function(oof: test): *test.Test {
+def function(oof: test): other.MyStruct {
     let test = 1;
     1 + 1;
 }

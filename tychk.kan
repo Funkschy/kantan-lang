@@ -231,6 +231,7 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     // TODO: this should be defined in builtin.kan
     let scope = scope.create();
     scope.s_bind_in(&scope, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
+    scope.s_bind_in(&scope, 6, "string", push_tmp_ty(tc, ty.new_string()));
     return scope;
 }
 
@@ -764,15 +765,13 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
 
     // EXPR_INT
     if ast.is_int_expr(e) {
-        e.ty = ty.new_i32();
-        push_tmp_ty(tc, e.ty);
+        e.ty = scope.s_get_in(&tc.globals, 3, "i32");
         return e;
     }
 
     // EXPR_STRING
     if ast.is_string_expr(e) {
-        e.ty = ty.new_string();
-        push_tmp_ty(tc, e.ty);
+        e.ty = scope.s_get_in(&tc.globals, 6, "string");
         return e;
     }
 
