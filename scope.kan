@@ -89,6 +89,10 @@ def close_scope(s: *ScopeStack): void {
     s.scopes.len = s.scopes.len - 1;
 }
 
+def close_scope_no_free(s: *ScopeStack): void {
+    s.scopes.len = s.scopes.len - 1;
+}
+
 def scope_at(s: *ScopeStack, i: i32): *Scope {
     return vec.get_ptr(&s.scopes, i) as *Scope;
 }

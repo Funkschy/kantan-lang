@@ -37,6 +37,10 @@ def create(ident: lexer.Token, params: ParamList, ret_ty: tyid.Type, is_extern: 
     };
 }
 
+def get_param_ptr(f: *FuncDef, i: i32): *param.Param {
+    return vec.get_ptr(&f.params.params, i) as *param.Param;
+}
+
 def num_params(f: *FuncDef): i32 {
     return f.params.params.len;
 }

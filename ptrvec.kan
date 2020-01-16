@@ -96,5 +96,8 @@ def resize(v: *Vec): void {
 }
 
 def free_v(v: *Vec): void {
+    if v.elements == null {
+        return;
+    }
     delete v.elements;
 }

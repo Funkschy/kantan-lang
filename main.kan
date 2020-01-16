@@ -198,9 +198,9 @@ def print_parse_errors(
     while i < parser.num_errs(p) {
         let err = parser.get_err(p, i);
         let span = span.get(si, err.span);
-        let src = reader.get_by_idx(fm, span.ctx);
+        let src = reader.get_ptr_by_idx(fm, span.ctx);
 
-        print_error(err.text, &span, &src, abs_path);
+        print_error(err.text, &span, src, abs_path);
 
         i = i + 1;
     }
@@ -216,9 +216,9 @@ def print_type_errors(
     while i < tychk.num_errs(tc) {
         let err = tychk.get_err(tc, i);
         let span = span.get(si, err.span);
-        let src = reader.get_by_idx(fm, span.ctx);
+        let src = reader.get_ptr_by_idx(fm, span.ctx);
 
-        print_error(err.text, &span, &src, abs_path);
+        print_error(err.text, &span, src, abs_path);
 
         i = i + 1;
     }
@@ -233,11 +233,16 @@ def print_error(
     let last_nl = 0;
     let line = source.find_line(span, file, &last_nl);
     let name = source.file_name_dup(file);
+    let offset = 0;
+
+    if path.is_abs(&file.file.path.inner) {
+        offset = abs_path.len + 1;
+    }
 
     io.printf(
         "ERROR: %s\n--> %s:%d:%d\n\n",
         err_text,
-        name + abs_path.len + 1,
+        name + offset,
         line,
         span.start - last_nl
     );

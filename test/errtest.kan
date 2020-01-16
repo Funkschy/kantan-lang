@@ -2,7 +2,9 @@ import "other";
 import "io";
 import "files/empty";
 
-io.test;
+io.1;
+io.test.1;
+io.printf;
 
 type Other1 struct {
     o: Other2
@@ -23,12 +25,11 @@ type Test struct {
 type TestType struct {}
 
 let test = Test {
-    test_ident: TestType {
-        field: span.get(&span_interner, function(420 - (69 / 1), test.i.other)).len
-    },
+    test_ident: TestType {},
     other: null
 };
 
+Test.other;
 test.test_ident;
 
 test as *TestType;

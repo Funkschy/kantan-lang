@@ -159,8 +159,7 @@ type Func struct {
     name: ident.Ident
 }
 
-def new_func(ret: *Type, params: ptrvec.Vec, name: ident.Ident): *Type {
-    let params = create_type_list(params);
+def new_func(ret: *Type, params: TypeList, name: ident.Ident): *Type {
     let t = (new Func {
         t: create_type(TY_FUNC),
         ret: ret,
@@ -168,8 +167,21 @@ def new_func(ret: *Type, params: ptrvec.Vec, name: ident.Ident): *Type {
         name: name
     }) as *Type;
 
-    fill_width_align(t);
+    std.flag_set(&t.flags, FLAG_UNSIZED);
     return t;
+}
+
+// this function is used to initialize the placeholder functions of tychk
+def init_func(t: *Type, name: ident.Ident): void {
+    let f = Func {
+        t: *t,
+        ret: null,
+        params: empty_type_list(),
+        name: name,
+    };
+    std.flag_set(&t.flags, FLAG_UNSIZED);
+
+    std.memcpy(t as *void, &f as *void, sizeof Func);
 }
 
 def is_func(t: *Type): bool {
@@ -217,7 +229,7 @@ type Type struct {
 }
 
 def new_placeholder_type(kind: i32, size: i32): *Type {
-    let mem = std.malloc(size);
+    let mem = std.calloc(size, 1);
 
     let ty = create_type(kind);
     std.flag_set(&ty.flags, FLAG_PLACEHOLDER);
@@ -261,16 +273,15 @@ def create_type_list(types: ptrvec.Vec): TypeList {
     return TypeList { types: types };
 }
 
+def push_type(tl: *TypeList, ty: *Type): void {
+    ptrvec.push_ptr(&tl.types, ty as *void);
+}
+
 def type_at(tl: *TypeList, i: i32): *Type {
     return ptrvec.get(&tl.types, i) as *Type;
 }
 
-def type_list_free(tl: *TypeList): void {
-    let i = 0;
-    while i < tl.types.len {
-        type_free(type_at(tl, i));
-        i = i + 1;
-    }
+def free_type_list(tl: *TypeList): void {
     ptrvec.free_v(&tl.types);
 }
 
@@ -281,8 +292,8 @@ def type_free(t: *Type): void {
 
     if is_func(t) {
         let f_ty = as_func(t);
-        type_free(f_ty.ret);
-        type_list_free(&f_ty.params);
+        // the inner types are garbage collected by tychk
+        free_type_list(&f_ty.params);
     }
 
     if is_struct(t) {
@@ -300,9 +311,9 @@ def type_free(t: *Type): void {
 }
 
 // looks for an ident in types with FLAG_SCOPED
-def lookup(t: *Type, ident: *ident.Ident, si: *span.SpanInterner): *Type {
+def get_scope(t: *Type): *scope.Scope {
     if is_mod(t) {
-        return scope.get_in(&as_mod(t).scope, si, ident);
+        return &as_mod(t).scope;
     }
 
     // FIXME
@@ -409,7 +420,7 @@ def to_string(t: *Type, span_interner: *span.SpanInterner): string {
     }
 
     if is_struct(t) {
-        return std.strdup("struct");
+        return std.strdup("struct definition");
     }
 
     return null;

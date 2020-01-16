@@ -39,6 +39,10 @@ char const *const unary2str(int32_t op) {
     return get_str(op, len_unary_strings, unary_type_ops);
 }
 
+char const *const expr2str(int32_t type) {
+    return get_str(type, len_expr_strings, expr_type_strings);
+}
+
 char const *const format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;

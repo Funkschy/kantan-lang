@@ -1,0 +1,10 @@
+// import "io";
+
+// io.printf("Hello World");
+// io.printf.test;
+
+def test(): i32 {}
+
+// type test struct {
+//
+// }

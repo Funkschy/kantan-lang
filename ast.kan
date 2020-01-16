@@ -14,6 +14,7 @@ import "io"; // TODO: only debug
 
 extern def binary2str(op: i32): string;
 extern def unary2str(op: i32): string;
+extern def expr2str(op: i32): string;
 
 /////////// expr stmt ///////////
 

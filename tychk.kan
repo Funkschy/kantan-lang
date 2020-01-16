@@ -1,5 +1,4 @@
 #include "ty_types.h"
-#include "error_code.h"
 #include "std.h"
 
 import "ast";
@@ -12,6 +11,7 @@ import "scope";
 import "path";
 import "ident";
 import "record";
+import "func";
 
 import "std";
 // TODO: only temp solution
@@ -276,7 +276,6 @@ def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
 def make_mod_type(tc: *TypeChecker, m: *mod.Module, si: *span.SpanInterner): *ty.Mod {
     let mod_ty = ty.new_mod() as *ty.Mod;
 
-    // TODO: functions
     let i = 0;
     let num_structs = mod.num_structs(m);
     while i < num_structs {
@@ -298,6 +297,31 @@ def make_mod_type(tc: *TypeChecker, m: *mod.Module, si: *span.SpanInterner): *ty
         } else {
             // TODO: reference previous defintion
             push_duplicate_def_error(tc, &s.name);
+        }
+
+        i = i + 1;
+    }
+
+    i = 0;
+    while i < mod.num_functions(m) {
+        let f = &mod.get_function_at(m, i).decl;
+        let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &f.name);
+
+        // if declared is not null, there is already a function with this name in scope
+        if declared == null {
+            // placeholder types
+            let f_ty = ty.new_placeholder_type(TY_FUNC, sizeof ty.Func);
+            ty.init_func(f_ty, f.name);
+            push_tmp_ty(tc, f_ty);
+
+            let name = ident.to_string(&f.name, si);
+            io.printf("DBG: Creating placeholder for '%s'\n", name);
+            delete name;
+
+            scope.bind_in(&mod_ty.scope, si, &f.name, f_ty);
+        } else {
+            // TODO: reference previous defintion
+            push_duplicate_def_error(tc, &f.name);
         }
 
         i = i + 1;
@@ -339,6 +363,7 @@ def lookup_ident_mod(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Modul
 
 def check(tc: *TypeChecker): void {
     let i = 0;
+    // TODO: dont check stdlib if not needed
     while i < mod.num_mods(tc.mods) {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
@@ -355,6 +380,8 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): *ty.Mod {
         return mod.ty;
     }
 
+    io.printf("Checking %.*s\n", mod.path.len, mod.path.inner);
+
     // resolve definitions in mod and put them into the module struct
     mod.ty = make_mod_type(tc, mod, tc.span_interner);
 
@@ -363,8 +390,6 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): *ty.Mod {
     // free previous context
     free_ctx(&tc.ctx);
     tc.ctx = create_ctx(mod, tc.span_interner, &tc.globals);
-
-    io.printf("Checking %.*s\n", mod.path.len, mod.path.inner);
 
     let i = 0;
     while i < mod.num_stmts(mod) {
@@ -378,6 +403,55 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): *ty.Mod {
     }
 
     return mod.ty;
+}
+
+def fill_func_def(
+    tc: *TypeChecker,
+    f_decl: *func.FuncDef,
+    f_ty: *ty.Func
+): void {
+    let name = ident.to_string(&f_ty.name, tc.span_interner);
+    io.printf("DBG: Defining '%s'\n", name);
+    delete name;
+
+    let error = false;
+
+    // TODO: wait
+    let ret_ty = lookup_ident(tc, &f_decl.ret_ty.ident);
+    if ret_ty == null {
+        push_not_defined_error(tc, &f_decl.ret_ty.ident);
+        error = true;
+    }
+
+    let num_params = func.num_params(f_decl);
+    let param_types = ty.create_type_list(ptrvec.with_cap(num_params));
+
+    let i = 0;
+    while i < num_params {
+        let p = func.get_param_ptr(f_decl, i);
+
+        // TODO: handle varargs
+        if !param.is_varargs(p) {
+            // TODO: wait
+            let p_ty = lookup_ident(tc, &p.ty.ident);
+
+            if p_ty == null {
+                push_not_defined_error(tc, &p.ty.ident);
+                error = true;
+            } else {
+                ty.push_type(&param_types, p_ty);
+            }
+        }
+
+        i = i + 1;
+    }
+
+    if !error {
+        f_ty.params = param_types;
+        f_ty.ret = ret_ty;
+    } else {
+        ty.free_type_list(&param_types);
+    }
 }
 
 def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
@@ -468,7 +542,6 @@ def fill_struct_fields(
                     push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
                     return;
                 }
-
             } else {
                 if is_ptr {
                     field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
@@ -501,7 +574,12 @@ def fill_struct_fields(
     delete s;
 }
 
-def update_waiting(tc: *TypeChecker, mod: *mod.Module, resolved_ty: *ty.Type, ident: *ident.Ident): void {
+def update_waiting(
+    tc: *TypeChecker,
+    mod: *mod.Module,
+    resolved_ty: *ty.Type,
+    ident: *ident.Ident
+): void {
     let waiting_map = get_waiting_map(tc, mod);
     let waiting = get_waiting(waiting_map, tc.span_interner, ident);
 
@@ -534,9 +612,6 @@ def update_waiting(tc: *TypeChecker, mod: *mod.Module, resolved_ty: *ty.Type, id
 
         let no_placeholders = ty.fill_width_align(waiting_ty);
         if no_placeholders {
-                let name = ident.to_string(waiting_ident, tc.span_interner);
-                io.printf("DBG: '%s' has no placeholder left\n", name);
-                delete name;
             update_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
         }
 
@@ -558,7 +633,6 @@ def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): *ident.Ident {
 // returns the statement which should replace the old one
 // if a new statement is created, this function will free the old one
 def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
-    // STMT_FUNC_DECL
     // STMT_BLOCK
     // STMT_IF
     // STMT_WHILE
@@ -612,12 +686,38 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         if definition == null {
             let name = ident.to_string(&sd.name, tc.span_interner);
             // TODO: is it possible to hit this?
-            io.printf("DBG ERROR '%s' was not defined\n", name);
+            io.printf("\n\nDBG ERROR '%s' was not defined\n\n", name);
             delete name;
         }
 
-        ty.init_struct(definition, sd.name);
+        if !ty.is_struct(definition) {
+            // TODO: error
+            std.abort();
+        }
+
         fill_struct_fields(tc, sd, definition as *ty.Struct);
+        return s;
+    }
+
+    // TODO: implement
+    // STMT_FUNC_DECL
+    if ast.is_func_decl_stmt(s) {
+        let fd = &ast.as_func_decl_stmt(s).decl;
+
+        let definition = lookup_ident(tc, &fd.name);
+        if definition == null {
+            let name = ident.to_string(&fd.name, tc.span_interner);
+            // TODO: is it possible to hit this?
+            io.printf("\n\nDBG ERROR '%s' was not defined\n\n", name);
+            delete name;
+        }
+
+        if !ty.is_func(definition) {
+            // TODO: error
+            std.abort();
+        }
+
+        fill_func_def(tc, fd, definition as *ty.Func);
         return s;
     }
 
@@ -692,37 +792,49 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
     // EXPR_ACCESS
     if ast.is_access_expr(e) {
         let a_e = ast.as_access_expr(e);
-        let left = check_expr(tc, a_e.left);
 
+        if !ast.is_ident_expr(a_e.left) {
+            push_invalid_access_error(tc, a_e.left);
+            return null;
+        }
+
+        let left = check_expr(tc, a_e.left);
         if left == null {
             return null;
         }
 
         a_e.left = left;
 
-        if !ty.is_scoped(a_e.left.ty) {
-            let ty_s = ty.to_string(a_e.left.ty, tc.span_interner);
-            let error = std.err2str(ERROR_NOT_ACCESSIBLE_WITH_OP, ty_s, ".");
-            delete ty_s;
-
-            push_mk_err(tc, error, a_e.left.span);
+        // Type cannot be accessed with '.'
+        if !ty.is_scoped(a_e.left.ty) || ty.is_struct(a_e.left.ty) {
+            // struct types are the types of the definition and not an actual
+            // instance (basically class vs object of that class). There is currently
+            // no mechanism to access the fields of a struct definition, which could
+            // change in the future
+            push_not_accessible_with_error(tc, a_e.left);
             return null;
         }
 
-        if !ast.is_ident_expr(a_e.right) {
-            push_internal_error(tc, e.span, "rightmost expr in access not ident");
+        let scope = ty.get_scope(a_e.left.ty);
+        if scope == null {
+            push_internal_error(tc, a_e.left.span, "no scope for type found");
             return null;
         }
 
-        let right = ast.as_ident_expr(a_e.right);
-        let right_ty = ty.lookup(a_e.left.ty, &right.ident, tc.span_interner);
+        // bring scope into current context
+        scope.push_scope(&tc.ctx.scopes, scope);
 
-        if right_ty == null {
-            push_not_defined_error(tc, &right.ident);
+        let right = check_expr(tc, a_e.right);
+        if right == null {
+            // TODO: could there be more than one?
+            scope.close_scope_no_free(&tc.ctx.scopes);
             return null;
         }
 
-        a_e.right.ty = right_ty;
+        // TODO: could there be more than one?
+        scope.close_scope_no_free(&tc.ctx.scopes);
+
+        a_e.right = right;
 
         return e;
     }
@@ -760,6 +872,8 @@ def free_tc(tc: *TypeChecker): void {
     vec.free_v(&tc.requests);
 }
 
+#include "error_code.h"
+
 def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
     let text = std.err2str(ERROR_INTERNAL, text);
     push_mk_err(tc, text, span);
@@ -779,4 +893,19 @@ def push_duplicate_def_error(tc: *TypeChecker, name: *ident.Ident): void {
 
 def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident): void {
     push_simple_error(tc, ERROR_NOT_DEFINED, name);
+}
+
+def push_invalid_access_error(tc: *TypeChecker, e: *ast.Expr): void {
+    let ty_s = ast.expr2str(e.tag);
+    let error = std.err2str(ERROR_INVALID_ACCESS_TYPE, ty_s);
+
+    push_mk_err(tc, error, e.span);
+}
+
+def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr): void {
+    let ty_s = ty.to_string(e.ty, tc.span_interner);
+    let error = std.err2str(ERROR_NOT_ACCESSIBLE_WITH_OP, ty_s, ".");
+    delete ty_s;
+
+    push_mk_err(tc, error, e.span);
 }
