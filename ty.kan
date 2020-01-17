@@ -16,6 +16,7 @@ import "scope";
 
 #define FLAG_SCOPED  1
 #define FLAG_UNSIZED 2
+// TODO: rename this, placeholder is currently used as a check for initalization
 #define FLAG_PLACEHOLDER 4
 
 /////////// i32 type ///////////
@@ -228,14 +229,24 @@ type Type struct {
     flags: i32
 }
 
-def new_placeholder_type(kind: i32, size: i32): *Type {
+def new_type(kind: i32, size: i32): *Type {
     let mem = std.calloc(size, 1);
-
     let ty = create_type(kind);
-    std.flag_set(&ty.flags, FLAG_PLACEHOLDER);
 
     std.memcpy(mem, &ty as *void, sizeof Type);
     return mem as *Type;
+}
+
+def is_placeholder(t: *Type): bool {
+    return std.flag_get(&t.flags, FLAG_PLACEHOLDER);
+}
+
+def set_placeholder(t: *Type): void {
+    std.flag_set(&t.flags, FLAG_PLACEHOLDER);
+}
+
+def unset_placeholder(t: *Type): void {
+    std.flag_unset(&t.flags, FLAG_PLACEHOLDER);
 }
 
 def create_type(kind: i32): Type {
@@ -354,20 +365,27 @@ def fill_width_align(t: *Type): bool {
         let i = 0;
         while i < s_ty.fields.len {
             let f = field_at(s_ty, i);
-            let is_placeholder = std.flag_get(&f.ty.flags, FLAG_PLACEHOLDER);
-
-            if is_placeholder {
-                has_placeholders = true;
+            let field_initialized = f != null;
+            if field_initialized {
+                field_initialized = f.ty != null;
             }
 
-            if f != null && !is_placeholder {
-                let a = f.ty.align;
-                if a > max_align {
-                    max_align = a;
-                }
+            if field_initialized {
+                let is_placeholder = std.flag_get(&f.ty.flags, FLAG_PLACEHOLDER);
 
-                let w = f.ty.width;
-                width_sum = width_sum + w;
+                if is_placeholder {
+                    has_placeholders = true;
+                } else {
+                    let a = f.ty.align;
+                    if a > max_align {
+                        max_align = a;
+                    }
+
+                    let w = f.ty.width;
+                    width_sum = width_sum + w;
+                }
+            } else {
+                has_placeholders = true;
             }
 
             i = i + 1;
@@ -387,8 +405,6 @@ def fill_width_align(t: *Type): bool {
             align = width;
         }
         t.align = align;
-
-        std.flag_unset(&t.flags, FLAG_PLACEHOLDER);
         return true;
     }
 

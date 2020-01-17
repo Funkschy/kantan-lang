@@ -20,6 +20,7 @@ import "io";
 extern def isort(arr: *i32, len: i32): *i32;
 
 #define WAITING_STRUCT 1
+#define WAITING_PTR    2
 
 // Used as some kind of callback
 // When we resolve structs it may happen, that the struct has a field type we
@@ -32,7 +33,7 @@ type WaitingRequest struct {
     field_idx: i32,
     to_fill: *ty.Type,
     to_fill_mod: *mod.Module,
-    waiting_for_ty: *ty.Type,
+    waiting_for: ident.Ident,
     waiting_for_mod: *mod.Module
 }
 
@@ -40,7 +41,7 @@ def create_waiting_request(
     kind: i32,
     to_fill: *ty.Type,
     to_fill_mod: *mod.Module,
-    waiting_for_ty: *ty.Type,
+    waiting_for: ident.Ident,
     waiting_for_mod: *mod.Module,
     field_idx: i32
 ): WaitingRequest {
@@ -49,17 +50,13 @@ def create_waiting_request(
         field_idx: field_idx,
         to_fill: to_fill,
         to_fill_mod: to_fill_mod,
-        waiting_for_ty: waiting_for_ty,
+        waiting_for: waiting_for,
         waiting_for_mod: waiting_for_mod
     };
 }
 
 def req_waiting_for_ident(r: *WaitingRequest): *ident.Ident {
-    if r.kind == WAITING_STRUCT {
-        return &ty.as_struct(r.waiting_for_ty).name;
-    }
-
-    return null;
+    return &r.waiting_for;
 }
 
 type WaitingRequestMap struct {
@@ -84,7 +81,11 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
     let ident = req_waiting_for_ident(&request);
     // ------
     let s = ident.to_string(ident, si);
-    io.printf("DBG: >>> Adding request for '%s'\n", s);
+    let kind_s = "struct";
+    if request.kind == WAITING_PTR {
+        kind_s = "ptr";
+    }
+    io.printf("DBG: >>> Adding %s request for '%s'\n", kind_s, s);
     delete s;
     // ------
 
@@ -277,56 +278,56 @@ def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
 def make_mod_type(tc: *TypeChecker, m: *mod.Module, si: *span.SpanInterner): *ty.Mod {
     let mod_ty = ty.new_mod() as *ty.Mod;
 
-    let i = 0;
-    let num_structs = mod.num_structs(m);
-    while i < num_structs {
-        let s = &mod.get_struct_at(m, i).decl;
-        let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &s.name);
+    // let i = 0;
+    // let num_structs = mod.num_structs(m);
+    // while i < num_structs {
+    //     let s = &mod.get_struct_at(m, i).decl;
+    //     let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &s.name);
 
-        // if declared is not null, there is already a type with this name in scope
-        if declared == null {
-            // placeholder types
-            let s_ty = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
-            ty.init_struct(s_ty, s.name);
-            push_tmp_ty(tc, s_ty);
+    //     // if declared is not null, there is already a type with this name in scope
+    //     if declared == null {
+    //         // placeholder types
+    //         let s_ty = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
+    //         ty.init_struct(s_ty, s.name);
+    //         push_tmp_ty(tc, s_ty);
 
-            let name = ident.to_string(&s.name, si);
-            io.printf("DBG: Creating placeholder for '%s'\n", name);
-            delete name;
+    //         let name = ident.to_string(&s.name, si);
+    //         io.printf("DBG: Creating placeholder for '%s'\n", name);
+    //         delete name;
 
-            scope.bind_in(&mod_ty.scope, si, &s.name, s_ty);
-        } else {
-            // TODO: reference previous defintion
-            push_duplicate_def_error(tc, &s.name);
-        }
+    //         scope.bind_in(&mod_ty.scope, si, &s.name, s_ty);
+    //     } else {
+    //         // TODO: reference previous defintion
+    //         push_duplicate_def_error(tc, &s.name);
+    //     }
 
-        i = i + 1;
-    }
+    //     i = i + 1;
+    // }
 
-    i = 0;
-    while i < mod.num_functions(m) {
-        let f = &mod.get_function_at(m, i).decl;
-        let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &f.name);
+    // i = 0;
+    // while i < mod.num_functions(m) {
+    //     let f = &mod.get_function_at(m, i).decl;
+    //     let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &f.name);
 
-        // if declared is not null, there is already a function with this name in scope
-        if declared == null {
-            // placeholder types
-            let f_ty = ty.new_placeholder_type(TY_FUNC, sizeof ty.Func);
-            ty.init_func(f_ty, f.name);
-            push_tmp_ty(tc, f_ty);
+    //     // if declared is not null, there is already a function with this name in scope
+    //     if declared == null {
+    //         // placeholder types
+    //         let f_ty = ty.new_placeholder_type(TY_FUNC, sizeof ty.Func);
+    //         ty.init_func(f_ty, f.name);
+    //         push_tmp_ty(tc, f_ty);
 
-            let name = ident.to_string(&f.name, si);
-            io.printf("DBG: Creating placeholder for '%s'\n", name);
-            delete name;
+    //         let name = ident.to_string(&f.name, si);
+    //         io.printf("DBG: Creating placeholder for '%s'\n", name);
+    //         delete name;
 
-            scope.bind_in(&mod_ty.scope, si, &f.name, f_ty);
-        } else {
-            // TODO: reference previous defintion
-            push_duplicate_def_error(tc, &f.name);
-        }
+    //         scope.bind_in(&mod_ty.scope, si, &f.name, f_ty);
+    //     } else {
+    //         // TODO: reference previous defintion
+    //         push_duplicate_def_error(tc, &f.name);
+    //     }
 
-        i = i + 1;
-    }
+    //     i = i + 1;
+    // }
 
     return mod_ty;
 }
@@ -345,7 +346,7 @@ def lookup_ident_mod(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Modul
 
     let mod = get_mod_by_alias(&tc.ctx, dot_index, ident.ident);
     if mod == null {
-        io.printf("DBG ERROR %.*s mod not found\n", len, ident.ident);
+        io.printf("DBG DEBUG %.*s mod not found\n", len, ident.ident);
         return null;
     }
 
@@ -355,7 +356,7 @@ def lookup_ident_mod(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Modul
 
     let ty = mod.s_lookup(mod, len - dot_index - 1, ident.ident + dot_index + 1);
     if ty == null {
-        io.printf("DBG ERROR %.*s type not found\n", len, ident.ident);
+        io.printf("DBG DEBUG %.*s type not found\n", len, ident.ident);
         return null;
     }
 
@@ -464,39 +465,6 @@ def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
     scope.bind(&tc.ctx.scopes, ident, ty);
 }
 
-def wait_for_struct_field(
-    tc: *TypeChecker,
-    mod: *mod.Module,
-    field_ty: *ty.Type,
-    field: *record.Field,
-    field_idx: i32,
-    s_ty: *ty.Struct
-): void {
-    // same module
-    if mod == null {
-        mod = tc.ctx.mod;
-    }
-
-    io.printf("DBG: Field ty is struct, creating placeholder\n");
-
-    let placeholder = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
-    ty.init_struct(placeholder, field.ty.ident);
-    push_tmp_ty(tc, placeholder);
-
-    ty.push_field(s_ty, field.ident, placeholder);
-
-    let request = create_waiting_request(
-        WAITING_STRUCT,
-        s_ty as *ty.Type,
-        tc.ctx.mod,
-        field_ty,
-        mod,
-        field_idx
-    );
-
-    wait_for(tc, request);
-}
-
 def fill_struct_fields(
     tc: *TypeChecker,
     s_decl: *record.StructDecl,
@@ -507,6 +475,8 @@ def fill_struct_fields(
     if ty.is_initialized(s_ty as *ty.Type) {
         return;
     }
+
+    ty.set_placeholder(s_ty as *ty.Type);
 
     let s = ident.to_string(&s_decl.name, tc.span_interner);
     io.printf("----\nDBG: resolving %s\n", s);
@@ -531,29 +501,33 @@ def fill_struct_fields(
         let mod: *mod.Module = null;
         let field_ty = lookup_ident_mod(tc, &f.ty.ident, &mod);
 
-        if field_ty != null {
-            // pointers are ok, because their size is known
-            let is_ptr = tyid.is_ptr(&f.ty);
+        // pointers are ok, because their size is known
+        let is_ptr = tyid.is_ptr(&f.ty);
 
-            if !ty.is_initialized(field_ty) && !is_ptr {
-                if ty.is_struct(field_ty) {
-                    wait_for_struct_field(tc, mod, field_ty, &f, i, s_ty);
-                    waiting = true;
-                } else {
-                    push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
-                    return;
-                }
-            } else {
+        if field_ty != null {
+            if ty.is_initialized(field_ty) {
                 if is_ptr {
                     field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
                     push_tmp_ty(tc, field_ty);
                 }
 
                 ty.push_field(s_ty, f.ident, field_ty);
+            } else {
+                if ty.is_struct(field_ty) {
+                    wait_for_struct_field(tc, mod, f.ty.ident, &f, i, s_ty);
+                    if !is_ptr {
+                        waiting = true;
+                    }
+                } else {
+                    push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
+                    return;
+                }
             }
         } else {
-            error = true;
-            push_not_defined_error(tc, &f.ty.ident);
+            wait_for_struct_field(tc, mod, f.ty.ident, &f, i, s_ty);
+            if !is_ptr {
+                waiting = true;
+            }
         }
 
         i = i + 1;
@@ -575,12 +549,53 @@ def fill_struct_fields(
     delete s;
 }
 
+def wait_for_struct_field(
+    tc: *TypeChecker,
+    mod: *mod.Module,
+    waiting_for: ident.Ident,
+    field: *record.Field,
+    field_idx: i32,
+    s_ty: *ty.Struct
+): void {
+    // same module
+    if mod == null {
+        mod = tc.ctx.mod;
+    }
+
+    let field_ty: *ty.Type = null;
+    let kind = WAITING_STRUCT;
+
+    if tyid.is_ptr(&field.ty) {
+        kind = WAITING_PTR;
+        field_ty = ty.new_ptr(field.ty.pointer_count, null);
+        push_tmp_ty(tc, field_ty);
+    }
+    ty.push_field(s_ty, field.ident, field_ty);
+
+    let request = create_waiting_request(
+        kind,
+        s_ty as *ty.Type,
+        tc.ctx.mod,
+        waiting_for,
+        mod,
+        field_idx
+    );
+
+    wait_for(tc, request);
+}
+
 def update_waiting(
     tc: *TypeChecker,
     mod: *mod.Module,
     resolved_ty: *ty.Type,
     ident: *ident.Ident
 ): void {
+    // only execute this once
+    if !ty.is_placeholder(resolved_ty) {
+        return;
+    }
+    ty.unset_placeholder(resolved_ty);
+
     let waiting_map = get_waiting_map(tc, mod);
     let waiting = get_waiting(waiting_map, tc.span_interner, ident);
 
@@ -602,14 +617,33 @@ def update_waiting(
     while i < waiting.len {
         let req = vec.get_ptr(waiting, i) as *WaitingRequest;
 
-        // currently only structs are supported
         let waiting_ty = req.to_fill;
         let waiting_mod = req.to_fill_mod;
         let waiting_s_ty = waiting_ty as *ty.Struct;
         let waiting_ident = &waiting_s_ty.name;
 
+        // -----
+                let updated_name = ident.to_string(ident, tc.span_interner);
+                let waiting_name = ident.to_string(waiting_ident, tc.span_interner);
+                io.printf(
+                    "DBG: %s is waiting for %s\n", waiting_name, updated_name
+                );
+                delete updated_name;
+                delete waiting_name;
+        // -----
+
         let placeholder = ty.field_at(waiting_s_ty, req.field_idx);
-        placeholder.ty = resolved_ty;
+
+        if req.kind == WAITING_STRUCT {
+            placeholder.ty = resolved_ty;
+        } else if req.kind == WAITING_PTR {
+            if !ty.is_ptr(placeholder.ty) {
+                push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
+                return;
+            }
+
+            ty.as_ptr(placeholder.ty).inner = resolved_ty;
+        }
 
         let no_placeholders = ty.fill_width_align(waiting_ty);
         if no_placeholders {
@@ -683,20 +717,18 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_struct_decl_stmt(s) {
         let sd = &ast.as_struct_decl_stmt(s).decl;
 
-        let definition = lookup_ident(tc, &sd.name);
-        if definition == null {
-            let name = ident.to_string(&sd.name, tc.span_interner);
-            // TODO: is it possible to hit this?
-            io.printf("\n\nDBG ERROR '%s' was not defined\n\n", name);
-            delete name;
-        }
+        let definition = ty.new_type(TY_STRUCT, sizeof ty.Struct);
+        push_tmp_ty(tc, definition);
 
-        if !ty.is_struct(definition) {
-            // TODO: error
-            std.abort();
-        }
+        ty.init_struct(definition, sd.name);
+        fill_struct_fields(tc, sd, ty.as_struct(definition));
 
-        fill_struct_fields(tc, sd, definition as *ty.Struct);
+        let name = ident.to_string(&sd.name, tc.span_interner);
+        io.printf("DBG: binding struct %s\n", name);
+        delete name;
+
+        scope.bind_in(&tc.ctx.mod.ty.scope, tc.span_interner, &sd.name, definition);
+
         return s;
     }
 
@@ -705,20 +737,20 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_func_decl_stmt(s) {
         let fd = &ast.as_func_decl_stmt(s).decl;
 
-        let definition = lookup_ident(tc, &fd.name);
-        if definition == null {
-            let name = ident.to_string(&fd.name, tc.span_interner);
-            // TODO: is it possible to hit this?
-            io.printf("\n\nDBG ERROR '%s' was not defined\n\n", name);
-            delete name;
-        }
+        // let definition = lookup_ident(tc, &fd.name);
+        // if definition == null {
+        //     let name = ident.to_string(&fd.name, tc.span_interner);
+        //     // TODO: is it possible to hit this?
+        //     io.printf("\n\nDBG ERROR '%s' was not defined\n\n", name);
+        //     delete name;
+        // }
 
-        if !ty.is_func(definition) {
-            // TODO: error
-            std.abort();
-        }
+        // if !ty.is_func(definition) {
+        //     // TODO: error
+        //     std.abort();
+        // }
 
-        fill_func_def(tc, fd, definition as *ty.Func);
+        // fill_func_def(tc, fd, definition as *ty.Func);
         return s;
     }
 
