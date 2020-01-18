@@ -6,11 +6,11 @@ io.1;
 io.test.1;
 io.printf;
 
-type Other1 struct {
+type Other struct {
     o: Other2
 }
 type Other2 struct {
-    o: Other1
+    o: Other
 }
 
 type S1 struct {

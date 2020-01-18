@@ -14,10 +14,11 @@ import "scope";
 
 #define WIDTH_UNKNOWN -1
 
-#define FLAG_SCOPED  1
-#define FLAG_UNSIZED 2
-// TODO: rename this, placeholder is currently used as a check for initalization
-#define FLAG_PLACEHOLDER 4
+#define FLAG_SCOPED        1
+#define FLAG_UNSIZED       2
+// this gets set, when tychk visits a type for the first time and gets unset
+// when the type is fully resolved
+#define FLAG_TYCHK_TOUCHED 4
 
 /////////// i32 type ///////////
 
@@ -118,7 +119,7 @@ def new_struct(name: ident.Ident, fields: vec.Vec): *Type {
     return t;
 }
 
-// this function is used to initialize the placeholder structs of tychk
+// this function is used to initialize placeholder structs of tychk
 def init_struct(t: *Type, name: ident.Ident): void {
     let s = Struct {
         t: *t,
@@ -172,7 +173,7 @@ def new_func(ret: *Type, params: TypeList, name: ident.Ident): *Type {
     return t;
 }
 
-// this function is used to initialize the placeholder functions of tychk
+// this function is used to initialize placeholder functions of tychk
 def init_func(t: *Type, name: ident.Ident): void {
     let f = Func {
         t: *t,
@@ -237,16 +238,16 @@ def new_type(kind: i32, size: i32): *Type {
     return mem as *Type;
 }
 
-def is_placeholder(t: *Type): bool {
-    return std.flag_get(&t.flags, FLAG_PLACEHOLDER);
+def was_touched_by_tychk(t: *Type): bool {
+    return std.flag_get(&t.flags, FLAG_TYCHK_TOUCHED);
 }
 
-def set_placeholder(t: *Type): void {
-    std.flag_set(&t.flags, FLAG_PLACEHOLDER);
+def tychk_touch(t: *Type): void {
+    std.flag_set(&t.flags, FLAG_TYCHK_TOUCHED);
 }
 
-def unset_placeholder(t: *Type): void {
-    std.flag_unset(&t.flags, FLAG_PLACEHOLDER);
+def tychk_untouch(t: *Type): void {
+    std.flag_unset(&t.flags, FLAG_TYCHK_TOUCHED);
 }
 
 def create_type(kind: i32): Type {
@@ -349,7 +350,7 @@ def fill_width_align(t: *Type): bool {
     // if align is 0 at end of this function, use width as align
     let align = 0;
     let width = WIDTH_UNKNOWN;
-    let has_placeholders = false;
+    let has_unresolved_fields = false;
 
     if is_ptr(t){
         width = 8; // TODO: determine pointer width based on target
@@ -371,10 +372,10 @@ def fill_width_align(t: *Type): bool {
             }
 
             if field_initialized {
-                let is_placeholder = std.flag_get(&f.ty.flags, FLAG_PLACEHOLDER);
+                let is_not_resolved = was_touched_by_tychk(f.ty);
 
-                if is_placeholder {
-                    has_placeholders = true;
+                if is_not_resolved {
+                    has_unresolved_fields = true;
                 } else {
                     let a = f.ty.align;
                     if a > max_align {
@@ -385,7 +386,7 @@ def fill_width_align(t: *Type): bool {
                     width_sum = width_sum + w;
                 }
             } else {
-                has_placeholders = true;
+                has_unresolved_fields = true;
             }
 
             i = i + 1;
@@ -395,7 +396,7 @@ def fill_width_align(t: *Type): bool {
         align = max_align;
     }
 
-    if has_placeholders {
+    if has_unresolved_fields {
         return false;
     }
 

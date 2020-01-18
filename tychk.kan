@@ -19,8 +19,8 @@ import "io";
 
 extern def isort(arr: *i32, len: i32): *i32;
 
-#define WAITING_STRUCT 1
-#define WAITING_PTR    2
+#define WAITING_TYPE 1
+#define WAITING_PTR  2
 
 // Used as some kind of callback
 // When we resolve structs it may happen, that the struct has a field type we
@@ -80,13 +80,13 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
 
     let ident = req_waiting_for_ident(&request);
     // ------
-    let s = ident.to_string(ident, si);
-    let kind_s = "struct";
-    if request.kind == WAITING_PTR {
-        kind_s = "ptr";
-    }
-    io.printf("DBG: >>> Adding %s request for '%s'\n", kind_s, s);
-    delete s;
+        let s = ident.to_string(ident, si);
+        let kind_s = "struct";
+        if request.kind == WAITING_PTR {
+            kind_s = "ptr";
+        }
+        io.printf("DBG: >>> Adding %s request for '%s'\n", kind_s, s);
+        delete s;
     // ------
 
     let key = map.key_from_ident(si, ident);
@@ -275,68 +275,19 @@ def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
     return sorted_mods;
 }
 
-def make_mod_type(tc: *TypeChecker, m: *mod.Module, si: *span.SpanInterner): *ty.Mod {
-    let mod_ty = ty.new_mod() as *ty.Mod;
-
-    // let i = 0;
-    // let num_structs = mod.num_structs(m);
-    // while i < num_structs {
-    //     let s = &mod.get_struct_at(m, i).decl;
-    //     let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &s.name);
-
-    //     // if declared is not null, there is already a type with this name in scope
-    //     if declared == null {
-    //         // placeholder types
-    //         let s_ty = ty.new_placeholder_type(TY_STRUCT, sizeof ty.Struct);
-    //         ty.init_struct(s_ty, s.name);
-    //         push_tmp_ty(tc, s_ty);
-
-    //         let name = ident.to_string(&s.name, si);
-    //         io.printf("DBG: Creating placeholder for '%s'\n", name);
-    //         delete name;
-
-    //         scope.bind_in(&mod_ty.scope, si, &s.name, s_ty);
-    //     } else {
-    //         // TODO: reference previous defintion
-    //         push_duplicate_def_error(tc, &s.name);
-    //     }
-
-    //     i = i + 1;
-    // }
-
-    // i = 0;
-    // while i < mod.num_functions(m) {
-    //     let f = &mod.get_function_at(m, i).decl;
-    //     let declared = scope.get_in(&mod_ty.scope, tc.span_interner, &f.name);
-
-    //     // if declared is not null, there is already a function with this name in scope
-    //     if declared == null {
-    //         // placeholder types
-    //         let f_ty = ty.new_placeholder_type(TY_FUNC, sizeof ty.Func);
-    //         ty.init_func(f_ty, f.name);
-    //         push_tmp_ty(tc, f_ty);
-
-    //         let name = ident.to_string(&f.name, si);
-    //         io.printf("DBG: Creating placeholder for '%s'\n", name);
-    //         delete name;
-
-    //         scope.bind_in(&mod_ty.scope, si, &f.name, f_ty);
-    //     } else {
-    //         // TODO: reference previous defintion
-    //         push_duplicate_def_error(tc, &f.name);
-    //     }
-
-    //     i = i + 1;
-    // }
-
-    return mod_ty;
+def make_mod_type(tc: *TypeChecker, m: *mod.Module): *ty.Mod {
+    return ty.new_mod() as *ty.Mod;
 }
 
-def lookup_ident(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
-    return lookup_ident_mod(tc, ident, null);
+def lookup_mod(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
+    return scope.get_in(&tc.ctx.mod.ty.scope, tc.span_interner, ident);
 }
 
-def lookup_ident_mod(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Module): *ty.Type {
+def lookup_local(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
+    return m_lookup_local(tc, ident, null);
+}
+
+def m_lookup_local(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Module): *ty.Type {
     let len = ident.len(ident, tc.span_interner);
     let dot_index = ident.index_of(ident, len, '.');
     if dot_index < 0 {
@@ -383,9 +334,7 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module): *ty.Mod {
     }
 
     io.printf("Checking %.*s\n", mod.path.len, mod.path.inner);
-
-    // resolve definitions in mod and put them into the module struct
-    mod.ty = make_mod_type(tc, mod, tc.span_interner);
+    mod.ty = make_mod_type(tc, mod);
 
     // TODO: don't free previous context, but instead create a map <Mod, Ctx>
     // so that we can context switch at arbitrary points
@@ -419,7 +368,7 @@ def fill_func_def(
     let error = false;
 
     // TODO: wait
-    let ret_ty = lookup_ident(tc, &f_decl.ret_ty.ident);
+    let ret_ty = lookup_local(tc, &f_decl.ret_ty.ident);
     if ret_ty == null {
         push_not_defined_error(tc, &f_decl.ret_ty.ident);
         error = true;
@@ -435,7 +384,7 @@ def fill_func_def(
         // TODO: handle varargs
         if !param.is_varargs(p) {
             // TODO: wait
-            let p_ty = lookup_ident(tc, &p.ty.ident);
+            let p_ty = lookup_local(tc, &p.ty.ident);
 
             if p_ty == null {
                 push_not_defined_error(tc, &p.ty.ident);
@@ -461,8 +410,12 @@ def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
     return ty;
 }
 
-def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
+def bind_local(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
     scope.bind(&tc.ctx.scopes, ident, ty);
+}
+
+def bind_mod(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
+    scope.bind_in(&tc.ctx.mod.ty.scope, tc.span_interner, ident, ty);
 }
 
 def fill_struct_fields(
@@ -471,12 +424,7 @@ def fill_struct_fields(
     s_ty: *ty.Struct
 ): void {
     // TODO: handle self fields
-
-    if ty.is_initialized(s_ty as *ty.Type) {
-        return;
-    }
-
-    ty.set_placeholder(s_ty as *ty.Type);
+    ty.tychk_touch(s_ty as *ty.Type);
 
     let s = ident.to_string(&s_decl.name, tc.span_interner);
     io.printf("----\nDBG: resolving %s\n", s);
@@ -499,7 +447,7 @@ def fill_struct_fields(
         delete s;
 
         let mod: *mod.Module = null;
-        let field_ty = lookup_ident_mod(tc, &f.ty.ident, &mod);
+        let field_ty = m_lookup_local(tc, &f.ty.ident, &mod);
 
         // pointers are ok, because their size is known
         let is_ptr = tyid.is_ptr(&f.ty);
@@ -563,7 +511,7 @@ def wait_for_struct_field(
     }
 
     let field_ty: *ty.Type = null;
-    let kind = WAITING_STRUCT;
+    let kind = WAITING_TYPE;
 
     if tyid.is_ptr(&field.ty) {
         kind = WAITING_PTR;
@@ -591,10 +539,10 @@ def update_waiting(
     ident: *ident.Ident
 ): void {
     // only execute this once
-    if !ty.is_placeholder(resolved_ty) {
+    if !ty.was_touched_by_tychk(resolved_ty) {
         return;
     }
-    ty.unset_placeholder(resolved_ty);
+    ty.tychk_untouch(resolved_ty);
 
     let waiting_map = get_waiting_map(tc, mod);
     let waiting = get_waiting(waiting_map, tc.span_interner, ident);
@@ -632,21 +580,22 @@ def update_waiting(
                 delete waiting_name;
         // -----
 
-        let placeholder = ty.field_at(waiting_s_ty, req.field_idx);
+        let field = ty.field_at(waiting_s_ty, req.field_idx);
 
-        if req.kind == WAITING_STRUCT {
-            placeholder.ty = resolved_ty;
+        if req.kind == WAITING_TYPE {
+            field.ty = resolved_ty;
         } else if req.kind == WAITING_PTR {
-            if !ty.is_ptr(placeholder.ty) {
+            if !ty.is_ptr(field.ty) {
                 push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
                 return;
             }
 
-            ty.as_ptr(placeholder.ty).inner = resolved_ty;
+            ty.as_ptr(field.ty).inner = resolved_ty;
         }
 
-        let no_placeholders = ty.fill_width_align(waiting_ty);
-        if no_placeholders {
+        let completely_initialized = ty.fill_width_align(waiting_ty);
+        if completely_initialized {
+            // recursively update types waiting for waiting_ty
             update_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
         }
 
@@ -707,8 +656,8 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             tc.ctx = ctx;
         }
 
-        // Bind mod type to mod ident
-        bind(tc, &i_s.mod, mod_ty as *ty.Type);
+        // bind_local mod type to mod ident
+        bind_local(tc, &i_s.mod, mod_ty as *ty.Type);
 
         return s;
     }
@@ -717,17 +666,18 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_struct_decl_stmt(s) {
         let sd = &ast.as_struct_decl_stmt(s).decl;
 
+        let prev = lookup_mod(tc, &sd.name);
+        if prev != null {
+            push_duplicate_def_error(tc, &sd.name);
+            return null;
+        }
+
         let definition = ty.new_type(TY_STRUCT, sizeof ty.Struct);
         push_tmp_ty(tc, definition);
-
         ty.init_struct(definition, sd.name);
+
         fill_struct_fields(tc, sd, ty.as_struct(definition));
-
-        let name = ident.to_string(&sd.name, tc.span_interner);
-        io.printf("DBG: binding struct %s\n", name);
-        delete name;
-
-        scope.bind_in(&tc.ctx.mod.ty.scope, tc.span_interner, &sd.name, definition);
+        bind_mod(tc, &sd.name, definition);
 
         return s;
     }
@@ -737,7 +687,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_func_decl_stmt(s) {
         let fd = &ast.as_func_decl_stmt(s).decl;
 
-        // let definition = lookup_ident(tc, &fd.name);
+        // let definition = lookup_local(tc, &fd.name);
         // if definition == null {
         //     let name = ident.to_string(&fd.name, tc.span_interner);
         //     // TODO: is it possible to hit this?
@@ -762,7 +712,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
         l_s.value = value;
-        bind(tc, &l_s.ident, l_s.value.ty);
+        bind_local(tc, &l_s.ident, l_s.value.ty);
         return s;
     }
 
@@ -810,7 +760,7 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
     // EXPR_IDENT
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
-        e.ty = lookup_ident(tc, ident);
+        e.ty = lookup_local(tc, ident);
 
         if e.ty == null {
             push_not_defined_error(tc, ident);
