@@ -19,8 +19,11 @@ import "io";
 
 extern def isort(arr: *i32, len: i32): *i32;
 
-#define WAITING_TYPE 1
-#define WAITING_PTR  2
+#define WAITING_TYPE       1
+#define WAITING_PTR        2
+#define WAITING_FUNC_DEF   3
+
+#define OFFSET_RETURN_TYPE -1
 
 // Used as some kind of callback
 // When we resolve statements it may happen, that the statement uses type we
@@ -30,7 +33,7 @@ extern def isort(arr: *i32, len: i32): *i32;
 // for this type and resolve them accordingly.
 type WaitingRequest struct {
     kind: i32,
-    field_idx: i32,
+    offset: i32, // e.g. index of field in Struct type
     to_fill: *ty.Type,
     to_fill_mod: *mod.Module,
     waiting_for: ident.Ident,
@@ -38,21 +41,58 @@ type WaitingRequest struct {
 }
 
 def create_waiting_request(
+    tc: *TypeChecker,
     kind: i32,
     to_fill: *ty.Type,
     to_fill_mod: *mod.Module,
     waiting_for: ident.Ident,
     waiting_for_mod: *mod.Module,
-    field_idx: i32
+    offset: i32
 ): WaitingRequest {
+    // it is easier to pass things like mymod.Mytype to this function and just
+    // remove the 'mymod.' here instead of on the calling site
+    patch_waiting_for(tc, &waiting_for, waiting_for_mod);
+
     return WaitingRequest {
         kind: kind,
-        field_idx: field_idx,
+        offset: offset,
         to_fill: to_fill,
         to_fill_mod: to_fill_mod,
         waiting_for: waiting_for,
         waiting_for_mod: waiting_for_mod
     };
+}
+
+def patch_waiting_for(
+    tc: *TypeChecker,
+    waiting_for: *ident.Ident,
+    waiting_for_mod: *mod.Module
+): void {
+    // this means the type is in the same module, so the ident should not have
+    // a module name at the start
+    if waiting_for_mod == null {
+        return;
+    }
+
+    let len = ident.len(waiting_for, tc.span_interner);
+    let dot_index = ident.index_of(waiting_for, len, '.');
+    if dot_index > 0 {
+        let ident_mod = get_mod_by_alias(&tc.ctx, dot_index, waiting_for.ident);
+        if ident_mod != waiting_for_mod {
+            // not recoverable and probably unreachable
+            std.abort();
+        }
+
+        // remove the module path: 'mymod.test' => 'test'
+        let span = span.get(tc.span_interner, waiting_for.ident_span);
+        let start = span.start + dot_index + 1;
+        let end = span.start + span.len;
+
+        let new_span = span.create(tc.span_interner, start, end, span.ctx);
+        let new_ident = waiting_for.ident + dot_index + 1;
+
+        *waiting_for = ident.from_str(new_span, new_ident);
+    }
 }
 
 def req_waiting_for_ident(r: *WaitingRequest): *ident.Ident {
@@ -84,6 +124,8 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
         let kind_s = "struct";
         if request.kind == WAITING_PTR {
             kind_s = "ptr";
+        } else if request.kind == WAITING_FUNC_DEF {
+            kind_s = "func";
         }
         io.printf("DBG: >>> Adding %s request for '%s'\n", kind_s, s);
         delete s;
@@ -287,6 +329,9 @@ def lookup_local(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
     return m_lookup_local(tc, ident, null);
 }
 
+// if the ident has a '.' inside it like 'mymod.test', out_mod will be set to a
+// reference to the correspoding module (mymod) this will happen, even if out_mod
+// does not contain the actual type (test)
 def m_lookup_local(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Module): *ty.Type {
     let len = ident.len(ident, tc.span_interner);
     let dot_index = ident.index_of(ident, len, '.');
@@ -361,48 +406,68 @@ def fill_func_def(
     f_decl: *func.FuncDef,
     f_ty: *ty.Func
 ): void {
-    let name = ident.to_string(&f_ty.name, tc.span_interner);
-    io.printf("DBG: Defining '%s'\n", name);
-    delete name;
+    // let name = ident.to_string(&f_ty.name, tc.span_interner);
+    // io.printf("DBG: Defining '%s'\n", name);
+    // delete name;
 
-    let error = false;
+    // let error = false;
+    // let waiting = true;
 
-    // TODO: wait
-    let ret_ty = lookup_local(tc, &f_decl.ret_ty.ident);
-    if ret_ty == null {
-        push_not_defined_error(tc, &f_decl.ret_ty.ident);
-        error = true;
-    }
+    // let ret_ty_ident = f_decl.ret_ty.ident;
+    // let ret_ty_mod: *mod.Module = null;
+    // let ret_ty = m_lookup_local(tc, &ret_ty_ident, &ret_ty_mod);
 
-    let num_params = func.num_params(f_decl);
-    let param_types = ty.create_type_list(ptrvec.with_cap(num_params));
+    // if ret_ty == null {
+    //     func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, f_ty);
+    //     waiting = true;
+    // }
 
-    let i = 0;
-    while i < num_params {
-        let p = func.get_param_ptr(f_decl, i);
+    // let num_params = func.num_params(f_decl);
+    // let param_types = ty.create_type_list(ptrvec.with_cap(num_params));
 
-        // TODO: handle varargs
-        if !param.is_varargs(p) {
-            // TODO: wait
-            let p_ty = lookup_local(tc, &p.ty.ident);
+    // let i = 0;
+    // while i < num_params {
+    //     let p = func.get_param_ptr(f_decl, i);
 
-            if p_ty == null {
-                push_not_defined_error(tc, &p.ty.ident);
-                error = true;
-            } else {
-                ty.push_type(&param_types, p_ty);
-            }
-        }
+    //     // TODO: handle varargs
+    //     if !param.is_varargs(p) {
+    //         let p_mod: *mod.Module = null;
+    //         let p_ty = m_lookup_local(tc, &p.ty.ident, &p_mod);
 
-        i = i + 1;
-    }
+    //         if p_ty == null {
+    //             func_wait_for_type(tc, p_mod, p.ty.ident, i, f_ty);
+    //             waiting = true;
+    //         } else {
+    //             ty.push_type(&param_types, p_ty);
+    //         }
+    //     }
 
-    if !error {
-        f_ty.params = param_types;
-        f_ty.ret = ret_ty;
-    } else {
-        ty.free_type_list(&param_types);
-    }
+    //     i = i + 1;
+    // }
+
+    // if !error {
+    //     f_ty.params = param_types;
+    //     f_ty.ret = ret_ty;
+    // } else {
+    //     ty.free_type_list(&param_types);
+    // }
+}
+
+def func_wait_for_type(
+    tc: *TypeChecker,
+    waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
+    waiting_for: ident.Ident,
+    offset: i32,
+    to_fill: *ty.Func
+): void {
+    wait_for_type(
+        tc,
+        WAITING_FUNC_DEF,
+        waiting_for_mod,
+        waiting_for,
+        offset,
+        to_fill as *ty.Type
+    );
 }
 
 def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
@@ -497,15 +562,41 @@ def fill_struct_fields(
     delete s;
 }
 
+def wait_for_type(
+    tc: *TypeChecker,
+    kind: i32,
+    waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
+    waiting_for: ident.Ident,
+    offset: i32,
+    to_fill: *ty.Type
+) : void {
+    // current module
+    if waiting_for_mod == null {
+        waiting_for_mod = tc.ctx.mod;
+    }
+
+    let request = create_waiting_request(
+        tc,
+        kind,
+        to_fill,
+        tc.ctx.mod,
+        waiting_for,
+        waiting_for_mod,
+        offset
+    );
+
+    wait_for(tc, request);
+}
+
 def wait_for_struct_field(
     tc: *TypeChecker,
     mod: *mod.Module,
     waiting_for: ident.Ident,
     field: *record.Field,
-    field_idx: i32,
+    offset: i32,
     s_ty: *ty.Struct
 ): void {
-    // same module
+    // current module
     if mod == null {
         mod = tc.ctx.mod;
     }
@@ -521,12 +612,13 @@ def wait_for_struct_field(
     ty.push_field(s_ty, field.ident, field_ty);
 
     let request = create_waiting_request(
+        tc,
         kind,
         s_ty as *ty.Type,
         tc.ctx.mod,
         waiting_for,
         mod,
-        field_idx
+        offset
     );
 
     wait_for(tc, request);
@@ -580,7 +672,7 @@ def update_waiting(
                 delete waiting_name;
         // -----
 
-        let field = ty.field_at(waiting_s_ty, req.field_idx);
+        let field = ty.field_at(waiting_s_ty, req.offset);
 
         if req.kind == WAITING_TYPE {
             field.ty = resolved_ty;
@@ -707,20 +799,19 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_func_decl_stmt(s) {
         let fd = &ast.as_func_decl_stmt(s).decl;
 
-        // let definition = lookup_local(tc, &fd.name);
-        // if definition == null {
-        //     let name = ident.to_string(&fd.name, tc.span_interner);
-        //     // TODO: is it possible to hit this?
-        //     io.printf("\n\nDBG ERROR '%s' was not defined\n\n", name);
-        //     delete name;
-        // }
+        let prev = lookup_mod(tc, &fd.name);
+        if prev != null {
+            push_duplicate_def_error(tc, &fd.name);
+            return null;
+        }
 
-        // if !ty.is_func(definition) {
-        //     // TODO: error
-        //     std.abort();
-        // }
+        let definition = ty.new_type(TY_FUNC, sizeof ty.Func);
+        push_tmp_ty(tc, definition);
+        ty.init_func(definition, fd.name);
 
-        // fill_func_def(tc, fd, definition as *ty.Func);
+        fill_func_def(tc, fd, definition as *ty.Func);
+        bind_mod(tc, &fd.name, definition);
+
         return s;
     }
 
