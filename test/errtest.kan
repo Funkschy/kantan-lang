@@ -14,7 +14,8 @@ type Other2 struct {
 }
 
 type S1 struct {
-    f: other.MyStruct
+    f: other.MyStruct,
+    i: i32
 }
 
 type Test struct {

@@ -1,5 +1,5 @@
 import "map";
-import "vec";
+import "ptrvec";
 import "ty";
 import "ident";
 import "span";
@@ -51,17 +51,17 @@ def s_get_in(s: *Scope, key_len: i32, key: string): *ty.Type {
 }
 
 type ScopeStack struct {
-    scopes: vec.Vec, // vec of Scopes
+    scopes: ptrvec.Vec, // vec of *Scopes
     span_interner: *span.SpanInterner // redundant, but leads to a nicer interface
 }
 
 def empty_stack(): ScopeStack {
-    return ScopeStack { scopes: vec.create(0), span_interner: null };
+    return ScopeStack { scopes: ptrvec.create(), span_interner: null };
 }
 
 def create_stack(span_interner: *span.SpanInterner): ScopeStack {
     return ScopeStack {
-        scopes: vec.create(sizeof Scope),
+        scopes: ptrvec.create(),
         span_interner: span_interner
     };
 }
@@ -69,19 +69,21 @@ def create_stack(span_interner: *span.SpanInterner): ScopeStack {
 def free_stack(s: *ScopeStack): void {
     let i = 2; // dont free global scopes
     while i < num_scopes(s) {
-        free_s(scope_at(s, i));
+        let scope = scope_at(s, i);
+        free_s(scope);
+        delete scope;
         i = i + 1;
     }
-    vec.free_v(&s.scopes);
+    ptrvec.free_v(&s.scopes);
 }
 
 def open_scope(s: *ScopeStack): void {
-    let scope = create();
-    vec.push(&s.scopes, &scope as *void);
+    let scope = new create();
+    push_scope(s, scope);
 }
 
 def push_scope(s: *ScopeStack, scope: *Scope): void {
-    vec.push(&s.scopes, scope as *void);
+    ptrvec.push_ptr(&s.scopes, scope as *void);
 }
 
 def close_scope(s: *ScopeStack): void {
@@ -94,7 +96,7 @@ def close_scope_no_free(s: *ScopeStack): void {
 }
 
 def scope_at(s: *ScopeStack, i: i32): *Scope {
-    return vec.get_ptr(&s.scopes, i) as *Scope;
+    return ptrvec.get(&s.scopes, i) as *Scope;
 }
 
 def top(s: *ScopeStack): *Scope {

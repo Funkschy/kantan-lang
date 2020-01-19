@@ -20,7 +20,7 @@ import "io";
 extern def isort(arr: *i32, len: i32): *i32;
 
 #define WAITING_TYPE       1
-#define WAITING_PTR        2
+#define WAITING_TYPE_PTR   2
 #define WAITING_FUNC_DEF   3
 
 #define OFFSET_RETURN_TYPE -1
@@ -122,7 +122,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
     // ------
         let s = ident.to_string(ident, si);
         let kind_s = "struct";
-        if request.kind == WAITING_PTR {
+        if request.kind == WAITING_TYPE_PTR {
             kind_s = "ptr";
         } else if request.kind == WAITING_FUNC_DEF {
             kind_s = "func";
@@ -208,7 +208,6 @@ def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): 
     let scopes = scope.create_stack(si);
     scope.push_scope(&scopes, global);
     scope.push_scope(&scopes, &mod.ty.scope);
-    scope.open_scope(&scopes);
 
     return Ctx {
         mod: mod,
@@ -321,11 +320,7 @@ def make_mod_type(tc: *TypeChecker, m: *mod.Module): *ty.Mod {
     return ty.new_mod() as *ty.Mod;
 }
 
-def lookup_mod(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
-    return scope.get_in(&tc.ctx.mod.ty.scope, tc.span_interner, ident);
-}
-
-def lookup_local(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
+def lookup(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
     return m_lookup_local(tc, ident, null);
 }
 
@@ -406,51 +401,53 @@ def fill_func_def(
     f_decl: *func.FuncDef,
     f_ty: *ty.Func
 ): void {
-    // let name = ident.to_string(&f_ty.name, tc.span_interner);
-    // io.printf("DBG: Defining '%s'\n", name);
-    // delete name;
+    let name = ident.to_string(&f_ty.name, tc.span_interner);
+    io.printf("DBG: Defining '%s'\n", name);
+    delete name;
 
-    // let error = false;
-    // let waiting = true;
+    let error = false;
+    let waiting = true;
 
-    // let ret_ty_ident = f_decl.ret_ty.ident;
-    // let ret_ty_mod: *mod.Module = null;
-    // let ret_ty = m_lookup_local(tc, &ret_ty_ident, &ret_ty_mod);
+    let ret_ty_ident = f_decl.ret_ty.ident;
+    let ret_ty_mod: *mod.Module = null;
+    let ret_ty = m_lookup_local(tc, &ret_ty_ident, &ret_ty_mod);
 
-    // if ret_ty == null {
-    //     func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, f_ty);
-    //     waiting = true;
-    // }
+    if ret_ty == null {
+        func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, f_ty);
+        waiting = true;
+    }
 
-    // let num_params = func.num_params(f_decl);
-    // let param_types = ty.create_type_list(ptrvec.with_cap(num_params));
+    let num_params = func.num_params(f_decl);
+    let params = vec.with_cap(sizeof ty.Param, num_params);
 
-    // let i = 0;
-    // while i < num_params {
-    //     let p = func.get_param_ptr(f_decl, i);
+    let i = 0;
+    while i < num_params {
+        let p = func.get_param_ptr(f_decl, i);
 
-    //     // TODO: handle varargs
-    //     if !param.is_varargs(p) {
-    //         let p_mod: *mod.Module = null;
-    //         let p_ty = m_lookup_local(tc, &p.ty.ident, &p_mod);
+        // TODO: handle varargs
+        if !param.is_varargs(p) {
+            let p_mod: *mod.Module = null;
+            let p_ty_name = p.ty.ident;
+            let p_ty = m_lookup_local(tc, &p_ty_name, &p_mod);
 
-    //         if p_ty == null {
-    //             func_wait_for_type(tc, p_mod, p.ty.ident, i, f_ty);
-    //             waiting = true;
-    //         } else {
-    //             ty.push_type(&param_types, p_ty);
-    //         }
-    //     }
+            if p_ty == null {
+                func_wait_for_type(tc, p_mod, p_ty_name, i, f_ty);
+                waiting = true;
+            }
 
-    //     i = i + 1;
-    // }
+            let f_param = ty.create_param(p.name, p_ty);
+            vec.push(&params, &f_param as *void);
+        }
 
-    // if !error {
-    //     f_ty.params = param_types;
-    //     f_ty.ret = ret_ty;
-    // } else {
-    //     ty.free_type_list(&param_types);
-    // }
+        i = i + 1;
+    }
+
+    if !error {
+        f_ty.params = params;
+        f_ty.ret = ret_ty;
+    } else {
+        vec.free_v(&params);
+    }
 }
 
 def func_wait_for_type(
@@ -475,12 +472,8 @@ def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
     return ty;
 }
 
-def bind_local(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
+def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
     scope.bind(&tc.ctx.scopes, ident, ty);
-}
-
-def bind_mod(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
-    scope.bind_in(&tc.ctx.mod.ty.scope, tc.span_interner, ident, ty);
 }
 
 def fill_struct_fields(
@@ -555,7 +548,7 @@ def fill_struct_fields(
         io.printf("DBG: %s has a width of %d, align of %d\n", s, ty.width, ty.align);
         delete s;
 
-        update_waiting(tc, tc.ctx.mod, ty, &s_ty.name);
+        update_all_waiting(tc, tc.ctx.mod, ty, &s_ty.name);
         return;
     }
 
@@ -605,7 +598,7 @@ def wait_for_struct_field(
     let kind = WAITING_TYPE;
 
     if tyid.is_ptr(&field.ty) {
-        kind = WAITING_PTR;
+        kind = WAITING_TYPE_PTR;
         field_ty = ty.new_ptr(field.ty.pointer_count, null);
         push_tmp_ty(tc, field_ty);
     }
@@ -624,7 +617,7 @@ def wait_for_struct_field(
     wait_for(tc, request);
 }
 
-def update_waiting(
+def update_all_waiting(
     tc: *TypeChecker,
     mod: *mod.Module,
     resolved_ty: *ty.Type,
@@ -656,27 +649,45 @@ def update_waiting(
     let i = 0;
     while i < waiting.len {
         let req = vec.get_ptr(waiting, i) as *WaitingRequest;
+        update_waiting(tc, req, resolved_ty);
 
-        let waiting_ty = req.to_fill;
-        let waiting_mod = req.to_fill_mod;
-        let waiting_s_ty = waiting_ty as *ty.Struct;
+        i = i + 1;
+    }
+
+    let s = ident.to_string(ident, tc.span_interner);
+    io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
+    delete s;
+}
+
+def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type): void {
+    let waiting_ty = req.to_fill;
+    let waiting_mod = req.to_fill_mod;
+
+    if req.kind == WAITING_TYPE || req.kind == WAITING_TYPE_PTR {
+        let waiting_s_ty = ty.as_struct(waiting_ty);
         let waiting_ident = &waiting_s_ty.name;
 
-        // -----
-                let updated_name = ident.to_string(ident, tc.span_interner);
-                let waiting_name = ident.to_string(waiting_ident, tc.span_interner);
-                io.printf(
-                    "DBG: %s is waiting for %s\n", waiting_name, updated_name
-                );
-                delete updated_name;
-                delete waiting_name;
+        // ----- DBG -----
+        let resolved_name: string = null;
+        if ty.is_struct(resolved_ty) {
+            resolved_name = ident.to_string(&ty.as_struct(resolved_ty).name, tc.span_interner);
+        } else {
+            resolved_name = std.strdup("type");
+        }
+
+        let waiting_name = ident.to_string(waiting_ident, tc.span_interner);
+        io.printf(
+            "DBG: %s was waiting for %s\n", waiting_name, resolved_name
+        );
+        delete waiting_name;
+        delete resolved_name;
         // -----
 
         let field = ty.field_at(waiting_s_ty, req.offset);
 
         if req.kind == WAITING_TYPE {
             field.ty = resolved_ty;
-        } else if req.kind == WAITING_PTR {
+        } else if req.kind == WAITING_TYPE_PTR {
             if !ty.is_ptr(field.ty) {
                 push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
                 return;
@@ -685,18 +696,32 @@ def update_waiting(
             ty.as_ptr(field.ty).inner = resolved_ty;
         }
 
+        // TODO: calling this all the time is very inefficient
         let completely_initialized = ty.fill_width_align(waiting_ty);
         if completely_initialized {
             // recursively update types waiting for waiting_ty
-            update_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
+            update_all_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
         }
 
-        i = i + 1;
+        return;
     }
 
-    let s = ident.to_string(ident, tc.span_interner);
-    io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
-    delete s;
+    if req.kind == WAITING_FUNC_DEF {
+        let waiting_f_ty = ty.as_func(waiting_ty);
+
+        if req.offset == OFFSET_RETURN_TYPE {
+            waiting_f_ty.ret = resolved_ty;
+        } else {
+            let p = ty.param_at(waiting_f_ty, req.offset);
+            p.ty = resolved_ty;
+        }
+
+        if ty.func_is_initalized(waiting_f_ty) {
+            let s = ident.to_string(&waiting_f_ty.name, tc.span_interner);
+            io.printf("DBG: %s is fully initialized\n", s);
+            delete s;
+        }
+    }
 }
 
 def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
@@ -769,7 +794,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             tc.ctx = ctx;
         }
 
-        bind_local(tc, &alias, mod_ty as *ty.Type);
+        bind(tc, &alias, mod_ty as *ty.Type);
 
         return s;
     }
@@ -778,7 +803,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_struct_decl_stmt(s) {
         let sd = &ast.as_struct_decl_stmt(s).decl;
 
-        let prev = lookup_mod(tc, &sd.name);
+        let prev = lookup(tc, &sd.name);
         if prev != null {
             push_duplicate_def_error(tc, &sd.name);
             return null;
@@ -789,7 +814,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         ty.init_struct(definition, sd.name);
 
         fill_struct_fields(tc, sd, ty.as_struct(definition));
-        bind_mod(tc, &sd.name, definition);
+        bind(tc, &sd.name, definition);
 
         return s;
     }
@@ -799,7 +824,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_func_decl_stmt(s) {
         let fd = &ast.as_func_decl_stmt(s).decl;
 
-        let prev = lookup_mod(tc, &fd.name);
+        let prev = lookup(tc, &fd.name);
         if prev != null {
             push_duplicate_def_error(tc, &fd.name);
             return null;
@@ -810,7 +835,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         ty.init_func(definition, fd.name);
 
         fill_func_def(tc, fd, definition as *ty.Func);
-        bind_mod(tc, &fd.name, definition);
+        bind(tc, &fd.name, definition);
 
         return s;
     }
@@ -823,7 +848,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
         l_s.value = value;
-        bind_local(tc, &l_s.ident, l_s.value.ty);
+        bind(tc, &l_s.ident, l_s.value.ty);
         return s;
     }
 
@@ -871,7 +896,7 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
     // EXPR_IDENT
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
-        e.ty = lookup_local(tc, ident);
+        e.ty = lookup(tc, ident);
 
         if e.ty == null {
             push_not_defined_error(tc, ident);

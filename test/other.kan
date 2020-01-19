@@ -6,6 +6,10 @@ type Other struct {
     t: MyStruct
 }
 
+def test_function(m: *MyStruct): Other {
+
+}
+
 type MyStruct struct {
     o: *Other,
     t: errtest.Test,
