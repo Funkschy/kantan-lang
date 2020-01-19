@@ -23,10 +23,10 @@ extern def isort(arr: *i32, len: i32): *i32;
 #define WAITING_PTR  2
 
 // Used as some kind of callback
-// When we resolve structs it may happen, that the struct has a field type we
-// have yet to resolve. In this case a waiting request will be placed for the
+// When we resolve statements it may happen, that the statement uses type we
+// have not yet resolved. In this case a waiting request will be placed for the
 // correspoding type in the correspoding module.
-// After a type has been resolved tychk will check if there are pending requests
+// After a type has been resolved, tychk will check if there are pending requests
 // for this type and resolve them accordingly.
 type WaitingRequest struct {
     kind: i32,
@@ -607,11 +607,29 @@ def update_waiting(
     delete s;
 }
 
-def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): *ident.Ident {
+def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
     // when we support "import as" constructs, this will become more interesting
     // TODO: this should only take the last part of the path, otherwise stuff
     // like import "./test" does not work
-    return &imp.mod;
+    let span = span.get(tc.span_interner, imp.mod.ident_span);
+    let p = path.empty();
+    if path.from_str_len(imp.mod.ident, span.len, &p) != 0 {
+        return ident.empty();
+    }
+
+    let lsp = path.last_separator_ptr(&p);
+    if lsp == null {
+        // there is no separator
+        return imp.mod;
+    }
+    lsp = lsp + 1; // skip the actual separator
+
+    let offset = lsp - imp.mod.ident;
+    let start = span.start + offset;
+    let end = start + p.len - offset;
+
+    let new_span = span.create(tc.span_interner, start, end, span.ctx);
+    return ident.from_str(new_span, lsp);
 }
 
 // returns the statement which should replace the old one
@@ -641,8 +659,13 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             push_mk_err(tc, error, i_s.mod.ident_span);
             return null;
         }
+
         let alias = get_import_alias(tc, i_s);
-        add_import_alias(tc, alias, imported_mod);
+        if alias.ident == null {
+            push_internal_error(tc, i_s.mod.ident_span, "import alias was empty");
+            return null;
+        }
+        add_import_alias(tc, &alias, imported_mod);
 
         let mod_ty = imported_mod.ty;
         // the imported module has not yet been resolved
@@ -656,8 +679,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             tc.ctx = ctx;
         }
 
-        // bind_local mod type to mod ident
-        bind_local(tc, &i_s.mod, mod_ty as *ty.Type);
+        bind_local(tc, &alias, mod_ty as *ty.Type);
 
         return s;
     }

@@ -35,6 +35,15 @@ def from_str(s: string, p: *Path): i32 {
     return 0;
 }
 
+def from_str_len(s: string, len: i32, p: *Path): i32 {
+    if len <= 0 {
+        return ERROR_PATH_EMTPY;
+    }
+
+    *p = Path { len: len, inner: s };
+    return 0;
+}
+
 def ends_with(p: *Path, s: string): bool {
     let len = std.strlen(s);
     if len > p.len {
@@ -44,17 +53,26 @@ def ends_with(p: *Path, s: string): bool {
     return std.strncmp(p.inner + (p.len - len), s, len) == 0;
 }
 
+def last_separator_ptr(p: *Path): string {
+    let ptr = p.inner + p.len - 1;
+    while ptr > p.inner {
+        ptr = ptr - 1;
+        if *ptr == SYSTEM_SEPARATOR {
+            return ptr;
+        }
+    }
+
+    return null;
+}
+
 def parent(p: *Path): Path {
     if is_root(p) {
         return *p;
     }
 
-    let ptr = p.inner + p.len - 1;
-    while ptr > p.inner {
-        ptr = ptr - 1;
-        if *ptr == SYSTEM_SEPARATOR {
-            return create(p.inner, ptr - p.inner);
-        }
+    let lsp = last_separator_ptr(p);
+    if lsp != null {
+        return create(p.inner, lsp - p.inner);
     }
 
     return *p;

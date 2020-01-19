@@ -1,5 +1,5 @@
 import "io";
-import "errtest";
+import "../test/./errtest";
 
 type Other struct {
     t: errtest.Test,
