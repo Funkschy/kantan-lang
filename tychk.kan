@@ -609,8 +609,6 @@ def update_waiting(
 
 def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
     // when we support "import as" constructs, this will become more interesting
-    // TODO: this should only take the last part of the path, otherwise stuff
-    // like import "./test" does not work
     let span = span.get(tc.span_interner, imp.mod.ident_span);
     let p = path.empty();
     if path.from_str_len(imp.mod.ident, span.len, &p) != 0 {
