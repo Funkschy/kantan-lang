@@ -27,6 +27,7 @@ def run_cmd(command_list):
 
 
 def compile(exe, files):
+    # TODO: valgrind
     args = [exe] + files
     return run_cmd(args)
 

@@ -1,3 +1,5 @@
+// TODO: replace map implementation with open addressing implementation
+
 #include "std.h"
 
 #define LOAD_FACTOR 0.75
@@ -151,6 +153,7 @@ def insert(map: *Map, key: Key, value: *void): bool {
         // no next bucket
         if b.next == null {
             b.next = new Bucket { item: item, next: null };
+            map.len = map.len + 1;
             return false;
         }
 
@@ -178,6 +181,47 @@ def get(map: *Map, key: Key): *void {
             return b.item.value;
         }
 
+        b = b.next;
+    }
+
+    return null;
+}
+
+def get_and_remove(map: *Map, key: Key): *void {
+    if map.buckets == null {
+        return null;
+    }
+
+    let b = map.buckets + get_map_index(map.cap, key.value, key.len);
+    let last: *Bucket = null;
+
+    while b != null {
+        if bucket_is_empty(b) {
+            return null;
+        }
+
+        if key_eq(&b.item.key, &key) {
+            let value = b.item.value;
+
+            if b.next != null {
+                // b is not last
+                std.memcpy(b as *void, b.next as *void, sizeof Bucket);
+                delete b.next;
+
+                return value;
+            } else if last != null {
+                // b last in chain
+                last.next = null;
+                delete b;
+            } else {
+                // b is first and last
+                std.memset(b as *void, 0, sizeof Bucket);
+            }
+
+            return value;
+        }
+
+        last = b;
         b = b.next;
     }
 
