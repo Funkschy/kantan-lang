@@ -974,7 +974,8 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // STMT_STRUCT_DECL
     if ast.is_struct_decl_stmt(s) {
-        if !in_global_scope(tc) {
+        let in_global_scope = in_global_scope(tc);
+        if !in_global_scope {
             // TODO: currently not allowed error
             std.abort();
         }
@@ -983,7 +984,11 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let ty = init_struct_decl(tc, sd);
 
         if ty != null {
-            bind(tc, &sd.name, ty as *ty.Type);
+            // name binding for types is done at module init level
+            if !in_global_scope {
+                std.abort(); // TODO: currently not supported
+                bind(tc, &sd.name, ty as *ty.Type);
+            }
         } else {
             std.abort();
             return null;
