@@ -8,7 +8,7 @@ type Other struct {
     t: MyStruct
 }
 
-def test_function(m: *MyStruct): Other {
+def test_function(m: *MyStruct, o: errtest.S1): Other {
 
 }
 

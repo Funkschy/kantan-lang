@@ -32,6 +32,7 @@ let test = Test {
 
 Test.other;
 test.test_ident;
+test.kekw;
 
 test as *TestType;
 let test: i32 = 0;
