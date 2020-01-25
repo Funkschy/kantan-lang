@@ -77,8 +77,11 @@ def patch_waiting_for(
     let len = ident.len(waiting_for, tc.span_interner);
     let dot_index = ident.index_of(waiting_for, len, '.');
     if dot_index > 0 {
-        let ident_mod = get_mod_by_alias(&tc.ctx, dot_index, waiting_for.ident);
+        let ident_mod = get_mod_by_alias(tc.ctx, dot_index, waiting_for.ident);
         if ident_mod != waiting_for_mod {
+            if ident_mod == null {
+                io.printf("ERROR: alias '%.*s' was null\n", dot_index, waiting_for.ident);
+            }
             // not recoverable and probably unreachable
             std.abort();
         }
@@ -155,7 +158,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
 
 def get_waiting(wrm: *WaitingRequestMap, si: *span.SpanInterner, ident: *ident.Ident): *vec.Vec {
     let key = map.key_from_ident(si, ident);
-    let request_idx = map.get_and_remove(&wrm.request_map, key);
+    let request_idx = map.get(&wrm.request_map, key);
 
     if request_idx == null {
         return null;
@@ -196,20 +199,12 @@ type Ctx struct {
     scopes: scope.ScopeStack
 }
 
-def empty_ctx(): Ctx {
-    return Ctx {
-        mod: null,
-        imports: map.create(),
-        scopes: scope.empty_stack()
-    };
-}
-
-def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): Ctx {
+def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): *Ctx {
     let scopes = scope.create_stack(si);
     scope.push_scope(&scopes, global);
     scope.push_scope(&scopes, &mod.ty.scope);
 
-    return Ctx {
+    return new Ctx {
         mod: mod,
         imports: map.create(),
         scopes: scopes
@@ -219,6 +214,7 @@ def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): 
 def free_ctx(ctx: *Ctx): void {
     scope.free_stack(&ctx.scopes);
     map.free_m(&ctx.imports);
+    delete ctx;
 }
 
 def get_mod_by_alias(ctx: *Ctx, alias_len: i32, alias: string): *mod.Module {
@@ -231,27 +227,35 @@ type TypeChecker struct {
     sorted_mods: *i32,
     // types that get created during type checking and need to be freed afterwards
     temp_types: ptrvec.Vec,
-    ctx: Ctx,
+    ctx: *Ctx,
     globals: scope.Scope,
     errors: vec.Vec, // <TypeError>
-    requests: vec.Vec // Vec<WaitingRequestMap> indexed by mod idx
+    requests: vec.Vec, // Vec<WaitingRequestMap> indexed by mod idx
+    contexts: ptrvec.Vec
 }
 
 def create(span_interner: *span.SpanInterner, mods: *mod.Map): TypeChecker {
+    let num_mods = mod.num_mods(mods);
+
     let tc = TypeChecker {
         span_interner: span_interner,
         mods: mods,
         sorted_mods: sorted_mods(mods, span_interner),
         temp_types: ptrvec.with_cap(256),
-        ctx: empty_ctx(),
+        ctx: null,
         globals: scope.create(),
         errors: vec.create(sizeof TypeError),
-        requests: vec.with_cap(sizeof WaitingRequestMap, mod.num_mods(mods))
+        requests: vec.with_cap(sizeof WaitingRequestMap, num_mods),
+        contexts: ptrvec.with_cap(num_mods)
     };
     vec.init_zero(&tc.requests);
 
     tc.globals = create_global_scope(&tc);
     return tc;
+}
+
+def get_ctx(tc: *TypeChecker, idx: i32): *Ctx {
+    return ptrvec.unsafe_get(&tc.contexts, idx) as *Ctx;
 }
 
 def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
@@ -316,64 +320,6 @@ def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
     return sorted_mods;
 }
 
-def set_mod_type(tc: *TypeChecker, m: *mod.Module): bool {
-    let ty = ty.new_mod() as *ty.Mod;
-    m.ty = ty;
-
-    // free previous context
-    tc.ctx = create_ctx(m, tc.span_interner, &tc.globals);
-    let error = false;
-
-    let i = 0;
-    let n = mod.num_imports(m);
-    while i < n {
-        let i_s = mod.get_import_at(m, i);
-
-        let alias: ident.Ident = ident.empty();
-        let ty: *ty.Mod = null;
-
-        if check_import(tc, i_s, &alias, &ty) {
-            bind(tc, &alias, ty as *ty.Type);
-        } else {
-            error = true;
-        }
-
-        i = i + 1;
-    }
-
-    i = 0;
-    n = mod.num_structs(m);
-    while i < n {
-        let sd = &mod.get_struct_at(m, i).decl;
-        let ty = check_struct_decl(tc, sd);
-
-        if ty != null {
-            bind(tc, &sd.name, ty as *ty.Type);
-        } else {
-            error = true;
-        }
-
-        i = i + 1;
-    }
-
-    i = 0;
-    n = mod.num_functions(m);
-    while i < n {
-        let fd = &mod.get_function_at(m, i).decl;
-        let ty = check_func_decl(tc, fd);
-
-        if ty != null {
-            bind(tc, &fd.name, ty as *ty.Type);
-        } else {
-            error = true;
-        }
-
-        i = i + 1;
-    }
-
-    return error;
-}
-
 def lookup(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
     return m_lookup_local(tc, ident, null);
 }
@@ -389,7 +335,7 @@ def m_lookup_local(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Module)
         return scope.lookup(&tc.ctx.scopes, ident);
     }
 
-    let mod = get_mod_by_alias(&tc.ctx, dot_index, ident.ident);
+    let mod = get_mod_by_alias(tc.ctx, dot_index, ident.ident);
     if mod == null {
         io.printf("DBG DEBUG %.*s mod not found\n", len, ident.ident);
         return null;
@@ -409,14 +355,26 @@ def m_lookup_local(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Module)
 }
 
 def check(tc: *TypeChecker): void {
-    let i = 0;
+    let error = false;
+
     let n = mod.num_mods(tc.mods);
-    // TODO: dont check stdlib if not needed
+    let i = 0;
     while i < n {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
-        check_mod(tc, m);
+        error = error || init_mod(tc, m, idx);
+
+        i = i + 1;
+    }
+
+    // TODO: dont check stdlib if not needed
+    i = 0;
+    while i < n {
+        let idx = *(tc.sorted_mods + i);
+        let m = mod.get_mod(tc.mods, idx);
+
+        check_mod(tc, m, idx);
 
         i = i + 1;
     }
@@ -433,25 +391,66 @@ def check(tc: *TypeChecker): void {
     }
 }
 
-def init_mod(tc: *TypeChecker, mod: *mod.Module): bool {
-    // this module has already been visited
-    if mod.ty != null {
-        return false;
+def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
+    if m.ty != null {
+        std.abort();
     }
 
-    io.printf("Checking %.*s\n", mod.path.len, mod.path.inner);
+    io.printf("DBG: Initializing (%d) %.*s\n", idx, m.path.len, m.path.inner);
 
-    free_ctx(&tc.ctx);
-    return set_mod_type(tc, mod);
+    let ty = ty.new_mod() as *ty.Mod;
+    m.ty = ty;
+
+    let ctx = create_ctx(m, tc.span_interner, &tc.globals);
+    ptrvec.set(&tc.contexts, idx, ctx as *void);
+    tc.ctx = ctx;
+    let error = false;
+
+    let i = 0;
+    let n = mod.num_structs(m);
+    while i < n {
+        let sd = &mod.get_struct_at(m, i).decl;
+        let ty = check_struct_decl(tc, sd);
+
+        if ty != null {
+            bind(tc, &sd.name, ty as *ty.Type);
+        } else {
+            error = true;
+        }
+
+        i = i + 1;
+    }
+
+    // i = 0;
+    // n = mod.num_functions(m);
+    // while i < n {
+    //     let fd = &mod.get_function_at(m, i).decl;
+    //     let ty = check_func_decl(tc, fd);
+
+    //     if ty != null {
+    //         bind(tc, &fd.name, ty as *ty.Type);
+    //     } else {
+    //         error = true;
+    //     }
+
+    //     i = i + 1;
+    // }
+
+    return error;
 }
 
-def check_mod(tc: *TypeChecker, mod: *mod.Module): *ty.Mod {
-    let error = init_mod(tc, mod);
-
-    if error {
-        // don't resolve in error case, module is poisoned
-        return mod.ty;
+def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32): *ty.Mod {
+    if mod.ty == null {
+        std.abort();
     }
+
+    io.printf("DBG: Checking (%d) %.*s\n", idx, mod.path.len, mod.path.inner);
+    let ctx = get_ctx(tc, idx);
+    if ctx == null {
+        std.abort();
+    }
+
+    tc.ctx = ctx;
 
     let i = 0;
     while i < mod.num_stmts(mod) {
@@ -851,16 +850,11 @@ def check_import(
     add_import_alias(tc, &alias, imported_mod);
 
     let mod_ty = imported_mod.ty;
-    // the imported module has not yet been resolved
     if mod_ty == null {
-        // safe current context
-        let ctx = tc.ctx;
-        tc.ctx = empty_ctx();
-        init_mod(tc, imported_mod);
-        free_ctx(&tc.ctx);
-        // and restore it after resolving the module
-        tc.ctx = ctx;
+        std.abort();
     }
+
+    bind(tc, &alias, mod_ty as *ty.Type);
 
     *out_alias = alias;
     *out_ty = mod_ty;
@@ -868,6 +862,23 @@ def check_import(
     return true;
 }
 
+def init_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Struct {
+    let ty = lookup(tc, &sd.name);
+    if ty == null {
+        // TODO: error
+        return null;
+    }
+
+    if !ty.is_struct(ty) {
+        std.abort();
+    }
+
+    ty.init_struct(ty, sd.name);
+    let ty = ty.as_struct(ty);
+
+    fill_struct_fields(tc, sd, ty);
+    return ty;
+}
 
 def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Struct {
     let prev = lookup(tc, &sd.name);
@@ -878,11 +889,7 @@ def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Struct {
 
     let definition = ty.new_type(TY_STRUCT, sizeof ty.Struct);
     push_tmp_ty(tc, definition);
-    ty.init_struct(definition, sd.name);
-
-    let ty = ty.as_struct(definition);
-    fill_struct_fields(tc, sd, ty);
-    return ty;
+    return ty.as_struct(definition);
 }
 
 def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Func {
@@ -923,10 +930,13 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
             delete name_s;
         // --- DBG ---
 
-        std.abort();
         // in this case, an error will be pushed later
         return null;
     }
+
+    let name_s = ident.to_string(f_name, tc.span_interner);
+    io.printf(">> DBG: Checking %s\n", name_s);
+    delete name_s;
 
     return f_s.block;
 }
@@ -942,12 +952,10 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // STMT_IMPORT
     if ast.is_import_stmt(s) {
-        if in_global_scope(tc) {
-            return s;
+        if !in_global_scope(tc) {
+            // TODO: currently not allowed error
+            std.abort();
         }
-
-        // TODO: currently not allowed error
-        std.abort();
 
         let i_s = ast.as_import_stmt(s);
 
@@ -966,15 +974,13 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // STMT_STRUCT_DECL
     if ast.is_struct_decl_stmt(s) {
-        if in_global_scope(tc) {
-            return s;
+        if !in_global_scope(tc) {
+            // TODO: currently not allowed error
+            std.abort();
         }
 
-        // TODO: currently not allowed error
-        std.abort();
-
         let sd = &ast.as_struct_decl_stmt(s).decl;
-        let ty = check_struct_decl(tc, sd);
+        let ty = init_struct_decl(tc, sd);
 
         if ty != null {
             bind(tc, &sd.name, ty as *ty.Type);
@@ -988,35 +994,35 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // STMT_FUNC_DECL
     if ast.is_func_decl_stmt(s) {
-        let f_s = ast.as_func_decl_stmt(s);
-        if in_global_scope(tc) {
-            let block = check_func_body(tc, f_s);
-            if block == null {
-                return null;
-            }
-            f_s.block = block;
-            return s;
-        }
+        // let f_s = ast.as_func_decl_stmt(s);
+        // if in_global_scope(tc) {
+        //     let block = check_func_body(tc, f_s);
+        //     if block == null {
+        //         return null;
+        //     }
+        //     f_s.block = block;
+        //     return s;
+        // }
 
-        // TODO: currently not allowed error
-        std.abort();
+        // // TODO: currently not allowed error
+        // std.abort();
 
-        let fd = &f_s.decl;
-        let ty = check_func_decl(tc, fd);
+        // let fd = &f_s.decl;
+        // let ty = check_func_decl(tc, fd);
 
-        if ty != null {
-            bind(tc, &fd.name, ty as *ty.Type);
-        } else {
-            std.abort();
-            return null;
-        }
+        // if ty != null {
+        //     bind(tc, &fd.name, ty as *ty.Type);
+        // } else {
+        //     std.abort();
+        //     return null;
+        // }
 
-        let block = check_func_body(tc, f_s);
-        if block == null {
-            return null;
-        }
-        f_s.block = block;
-        return s;
+        // let block = check_func_body(tc, f_s);
+        // if block == null {
+        //     return null;
+        // }
+        // f_s.block = block;
+        // return s;
     }
 
     // STMT_LET
@@ -1139,8 +1145,6 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
 }
 
 def free_tc(tc: *TypeChecker): void {
-    free_ctx(&tc.ctx);
-
     let i = 0;
     while i < tc.temp_types.len {
         ty.type_free(ptrvec.get(&tc.temp_types, i) as *ty.Type);
@@ -1166,6 +1170,13 @@ def free_tc(tc: *TypeChecker): void {
         i = i + 1;
     }
     vec.free_v(&tc.requests);
+
+    i = 0;
+    while i < tc.contexts.len {
+        free_ctx(get_ctx(tc, i));
+        i = i + 1;
+    }
+    ptrvec.free_v(&tc.contexts);
 }
 
 #include "error_code.h"

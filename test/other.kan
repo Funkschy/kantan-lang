@@ -1,5 +1,7 @@
 import "io";
 import "../test/./errtest";
+import "files/empty";
+import "simple";
 
 type Other struct {
     t: errtest.Test,

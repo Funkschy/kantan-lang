@@ -67,9 +67,17 @@ def get(v: *Vec, i: i32): *void {
     return null;
 }
 
+def unsafe_get(v: *Vec, i: i32): *void {
+    return *(v.elements + i);
+}
+
 def set(v: *Vec, i: i32, elem: *void): void {
-    if i < v.len {
+    if i >= 0 && i < v.cap {
         *(v.elements + i) = elem;
+        // assume all values in between to be initialized
+        if i >= v.len {
+            v.len = i + 1;
+        }
     }
 }
 
