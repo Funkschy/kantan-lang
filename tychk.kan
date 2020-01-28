@@ -572,6 +572,14 @@ def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
     return ty;
 }
 
+def open_scope(tc: *TypeChecker): void {
+    scope.open_scope(&tc.ctx.scopes);
+}
+
+def close_scope(tc: *TypeChecker): void {
+    scope.close_scope(&tc.ctx.scopes);
+}
+
 def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
     scope.bind(&tc.ctx.scopes, ident, ty);
 }
@@ -609,22 +617,25 @@ def fill_struct_fields(
         if checked_lookup(tc, &f.ty.ident, &field_ty, &mod) == OK {
             // pointers are ok, because their size is known
             let is_ptr = tyid.is_ptr(&f.ty);
-
             if field_ty != null {
+                let is_struct = ty.is_struct(field_ty);
+
                 if ty.is_initialized(field_ty) {
                     if is_ptr {
                         field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
                         push_tmp_ty(tc, field_ty);
                     }
 
-                    ty.push_field(s_ty, f.ident, field_ty);
+                    ty.push_field(s_ty, f.ident, field_ty, tc.span_interner);
                 } else {
-                    if ty.is_struct(field_ty) {
+                    if is_struct {
+                        // a struct that has not been initialized
                         wait_for_struct_field(tc, mod, f.ty.ident, &f, i, s_ty);
                         if !is_ptr {
                             waiting = true;
                         }
                     } else {
+                        // struct types should be the only uninitialized
                         push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
                         return;
                     }
@@ -705,7 +716,7 @@ def wait_for_struct_field(
         field_ty = ty.new_ptr(field.ty.pointer_count, null);
         push_tmp_ty(tc, field_ty);
     }
-    ty.push_field(s_ty, field.ident, field_ty);
+    ty.push_field(s_ty, field.ident, field_ty, tc.span_interner);
 
     let request = create_waiting_request(
         tc,
@@ -798,6 +809,9 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
 
             ty.as_ptr(field.ty).inner = resolved_ty;
         }
+
+        // overwrite old type in struct
+        ty.update_field_ty(waiting_s_ty, field, tc.span_interner);
 
         // TODO: calling this all the time is very inefficient
         let completely_initialized = ty.fill_width_align(waiting_ty);
@@ -980,13 +994,31 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     io.printf(">> DBG: Checking %s body\n", name_s);
     delete name_s;
 
+    open_scope(tc);
+
+    // bind params
+    let i = 0;
+    while i < f_ty.params.len {
+        let p = ty.param_at(f_ty, i);
+        let ty = p.ty;
+
+        bind(tc, &p.name, ty);
+        i = i + 1;
+    }
+
+    // check function body
+    if f_s.block != null {
+        check_stmt(tc, f_s.block as *ast.Stmt);
+    }
+
+    close_scope(tc);
+
     return f_s.block;
 }
 
 // returns the statement which should replace the old one
 // if a new statement is created, this function will free the old one
 def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
-    // STMT_BLOCK
     // STMT_IF
     // STMT_WHILE
     // STMT_DELETE
@@ -1070,6 +1102,20 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // the statements below this should only be resolved in the real pass
     if tc.decl_only_pass {
+        return s;
+    }
+
+    // STMT_BLOCK
+    if ast.is_block_stmt(s) {
+        let b_s = ast.as_block_stmt(s);
+
+        let i = 0;
+        while i < b_s.stmts.len {
+            let stmt = ast.stmt_at(b_s, i);
+            check_stmt(tc, stmt);
+            i = i + 1;
+        }
+
         return s;
     }
 
@@ -1160,7 +1206,9 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
         a_e.left = left;
 
         // Type cannot be accessed with '.'
-        if !ty.is_scoped(a_e.left.ty) || ty.is_struct(a_e.left.ty) {
+        // TODO: use real if
+        // if !ty.is_scoped(a_e.left.ty) || ty.is_struct(a_e.left.ty) {
+        if !ty.is_scoped(a_e.left.ty) {
             // struct types are the types of the definition and not an actual
             // instance (basically class vs object of that class). There is currently
             // no mechanism to access the fields of a struct definition, which could
@@ -1177,6 +1225,10 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
 
         // bring scope into current context
         scope.push_scope(&tc.ctx.scopes, scope);
+
+        // ---
+        io.printf("°°°°contains two: %d\n", scope.s_get_in(scope, 3, "two"));
+        // ---
 
         let right = check_expr(tc, a_e.right);
         if right == null {

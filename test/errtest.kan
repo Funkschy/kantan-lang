@@ -44,7 +44,6 @@ delete 1;
 
 1 >= 0;
 &1 + *(1 + 1 % 2);
-test.i.other;
 
 if true {
     let s = "";
@@ -63,9 +62,22 @@ let i = 52;
 i = other = 2;
 
 
-def function(oof: Test): other.MyStruct {
+type One struct {
+    two: Two
+}
+
+type Two struct {
+    three: Three
+}
+
+type Three struct {
+    i: i32
+}
+
+def function(one: One): other.MyStruct {
     let test = 1;
     1 + 1;
+    one.two.three.i.error;
 }
 
 let other = 0;

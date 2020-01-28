@@ -9,7 +9,6 @@ type Other struct {
 }
 
 def test_function(m: *MyStruct, o: errtest.S1): Other {
-
 }
 
 type MyStruct struct {

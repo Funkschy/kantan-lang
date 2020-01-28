@@ -87,7 +87,9 @@ def push_scope(s: *ScopeStack, scope: *Scope): void {
 }
 
 def close_scope(s: *ScopeStack): void {
-    free_s(top(s));
+    let top = top(s);
+    free_s(top);
+    delete top;
     s.scopes.len = s.scopes.len - 1;
 }
 

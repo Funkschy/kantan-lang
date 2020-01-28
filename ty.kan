@@ -103,20 +103,8 @@ type StructField struct {
 type Struct struct {
     t: Type,
     name: ident.Ident,
+    scope: scope.Scope,
     fields: vec.Vec // <StructField>
-}
-
-def new_struct(name: ident.Ident, fields: vec.Vec): *Type {
-    let t = (new Struct {
-        t: create_type(TY_STRUCT),
-        name: name,
-        fields: fields
-    }) as *Type;
-
-    std.flag_set(&t.flags, FLAG_SCOPED);
-    fill_width_align(t);
-
-    return t;
 }
 
 // this function is used to initialize placeholder structs of tychk
@@ -124,6 +112,7 @@ def init_struct(t: *Type, name: ident.Ident): void {
     let s = Struct {
         t: *t,
         name: name,
+        scope: scope.create(),
         fields: vec.create(sizeof StructField)
     };
     std.flag_set(&s.t.flags, FLAG_SCOPED);
@@ -139,13 +128,18 @@ def as_struct(t: *Type): *Struct {
     return t as *Struct;
 }
 
-def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
+def push_field(t: *Struct, name: ident.Ident, ty: *Type, si: *span.SpanInterner): void {
     let field = StructField { name: name, ty: ty };
     vec.push(&t.fields, &field as *void);
+    scope.bind_in(&t.scope, si, &name, ty);
 }
 
 def field_at(t: *Struct, i: i32): *StructField {
     return vec.get_ptr(&t.fields, i) as *StructField;
+}
+
+def update_field_ty(t: *Struct, field: *StructField, si: *span.SpanInterner): void {
+    scope.bind_in(&t.scope, si, &field.name, field.ty);
 }
 
 def num_fields(t: *Struct): i32 {
@@ -168,18 +162,6 @@ type Func struct {
     ret: *Type,
     params: vec.Vec, // <Param>
     name: ident.Ident
-}
-
-def new_func(ret: *Type, params: vec.Vec, name: ident.Ident): *Type {
-    let t = (new Func {
-        t: create_type(TY_FUNC),
-        ret: ret,
-        params: params,
-        name: name
-    }) as *Type;
-
-    std.flag_set(&t.flags, FLAG_UNSIZED);
-    return t;
 }
 
 // this function is used to initialize placeholder functions of tychk
@@ -319,6 +301,7 @@ def type_free(t: *Type): void {
         let s_ty = as_struct(t);
         // the inner types are garbage collected by tychk
         vec.free_v(&s_ty.fields);
+        scope.free_s(&s_ty.scope);
     }
 
     if is_mod(t) {
@@ -335,8 +318,9 @@ def get_scope(t: *Type): *scope.Scope {
         return &as_mod(t).scope;
     }
 
-    // FIXME
-    // TODO: lookup in structs aswell
+    if is_struct(t) {
+        return &as_struct(t).scope;
+    }
 
     return null;
 }
@@ -448,14 +432,4 @@ def to_string(t: *Type, span_interner: *span.SpanInterner): string {
     }
 
     return null;
-}
-
-def clone(t: *Type): *Type {
-    if t == null {
-        return null;
-    }
-
-    let nt = std.malloc(sizeof Type);
-    std.memcpy(nt, t as *void, sizeof Type);
-    return nt as *Type;
 }

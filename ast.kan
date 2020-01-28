@@ -179,6 +179,10 @@ def as_block_stmt(s: *Stmt): *BlockStmt {
     return s as *BlockStmt;
 }
 
+def stmt_at(b: *BlockStmt, i: i32): *Stmt {
+    return ptrvec.get(&b.stmts, i) as *Stmt;
+}
+
 /////////// Func Decl stmt ///////////
 
 type FuncDeclStmt struct {
