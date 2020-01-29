@@ -21,12 +21,12 @@ def bind_in(
     span_interner: *span.SpanInterner,
     ident: *ident.Ident,
     value: *ty.Type
-): bool {
+): *ty.Type {
     return map.insert(
         &s.bindings,
         map.key_from_ident(span_interner, ident),
         value as *void
-    );
+    ) as *ty.Type;
 }
 
 def s_bind_in(
@@ -34,12 +34,12 @@ def s_bind_in(
     ident_len: i32,
     ident: string,
     value: *ty.Type
-): bool {
+): *ty.Type {
     return map.insert(
         &s.bindings,
         map.create_key(ident_len, ident),
         value as *void
-    );
+    ) as *ty.Type;
 }
 
 def get_in(s: *Scope, span_interner: *span.SpanInterner, ident: *ident.Ident): *ty.Type {
@@ -105,7 +105,7 @@ def top(s: *ScopeStack): *Scope {
     return scope_at(s, s.scopes.len - 1);
 }
 
-def bind(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): bool {
+def bind(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): *ty.Type {
     return bind_in(top(s), s.span_interner, ident, value);
 }
 
