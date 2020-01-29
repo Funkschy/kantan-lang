@@ -807,7 +807,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 return;
             }
 
-            ty.as_ptr(field.ty).inner = resolved_ty;
+            ty.update_inner(ty.as_ptr(field.ty), resolved_ty);
         }
 
         // overwrite old type in struct

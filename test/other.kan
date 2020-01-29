@@ -14,5 +14,6 @@ def test_function(m: *MyStruct, o: errtest.S1): Other {
 type MyStruct struct {
     o: *Other,
     t: errtest.Test,
+    two: errtest.Two,
     i: i32
 }

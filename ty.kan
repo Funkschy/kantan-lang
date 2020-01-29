@@ -58,8 +58,17 @@ def new_ptr(count: i32, inner: *ty.Type): *Type {
         inner: inner
     }) as *Type;
 
+    if inner != null {
+        t.flags = inner.flags;
+    }
+
     fill_width_align(t);
     return t;
+}
+
+def update_inner(p: *Ptr, inner: *Type): void {
+    p.inner = inner;
+    p.t.flags = inner.flags;
 }
 
 def is_ptr(t: *Type): bool {
@@ -115,6 +124,7 @@ def init_struct(t: *Type, name: ident.Ident): void {
         scope: scope.create(),
         fields: vec.create(sizeof StructField)
     };
+    t.width = WIDTH_UNKNOWN;
     std.flag_set(&s.t.flags, FLAG_SCOPED);
 
     std.memcpy(t as *void, &s as *void, sizeof Struct);
@@ -322,6 +332,10 @@ def get_scope(t: *Type): *scope.Scope {
         return &as_struct(t).scope;
     }
 
+    if is_ptr(t) {
+        return get_scope(as_ptr(t).inner);
+    }
+
     return null;
 }
 
@@ -429,6 +443,10 @@ def to_string(t: *Type, span_interner: *span.SpanInterner): string {
 
     if is_struct(t) {
         return std.strdup("struct definition");
+    }
+
+    if is_ptr(t) {
+        return std.strdup("ptr");
     }
 
     return null;
