@@ -161,7 +161,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
 
 def get_waiting(wrm: *WaitingRequestMap, si: *span.SpanInterner, ident: *ident.Ident): *vec.Vec {
     let key = map.key_from_ident(si, ident);
-    let request_idx = map.get(&wrm.request_map, key);
+    let request_idx = map.get_and_remove(&wrm.request_map, key);
 
     if request_idx == null {
         return null;
@@ -290,17 +290,6 @@ def check(tc: *TypeChecker): void {
         i = i + 1;
     }
 
-    // the real pass
-    i = 0;
-    while i < n {
-        let idx = *(tc.sorted_mods + i);
-        let m = mod.get_mod(tc.mods, idx);
-
-        check_mod(tc, m, idx, false);
-
-        i = i + 1;
-    }
-
     // check for pending waitingrequests in all mods
     i = 0;
     while i < n {
@@ -308,7 +297,52 @@ def check(tc: *TypeChecker): void {
         let m = mod.get_mod(tc.mods, idx);
 
         let wrm = get_waiting_map(tc, m);
-        // TODO: iterate over idents. There should be 0 left, else error
+        let iter = map.iter(&wrm.request_map);
+        let next = map.iter_next(&iter);
+
+        while next != null {
+            let ty = mod.s_lookup(m, next.key.len, next.key.value);
+            if ty != null {
+                if ty.is_struct(ty) {
+                    let s_ty = ty.as_struct(ty);
+                    push_incomplete_ty_error(tc, &s_ty.name);
+                    error = true;
+                } else {
+                    std.abort();
+                }
+            } else {
+                let idx = std.ptr_to_int(next.value) - 1;
+                let pending = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
+                if pending == null {
+                    std.abort();
+                }
+
+                let j = 0;
+                while j < pending.len {
+                    let req = vec.get_ptr(pending, j) as *WaitingRequest;
+                    push_not_defined_error(tc, &req.waiting_for);
+                    error = true;
+                    j = j + 1;
+                }
+            }
+
+            next = map.iter_next(&iter);
+        }
+
+        i = i + 1;
+    }
+
+    if error {
+        return;
+    }
+
+    // the real pass
+    i = 0;
+    while i < n {
+        let idx = *(tc.sorted_mods + i);
+        let m = mod.get_mod(tc.mods, idx);
+
+        check_mod(tc, m, idx, false);
 
         i = i + 1;
     }
@@ -1318,6 +1352,10 @@ def push_simple_error(tc: *TypeChecker, code: i32, ident: *ident.Ident): void {
     let text = std.err2str(code, len, ident.ident);
 
     push_mk_err(tc, text, span);
+}
+
+def push_incomplete_ty_error(tc: *TypeChecker, name: *ident.Ident): void {
+    push_simple_error(tc, ERROR_INCOMPLETE_TYPE, name);
 }
 
 def push_duplicate_def_error(tc: *TypeChecker, name: *ident.Ident): void {

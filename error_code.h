@@ -21,3 +21,4 @@
 #define ERROR_NOT_DEFINED               13
 #define ERROR_NOT_ACCESSIBLE_WITH_OP    14
 #define ERROR_INVALID_ACCESS_TYPE       15
+#define ERROR_INCOMPLETE_TYPE           16

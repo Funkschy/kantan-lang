@@ -13,6 +13,26 @@ type Map struct {
     items: *Item
 }
 
+type Iter struct {
+    pos: i32,
+    map: *Map
+}
+
+def iter_next(iter: *Iter): *Item {
+    while iter.pos < iter.map.cap {
+        let item = iter.map.items + iter.pos;
+        iter.pos = iter.pos + 1;
+        if item.key.value != null {
+            return item;
+        }
+    }
+    return null;
+}
+
+def iter(map: *Map): Iter {
+    return Iter{ pos: 0, map: map };
+}
+
 type Key struct {
     len: i32,
     value: string
@@ -126,14 +146,14 @@ def probe_insert(map: *Map, start: i32, len: i32, key: Key, value: *void): bool 
     return false;
 }
 
-def probe_get(map: *Map, start: i32, len: i32, key: Key): *void {
+def probe_get(map: *Map, start: i32, len: i32, key: Key): *Item {
     let i = start;
     let item: *Item = null;
     while i < len {
         item = map.items + i;
         if item.key.value != null {
             if key_eq(item.key, key) {
-                return item.value;
+                return item;
             }
         }
         i = i + 1;
@@ -180,8 +200,51 @@ def get(map: *Map, key: Key): *void {
 
     let probe = probe_get(map, index + 1, map.cap, key);
     if probe != null {
-        return probe;
+        return probe.value;
     }
 
-    return probe_get(map, 0, index, key);
+    probe = probe_get(map, 0, index, key);
+    if probe != null {
+        return probe.value;
+    }
+
+    return null;
+}
+
+def get_and_remove(map: *Map, key: Key): *void {
+    if map.items == null {
+        return null;
+    }
+
+    let index = get_map_index(map.cap, key.value, key.len);
+    let item = map.items + index;
+
+    if item.key.value == null {
+        return null;
+    }
+
+    if key_eq(item.key, key) {
+        let value = item.value;
+        std.memset(item as *void, 0, sizeof Item);
+        map.len = map.len - 1;
+        return value;
+    }
+
+    let probe = probe_get(map, index + 1, map.cap, key);
+    if probe != null {
+        let value = probe.value;
+        std.memset(probe as *void, 0, sizeof Item);
+        map.len = map.len - 1;
+        return value;
+    }
+
+    probe = probe_get(map, 0, index, key);
+    if probe != null {
+        let value = probe.value;
+        std.memset(probe as *void, 0, sizeof Item);
+        map.len = map.len - 1;
+        return value;
+    }
+
+    return null;
 }

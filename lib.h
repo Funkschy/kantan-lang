@@ -137,7 +137,8 @@ static char const *const error_texts[] = {
     "Duplicate definition of '%.*s'",
     "Identifier '%.*s' is not in scope",
     "Type '%s' cannot be accessed with '%s' operator",
-    "First element of access chain should be Identifier, but was '%s'"
+    "First element of access chain should be Identifier, but was '%s'",
+    "Incomplete type '%.*s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
