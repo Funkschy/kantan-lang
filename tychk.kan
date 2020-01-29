@@ -1146,6 +1146,10 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 }
 
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
+    return check_expr_scope(tc, e, null);
+}
+
+def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.Expr {
     if tc.decl_only_pass {
         std.abort();
     }
@@ -1179,7 +1183,11 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
     // EXPR_IDENT
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
-        e.ty = lookup(tc, ident);
+        if scope == null {
+            e.ty = lookup(tc, ident);
+        } else {
+            e.ty = scope.get_in(scope, tc.span_interner, ident);
+        }
 
         if e.ty == null {
             push_not_defined_error(tc, ident);
@@ -1198,7 +1206,7 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
             return null;
         }
 
-        let left = check_expr(tc, a_e.left);
+        let left = check_expr_scope(tc, a_e.left, scope);
         if left == null {
             return null;
         }
@@ -1223,22 +1231,10 @@ def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
             return null;
         }
 
-        // bring scope into current context
-        scope.push_scope(&tc.ctx.scopes, scope);
-
-        // ---
-        io.printf("°°°°contains two: %d\n", scope.s_get_in(scope, 3, "two"));
-        // ---
-
-        let right = check_expr(tc, a_e.right);
+        let right = check_expr_scope(tc, a_e.right, scope);
         if right == null {
-            // TODO: could there be more than one?
-            scope.close_scope_no_free(&tc.ctx.scopes);
             return null;
         }
-
-        // TODO: could there be more than one?
-        scope.close_scope_no_free(&tc.ctx.scopes);
 
         a_e.right = right;
 
