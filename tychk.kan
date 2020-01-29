@@ -529,6 +529,11 @@ def fill_func_def(
                     waiting = true;
                 }
 
+                if tyid.is_ptr(&p.ty) {
+                    p_ty = ty.new_ptr(p.ty.pointer_count, p_ty);
+                    push_tmp_ty(tc, p_ty);
+                }
+
                 let f_param = ty.create_param(p.name, p_ty);
                 vec.push(&params, &f_param as *void);
             } else {
@@ -621,6 +626,11 @@ def fill_struct_fields(
                 let is_struct = ty.is_struct(field_ty);
 
                 if ty.is_initialized(field_ty) {
+                    if is_struct {
+                        field_ty = ty.new_struct_instance(field_ty);
+                        push_tmp_ty(tc, field_ty);
+                    }
+
                     if is_ptr {
                         field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
                         push_tmp_ty(tc, field_ty);
@@ -798,6 +808,8 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         // -----
 
         let field = ty.field_at(waiting_s_ty, req.offset);
+        resolved_ty = ty.new_struct_instance(resolved_ty);
+        push_tmp_ty(tc, resolved_ty);
 
         if req.kind == WAITING_TYPE {
             field.ty = resolved_ty;
@@ -1001,6 +1013,22 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     while i < f_ty.params.len {
         let p = ty.param_at(f_ty, i);
         let ty = p.ty;
+
+        if ty.is_struct(ty) {
+            // args are always instances of their respective types
+            ty = ty.new_struct_instance(ty);
+            push_tmp_ty(tc, ty);
+        }
+
+        if ty.is_ptr(ty) {
+            let ptr = ty.as_ptr(ty);
+            if ty.is_struct(ptr.inner) {
+                ty = ty.new_struct_instance(ptr.inner);
+                push_tmp_ty(tc, ty);
+                ty = ty.new_ptr(ptr.count, ty);
+                push_tmp_ty(tc, ty);
+            }
+        }
 
         bind(tc, &p.name, ty);
         i = i + 1;
@@ -1214,9 +1242,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         a_e.left = left;
 
         // Type cannot be accessed with '.'
-        // TODO: use real if
-        // if !ty.is_scoped(a_e.left.ty) || ty.is_struct(a_e.left.ty) {
-        if !ty.is_scoped(a_e.left.ty) {
+        if !ty.is_scoped(a_e.left.ty) || ty.is_struct(a_e.left.ty) {
             // struct types are the types of the definition and not an actual
             // instance (basically class vs object of that class). There is currently
             // no mechanism to access the fields of a struct definition, which could

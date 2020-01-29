@@ -63,7 +63,7 @@ i = other = 2;
 
 
 type One struct {
-    my: other.MyStruct
+    two: Two
 }
 
 type Two struct {
@@ -74,10 +74,11 @@ type Three struct {
     i: i32
 }
 
-def function(one: One): other.MyStruct {
+def function(one: *One, t: Test): other.MyStruct {
     let test = 1;
     1 + 1;
-    one.my.two.three.i.error;
+    one.two.three.i.error;
+    t.other;
 }
 
 let other = 0;

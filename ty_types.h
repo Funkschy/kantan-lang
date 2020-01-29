@@ -5,3 +5,4 @@
 #define TY_FUNC             4
 #define TY_MOD              5
 #define TY_STRUCT           6
+#define TY_STRUCT_INSTANCE  7
