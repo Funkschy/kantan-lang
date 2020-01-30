@@ -660,6 +660,7 @@ def parse_arg_list(p: *Parser): ast.ArgList {
 #undef FAIL
 }
 
+// TODO: allow trailing commas
 def parse_init_list(p: *Parser): ast.InitList {
 #define FAIL() ast.free_il(&inits); return ast.create_init_list()
     let inits = ast.create_init_list();

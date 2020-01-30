@@ -217,7 +217,7 @@ def init_func(t: *Type, name: ident.Ident): void {
         t: *t,
         ret: null,
         params: vec.create(sizeof Param),
-        name: name,
+        name: name
     };
     std.flag_set(&t.flags, FLAG_UNSIZED);
 
