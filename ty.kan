@@ -22,6 +22,7 @@ import "scope";
 
 /////////// i32 type ///////////
 
+// TODO: replace i32, string... with simple builtin type
 type I32 struct {
     t: Type
 }

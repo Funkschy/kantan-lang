@@ -19,12 +19,15 @@ import "io";
 
 extern def isort(arr: *i32, len: i32): *i32;
 
-#define OK     0
-#define ERROR -1
+#define OK                  0
+#define ERROR              -1
 
-#define WAITING_TYPE       1
-#define WAITING_TYPE_PTR   2
-#define WAITING_FUNC_DEF   3
+#define REAL_PASS           0
+#define DECL_ONLY_PASS      1
+
+#define WAITING_TYPE        1
+#define WAITING_TYPE_PTR    2
+#define WAITING_FUNC_DEF    3
 
 #define OFFSET_RETURN_TYPE -1
 
@@ -71,9 +74,7 @@ def patch_waiting_for(
     waiting_for: *ident.Ident,
     waiting_for_mod: *mod.Module
 ): void {
-    // this means the type is in the same module, so the ident should not have
-    // a module name at the start
-    if waiting_for_mod == null {
+    if waiting_for_mod == tc.ctx.mod {
         return;
     }
 
@@ -285,7 +286,7 @@ def check(tc: *TypeChecker): void {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
-        check_mod(tc, m, idx, true);
+        check_mod(tc, m, idx, DECL_ONLY_PASS);
 
         i = i + 1;
     }
@@ -342,7 +343,7 @@ def check(tc: *TypeChecker): void {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
-        check_mod(tc, m, idx, false);
+        check_mod(tc, m, idx, REAL_PASS);
 
         i = i + 1;
     }
@@ -365,17 +366,19 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     return false;
 }
 
-def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, decl_only: bool): *ty.Mod {
+def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): *ty.Mod {
     if mod.ty == null {
         std.abort();
     }
 
-    let do = "";
+    let decl_only = mode == DECL_ONLY_PASS;
+
+    let d_o = "";
     if decl_only {
-        do = " decl only ";
+        d_o = " decl only ";
     }
 
-    io.printf("DBG: Checking%s(%d) %.*s\n", do, idx, mod.path.len, mod.path.inner);
+    io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, mod.path.len, mod.path.inner);
     let ctx = get_ctx(tc, idx);
     if ctx == null {
         std.abort();
@@ -539,7 +542,8 @@ def fill_func_def(
         error = true;
     }
 
-    if ret_ty == null {
+    // return types mod does exist, but the type itself has not yet been resolved
+    if ret_ty == null && ret_ty_mod != null {
         func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, f_ty);
         waiting = true;
     }
@@ -558,7 +562,7 @@ def fill_func_def(
             let p_ty: *ty.Type = null;
 
             if checked_lookup(tc, &p_ty_name, &p_ty, &p_mod) == OK {
-                if p_ty == null {
+                if p_ty == null && p_mod != null {
                     func_wait_for_type(tc, p_mod, p_ty_name, i, f_ty);
                     waiting = true;
                 }
@@ -587,23 +591,6 @@ def fill_func_def(
     }
 
     return OK;
-}
-
-def func_wait_for_type(
-    tc: *TypeChecker,
-    waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
-    waiting_for: ident.Ident,
-    offset: i32,
-    to_fill: *ty.Func
-): void {
-    wait_for_type(
-        tc,
-        WAITING_FUNC_DEF,
-        waiting_for_mod,
-        waiting_for,
-        offset,
-        to_fill as *ty.Type
-    );
 }
 
 def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
@@ -721,11 +708,6 @@ def wait_for_type(
     offset: i32,
     to_fill: *ty.Type
 ) : void {
-    // current module
-    if waiting_for_mod == null {
-        waiting_for_mod = tc.ctx.mod;
-    }
-
     let request = create_waiting_request(
         tc,
         kind,
@@ -739,6 +721,23 @@ def wait_for_type(
     wait_for(tc, request);
 }
 
+def func_wait_for_type(
+    tc: *TypeChecker,
+    waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
+    waiting_for: ident.Ident,
+    offset: i32,
+    to_fill: *ty.Func
+): void {
+    wait_for_type(
+        tc,
+        WAITING_FUNC_DEF,
+        waiting_for_mod,
+        waiting_for,
+        offset,
+        to_fill as *ty.Type
+    );
+}
+
 def wait_for_struct_field(
     tc: *TypeChecker,
     mod: *mod.Module,
@@ -747,11 +746,6 @@ def wait_for_struct_field(
     offset: i32,
     s_ty: *ty.Struct
 ): void {
-    // current module
-    if mod == null {
-        mod = tc.ctx.mod;
-    }
-
     let field_ty: *ty.Type = null;
     let kind = WAITING_TYPE;
 
@@ -876,7 +870,11 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
             waiting_f_ty.ret = resolved_ty;
         } else {
             let p = ty.param_at(waiting_f_ty, req.offset);
-            p.ty = resolved_ty;
+            // if there was an error during function initialization, there may
+            // be no params, but the error should already have been propagated
+            if p != null {
+                p.ty = resolved_ty;
+            }
         }
 
         if ty.func_is_initalized(waiting_f_ty) {
