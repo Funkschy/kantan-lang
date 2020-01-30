@@ -1,6 +1,12 @@
 import "path";
 import "file";
 import "span";
+import "std";
+
+type LineSpan struct {
+    start_number: i32,
+    span: span.BigSpan
+}
 
 type SourceFile struct {
     file: file.File,
@@ -38,7 +44,12 @@ def read(p: path.PathBuf, f: *SourceFile): i32 {
     return 0;
 }
 
-def find_line(span: *span.BigSpan, file: *SourceFile, last_nl_pos: *i32): i32 {
+def find_line(
+    span: *span.BigSpan,
+    si: *span.SpanInterner,
+    file: *SourceFile,
+    last_nl_pos: *i32
+): LineSpan {
     let lines = 1;
     let last_nl = span.start;
 
@@ -58,6 +69,9 @@ def find_line(span: *span.BigSpan, file: *SourceFile, last_nl_pos: *i32): i32 {
         *last_nl_pos = last_nl;
     }
 
-    return lines;
+    // the \n at the end of the line with span in it
+    let next_nl = std.strchr(file.code + span.start + span.len, '\n');
+    let span = span.create(si, last_nl + 1, next_nl - file.code, span.ctx);
+    return LineSpan { start_number: lines, span: span.get(si, span) };
 }
 

@@ -191,7 +191,7 @@ def print_parse_errors(
         let span = span.get(si, err.span);
         let src = reader.get_ptr_by_idx(fm, span.ctx);
 
-        print_error(err.text, &span, src, abs_path);
+        print_error(si, err.text, &span, src, abs_path);
 
         i = i + 1;
     }
@@ -209,20 +209,25 @@ def print_type_errors(
         let span = span.get(si, err.span);
         let src = reader.get_ptr_by_idx(fm, span.ctx);
 
-        print_error(err.text, &span, src, abs_path);
+        print_error(si, err.text, &span, src, abs_path);
 
         i = i + 1;
     }
 }
 
+def printf_spanned(span: *span.BigSpan, file: *source.SourceFile): void {
+    io.printf(" | %.*s\n", span.len, file.code + span.start);
+}
+
 def print_error(
+    si: *span.SpanInterner,
     err_text: string,
     span: *span.BigSpan,
     file: *source.SourceFile,
     abs_path: *path.Path
 ): void {
     let last_nl = 0;
-    let line = source.find_line(span, file, &last_nl);
+    let line = source.find_line(span, si, file, &last_nl);
     let name = source.file_name_dup(file);
     let offset = 0;
 
@@ -231,12 +236,15 @@ def print_error(
     }
 
     io.printf(
-        "ERROR: %s\n--> %s:%d:%d\n\n",
+        "ERROR: %s\n--> %s:%d:%d\n",
         err_text,
         name + offset,
-        line,
+        line.start_number,
         span.start - last_nl
     );
+
+    printf_spanned(&line.span, file);
+    io.printf("\n");
 
     delete name;
 }
