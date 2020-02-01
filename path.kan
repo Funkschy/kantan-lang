@@ -78,6 +78,23 @@ def parent(p: *Path): Path {
     return *p;
 }
 
+def count_overlap(first: *Path, second: *Path): i32 {
+    let i = 0;
+    let len = first.len;
+    if second.len < first.len {
+        len = second.len;
+    }
+
+    while i < len {
+        if *(first.inner + i) != *(second.inner + i) {
+            return i;
+        }
+        i = i + 1;
+    }
+
+    return len;
+}
+
 // TODO: windows support
 // this function resolves stuff like .. or . in place
 def canonicalize(p: *Path, dest: *PathBuf): i32 {

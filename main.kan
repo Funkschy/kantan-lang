@@ -230,9 +230,14 @@ def print_error(
     let line = source.find_line(span, si, file, &last_nl);
     let name = source.file_name_dup(file);
     let offset = 0;
+    let file_path = &file.file.path.inner;
 
-    if path.is_abs(&file.file.path.inner) {
-        offset = abs_path.len + 1;
+    // TODO: this only works when the filepath is in a subdir of abs_path
+    if path.is_abs(file_path) {
+        let overlap = path.count_overlap(abs_path, file_path);
+        if overlap == abs_path.len {
+            offset = overlap + 1;
+        }
     }
 
     io.printf(
