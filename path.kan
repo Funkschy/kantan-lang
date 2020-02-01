@@ -106,6 +106,7 @@ def canonicalize(p: *Path, dest: *PathBuf): i32 {
         return std.get_errno();
     }
 
+    free_pb(dest);
     *dest = create_path_buf(real);
 
     return 0;
@@ -148,7 +149,11 @@ def new_path_buf(path: string): PathBuf {
 
 def create_path_buf(path: string): PathBuf {
     let p = empty();
-    from_str(path, &p); // TODO: handle error
+    if from_str(path, &p) != 0 {
+        delete path;
+        return PathBuf { inner: path.empty() };
+    }
+
     return PathBuf {
         inner: p
     };
@@ -164,7 +169,7 @@ def merge_abs_rel(base: *Path, child: *Path, dest: *PathBuf): i32 {
 
 def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathBuf): i32 {
     if base.len == 0 || is_abs(child) {
-        *dest = create_path_buf(child.inner);
+        *dest = new_path_buf(child.inner);
 
         let error = canonicalize(&dest.inner, dest);
         if error != 0 {

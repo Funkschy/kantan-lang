@@ -38,6 +38,7 @@ def main(argc: i32, argv: *string): i32 {
         io.printf("ERROR: %s\n", err_msg);
         delete err_msg;
 
+        path.free_pb(&cwd_buf);
         reader.free_fm(&file_map);
         return -2;
     }
@@ -48,8 +49,9 @@ def main(argc: i32, argv: *string): i32 {
         io.printf("ERROR: %s\n", err_msg);
         delete err_msg;
 
+        path.free_pb(&cwd_buf);
         reader.free_fm(&file_map);
-        return -2;
+        return -3;
     }
 
     let mm = mod.map_with_cap(reader.num_files(&file_map));
