@@ -210,7 +210,6 @@ def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathB
         return error;
     }
 
-    delete combined;
     *dest = pb;
 
     return 0;
