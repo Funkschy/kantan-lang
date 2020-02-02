@@ -14,6 +14,7 @@ import "scope";
 
 #define WIDTH_UNKNOWN -1
 
+// These flags have to be powers of 2
 #define FLAG_SCOPED        1
 #define FLAG_UNSIZED       2
 // this gets set, when tychk visits a type for the first time and gets unset
@@ -22,7 +23,6 @@ import "scope";
 
 /////////// i32 type ///////////
 
-// TODO: replace i32, string... with simple builtin type
 type I32 struct {
     t: Type
 }
