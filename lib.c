@@ -43,6 +43,10 @@ char const *const expr2str(int32_t type) {
     return get_str(type, len_expr_strings, expr_type_strings);
 }
 
+char const *const type2str(int32_t type) {
+    return get_str(type, len_type_strings, type_type_strings);
+}
+
 char const *const format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;

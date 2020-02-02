@@ -233,6 +233,7 @@ def print_error(
     let name = source.file_name_dup(file);
     let offset = 0;
     let file_path = &file.file.path.inner;
+    let col = span.start - last_nl;
 
     // TODO: this only works when the filepath is in a subdir of abs_path
     if path.is_abs(file_path) {
@@ -247,7 +248,7 @@ def print_error(
         err_text,
         name + offset,
         line.start_number,
-        span.start - last_nl
+        col
     );
 
     printf_spanned(&line.span, file);

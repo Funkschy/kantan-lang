@@ -421,6 +421,7 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     let scope = scope.create();
     scope.s_bind_in(&scope, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
     scope.s_bind_in(&scope, 6, "string", push_tmp_ty(tc, ty.new_string()));
+    scope.s_bind_in(&scope, 4, "void", push_tmp_ty(tc, ty.new_void()));
     return scope;
 }
 
@@ -1372,9 +1373,8 @@ def push_invalid_access_error(tc: *TypeChecker, e: *ast.Expr): void {
 }
 
 def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr): void {
-    let ty_s = ty.to_string(e.ty, tc.span_interner);
+    let ty_s = ty.to_static_string(e.ty);
     let error = std.err2str(ERROR_NOT_ACCESSIBLE_WITH_OP, ty_s, ".");
-    delete ty_s;
 
     push_mk_err(tc, error, e.span);
 }

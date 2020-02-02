@@ -117,6 +117,21 @@ static char const *const expr_type_strings[] = {
 
 static size_t const len_expr_strings = sizeof(expr_type_strings) / sizeof(char *);
 
+// Type types
+static char const *const type_type_strings[] = {
+    "error",
+    "pointer",
+    "i32",
+    "void",
+    "string",
+    "function",
+    "module",
+    "struct declaration",
+    "struct instance"
+};
+
+static size_t const len_type_strings = sizeof(type_type_strings) / sizeof(char *);
+
 // ERROR types
 static char const *const error_texts[] = {
     NULL,

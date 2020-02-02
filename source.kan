@@ -65,6 +65,11 @@ def find_line(
         ptr = ptr - 1;
     }
 
+    // there was no new line => span is in first line of file
+    if last_nl == span.start {
+        last_nl = -1; // we add a 1 later, which is correct in every other case
+    }
+
     if last_nl_pos != null {
         *last_nl_pos = last_nl;
     }

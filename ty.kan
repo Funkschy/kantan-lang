@@ -8,6 +8,8 @@ import "ident";
 import "span";
 import "scope";
 
+extern def type2str(kind: i32): string;
+
 // TODO: this should be imported, but can't because of circular dependencies
 // for some reason, this works anyway
 // import "mod";
@@ -20,6 +22,29 @@ import "scope";
 // this gets set, when tychk visits a type for the first time and gets unset
 // when the type is fully resolved
 #define FLAG_TYCHK_TOUCHED 4
+
+/////////// void type ///////////
+
+type Void struct {
+    t: Type
+}
+
+def new_void(): *Type {
+    let t = (new Void {
+        t: create_type(TY_VOID)
+    }) as *Type;
+
+    std.flag_set(&t.flags, FLAG_UNSIZED);
+    return t;
+}
+
+def is_void(t: *Type): bool {
+    return t.kind == TY_VOID;
+}
+
+def as_void(t: *Type): *Void {
+    return t as *Void;
+}
 
 /////////// i32 type ///////////
 
@@ -52,6 +77,7 @@ type Ptr struct {
     inner: *ty.Type
 }
 
+// TODO: don't allow pointers to Mod
 def new_ptr(count: i32, inner: *ty.Type): *Type {
     let t = (new Ptr {
         t: create_type(TY_PTR),
@@ -64,6 +90,8 @@ def new_ptr(count: i32, inner: *ty.Type): *Type {
         t.flags = inner.flags;
     }
 
+    // pointers always have a size
+    std.flag_unset(&t.flags, FLAG_UNSIZED);
     fill_width_align(t);
     return t;
 }
@@ -388,8 +416,13 @@ def width_was_calculated(t: *Type): bool {
     return t.align > 0;
 }
 
+// TODO: implement either lookup table or full method dispatching for Type
 // returns true, if the types width/alignment could be calculated
 def fill_width_align(t: *Type): bool {
+    if std.flag_get(&t.flags, FLAG_UNSIZED) {
+        return false;
+    }
+
     if width_was_calculated(t) {
         return true;
     }
@@ -463,13 +496,17 @@ def fill_width_align(t: *Type): bool {
     return false;
 }
 
-def to_string(t: *Type, span_interner: *span.SpanInterner): string {
+def to_string_dbg(t: *Type, span_interner: *span.SpanInterner): string {
     if t == null {
         return null;
     }
 
     if is_i32(t) {
         return std.strdup("i32");
+    }
+
+    if is_void(t) {
+        return std.strdup("void");
     }
 
     if is_string(t) {
@@ -500,4 +537,8 @@ def to_string(t: *Type, span_interner: *span.SpanInterner): string {
     }
 
     return null;
+}
+
+def to_static_string(t: *Type): string {
+    return type2str(t.kind);
 }
