@@ -1,0 +1,17 @@
+type One struct {
+    two: Two
+}
+
+type Two struct {
+    three: *Three
+}
+
+type Three struct {
+    i: i32
+}
+
+def function(one: *One): void {
+    let test = 1;
+    1 + test;
+    one.two.three.i.error;
+}
