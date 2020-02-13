@@ -112,6 +112,10 @@ def as_ptr(t: *Type): *Ptr {
     return t as *Ptr;
 }
 
+def is_ptr_type(t: *Type): bool {
+    return t.kind == TY_PTR || t.kind == TY_STRING;
+}
+
 /////////// string type ///////////
 
 type String struct {
@@ -407,6 +411,14 @@ def get_scope(t: *Type): *scope.Scope {
     }
 
     return null;
+}
+
+def is_num(t: *Type): bool {
+    return is_i32(t);
+}
+
+def is_integer(t: *Type): bool {
+    return is_i32(t);
 }
 
 /////////// align utils ///////////

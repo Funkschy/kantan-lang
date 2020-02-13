@@ -1216,7 +1216,6 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
     }
 
     // EXPR_CHAR
-    // EXPR_BINARY
     // EXPR_UNARY
     // EXPR_ASSIGN
     // EXPR_CALL
@@ -1300,7 +1299,99 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         return e;
     }
 
-    return e;
+    // EXPR_BINARY
+    if ast.is_binary_expr(e) {
+        let b_e = ast.as_binary_expr(e);
+        let left = check_expr(tc, b_e.left);
+        let right = check_expr(tc, b_e.right);
+
+        if left == null || right == null {
+            return null;
+        }
+
+        let ty = check_binary_expr(tc, b_e.ty, left.ty, right.ty, e.span);
+        if ty == null {
+            return null;
+        }
+
+        e.ty = ty;
+        return e;
+    }
+
+    return null;
+}
+
+#include "expr_types.h"
+#include "error_code.h"
+
+def check_binary_expr(
+    tc: *TypeChecker,
+    kind: i32,
+    first: *ty.Type,
+    second: *ty.Type,
+    span: span.Span
+): *ty.Type {
+#define INVALID_TYS() let s_first = ty.to_static_string(first); \
+            let s_second = ty.to_static_string(second); \
+            let text = std.err2str(ERROR_BIN_INVALID_TYPES, s_first, s_second); \
+            push_mk_err(tc, text, span)
+
+    if kind < BINARY_ADD || kind > BINARY_NE {
+        io.printf("Invalid binary expression: %d\n", kind);
+        std.abort();
+    }
+
+    if first == null || second == null {
+        push_internal_error(tc, span, "types were null");
+        return null;
+    }
+
+    if first.kind == second.kind {
+        if ty.is_num(first) {
+            // everything else is file
+            if kind != BINARY_LOG_OR && kind != BINARY_LOG_AND {
+                return first;
+            } else {
+                INVALID_TYS();
+                return null;
+            }
+        }
+
+        if ty.is_ptr_type(first) {
+            if kind != BINARY_LOG_OR
+                && kind != BINARY_LOG_AND
+                && kind != BINARY_MOD
+                && kind != BINARY_DIV
+                && kind != BINARY_MUL
+                && kind != BINARY_ADD {
+                    return first;
+                } else {
+                    let text = std.err2str(ERROR_BIN_PTR_INVALID);
+                    push_mk_err(tc, text, span);
+                    return null;
+                }
+        }
+
+        INVALID_TYS();
+        return null;
+    }
+
+    let ptr_ty = first;
+    let int_ty = second;
+
+    if ty.is_ptr_type(second) && ty.is_integer(first) {
+        ptr_ty = second;
+        int_ty = first;
+    }
+
+    if ty.is_ptr_type(ptr_ty) && ty.is_integer(int_ty) {
+        if kind == BINARY_ADD || kind == BINARY_SUB {
+            return ptr_ty;
+        }
+    }
+
+    INVALID_TYS();
+    return null;
 }
 
 def free_tc(tc: *TypeChecker): void {
@@ -1337,8 +1428,6 @@ def free_tc(tc: *TypeChecker): void {
     }
     ptrvec.free_v(&tc.contexts);
 }
-
-#include "error_code.h"
 
 def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
     let text = std.err2str(ERROR_INTERNAL, text);

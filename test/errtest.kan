@@ -75,9 +75,9 @@ type Three struct {
 }
 
 def function(one: *One, t: Test): other.MyStruct {
-    let test = 1;
-    1 + 1;
-    one.two.three.i.error;
+    let test = one;
+    let ptr = 1 + one;
+    test.two.three.i.error;
     t.other;
 }
 

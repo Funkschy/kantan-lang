@@ -153,7 +153,9 @@ static char const *const error_texts[] = {
     "Identifier '%.*s' is not in scope",
     "Type '%s' cannot be accessed with '%s' operator",
     "First element of access chain should be Identifier, but was '%s'",
-    "Incomplete type '%.*s'"
+    "Incomplete type '%.*s'",
+    "Invalid operator for types '%s' and '%s'",
+    "Pointers may only be compared or subtracted"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

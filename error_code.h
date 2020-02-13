@@ -22,3 +22,5 @@
 #define ERROR_NOT_ACCESSIBLE_WITH_OP    14
 #define ERROR_INVALID_ACCESS_TYPE       15
 #define ERROR_INCOMPLETE_TYPE           16
+#define ERROR_BIN_INVALID_TYPES         17
+#define ERROR_BIN_PTR_INVALID           18
