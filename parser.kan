@@ -903,7 +903,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
         let prec = precedence.get(token.ty);
         letcheck(right, parse_expression(p, prec, no_struct));
         let span = span.merge(p.lexer.span_interner, left.span, right.span);
-        return ast.new_binary_expr(span, ty, left, right);
+        return ast.new_binary_expr(span, ty, token.span, left, right);
     }
 
     return null;

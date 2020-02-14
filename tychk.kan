@@ -1216,17 +1216,10 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
     }
 
     // EXPR_CHAR
-    // EXPR_UNARY
     // EXPR_ASSIGN
     // EXPR_CALL
     // EXPR_INIT
     // EXPR_AS
-    // EXPR_NEW
-
-    // TODO: debug remove
-    // let s = ast.expr_to_string(e, tc.span_interner);
-    // io.printf("%s\n", s);
-    // delete s;
 
     // EXPR_INT
     if ast.is_int_expr(e) {
@@ -1309,12 +1302,49 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
             return null;
         }
 
-        let ty = check_binary_expr(tc, b_e.ty, left.ty, right.ty, e.span);
+        let ty = check_binary_expr(
+            tc, b_e.kind, b_e.op_span, left.ty, right.ty, e.span
+        );
+
         if ty == null {
             return null;
         }
 
         e.ty = ty;
+        return e;
+    }
+
+    // EXPR_UNARY
+    if ast.is_unary_expr(e) {
+        let u_e = ast.as_unary_expr(e);
+        let expr = check_expr(tc, u_e.right);
+
+        if expr == null {
+            return null;
+        }
+
+        let ty = check_unary_expr(tc, u_e.kind, expr, e.span);
+        if ty == null {
+            return null;
+        }
+
+        e.ty = ty;
+        return e;
+    }
+
+    // EXPR_NEW
+    if ast.is_new_expr(e) {
+        let n_e = ast.as_new_expr(e);
+        let inner = check_expr(tc, n_e.expr);
+
+        if inner == null {
+            return null;
+        }
+
+        let ptr = ty.new_ptr(1, inner.ty);
+        push_tmp_ty(tc, ptr);
+
+        e.ty = ptr;
         return e;
     }
 
@@ -1327,6 +1357,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
 def check_binary_expr(
     tc: *TypeChecker,
     kind: i32,
+    op_span: span.Span,
     first: *ty.Type,
     second: *ty.Type,
     span: span.Span
@@ -1334,7 +1365,7 @@ def check_binary_expr(
 #define INVALID_TYS() let s_first = ty.to_static_string(first); \
             let s_second = ty.to_static_string(second); \
             let text = std.err2str(ERROR_BIN_INVALID_TYPES, s_first, s_second); \
-            push_mk_err(tc, text, span)
+            push_mk_err(tc, text, op_span)
 
     if kind < BINARY_ADD || kind > BINARY_NE {
         io.printf("Invalid binary expression: %d\n", kind);
@@ -1367,7 +1398,7 @@ def check_binary_expr(
                     return first;
                 } else {
                     let text = std.err2str(ERROR_BIN_PTR_INVALID);
-                    push_mk_err(tc, text, span);
+                    push_mk_err(tc, text, op_span);
                     return null;
                 }
         }
@@ -1391,6 +1422,86 @@ def check_binary_expr(
     }
 
     INVALID_TYS();
+    return null;
+}
+
+def check_unary_expr(
+    tc: *TypeChecker,
+    kind: i32,
+    expr: *ast.Expr,
+    span: span.Span
+): *ty.Type {
+    if kind < UNARY_REF || kind > UNARY_NEG_NUM {
+        io.printf("Invalid unary expression: %d\n", kind);
+        std.abort();
+    }
+
+    if expr.ty == null {
+        push_internal_error(tc, span, "Unary expr type was null");
+        return null;
+    }
+
+    if kind == UNARY_REF {
+        if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr) {
+            let text = std.err2str(ERROR_UNARY_REF_RVALUE);
+            push_mk_err(tc, text, span);
+            return null;
+        }
+
+        let ty: *ty.Type = null;
+        if ty.is_ptr(expr.ty) {
+            let p_ty = ty.as_ptr(expr.ty);
+            ty = ty.new_ptr(p_ty.count + 1, p_ty.inner);
+        } else {
+            ty = ty.new_ptr(1, expr.ty);
+        }
+
+        push_tmp_ty(tc, ty);
+        return ty;
+    }
+
+    if kind == UNARY_DEREF {
+        if !ty.is_ptr_type(expr.ty) {
+            let s_ty = ty.to_static_string(expr.ty);
+            let text = std.err2str(ERROR_UNARY_DEREF_NON_PTR, s_ty);
+            push_mk_err(tc, text, span);
+            return null;
+        }
+
+        let ty: *ty.Type = null;
+        if ty.is_string(expr.ty) {
+            // TODO: char
+            io.printf("TODO: implement char type\n");
+            std.abort();
+        } else {
+            let p_ty = ty.as_ptr(expr.ty);
+            if p_ty.count <= 1 {
+                ty = p_ty.inner;
+            } else {
+                let ptr = ty.new_ptr(p_ty.count - 1, p_ty.inner);
+                push_tmp_ty(tc, ptr);
+                ty = ptr;
+            }
+        }
+
+        return ty;
+    }
+
+    if kind == UNARY_NEG_BOOL {
+        // TODO: implement bool type
+    }
+
+    if kind == UNARY_NEG_NUM {
+        if !ty.is_num(expr.ty) {
+            let s_ty = ty.to_static_string(expr.ty);
+            let text = std.err2str(ERROR_UNARY_OP_NOT_DEFINED, "-", s_ty);
+            push_mk_err(tc, text, span);
+            return null;
+        }
+
+        return expr.ty;
+    }
+
     return null;
 }
 

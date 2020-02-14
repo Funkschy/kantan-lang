@@ -1,0 +1,2 @@
+let first = 4;
+&first / 2;

@@ -24,3 +24,6 @@
 #define ERROR_INCOMPLETE_TYPE           16
 #define ERROR_BIN_INVALID_TYPES         17
 #define ERROR_BIN_PTR_INVALID           18
+#define ERROR_UNARY_REF_RVALUE          19
+#define ERROR_UNARY_DEREF_NON_PTR       20
+#define ERROR_UNARY_OP_NOT_DEFINED      21

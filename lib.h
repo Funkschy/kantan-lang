@@ -155,7 +155,10 @@ static char const *const error_texts[] = {
     "First element of access chain should be Identifier, but was '%s'",
     "Incomplete type '%.*s'",
     "Invalid operator for types '%s' and '%s'",
-    "Pointers may only be compared or subtracted"
+    "Pointers may only be compared or subtracted",
+    "Cannot take address of rvalue",
+    "Trying to dereference non pointer type '%s'",
+    "Unary operator '%s' not defined for '%s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

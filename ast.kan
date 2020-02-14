@@ -588,15 +588,23 @@ type BinaryExpr struct {
     e: Expr,
     left: *Expr,
     right: *Expr,
-    ty: i32
+    kind: i32,
+    op_span: span.Span
 }
 
-def new_binary_expr(span: span.Span, ty: i32, left: *Expr, right: *Expr): *Expr {
+def new_binary_expr(
+    span: span.Span,
+    kind: i32,
+    op_span: span.Span,
+    left: *Expr,
+    right: *Expr
+): *Expr {
     return (new BinaryExpr {
         e: create_expr(EXPR_BINARY, span),
         left: left,
         right: right,
-        ty: ty
+        kind: kind,
+        op_span: op_span
     }) as *Expr;
 }
 
@@ -772,7 +780,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
 
         let left = expr_to_string(b_expr.left, span_interner);
         let right = expr_to_string(b_expr.right, span_interner);
-        let tok_str = binary2str(b_expr.ty);
+        let tok_str = binary2str(b_expr.kind);
 
         let s = std.format_str("(%s%s%s)", left, tok_str, right);
         delete left;
