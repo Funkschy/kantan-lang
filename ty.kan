@@ -508,49 +508,100 @@ def fill_width_align(t: *Type): bool {
     return false;
 }
 
-def to_string_dbg(t: *Type, span_interner: *span.SpanInterner): string {
+// returns true if the string needs to be freed
+def to_string(t: *Type, si: *span.SpanInterner, out: *string): bool {
     if t == null {
-        return null;
-    }
-
-    if is_i32(t) {
-        return std.strdup("i32");
-    }
-
-    if is_void(t) {
-        return std.strdup("void");
-    }
-
-    if is_string(t) {
-        return std.strdup("string");
+        *out = null;
+        return false;
     }
 
     if is_func(t) {
-        // TODO: resolve cyclic dependencies
-        let name = "name";
-        let s = std.format_str("def %s(...): ...", name);
-        return s;
+        let f_ty = ty.as_func(t);
+        let s_ret = "";
+        let free_ret = to_string(f_ty.ret, si, &s_ret);
+        let s = std.format_str("(...) -> %s", s_ret);
+        if free_ret {
+            delete s_ret;
+        }
+        *out = s;
+        return true;
     }
 
     if is_mod(t) {
-        return std.strdup("mod");
+        *out = "mod";
+        return false;
     }
 
     if is_struct(t) {
-        return std.strdup("struct definition");
+        let s_ty = as_struct(t);
+        let name = ident.to_string(&s_ty.name, si);
+        *out = name;
+        return true;
     }
 
     if is_struct_instance(t) {
-        return std.strdup("struct instance");
+        let s_ty = as_struct_instance(t).s_ty;
+        let name = ident.to_string(&s_ty.name, si);
+        *out = name;
+        return true;
     }
 
     if is_ptr(t) {
-        return std.strdup("ptr");
+        let p_ty = as_ptr(t);
+        let asterisks = std.malloc(p_ty.count) as string;
+        std.memset(asterisks as *void, std.char_to_int('*'), p_ty.count);
+
+        let s_inner = "";
+        let free_inner = to_string(p_ty.inner, si, &s_inner);
+        let s = std.format_str("%.*s%s", p_ty.count, asterisks, s_inner);
+        if free_inner {
+            delete s_inner;
+        }
+        delete asterisks;
+
+        *out = s;
+        return true;
     }
 
-    return null;
+    *out = to_static_string(t);
+    return false;
 }
 
 def to_static_string(t: *Type): string {
     return type2str(t.kind);
+}
+
+def equals(first: *Type, second: *Type): bool {
+    if first == null || second == null {
+        return false;
+    }
+
+    if first.kind != second.kind {
+        return false;
+    }
+
+    let first_ptr_count = 0;
+    let second_ptr_count = 0;
+
+    if is_ptr(first) {
+        let p_ty = as_ptr(first);
+        first_ptr_count = p_ty.count;
+        first = p_ty.inner;
+    }
+    if is_ptr(second) {
+        let p_ty = as_ptr(second);
+        second_ptr_count = p_ty.count;
+        second = p_ty.inner;
+    }
+
+    if is_struct_instance(first) {
+        first = as_struct_instance(first).s_ty as *Type;
+    }
+    if is_struct_instance(second) {
+        second = as_struct_instance(second).s_ty as *Type;
+    }
+
+    // only pointers and struct instances are created multiple times, everything
+    // else should be unique in memory
+    return first == second && first_ptr_count == second_ptr_count;
 }

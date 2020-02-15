@@ -199,6 +199,7 @@ def free_err(err: *TypeError): void {
 
 type Ctx struct {
     mod: *mod.Module,
+    current_func: *ty.Func, // the function that is currently being resolved (or null)
     imports: map.Map, // <string, *mod.Module>
     scopes: scope.ScopeStack
 }
@@ -210,6 +211,7 @@ def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): 
 
     return new Ctx {
         mod: mod,
+        current_func: null,
         imports: map.create(),
         scopes: scopes
     };
@@ -545,8 +547,15 @@ def fill_func_def(
 
     // return types mod does exist, but the type itself has not yet been resolved
     if ret_ty == null && ret_ty_mod != null {
+        if tyid.is_ptr(&f_decl.ret_ty) {
+            ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
+            push_tmp_ty(tc, ret_ty);
+        }
         func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, f_ty);
         waiting = true;
+    } else if tyid.is_ptr(&f_decl.ret_ty) {
+        ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
+        push_tmp_ty(tc, ret_ty);
     }
 
     let num_params = func.num_params(f_decl);
@@ -866,15 +875,44 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
 
     if req.kind == WAITING_FUNC_DEF {
         let waiting_f_ty = ty.as_func(waiting_ty);
+        let waiting_ident = &waiting_f_ty.name;
+
+        if ty.is_struct(resolved_ty) {
+            // args/returns are always instances of their respective types
+            resolved_ty = ty.new_struct_instance(resolved_ty);
+            push_tmp_ty(tc, resolved_ty);
+        }
 
         if req.offset == OFFSET_RETURN_TYPE {
-            waiting_f_ty.ret = resolved_ty;
+            if waiting_f_ty.ret != null {
+                // if the type is a pointer, there will already be ty.Ptr with
+                // an empty inner type here, so we just fill in the resolved
+                // inner type into the existing one
+                if ty.is_ptr(waiting_f_ty.ret) {
+                    io.printf("°°°°°°°°°°°°\n");
+                    ty.update_inner(ty.as_ptr(waiting_f_ty.ret), resolved_ty);
+                } else {
+                    push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
+                    return;
+                }
+            } else {
+                waiting_f_ty.ret = resolved_ty;
+            }
         } else {
             let p = ty.param_at(waiting_f_ty, req.offset);
             // if there was an error during function initialization, there may
             // be no params, but the error should already have been propagated
             if p != null {
-                p.ty = resolved_ty;
+                if p.ty != null {
+                    if ty.is_ptr(p.ty) {
+                        ty.update_inner(ty.as_ptr(p.ty), resolved_ty);
+                    } else {
+                        push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
+                        return;
+                    }
+                } else {
+                    p.ty = resolved_ty;
+                }
             }
         }
 
@@ -1039,40 +1077,29 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     io.printf(">> DBG: Checking %s body\n", name_s);
     delete name_s;
 
+    let last_func = tc.ctx.current_func;
+    tc.ctx.current_func = f_ty;
     open_scope(tc);
 
     // bind params
     let i = 0;
     while i < f_ty.params.len {
         let p = ty.param_at(f_ty, i);
-        let ty = p.ty;
-
-        if ty.is_struct(ty) {
-            // args are always instances of their respective types
-            ty = ty.new_struct_instance(ty);
-            push_tmp_ty(tc, ty);
-        }
-
-        if ty.is_ptr(ty) {
-            let ptr = ty.as_ptr(ty);
-            if ty.is_struct(ptr.inner) {
-                ty = ty.new_struct_instance(ptr.inner);
-                push_tmp_ty(tc, ty);
-                ty = ty.new_ptr(ptr.count, ty);
-                push_tmp_ty(tc, ty);
-            }
-        }
-
-        bind(tc, &p.name, ty);
+        bind(tc, &p.name, p.ty);
         i = i + 1;
     }
 
     // check function body
     if f_s.block != null {
-        check_stmt(tc, f_s.block as *ast.Stmt);
+        if check_stmt(tc, f_s.block as *ast.Stmt) == null {
+            return null;
+        }
     }
 
     close_scope(tc);
+    tc.ctx.current_func = last_func;
+
+    // TODO: has return check (maybe do a complete analysis to detect unreachable code)
 
     return f_s.block;
 }
@@ -1083,7 +1110,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // STMT_IF
     // STMT_WHILE
     // STMT_DELETE
-    // STMT_RETURN
 
     // STMT_IMPORT
     if ast.is_import_stmt(s) {
@@ -1157,6 +1183,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         if block == null {
             return null;
         }
+
         f_s.block = block;
         return s;
     }
@@ -1184,9 +1211,11 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_let_stmt(s) {
         let l_s = ast.as_let_stmt(s);
         let value = check_expr(tc, l_s.value);
+
         if value == null {
             return null;
         }
+
         l_s.value = value;
         bind(tc, &l_s.ident, l_s.value.ty);
         return s;
@@ -1196,10 +1225,34 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_expr_stmt(s) {
         let e_s = ast.as_expr_stmt(s);
         let expr = check_expr(tc, e_s.expr);
+
         if expr == null {
             return null;
         }
+
         e_s.expr = expr;
+        return s;
+    }
+
+    // STMT_RETURN
+    if ast.is_return_stmt(s) {
+        let r_s = ast.as_return_stmt(s);
+        let expr = check_expr(tc, r_s.expr);
+
+        if expr == null {
+            return null;
+        }
+
+        if tc.ctx.current_func == null {
+            push_return_outside_of_func_error(tc, expr.span);
+            return null;
+        }
+
+        if !ty.equals(tc.ctx.current_func.ret, expr.ty) {
+            push_wrong_return_type_error(tc, expr);
+            return null;
+        }
+
         return s;
     }
 
@@ -1577,4 +1630,26 @@ def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr): void {
     let error = std.err2str(ERROR_NOT_ACCESSIBLE_WITH_OP, ty_s, ".");
 
     push_mk_err(tc, error, e.span);
+}
+
+def push_return_outside_of_func_error(tc: *TypeChecker, span: span.Span): void {
+    let text = std.err2str(ERROR_RETURN_OUTSIDE_OF_FUNC);
+    push_mk_err(tc, text, span);
+}
+
+def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
+    let ret_ty_s = "";
+    let free_ret_ty_s = ty.to_string(tc.ctx.current_func.ret, tc.span_interner, &ret_ty_s);
+    let ty_s = "";
+    let free_ty_s = ty.to_string(expr.ty, tc.span_interner, &ty_s);
+
+    let text = std.err2str(ERROR_WRONG_RETURN_TYPE, ret_ty_s, ty_s);
+    if free_ty_s {
+        delete ty_s;
+    }
+    if free_ret_ty_s {
+        delete ret_ty_s;
+    }
+
+    push_mk_err(tc, text, expr.span);
 }

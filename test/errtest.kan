@@ -74,11 +74,12 @@ type Three struct {
     i: i32
 }
 
-def function(one: *One, t: Test): other.MyStruct {
-    let test = &one;
+def function(one: *One, t: Test): *other.MyStruct {
+    let test = one;
     let ptr = 1 + one;
     test.two.three.i.error;
     t.other;
+    return &ptr;
 }
 
 let other = 0;
