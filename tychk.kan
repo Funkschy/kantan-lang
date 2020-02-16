@@ -889,7 +889,6 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 // an empty inner type here, so we just fill in the resolved
                 // inner type into the existing one
                 if ty.is_ptr(waiting_f_ty.ret) {
-                    io.printf("°°°°°°°°°°°°\n");
                     ty.update_inner(ty.as_ptr(waiting_f_ty.ret), resolved_ty);
                 } else {
                     push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
@@ -1077,6 +1076,10 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     io.printf(">> DBG: Checking %s body\n", name_s);
     delete name_s;
 
+    if f_s.decl.is_extern {
+        return null;
+    }
+
     let last_func = tc.ctx.current_func;
     tc.ctx.current_func = f_ty;
     open_scope(tc);
@@ -1089,19 +1092,80 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
         i = i + 1;
     }
 
-    // check function body
-    if f_s.block != null {
-        if check_stmt(tc, f_s.block as *ast.Stmt) == null {
-            return null;
-        }
+    if f_s.block == null {
+        push_internal_error(tc, f_s.decl.name.ident_span, "func body is null");
+        close_scope(tc);
+        tc.ctx.current_func = last_func;
+        return null;
     }
+
+    // check function body
+    if check_stmt(tc, f_s.block as *ast.Stmt) == null {
+        return null;
+    }
+
 
     close_scope(tc);
     tc.ctx.current_func = last_func;
 
-    // TODO: has return check (maybe do a complete analysis to detect unreachable code)
+    let void_ty = scope.s_get_in(&tc.globals, 4, "void");
+    if f_ty.ret != void_ty {
+        if check_for_return_stmt(f_s.block) == ERROR {
+            push_missing_return_error(tc, f_s.decl.name.ident_span);
+            return null;
+        }
+    }
 
     return f_s.block;
+}
+
+// Checks if the last stmt of a block is guaranteed to have a return statement
+// Pseudo code:
+// - last stmt is return -> ok
+// - last stmt is if
+//     - if has unconditional else
+//         - if contains return && else contains return -> ok
+//         - branches contains more ifs -> goto begin
+//         - error
+//     - error
+// - error
+def check_for_return_stmt(block: *ast.BlockStmt): i32 {
+    if block.stmts.len <= 0 {
+        return ERROR;
+    }
+
+    let last_stmt = ast.stmt_at(block, block.stmts.len - 1);
+    if ast.is_return_stmt(last_stmt) {
+        return OK;
+    } else if ast.is_if_stmt(last_stmt) {
+        let if_stmt = ast.as_if_stmt(last_stmt);
+        let else_stmt = if_stmt.else_stmt;
+        let run = true;
+        while run && else_stmt != null {
+            if ast.is_if_stmt(else_stmt) {
+                // if else (...) {...}
+                else_stmt = ast.as_if_stmt(else_stmt).else_stmt;
+            } else {
+                // else {...}
+                run = false;
+            }
+        }
+
+        // no unconditional else statement
+        if else_stmt == null {
+            return ERROR;
+        }
+        let else_stmt = ast.as_block_stmt(else_stmt);
+
+        let if_has_return = check_for_return_stmt(if_stmt.block);
+        let else_has_return = check_for_return_stmt(else_stmt);
+
+        if if_has_return == OK && else_has_return == OK {
+            return OK;
+        }
+    }
+
+    return ERROR;
 }
 
 // returns the statement which should replace the old one
@@ -1115,6 +1179,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_import_stmt(s) {
         if !in_global_scope(tc) {
             // TODO: currently not allowed error
+            io.printf("import not in global scope\n");
             std.abort();
         }
 
@@ -1136,6 +1201,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
             // TODO: currently not allowed error
+            io.printf("struct decl not in global scope\n");
             std.abort();
         }
 
@@ -1161,6 +1227,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
             // TODO: currently not allowed error
+            io.printf("func decl not in global scope\n");
             std.abort();
         }
 
@@ -1652,4 +1719,9 @@ def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
     }
 
     push_mk_err(tc, text, expr.span);
+}
+
+def push_missing_return_error(tc: *TypeChecker, span: span.Span): void {
+    let text = std.err2str(ERROR_MISSING_RETURN);
+    push_mk_err(tc, text, span);
 }

@@ -160,7 +160,8 @@ static char const *const error_texts[] = {
     "Trying to dereference non pointer type '%s'",
     "Unary operator '%s' not defined for '%s'",
     "Return statements may not be used outside of functions",
-    "Wrong return type for function. Expected '%s', but got '%s'"
+    "Wrong return type for function. Expected '%s', but got '%s'",
+    "Missing return statement"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
