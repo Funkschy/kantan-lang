@@ -25,15 +25,8 @@ extern def type2str(kind: i32): string;
 
 /////////// void type ///////////
 
-type Void struct {
-    t: Type
-}
-
 def new_void(): *Type {
-    let t = (new Void {
-        t: create_type(TY_VOID)
-    }) as *Type;
-
+    let t = new_type(TY_VOID, null);
     std.flag_set(&t.flags, FLAG_UNSIZED);
     return t;
 }
@@ -42,21 +35,10 @@ def is_void(t: *Type): bool {
     return t.kind == TY_VOID;
 }
 
-def as_void(t: *Type): *Void {
-    return t as *Void;
-}
-
 /////////// i32 type ///////////
 
-type I32 struct {
-    t: Type
-}
-
 def new_i32(): *Type {
-    let t = (new I32 {
-        t: create_type(TY_I32)
-    }) as *Type;
-
+    let t = new_type(TY_I32, null);
     fill_width_align(t);
     return t;
 }
@@ -65,21 +47,10 @@ def is_i32(t: *Type): bool {
     return t.kind == TY_I32;
 }
 
-def as_i32(t: *Type): *I32 {
-    return t as *I32;
-}
-
 /////////// bool type ///////////
 
-type Bool struct {
-    t: Type
-}
-
 def new_bool(): *Type {
-    let t = (new Bool {
-        t: create_type(TY_BOOL)
-    }) as *Type;
-
+    let t = new_type(TY_BOOL, null);
     fill_width_align(t);
     return t;
 }
@@ -88,26 +59,21 @@ def is_bool(t: *Type): bool {
     return t.kind == TY_BOOL;
 }
 
-def as_bool(t: *Type): *Bool {
-    return t as *Bool;
-}
-
 /////////// pointer type ///////////
 
 type Ptr struct {
-    t: Type,
     count: i32,
-    inner: *ty.Type
+    inner: *Type
 }
 
 // TODO: don't allow pointers to Mod
-def new_ptr(count: i32, inner: *ty.Type): *Type {
-    let t = (new Ptr {
-        t: create_type(TY_PTR),
+def new_ptr(count: i32, inner: *Type): *Type {
+    let ptr = new Ptr {
         count: count,
         inner: inner
-    }) as *Type;
+    };
 
+    let t = new_type(TY_PTR, ptr as *void);
     if inner != null && count < 2 {
         // only auto deref once
         t.flags = inner.flags;
@@ -119,11 +85,12 @@ def new_ptr(count: i32, inner: *ty.Type): *Type {
     return t;
 }
 
-def update_inner(p: *Ptr, inner: *Type): void {
+def update_inner(ptr_ty: *Type, inner: *Type): void {
+    let p = as_ptr(ptr_ty);
     p.inner = inner;
     // only auto deref once
     if p.count < 2 {
-        p.t.flags = inner.flags;
+        ptr_ty.flags = inner.flags;
     }
 }
 
@@ -131,25 +98,18 @@ def is_ptr(t: *Type): bool {
     return t.kind == TY_PTR;
 }
 
-def as_ptr(t: *Type): *Ptr {
-    return t as *Ptr;
-}
-
 def is_ptr_type(t: *Type): bool {
     return t.kind == TY_PTR || t.kind == TY_STRING;
 }
 
-/////////// string type ///////////
-
-type String struct {
-    t: Type
+def as_ptr(t: *Type): *Ptr {
+    return t.data as *Ptr;
 }
 
-def new_string(): *Type {
-    let t = (new String {
-        t: create_type(TY_STRING)
-    }) as *Type;
+/////////// string type ///////////
 
+def new_string(): *Type {
+    let t = new_type(TY_STRING, null);
     fill_width_align(t);
     return t;
 }
@@ -158,16 +118,7 @@ def is_string(t: *Type): bool {
     return t.kind == TY_STRING;
 }
 
-def as_string(t: *Type): *String {
-    return t as *String;
-}
-
 /////////// struct instance type ///////////
-
-type StructInstance struct {
-    t: Type,
-    s_ty: *Struct
-}
 
 def new_struct_instance(s_ty: *Type): *Type {
     if s_ty == null || !is_struct(s_ty) {
@@ -175,10 +126,7 @@ def new_struct_instance(s_ty: *Type): *Type {
         std.abort();
     }
 
-    let t = (new StructInstance {
-        t: create_type(TY_STRUCT_INSTANCE),
-        s_ty: ty.as_struct(s_ty)
-    }) as *Type;
+    let t = new_type(TY_STRUCT_INSTANCE, s_ty.data);
 
     t.flags = s_ty.flags;
     t.width = s_ty.width;
@@ -191,10 +139,6 @@ def is_struct_instance(t: *Type): bool {
     return t.kind == TY_STRUCT_INSTANCE;
 }
 
-def as_struct_instance(t: *Type): *StructInstance {
-    return t as *StructInstance;
-}
-
 /////////// struct type ///////////
 
 type StructField struct {
@@ -203,7 +147,6 @@ type StructField struct {
 }
 
 type Struct struct {
-    t: Type,
     name: ident.Ident,
     scope: scope.Scope,
     fields: vec.Vec // <StructField>
@@ -211,24 +154,19 @@ type Struct struct {
 
 // this function is used to initialize placeholder structs of tychk
 def init_struct(t: *Type, name: ident.Ident): void {
-    let s = Struct {
-        t: *t,
+    let s = new Struct {
         name: name,
         scope: scope.create(),
         fields: vec.create(sizeof StructField)
     };
-    t.width = WIDTH_UNKNOWN;
-    std.flag_set(&s.t.flags, FLAG_SCOPED);
 
-    std.memcpy(t as *void, &s as *void, sizeof Struct);
+    t.data = s as *void;
+    t.width = WIDTH_UNKNOWN;
+    std.flag_set(&t.flags, FLAG_SCOPED);
 }
 
 def is_struct(t: *Type): bool {
     return t.kind == TY_STRUCT;
-}
-
-def as_struct(t: *Type): *Struct {
-    return t as *Struct;
 }
 
 def push_field(t: *Struct, name: ident.Ident, ty: *Type, si: *span.SpanInterner): void {
@@ -249,6 +187,10 @@ def num_fields(t: *Struct): i32 {
     return t.fields.len;
 }
 
+def as_struct(t: *Type): *Struct {
+    return t.data as *Struct;
+}
+
 /////////// func type ///////////
 
 type Param struct {
@@ -261,7 +203,6 @@ def create_param(name: ident.Ident, ty: *Type): Param {
 }
 
 type Func struct {
-    t: Type,
     ret: *Type,
     params: vec.Vec, // <Param>
     name: ident.Ident
@@ -269,15 +210,14 @@ type Func struct {
 
 // this function is used to initialize placeholder functions of tychk
 def init_func(t: *Type, name: ident.Ident): void {
-    let f = Func {
-        t: *t,
+    let f = new Func {
         ret: null,
         params: vec.create(sizeof Param),
         name: name
     };
     std.flag_set(&t.flags, FLAG_UNSIZED);
 
-    std.memcpy(t as *void, &f as *void, sizeof Func);
+    t.data = f as *void;
 }
 
 // TODO: this is inefficient
@@ -307,21 +247,21 @@ def is_func(t: *Type): bool {
 }
 
 def as_func(t: *Type): *Func {
-    return t as *Func;
+    return t.data as *Func;
 }
 
 /////////// mod type ///////////
 
 type Mod struct {
-    t: Type,
     scope: scope.Scope
 }
 
 def new_mod(): *Type {
-    let t = (new Mod {
-        t: create_type(TY_MOD),
+    let m = new Mod {
         scope: scope.create()
-    }) as *Type;
+    };
+
+    let t = new_type(TY_MOD, m as *void);
 
     std.flag_set(&t.flags, FLAG_SCOPED);
     std.flag_set(&t.flags, FLAG_UNSIZED);
@@ -334,7 +274,7 @@ def is_mod(t: *Type): bool {
 }
 
 def as_mod(t: *Type): *Mod {
-    return t as *Mod;
+    return t.data as *Mod;
 }
 
 /////////// base type ///////////
@@ -343,15 +283,12 @@ type Type struct {
     kind: i32,
     width: i32, // width in bytes
     align: i32,
-    flags: i32
+    flags: i32,
+    data: *void
 }
 
-def new_type(kind: i32, size: i32): *Type {
-    let mem = std.calloc(size, 1);
-    let ty = create_type(kind);
-
-    std.memcpy(mem, &ty as *void, sizeof Type);
-    return mem as *Type;
+def new_type(kind: i32, data: *void): *Type {
+    return new create_type(kind, data);
 }
 
 def was_touched_by_tychk(t: *Type): bool {
@@ -366,12 +303,13 @@ def tychk_untouch(t: *Type): void {
     std.flag_unset(&t.flags, FLAG_TYCHK_TOUCHED);
 }
 
-def create_type(kind: i32): Type {
+def create_type(kind: i32, data: *void): Type {
     return Type {
         kind: kind,
         width: WIDTH_UNKNOWN,
         align: 0,
-        flags: 0
+        flags: 0,
+        data: data
     };
 }
 
@@ -398,6 +336,7 @@ def type_free(t: *Type): void {
         let f_ty = as_func(t);
         // the inner types are garbage collected by tychk
         vec.free_v(&f_ty.params);
+        delete t.data;
     }
 
     if is_struct(t) {
@@ -405,11 +344,17 @@ def type_free(t: *Type): void {
         // the inner types are garbage collected by tychk
         vec.free_v(&s_ty.fields);
         scope.free_s(&s_ty.scope);
+        delete t.data;
     }
 
     if is_mod(t) {
         let m_ty = as_mod(t);
         scope.free_s(&m_ty.scope);
+        delete t.data;
+    }
+
+    if is_ptr(t) {
+        delete t.data;
     }
 
     delete t;
@@ -417,16 +362,15 @@ def type_free(t: *Type): void {
 
 // looks for an ident in types with FLAG_SCOPED
 def get_scope(t: *Type): *scope.Scope {
+    let s = to_static_string(t);
+    io.printf("type: %s\n", s);
+
     if is_mod(t) {
         return &as_mod(t).scope;
     }
 
-    if is_struct(t) {
+    if is_struct(t) || is_struct_instance(t) {
         return &as_struct(t).scope;
-    }
-
-    if is_struct_instance(t) {
-        return &as_struct_instance(t).s_ty.scope;
     }
 
     if is_ptr(t) {
@@ -478,9 +422,6 @@ def fill_width_align(t: *Type): bool {
         width = 8; // TODO: determine pointer width based on target
     } else if is_struct(t) || is_struct_instance(t) {
         let s_ty = as_struct(t);
-        if is_struct_instance(t) {
-            s_ty = as_struct_instance(t).s_ty;
-        }
 
         let max_align = align;
         let width_sum = 0;
@@ -554,15 +495,8 @@ def to_string(t: *Type, si: *span.SpanInterner, out: *string): bool {
         return true;
     }
 
-    if is_struct(t) {
+    if is_struct(t) || is_struct_instance(t) {
         let s_ty = as_struct(t);
-        let name = ident.to_string(&s_ty.name, si);
-        *out = name;
-        return true;
-    }
-
-    if is_struct_instance(t) {
-        let s_ty = as_struct_instance(t).s_ty;
         let name = ident.to_string(&s_ty.name, si);
         *out = name;
         return true;
@@ -617,10 +551,10 @@ def equals(first: *Type, second: *Type): bool {
     }
 
     if is_struct_instance(first) {
-        first = as_struct_instance(first).s_ty as *Type;
+        first = as_struct(first) as *Type;
     }
     if is_struct_instance(second) {
-        second = as_struct_instance(second).s_ty as *Type;
+        second = as_struct(second) as *Type;
     }
 
     // only pointers and struct instances are created multiple times, everything

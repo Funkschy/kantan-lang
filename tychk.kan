@@ -207,7 +207,7 @@ type Ctx struct {
 def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): *Ctx {
     let scopes = scope.create_stack(si);
     scope.push_scope(&scopes, global);
-    scope.push_scope(&scopes, &mod.ty.scope);
+    scope.push_scope(&scopes, ty.get_scope(mod.ty));
 
     return new Ctx {
         mod: mod,
@@ -358,7 +358,7 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
 
     io.printf("DBG: Initializing (%d) %.*s\n", idx, m.path.len, m.path.inner);
 
-    let ty = ty.new_mod() as *ty.Mod;
+    let ty = ty.new_mod();
     m.ty = ty;
 
     let ctx = create_ctx(m, tc.span_interner, &tc.globals);
@@ -368,7 +368,7 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     return false;
 }
 
-def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): *ty.Mod {
+def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): void {
     if mod.ty == null {
         std.abort();
     }
@@ -399,8 +399,6 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): *ty.Mod 
 
         i = i + 1;
     }
-
-    return mod.ty;
 }
 
 def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
@@ -528,8 +526,10 @@ def checked_lookup(
 def fill_func_def(
     tc: *TypeChecker,
     f_decl: *func.FuncDef,
-    f_ty: *ty.Func
+    t: *ty.Type
 ): i32 {
+    let f_ty = ty.as_func(t);
+
     let name = ident.to_string(&f_ty.name, tc.span_interner);
     io.printf("DBG: Filling '%s'\n", name);
     delete name;
@@ -552,7 +552,7 @@ def fill_func_def(
             ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
             push_tmp_ty(tc, ret_ty);
         }
-        func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, f_ty);
+        func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, t);
         waiting = true;
     } else if tyid.is_ptr(&f_decl.ret_ty) {
         ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
@@ -574,7 +574,7 @@ def fill_func_def(
 
             if checked_lookup(tc, &p_ty_name, &p_ty, &p_mod) == OK {
                 if p_ty == null && p_mod != null {
-                    func_wait_for_type(tc, p_mod, p_ty_name, i, f_ty);
+                    func_wait_for_type(tc, p_mod, p_ty_name, i, t);
                     waiting = true;
                 }
 
@@ -624,10 +624,11 @@ def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
 def fill_struct_fields(
     tc: *TypeChecker,
     s_decl: *record.StructDecl,
-    s_ty: *ty.Struct
+    t: *ty.Type
 ): void {
     // TODO: handle self fields
-    ty.tychk_touch(s_ty as *ty.Type);
+    ty.tychk_touch(t);
+    let s_ty = ty.as_struct(t);
 
     let s = ident.to_string(&s_decl.name, tc.span_interner);
     io.printf("----\nDBG: resolving %s\n", s);
@@ -672,7 +673,7 @@ def fill_struct_fields(
                 } else {
                     if is_struct {
                         // a struct that has not been initialized
-                        wait_for_struct_field(tc, mod, f.ty.ident, &f, i, s_ty);
+                        wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
                         if !is_ptr {
                             waiting = true;
                         }
@@ -683,7 +684,7 @@ def fill_struct_fields(
                     }
                 }
             } else {
-                wait_for_struct_field(tc, mod, f.ty.ident, &f, i, s_ty);
+                wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
                 if !is_ptr {
                     waiting = true;
                 }
@@ -698,13 +699,11 @@ def fill_struct_fields(
     let s = ident.to_string(&s_decl.name, tc.span_interner);
 
     if !error && !waiting {
-        let ty = s_ty as *ty.Type;
-        ty.fill_width_align(ty);
-
-        io.printf("DBG: %s has a width of %d, align of %d\n", s, ty.width, ty.align);
+        ty.fill_width_align(t);
+        io.printf("DBG: %s has a width of %d, align of %d\n", s, t.width, t.align);
         delete s;
 
-        update_all_waiting(tc, tc.ctx.mod, ty, &s_ty.name);
+        update_all_waiting(tc, tc.ctx.mod, t, &s_ty.name);
         return;
     }
 
@@ -737,7 +736,7 @@ def func_wait_for_type(
     waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
     waiting_for: ident.Ident,
     offset: i32,
-    to_fill: *ty.Func
+    to_fill: *ty.Type
 ): void {
     wait_for_type(
         tc,
@@ -745,7 +744,7 @@ def func_wait_for_type(
         waiting_for_mod,
         waiting_for,
         offset,
-        to_fill as *ty.Type
+        to_fill
     );
 }
 
@@ -755,7 +754,7 @@ def wait_for_struct_field(
     waiting_for: ident.Ident,
     field: *record.Field,
     offset: i32,
-    s_ty: *ty.Struct
+    s_ty: *ty.Type
 ): void {
     let field_ty: *ty.Type = null;
     let kind = WAITING_TYPE;
@@ -765,12 +764,12 @@ def wait_for_struct_field(
         field_ty = ty.new_ptr(field.ty.pointer_count, null);
         push_tmp_ty(tc, field_ty);
     }
-    ty.push_field(s_ty, field.ident, field_ty, tc.span_interner);
+    ty.push_field(ty.as_struct(s_ty), field.ident, field_ty, tc.span_interner);
 
     let request = create_waiting_request(
         tc,
         kind,
-        s_ty as *ty.Type,
+        s_ty,
         tc.ctx.mod,
         waiting_for,
         mod,
@@ -858,7 +857,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 return;
             }
 
-            ty.update_inner(ty.as_ptr(field.ty), resolved_ty);
+            ty.update_inner(field.ty, resolved_ty);
         }
 
         // overwrite old type in struct
@@ -890,7 +889,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 // an empty inner type here, so we just fill in the resolved
                 // inner type into the existing one
                 if ty.is_ptr(waiting_f_ty.ret) {
-                    ty.update_inner(ty.as_ptr(waiting_f_ty.ret), resolved_ty);
+                    ty.update_inner(waiting_f_ty.ret, resolved_ty);
                 } else {
                     push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
                     return;
@@ -905,7 +904,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
             if p != null {
                 if p.ty != null {
                     if ty.is_ptr(p.ty) {
-                        ty.update_inner(ty.as_ptr(p.ty), resolved_ty);
+                        ty.update_inner(p.ty, resolved_ty);
                     } else {
                         push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
                         return;
@@ -955,7 +954,7 @@ def check_import(
     tc: *TypeChecker,
     i_s: *ast.ImportStmt,
     out_alias: *ident.Ident,
-    out_ty: **ty.Mod
+    out_ty: **ty.Type
 ): bool {
     let error: string = null;
     let imported_mod = mod.try_get_mod_from_import(
@@ -990,7 +989,7 @@ def check_import(
     return true;
 }
 
-def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Struct {
+def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let ty = declare_struct(tc, sd);
     if ty == null {
         // TODO: error
@@ -1001,23 +1000,21 @@ def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Struct {
     return ty;
 }
 
-def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Struct {
+def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let prev = lookup(tc, &sd.name);
     if prev != null {
         push_duplicate_def_error(tc, &sd.name);
         return null;
     }
 
-    let definition = ty.new_type(TY_STRUCT, sizeof ty.Struct);
+    let definition = ty.new_type(TY_STRUCT, null);
     push_tmp_ty(tc, definition);
 
     ty.init_struct(definition, sd.name);
-    let ty = ty.as_struct(definition);
-
-    return ty;
+    return definition;
 }
 
-def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Func {
+def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let ty = declare_func(tc, fd);
     if ty == null {
         // TODO: error
@@ -1031,20 +1028,18 @@ def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Func {
     return ty;
 }
 
-def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Func {
+def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let prev = lookup(tc, &fd.name);
     if prev != null {
         push_duplicate_def_error(tc, &fd.name);
         return null;
     }
 
-    let definition = ty.new_type(TY_FUNC, sizeof ty.Func);
+    let definition = ty.new_type(TY_FUNC, null);
     push_tmp_ty(tc, definition);
 
     ty.init_func(definition, fd.name);
-    let ty = ty.as_func(definition);
-
-    return ty;
+    return definition;
 }
 
 def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
@@ -1187,13 +1182,13 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let i_s = ast.as_import_stmt(s);
 
         let alias: ident.Ident = ident.empty();
-        let ty: *ty.Mod = null;
+        let ty: *ty.Type = null;
 
         if !check_import(tc, i_s, &alias, &ty) {
             return null;
         }
 
-        bind(tc, &alias, ty as *ty.Type);
+        bind(tc, &alias, ty);
         return s;
     }
 
@@ -1214,7 +1209,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let ty = check_struct_decl(tc, sd);
 
         if ty != null {
-            bind(tc, &sd.name, ty as *ty.Type);
+            bind(tc, &sd.name, ty);
         } else {
             std.abort();
             return null;
@@ -1238,7 +1233,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             let ty = check_func_decl(tc, fd);
 
             if ty != null {
-                bind(tc, &fd.name, ty as *ty.Type);
+                bind(tc, &fd.name, ty);
             } else {
                 return null;
             }

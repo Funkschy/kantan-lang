@@ -15,7 +15,7 @@ type Module struct {
     imports: vec.Vec,
     functions: vec.Vec,
     structs: vec.Vec,
-    ty: *ty.Mod, // the Type containing the bindings
+    ty: *ty.Type, // the Type containing the bindings
     idx: i32 // index in modmap used for faster access
 }
 
@@ -32,7 +32,7 @@ def create(p: path.Path): Module {
 }
 
 def s_lookup(m: *Module, key_len: i32, key: string): *ty.Type {
-    return scope.s_get_in(&m.ty.scope, key_len, key);
+    return scope.s_get_in(ty.get_scope(m.ty), key_len, key);
 }
 
 def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {
@@ -115,7 +115,7 @@ def free_m(mod: *Module): void {
     vec.free_v(&mod.imports);
     vec.free_v(&mod.functions);
     vec.free_v(&mod.structs);
-    ty.type_free(mod.ty as *ty.Type);
+    ty.type_free(mod.ty);
 }
 
 type Map struct {
