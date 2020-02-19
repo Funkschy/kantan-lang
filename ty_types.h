@@ -1,9 +1,10 @@
 #define TY_UNKNOWN          0
 #define TY_PTR              1
-#define TY_I32              2
-#define TY_VOID             3
-#define TY_STRING           4
-#define TY_FUNC             5
-#define TY_MOD              6
-#define TY_STRUCT           7
-#define TY_STRUCT_INSTANCE  8
+#define TY_BOOL             2
+#define TY_I32              3
+#define TY_VOID             4
+#define TY_STRING           5
+#define TY_FUNC             6
+#define TY_MOD              7
+#define TY_STRUCT           8
+#define TY_STRUCT_INSTANCE  9

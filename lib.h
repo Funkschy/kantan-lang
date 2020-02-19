@@ -101,9 +101,9 @@ static size_t const len_unary_strings = sizeof(unary_type_ops) / sizeof(char *);
 // EXPR types
 static char const *const expr_type_strings[] = {
     "error",
-    "int",
-    "string",
-    "char",
+    "int literal",
+    "string literal",
+    "char literal",
     "binary expression",
     "unary expression",
     "identifier",
@@ -121,6 +121,7 @@ static size_t const len_expr_strings = sizeof(expr_type_strings) / sizeof(char *
 static char const *const type_type_strings[] = {
     "error",
     "pointer",
+    "bool",
     "i32",
     "void",
     "string",

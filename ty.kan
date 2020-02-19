@@ -69,6 +69,29 @@ def as_i32(t: *Type): *I32 {
     return t as *I32;
 }
 
+/////////// bool type ///////////
+
+type Bool struct {
+    t: Type
+}
+
+def new_bool(): *Type {
+    let t = (new Bool {
+        t: create_type(TY_BOOL)
+    }) as *Type;
+
+    fill_width_align(t);
+    return t;
+}
+
+def is_bool(t: *Type): bool {
+    return t.kind == TY_BOOL;
+}
+
+def as_bool(t: *Type): *Bool {
+    return t as *Bool;
+}
+
 /////////// pointer type ///////////
 
 type Ptr struct {
@@ -444,10 +467,13 @@ def fill_width_align(t: *Type): bool {
     let width = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
 
+    // TODO: padding
     if is_ptr(t){
         width = 8; // TODO: determine pointer width based on target
     } else if is_i32(t) {
         width = 4;
+    } else if is_bool(t) {
+        width = 1;
     } else if is_string(t) {
         width = 8; // TODO: determine pointer width based on target
     } else if is_struct(t) || is_struct_instance(t) {
@@ -519,17 +545,13 @@ def to_string(t: *Type, si: *span.SpanInterner, out: *string): bool {
         let f_ty = ty.as_func(t);
         let s_ret = "";
         let free_ret = to_string(f_ty.ret, si, &s_ret);
+        // TODO: format parameters
         let s = std.format_str("(...) -> %s", s_ret);
         if free_ret {
             delete s_ret;
         }
         *out = s;
         return true;
-    }
-
-    if is_mod(t) {
-        *out = "mod";
-        return false;
     }
 
     if is_struct(t) {
