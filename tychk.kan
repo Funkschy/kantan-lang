@@ -465,6 +465,10 @@ def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
     return sorted_mods;
 }
 
+def instance_of_ty(ty: *ty.Type): *ty.Type {
+    return ty.instance_of(ty);
+}
+
 def lookup(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
     return m_lookup(tc, ident, null);
 }
@@ -555,7 +559,7 @@ def fill_func_def(
         func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, t);
         waiting = true;
     } else if tyid.is_ptr(&f_decl.ret_ty) {
-        ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
+        ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, instance_of_ty(ret_ty));
         push_tmp_ty(tc, ret_ty);
     }
 
@@ -576,6 +580,8 @@ def fill_func_def(
                 if p_ty == null && p_mod != null {
                     func_wait_for_type(tc, p_mod, p_ty_name, i, t);
                     waiting = true;
+                } else if p_ty != null {
+                    p_ty = instance_of_ty(p_ty);
                 }
 
                 if tyid.is_ptr(&p.ty) {
@@ -595,7 +601,7 @@ def fill_func_def(
 
     if !error {
         f_ty.params = params;
-        f_ty.ret = ret_ty;
+        f_ty.ret = instance_of_ty(ret_ty);
     } else {
         vec.free_v(&params);
         return ERROR;
@@ -660,8 +666,7 @@ def fill_struct_fields(
 
                 if ty.is_initialized(field_ty) {
                     if is_struct {
-                        field_ty = ty.new_struct_instance(field_ty);
-                        push_tmp_ty(tc, field_ty);
+                        field_ty = instance_of_ty(field_ty);
                     }
 
                     if is_ptr {
@@ -824,6 +829,7 @@ def update_all_waiting(
 def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type): void {
     let waiting_ty = req.to_fill;
     let waiting_mod = req.to_fill_mod;
+    resolved_ty = instance_of_ty(resolved_ty);
 
     if req.kind == WAITING_TYPE || req.kind == WAITING_TYPE_PTR {
         let waiting_s_ty = ty.as_struct(waiting_ty);
@@ -846,8 +852,6 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         // -----
 
         let field = ty.field_at(waiting_s_ty, req.offset);
-        resolved_ty = ty.new_struct_instance(resolved_ty);
-        push_tmp_ty(tc, resolved_ty);
 
         if req.kind == WAITING_TYPE {
             field.ty = resolved_ty;
@@ -876,12 +880,6 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
     if req.kind == WAITING_FUNC_DEF {
         let waiting_f_ty = ty.as_func(waiting_ty);
         let waiting_ident = &waiting_f_ty.name;
-
-        if ty.is_struct(resolved_ty) {
-            // args/returns are always instances of their respective types
-            resolved_ty = ty.new_struct_instance(resolved_ty);
-            push_tmp_ty(tc, resolved_ty);
-        }
 
         if req.offset == OFFSET_RETURN_TYPE {
             if waiting_f_ty.ret != null {
@@ -1104,8 +1102,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     close_scope(tc);
     tc.ctx.current_func = last_func;
 
-    let void_ty = scope.s_get_in(&tc.globals, 4, "void");
-    if f_ty.ret != void_ty {
+    if !ty.is_void(f_ty.ret) {
         if check_for_return_stmt(f_s.block) == ERROR {
             push_missing_return_error(tc, f_s.decl.name.ident_span);
             return null;
@@ -1339,13 +1336,13 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
 
     // EXPR_INT
     if ast.is_int_expr(e) {
-        e.ty = scope.s_get_in(&tc.globals, 3, "i32");
+        e.ty = instance_of_ty(scope.s_get_in(&tc.globals, 3, "i32"));
         return e;
     }
 
     // EXPR_STRING
     if ast.is_string_expr(e) {
-        e.ty = scope.s_get_in(&tc.globals, 6, "string");
+        e.ty = instance_of_ty(scope.s_get_in(&tc.globals, 6, "string"));
         return e;
     }
 
@@ -1383,7 +1380,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         a_e.left = left;
 
         // Type cannot be accessed with '.'
-        if !ty.is_scoped(a_e.left.ty) || ty.is_struct(a_e.left.ty) {
+        if !ty.is_scoped(a_e.left.ty) || ty.is_struct_decl(a_e.left.ty) {
             // struct types are the types of the definition and not an actual
             // instance (basically class vs object of that class). There is currently
             // no mechanism to access the fields of a struct definition, which could
@@ -1494,9 +1491,16 @@ def check_binary_expr(
         return null;
     }
 
+    if ty.is_decl(first) || ty.is_decl(second) {
+        let text = std.err2str(ERROR_USING_OP_ON_TY_DECL);
+        push_mk_err(tc, text, span);
+        return null;
+    }
+
+
     if first.kind == second.kind {
         if kind == BINARY_EQ || kind == BINARY_NE {
-            return scope.s_get_in(&tc.globals, 4, "bool");
+            return instance_of_ty(scope.s_get_in(&tc.globals, 4, "bool"));
         }
 
         if kind == BINARY_LOG_OR || kind == BINARY_LOG_AND {
@@ -1558,6 +1562,12 @@ def check_unary_expr(
 
     if expr.ty == null {
         push_internal_error(tc, span, "Unary expr type was null");
+        return null;
+    }
+
+    if ty.is_decl(expr.ty) {
+        let text = std.err2str(ERROR_USING_OP_ON_TY_DECL);
+        push_mk_err(tc, text, span);
         return null;
     }
 

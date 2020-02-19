@@ -127,8 +127,7 @@ static char const *const type_type_strings[] = {
     "string",
     "function",
     "module",
-    "struct declaration",
-    "struct instance"
+    "struct"
 };
 
 static size_t const len_type_strings = sizeof(type_type_strings) / sizeof(char *);
@@ -162,7 +161,8 @@ static char const *const error_texts[] = {
     "Unary operator '%s' not defined for '%s'",
     "Return statements may not be used outside of functions",
     "Wrong return type for function. Expected '%s', but got '%s'",
-    "Missing return statement"
+    "Missing return statement",
+    "Illegal use of declared type"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

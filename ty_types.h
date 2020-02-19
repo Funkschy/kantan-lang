@@ -7,4 +7,3 @@
 #define TY_FUNC             6
 #define TY_MOD              7
 #define TY_STRUCT           8
-#define TY_STRUCT_INSTANCE  9

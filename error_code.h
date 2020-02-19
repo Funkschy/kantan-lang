@@ -30,3 +30,4 @@
 #define ERROR_RETURN_OUTSIDE_OF_FUNC    22
 #define ERROR_WRONG_RETURN_TYPE         23
 #define ERROR_MISSING_RETURN            24
+#define ERROR_USING_OP_ON_TY_DECL       25
