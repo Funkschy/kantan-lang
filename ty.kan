@@ -382,9 +382,6 @@ def type_free(t: *Type): void {
 
 // looks for an ident in types with FLAG_SCOPED
 def get_scope(t: *Type): *scope.Scope {
-    let s = to_static_string(t);
-    io.printf("type: %s\n", s);
-
     if is_mod(t) {
         return &as_mod(t).scope;
     }

@@ -418,12 +418,18 @@ def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
 
 def create_global_scope(tc: *TypeChecker): scope.Scope {
     // TODO: this should be defined in builtin.kan
-    let scope = scope.create();
-    scope.s_bind_in(&scope, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
-    scope.s_bind_in(&scope, 6, "string", push_tmp_ty(tc, ty.new_string()));
-    scope.s_bind_in(&scope, 4, "void", push_tmp_ty(tc, ty.new_void()));
-    scope.s_bind_in(&scope, 4, "bool", push_tmp_ty(tc, ty.new_bool()));
-    return scope;
+    let global = scope.create();
+    scope.s_bind_in(&global, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
+    scope.s_bind_in(&global, 6, "string", push_tmp_ty(tc, ty.new_string()));
+    scope.s_bind_in(&global, 4, "void", push_tmp_ty(tc, ty.new_void()));
+
+    let bool_ty = push_tmp_ty(tc, ty.new_bool());
+    scope.s_bind_in(&global, 4, "bool", bool_ty);
+
+    scope.s_bind_in(&global, 4, "true", instance_of_ty(bool_ty));
+    scope.s_bind_in(&global, 5, "false", instance_of_ty(bool_ty));
+
+    return global;
 }
 
 def num_errs(tc: *TypeChecker): i32 {
@@ -1017,7 +1023,6 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
 def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let ty = declare_func(tc, fd);
     if ty == null {
-        // TODO: error
         return null;
     }
 
@@ -1242,7 +1247,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         // only resolve the block in the actual pass
         let block = check_func_body(tc, f_s);
-        if block == null {
+        if block == null && !f_s.decl.is_extern {
             return null;
         }
 
@@ -1332,7 +1337,6 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
 
     // EXPR_CHAR
     // EXPR_ASSIGN
-    // EXPR_CALL
     // EXPR_INIT
     // EXPR_AS
 
@@ -1369,11 +1373,6 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
     if ast.is_access_expr(e) {
         let a_e = ast.as_access_expr(e);
 
-        if !ast.is_ident_expr(a_e.left) {
-            push_invalid_access_error(tc, a_e.left);
-            return null;
-        }
-
         let left = check_expr_scope(tc, a_e.left, scope);
         if left == null {
             return null;
@@ -1387,6 +1386,8 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
             // instance (basically class vs object of that class). There is currently
             // no mechanism to access the fields of a struct definition, which could
             // change in the future
+            // TODO: the span here is the span of the entire left access, which
+            //  is probably not what we want...
             push_not_accessible_with_error(tc, a_e.left);
             return null;
         }
@@ -1403,6 +1404,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         }
 
         a_e.right = right;
+        e.ty = right.ty;
 
         return e;
     }
@@ -1460,6 +1462,56 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         push_tmp_ty(tc, ptr);
 
         e.ty = ptr;
+        return e;
+    }
+
+    // EXPR_CALL
+    if ast.is_call_expr(e) {
+        let c_e = ast.as_call_expr(e);
+
+        let callee = check_expr(tc, c_e.callee);
+        if callee == null {
+            return null;
+        }
+
+        let f_ty = callee.ty;
+        if !ty.is_func(f_ty) {
+            push_not_callable_error(tc, e.span, f_ty);
+            return null;
+        }
+
+        let func = ty.as_func(f_ty);
+        let expected_num_args = func.params.len;
+        let actual_num_args = ast.num_args(&c_e.args);
+        if expected_num_args != actual_num_args {
+            if actual_num_args < expected_num_args {
+                push_wrong_num_args_error(tc, expected_num_args, actual_num_args, callee.span);
+                return null;
+            }
+            // else if !func.is_varargs
+            // TODO: handle varargs
+        }
+
+        let i = 0;
+        while i < expected_num_args {
+            let param = ty.param_at(func, i);
+            let arg = ast.get_arg_at(&c_e.args, i);
+
+            let checked_arg = check_expr(tc, arg);
+            if checked_arg == null {
+                return null;
+            }
+
+            if !ty.equals(param.ty, checked_arg.ty) {
+                push_wrong_arg_type_error(tc, param.ty, checked_arg.ty, checked_arg.span);
+                return null;
+            }
+
+            ast.set_arg_at(&c_e.args, i, checked_arg);
+            i = i + 1;
+        }
+
+        e.ty = func.ret;
         return e;
     }
 
@@ -1705,13 +1757,6 @@ def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident): void {
     push_simple_error(tc, ERROR_NOT_DEFINED, name);
 }
 
-def push_invalid_access_error(tc: *TypeChecker, e: *ast.Expr): void {
-    let ty_s = ast.expr2str(e.tag);
-    let error = std.err2str(ERROR_INVALID_ACCESS_TYPE, ty_s);
-
-    push_mk_err(tc, error, e.span);
-}
-
 def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr): void {
     let ty_s = ty.to_static_string(e.ty);
     let error = std.err2str(ERROR_NOT_ACCESSIBLE_WITH_OP, ty_s, ".");
@@ -1723,6 +1768,39 @@ def push_return_outside_of_func_error(tc: *TypeChecker, span: span.Span): void {
     let text = std.err2str(ERROR_RETURN_OUTSIDE_OF_FUNC);
     push_mk_err(tc, text, span);
 }
+
+def push_not_callable_error(tc: *TypeChecker, span: span.Span, ty: *ty.Type): void {
+    let text = std.err2str(ERROR_CALLING_NON_FUNCTION, ty.to_static_string(ty));
+    push_mk_err(tc, text, span);
+}
+
+def push_wrong_num_args_error(tc: *TypeChecker, expected: i32, actual: i32, span: span.Span): void {
+    let text = std.err2str(ERROR_WRONG_NUMBER_OF_ARGS, expected, actual);
+    push_mk_err(tc, text, span);
+}
+
+def push_wrong_arg_type_error(
+    tc: *TypeChecker,
+    expected: *ty.Type,
+    actual: *ty.Type,
+    span: span.Span
+): void {
+    let expected_ty_s = "";
+    let free_expected_ty_s = ty.to_string(expected, tc.span_interner, &expected_ty_s);
+    let actual_ty_s = "";
+    let free_actual_ty_s = ty.to_string(actual, tc.span_interner, &actual_ty_s);
+
+    let text = std.err2str(ERROR_WRONG_ARG_TYPE, expected_ty_s, actual_ty_s);
+    if free_expected_ty_s {
+        delete expected_ty_s;
+    }
+    if free_actual_ty_s {
+        delete actual_ty_s;
+    }
+
+    push_mk_err(tc, text, span);
+}
+
 
 def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
     let ret_ty_s = "";

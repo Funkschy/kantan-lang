@@ -12,17 +12,16 @@ class Test(Code):
             return self.create_error(msg)
 
         error = output.errors[0]
-        expected_rsn = "'i32' cannot be accessed with '.' operator"
+        expected_rsn = "Wrong argument type for function. Expected 'bool', but got 'i32'"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)
             return self.create_error(msg)
 
-        if error.line != 16:
+        if error.line != 6:
             return self.create_error('wrong line')
 
-        # TODO: this should actually be col 19 in the future
-        if error.col != 5:
+        if error.col != 10:
             print(error.col)
             return self.create_error('wrong column')
 

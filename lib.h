@@ -152,7 +152,6 @@ static char const *const error_texts[] = {
     "Duplicate definition of '%.*s'",
     "Identifier '%.*s' is not in scope",
     "Type '%s' cannot be accessed with '%s' operator",
-    "First element of access chain should be Identifier, but was '%s'",
     "Incomplete type '%.*s'",
     "Invalid operator for types '%s' and '%s'",
     "Pointers may only be compared or subtracted",
@@ -162,7 +161,10 @@ static char const *const error_texts[] = {
     "Return statements may not be used outside of functions",
     "Wrong return type for function. Expected '%s', but got '%s'",
     "Missing return statement",
-    "Illegal use of declared type"
+    "Illegal use of declared type",
+    "Type '%s' is not callable",
+    "Wrong number of arguments, expected '%d', but got '%d'",
+    "Wrong argument type for function. Expected '%s', but got '%s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

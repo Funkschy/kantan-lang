@@ -809,7 +809,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {
     // access expr
     if token.ty == TOKEN_DOT {
-        letcheck(right, expression(p, no_struct));
+        letcheck(right, parse_expression(p, precedence.access(), no_struct));
         let span = span.merge(p.lexer.span_interner, left.span, right.span);
         return ast.new_access_expr(span, left, right);
     }

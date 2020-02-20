@@ -415,19 +415,14 @@ def as_new_expr(e: *Expr): *NewExpr {
 
 type CallExpr struct {
     e: Expr,
-    ident: *Expr, // either IdentExpr or AccessExpr
+    callee: *Expr,
     args: ArgList
 }
 
-def new_call_expr(span: span.Span, ident: *Expr, args: ArgList): *Expr {
-    if !is_ident_expr(ident) && !is_access_expr(ident) {
-        expr_free(ident);
-        return null;
-    }
-
+def new_call_expr(span: span.Span, callee: *Expr, args: ArgList): *Expr {
     return (new CallExpr {
         e: create_expr(EXPR_CALL, span),
-        ident: ident,
+        callee: callee,
         args: args
     }) as *Expr;
 }
@@ -671,7 +666,7 @@ def expr_free(e: *Expr): void {
         expr_free(a_expr.right);
     } else if is_call_expr(e) {
         let c_expr = as_call_expr(e);
-        expr_free(c_expr.ident as *Expr);
+        expr_free(c_expr.callee);
         free_al(&c_expr.args);
     } else if is_init_expr(e) {
         let i_expr = as_init_expr(e);
@@ -792,7 +787,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_call_expr(e) {
         let c_expr = as_call_expr(e);
 
-        let ident = expr_to_string(c_expr.ident as *Expr, span_interner);
+        let ident = expr_to_string(c_expr.callee, span_interner);
         let args = arg_list_to_string(&c_expr.args, span_interner);
 
         let s = std.format_str("%s(%s)", ident, args);
@@ -835,6 +830,10 @@ def num_args(al: *ArgList): i32 {
 
 def get_arg_at(al: *ArgList, i: i32): *ast.Expr {
     return ptrvec.get(&al.args, i) as *ast.Expr;
+}
+
+def set_arg_at(al: *ArgList, i: i32, expr: *ast.Expr): void {
+    ptrvec.set(&al.args, i, expr as *void);
 }
 
 def push_arg(al: *ArgList, arg: *ast.Expr): void {
