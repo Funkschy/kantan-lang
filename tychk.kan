@@ -561,6 +561,8 @@ def fill_func_def(
     } else if tyid.is_ptr(&f_decl.ret_ty) {
         ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, instance_of_ty(ret_ty));
         push_tmp_ty(tc, ret_ty);
+    } else {
+        ret_ty = instance_of_ty(ret_ty);
     }
 
     let num_params = func.num_params(f_decl);
@@ -601,7 +603,7 @@ def fill_func_def(
 
     if !error {
         f_ty.params = params;
-        f_ty.ret = instance_of_ty(ret_ty);
+        f_ty.ret = ret_ty;
     } else {
         vec.free_v(&params);
         return ERROR;
