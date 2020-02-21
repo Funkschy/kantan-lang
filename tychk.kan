@@ -556,19 +556,21 @@ def fill_func_def(
         error = true;
     }
 
-    // return types mod does exist, but the type itself has not yet been resolved
-    if ret_ty == null && ret_ty_mod != null {
-        if tyid.is_ptr(&f_decl.ret_ty) {
-            ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
+    if !error {
+        // return types mod does exist, but the type itself has not yet been resolved
+        if ret_ty == null {
+            if tyid.is_ptr(&f_decl.ret_ty) {
+                ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
+                push_tmp_ty(tc, ret_ty);
+            }
+            func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, t);
+            waiting = true;
+        } else if tyid.is_ptr(&f_decl.ret_ty) {
+            ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, instance_of_ty(ret_ty));
             push_tmp_ty(tc, ret_ty);
+        } else {
+            ret_ty = instance_of_ty(ret_ty);
         }
-        func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, t);
-        waiting = true;
-    } else if tyid.is_ptr(&f_decl.ret_ty) {
-        ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, instance_of_ty(ret_ty));
-        push_tmp_ty(tc, ret_ty);
-    } else {
-        ret_ty = instance_of_ty(ret_ty);
     }
 
     let num_params = func.num_params(f_decl);
@@ -973,6 +975,8 @@ def check_import(
 
     // no such module
     if imported_mod == null {
+        // TODO: for some reason this error is sometimes duplicated
+        //  to recreate, just import a non existing file
         push_mk_err(tc, error, i_s.mod.ident_span);
         return false;
     }
