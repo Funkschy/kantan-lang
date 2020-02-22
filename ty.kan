@@ -50,6 +50,18 @@ def is_i32(t: *Type): bool {
     return t.kind == TY_I32;
 }
 
+/////////// char type ///////////
+
+def new_char(): *Type {
+    let t = new_type(TY_CHAR, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_char(t: *Type): bool {
+    return t.kind == TY_CHAR;
+}
+
 /////////// bool type ///////////
 
 def new_bool(): *Type {

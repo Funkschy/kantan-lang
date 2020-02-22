@@ -123,6 +123,7 @@ static char const *const type_type_strings[] = {
     "pointer",
     "bool",
     "i32",
+    "char",
     "void",
     "string",
     "function",

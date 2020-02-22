@@ -417,10 +417,11 @@ def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
 }
 
 def create_global_scope(tc: *TypeChecker): scope.Scope {
-    // TODO: this should be defined in builtin.kan
+    // TODO: this should probably be defined in something like a builtin.kan
     let global = scope.create();
     scope.s_bind_in(&global, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
     scope.s_bind_in(&global, 6, "string", push_tmp_ty(tc, ty.new_string()));
+    scope.s_bind_in(&global, 4, "char", push_tmp_ty(tc, ty.new_char()));
     scope.s_bind_in(&global, 4, "void", push_tmp_ty(tc, ty.new_void()));
 
     let bool_ty = push_tmp_ty(tc, ty.new_bool());
@@ -430,6 +431,10 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     scope.s_bind_in(&global, 5, "false", instance_of_ty(bool_ty));
 
     return global;
+}
+
+def get_global_instance(tc: *TypeChecker, name: string, len: i32): *ty.Type {
+    return instance_of_ty(scope.s_get_in(&tc.globals, len, name));
 }
 
 def num_errs(tc: *TypeChecker): i32 {
@@ -1339,20 +1344,24 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         std.abort();
     }
 
-    // EXPR_CHAR
-    // EXPR_ASSIGN
     // EXPR_INIT
     // EXPR_AS
 
     // EXPR_INT
     if ast.is_int_expr(e) {
-        e.ty = instance_of_ty(scope.s_get_in(&tc.globals, 3, "i32"));
+        e.ty = get_global_instance(tc, "i32", 3);
+        return e;
+    }
+
+    // EXPR_CHAR
+    if ast.is_char_expr(e) {
+        e.ty = get_global_instance(tc, "char", 4);
         return e;
     }
 
     // EXPR_STRING
     if ast.is_string_expr(e) {
-        e.ty = instance_of_ty(scope.s_get_in(&tc.globals, 6, "string"));
+        e.ty = get_global_instance(tc, "string", 6);
         return e;
     }
 
@@ -1432,6 +1441,25 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         }
 
         e.ty = ty;
+        return e;
+    }
+
+    // EXPR_ASSIGN
+    if ast.is_assign_expr(e) {
+        let a_e = ast.as_assign_expr(e);
+        let left = check_expr(tc, a_e.left);
+        let right = check_expr(tc, a_e.right);
+
+        if left == null || right == null {
+            return null;
+        }
+
+        if !ty.equals(left.ty, right.ty) {
+            push_bin_invalid_types_error(tc, left.ty, right.ty, e.span);
+            return null;
+        }
+
+        e.ty = right.ty;
         return e;
     }
 
@@ -1533,10 +1561,7 @@ def check_binary_expr(
     second: *ty.Type,
     span: span.Span
 ): *ty.Type {
-#define RET_INVALID_TYS() let s_first = ty.to_static_string(first); \
-            let s_second = ty.to_static_string(second); \
-            let text = std.err2str(ERROR_BIN_INVALID_TYPES, s_first, s_second); \
-            push_mk_err(tc, text, op_span); \
+#define RET_INVALID_TYS() push_bin_invalid_types_error(tc, first, second, op_span); \
             return null
 
     if kind < BINARY_ADD || kind > BINARY_NE {
@@ -1658,9 +1683,7 @@ def check_unary_expr(
 
         let ty: *ty.Type = null;
         if ty.is_string(expr.ty) {
-            // TODO: char
-            io.printf("TODO: implement char type\n");
-            std.abort();
+            ty = get_global_instance(tc, "char", 4);
         } else {
             let p_ty = ty.as_ptr(expr.ty);
             if p_ty.count <= 1 {
@@ -1780,6 +1803,18 @@ def push_not_callable_error(tc: *TypeChecker, span: span.Span, ty: *ty.Type): vo
 
 def push_wrong_num_args_error(tc: *TypeChecker, expected: i32, actual: i32, span: span.Span): void {
     let text = std.err2str(ERROR_WRONG_NUMBER_OF_ARGS, expected, actual);
+    push_mk_err(tc, text, span);
+}
+
+def push_bin_invalid_types_error(
+    tc: *TypeChecker,
+    first: *ty.Type,
+    second: *ty.Type,
+    span: span.Span
+): void {
+    let s_first = ty.to_static_string(first);
+    let s_second = ty.to_static_string(second);
+    let text = std.err2str(ERROR_BIN_INVALID_TYPES, s_first, s_second);
     push_mk_err(tc, text, span);
 }
 
