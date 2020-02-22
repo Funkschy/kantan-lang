@@ -20,9 +20,9 @@ def name_dup(f: *File): string {
 
 def read_to_string(s: *File, dest: *string): i32 {
     let path = path.to_string(&s.path.inner);
-    let content = read_file(path, dest);
+    let ret_code = read_file(path, dest);
     delete path;
-    return content;
+    return ret_code;
 }
 
 def free_f(f: *File): void {

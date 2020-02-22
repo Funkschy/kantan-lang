@@ -103,7 +103,7 @@ def canonicalize(p: *Path, dest: *PathBuf): i32 {
     delete buf;
 
     if real == null {
-        return std.get_errno();
+        return ERROR_COULD_NOT_OPEN_FILE;
     }
 
     free_pb(dest);
