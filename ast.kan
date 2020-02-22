@@ -439,19 +439,14 @@ def as_call_expr(e: *Expr): *CallExpr {
 
 type InitExpr struct {
     e: Expr,
-    ident: *Expr, // either IdentExpr or AccessExpr
+    struct_ty: *Expr,
     inits: InitList
 }
 
-def new_init_expr(span: span.Span, ident: *Expr, inits: InitList): *Expr {
-    if !is_ident_expr(ident) && !is_access_expr(ident) {
-        expr_free(ident);
-        return null;
-    }
-
+def new_init_expr(span: span.Span, struct_ty: *Expr, inits: InitList): *Expr {
     return (new InitExpr {
         e: create_expr(EXPR_INIT, span),
-        ident: ident,
+        struct_ty: struct_ty,
         inits: inits
     }) as *Expr;
 }
@@ -670,7 +665,7 @@ def expr_free(e: *Expr): void {
         free_al(&c_expr.args);
     } else if is_init_expr(e) {
         let i_expr = as_init_expr(e);
-        expr_free(i_expr.ident as *Expr);
+        expr_free(i_expr.struct_ty);
         free_il(&i_expr.inits);
     } else if is_unary_expr(e) {
         expr_free(as_unary_expr(e).right);
@@ -800,7 +795,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_init_expr(e) {
         let i_expr = as_init_expr(e);
 
-        let ident = expr_to_string(i_expr.ident as *Expr, span_interner);
+        let ident = expr_to_string(i_expr.struct_ty, span_interner);
         let inits = init_list_to_string(&i_expr.inits, span_interner);
 
         let s = std.format_str("%s{%s}", ident, inits);

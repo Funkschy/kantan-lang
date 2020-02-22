@@ -680,9 +680,7 @@ def fill_struct_fields(
                 let is_struct = ty.is_struct(field_ty);
 
                 if ty.is_initialized(field_ty) {
-                    if is_struct {
-                        field_ty = instance_of_ty(field_ty);
-                    }
+                    field_ty = instance_of_ty(field_ty);
 
                     if is_ptr {
                         field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
@@ -1344,7 +1342,6 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         std.abort();
     }
 
-    // EXPR_INIT
     // EXPR_AS
 
     // EXPR_INT
@@ -1544,6 +1541,25 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         }
 
         e.ty = func.ret;
+        return e;
+    }
+
+    // EXPR_INIT
+    if ast.is_init_expr(e) {
+        let i_e = ast.as_init_expr(e);
+        let left = check_expr(tc, i_e.struct_ty);
+        if left == null {
+            return null;
+        }
+
+        if !ty.is_struct_decl(left.ty) {
+            push_init_non_struct_error(tc, left.ty, e.span);
+            return null;
+        }
+
+        // TODO: check actual types
+
+        e.ty = instance_of_ty(left.ty);
         return e;
     }
 
@@ -1860,5 +1876,11 @@ def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
 
 def push_missing_return_error(tc: *TypeChecker, span: span.Span): void {
     let text = std.err2str(ERROR_MISSING_RETURN);
+    push_mk_err(tc, text, span);
+}
+
+def push_init_non_struct_error(tc: *TypeChecker, ty: *ty.Type, span: span.Span): void {
+    let ty_s = ty.to_static_string(ty);
+    let text = std.err2str(ERROR_INIT_NON_STRUCT_TYPE, ty_s);
     push_mk_err(tc, text, span);
 }

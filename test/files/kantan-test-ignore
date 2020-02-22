@@ -1,8 +1,4 @@
 float-add
 inner-struct-assign
-simple-malloc
 linked-list
-bintree
-modules
 simple-array
-ref-op-operator
