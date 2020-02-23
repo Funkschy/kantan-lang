@@ -97,7 +97,7 @@ def insert_all(map: *Map, other: *Map): void {
 }
 
 // inserts value into map at key
-// returns: true if a value with the same key was replaced
+// returns the replaced value or null
 def insert(map: *Map, key: Key, value: *void): *void {
     if map.items == null || load_factor(map) > 0.75 {
         resize(map);
@@ -120,26 +120,43 @@ def insert(map: *Map, key: Key, value: *void): *void {
         return old_val;
     }
 
+    let replaced: *void = null;
     // linear probing
-    if probe_insert(map, index + 1, map.cap, key, value) {
-        return null;
+    if probe_insert(map, index + 1, map.cap, key, value, &replaced) {
+        return replaced;
     }
 
-    probe_insert(map, 0, index, key, value);
-    return null;
+    probe_insert(map, 0, index, key, value, &replaced);
+    return replaced;
 }
 
-def probe_insert(map: *Map, start: i32, len: i32, key: Key, value: *void): bool {
+def probe_insert(
+    map: *Map,
+    start: i32,
+    len: i32,
+    key: Key,
+    value: *void,
+    out_old_val: **void
+): bool {
     let i = start;
     let item: *Item = null;
     while i < len {
         item = map.items + i;
-        // find first empty slot
+
+        let insert = false;
         if item.key.value == null {
+            insert = true;
+        } else if key_eq(item.key, key) {
+            *out_old_val = item.value;
+            insert = true;
+        }
+
+        if insert {
             *item = create_item(key, value);
             map.len = map.len + 1;
             return true;
         }
+
         i = i + 1;
     }
 

@@ -688,18 +688,16 @@ def fill_struct_fields(
                     }
 
                     ty.push_field(s_ty, f.ident, field_ty, tc.span_interner);
-                } else {
-                    if is_struct {
-                        // a struct that has not been initialized
-                        wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
-                        if !is_ptr {
-                            waiting = true;
-                        }
-                    } else {
-                        // struct types should be the only uninitialized
-                        push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
-                        return;
+                } else if is_struct {
+                    // a struct that has not been initialized
+                    wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
+                    if !is_ptr {
+                        waiting = true;
                     }
+                } else {
+                    // struct types should be the only uninitialized
+                    push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
+                    return;
                 }
             } else {
                 wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
