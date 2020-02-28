@@ -763,6 +763,10 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.new_int_expr(token.span, token.lexeme);
     }
 
+    if token.ty == TOKEN_NULL {
+        return ast.new_null_expr(token.span, token.lexeme);
+    }
+
     if token.ty == TOKEN_STRING {
         return ast.new_string_expr(token.span, token.lexeme);
     }

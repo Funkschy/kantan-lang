@@ -20,6 +20,7 @@ static char const *const token_strings[] = {
     "unknown token",
     "invalid char literal",
     "integer",
+    "null",
     "identifier",
     "let",
     "if",
@@ -102,6 +103,7 @@ static size_t const len_unary_strings = sizeof(unary_type_ops) / sizeof(char *);
 static char const *const expr_type_strings[] = {
     "error",
     "int literal",
+    "null literal",
     "string literal",
     "char literal",
     "binary expression",

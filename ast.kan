@@ -528,6 +528,28 @@ def as_int_expr(e: *Expr): *IntExpr {
     return e as *IntExpr;
 }
 
+/////////// null expr ///////////
+
+type NullExpr struct {
+    e: Expr,
+    ptr: string
+}
+
+def new_null_expr(span: span.Span, ptr: string): *Expr {
+    return (new NullExpr {
+        e: create_expr(EXPR_NULL, span),
+        ptr: ptr
+    }) as *Expr;
+}
+
+def is_null_expr(e: *Expr): bool {
+    return e.tag == EXPR_NULL;
+}
+
+def as_null_expr(e: *Expr): *NullExpr {
+    return e as *NullExpr;
+}
+
 /////////// string expr ///////////
 
 type StringExpr struct {
