@@ -1325,6 +1325,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
+        r_s.expr = expr;
         return s;
     }
 
@@ -1435,6 +1436,8 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
             return null;
         }
 
+        b_e.left = left;
+        b_e.right = right;
         e.ty = ty;
         return e;
     }
@@ -1454,6 +1457,8 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
             return null;
         }
 
+        a_e.left = left;
+        a_e.right = right;
         e.ty = right.ty;
         return e;
     }
@@ -1472,6 +1477,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
             return null;
         }
 
+        u_e.right = expr;
         e.ty = ty;
         return e;
     }
@@ -1488,6 +1494,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
         let ptr = ty.new_ptr(1, inner.ty);
         push_tmp_ty(tc, ptr);
 
+        n_e.expr = inner;
         e.ty = ptr;
         return e;
     }
@@ -1538,6 +1545,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
             i = i + 1;
         }
 
+        c_e.callee = callee;
         e.ty = func.ret;
         return e;
     }
@@ -1555,8 +1563,37 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
             return null;
         }
 
-        // TODO: check actual types
+        let struct_ty = ty.as_struct(left.ty);
+        let inits = &i_e.inits;
 
+        let expected_num_args = ty.num_fields(struct_ty);
+        let actual_num_args = ast.num_inits(inits);
+        if expected_num_args != actual_num_args {
+            push_wrong_num_args_error(tc, expected_num_args, actual_num_args, e.span);
+            return null;
+        }
+
+        let i = 0;
+        while i < expected_num_args {
+            let param = ty.field_at(struct_ty, i);
+            let arg = ast.init_expr_at(inits, i);
+
+            let checked_arg = check_expr(tc, arg);
+            if checked_arg == null {
+                return null;
+            }
+
+            if !ty.equals(param.ty, checked_arg.ty) {
+                push_wrong_arg_type_error(tc, param.ty, checked_arg.ty, checked_arg.span);
+                return null;
+            }
+
+            ast.set_init_expr_at(inits, i, checked_arg);
+            i = i + 1;
+        }
+
+        // TODO: those names are really confusing
+        i_e.struct_ty = left;
         e.ty = instance_of_ty(left.ty);
         return e;
     }

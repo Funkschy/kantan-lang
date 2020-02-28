@@ -906,15 +906,19 @@ def num_inits(il: *InitList): i32 {
     return il.inits.len;
 }
 
-def get_init_expr_at(il: *InitList, i: i32): *Expr {
+def init_expr_at(il: *InitList, i: i32): *Expr {
     let init = empty_init();
-    if !get_init_at(il, i, &init) {
+    if !init_at(il, i, &init) {
         return null;
     }
     return init.expr;
 }
 
-def get_init_at(il: *InitList, i: i32, dest: *Init): bool {
+def set_init_expr_at(il: *InitList, i: i32, value: *Expr): void {
+    (vec.get_ptr(&il.inits, i) as *Init).expr = value;
+}
+
+def init_at(il: *InitList, i: i32, dest: *Init): bool {
     return vec.get(&il.inits, i, dest as *void);
 }
 
@@ -926,7 +930,7 @@ def free_il(il: *InitList): void {
     let i = 0;
     while i < il.inits.len {
         let init = empty_init();
-        get_init_at(il, i, &init);
+        init_at(il, i, &init);
         ast.expr_free(init.expr);
         i = i + 1;
     }
@@ -940,7 +944,7 @@ def init_list_to_string(il: *InitList, span_interner: *span.SpanInterner): strin
     let i = 0;
     while i < il.inits.len {
         let init = empty_init();
-        if !get_init_at(il, i, &init) {
+        if !init_at(il, i, &init) {
             delete inits;
             return null;
         }
