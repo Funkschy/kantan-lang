@@ -12,12 +12,7 @@ def empty(): Type {
 }
 
 def is_empty(t: *Type): bool {
-    let empty = empty();
-    // for some reason valgrind reported uninitialized memory for empty Idents
-    // i honestly think, that this was a valgrind bug, because putting the memset
-    // into the empty() function didn't help at all
-    std.memset(&empty as *void, 0, sizeof ident.Ident);
-    return std.memcmp(t as *void, &empty as *void, sizeof Type) == 0;
+    return t.pointer_count == 0 && t.ident.ident == null;
 }
 
 def create(ident: ident.Ident): Type {

@@ -168,7 +168,8 @@ static char const *const error_texts[] = {
     "Type '%s' is not callable",
     "Wrong number of arguments, expected '%d', but got '%d'",
     "Wrong argument type for function. Expected '%s', but got '%s'",
-    "Expected the name of a struct, but got '%s'"
+    "Expected the name of a struct, but got '%s'",
+    "Could not infer type"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

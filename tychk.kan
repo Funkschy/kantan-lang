@@ -288,7 +288,9 @@ def check(tc: *TypeChecker): void {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
-        check_mod(tc, m, idx, DECL_ONLY_PASS);
+        if check_mod(tc, m, idx, DECL_ONLY_PASS) == ERROR {
+            error = true;
+        }
 
         i = i + 1;
     }
@@ -368,7 +370,7 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     return false;
 }
 
-def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): void {
+def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): i32 {
     if mod.ty == null {
         std.abort();
     }
@@ -389,16 +391,22 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): void {
     tc.ctx = ctx;
     tc.decl_only_pass = decl_only;
 
+    let ret = OK;
+
     let i = 0;
     while i < mod.num_stmts(mod) {
         let result = check_stmt(tc, mod.get_stmt_at(mod, i));
 
         if result != null {
             mod.set_stmt_at(mod, i, result);
+        } else {
+            ret = ERROR;
         }
 
         i = i + 1;
     }
+
+    return ret;
 }
 
 def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
@@ -1260,6 +1268,38 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         return s;
     }
 
+    // STMT_LET
+    if ast.is_let_stmt(s) {
+        let l_s = ast.as_let_stmt(s);
+        let value: *ast.Expr = null;
+
+        if tc.decl_only_pass {
+            let temp_ty = get_global_instance(tc, "void", 4);
+            bind(tc, &l_s.ident, temp_ty);
+            return s;
+        }
+
+        if ast.has_type_decl(l_s) {
+            let expected_ident = l_s.ty.ident;
+            let expected_mod: *mod.Module = null;
+            let expected_ty: *ty.Type = null;
+
+            if checked_lookup(tc, &expected_ident, &expected_ty, &expected_mod) == OK {
+                value = check_expr_expect(tc, l_s.value, expected_ty);
+            }
+        } else {
+            value = check_expr(tc, l_s.value);
+        }
+
+        if value == null {
+            return null;
+        }
+
+        l_s.value = value;
+        bind(tc, &l_s.ident, l_s.value.ty);
+        return s;
+    }
+
     // the statements below this should only be resolved in the real pass
     if tc.decl_only_pass {
         return s;
@@ -1276,20 +1316,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             i = i + 1;
         }
 
-        return s;
-    }
-
-    // STMT_LET
-    if ast.is_let_stmt(s) {
-        let l_s = ast.as_let_stmt(s);
-        let value = check_expr(tc, l_s.value);
-
-        if value == null {
-            return null;
-        }
-
-        l_s.value = value;
-        bind(tc, &l_s.ident, l_s.value.ty);
         return s;
     }
 
@@ -1364,10 +1390,13 @@ def check_expr_scope_expect(
 
     // EXPR_NULL
     if ast.is_null_expr(e) {
-        if expected != null && ty.is_ptr_type(expected) {
-            e.ty = expected;
-            return e;
+        if expected != null {
+            if ty.is_ptr_type(expected) {
+                e.ty = expected;
+                return e;
+            }
         }
+        push_could_not_infer_error(tc, e.span);
         return null;
     }
 
@@ -1468,9 +1497,12 @@ def check_expr_scope_expect(
     if ast.is_assign_expr(e) {
         let a_e = ast.as_assign_expr(e);
         let left = check_expr(tc, a_e.left);
-        let right = check_expr_expect(tc, a_e.right, expected);
 
-        if left == null || right == null {
+        if left == null {
+            return null;
+        }
+        let right = check_expr_expect(tc, a_e.right, left.ty);
+        if right == null {
             return null;
         }
 
@@ -1939,5 +1971,10 @@ def push_missing_return_error(tc: *TypeChecker, span: span.Span): void {
 def push_init_non_struct_error(tc: *TypeChecker, ty: *ty.Type, span: span.Span): void {
     let ty_s = ty.to_static_string(ty);
     let text = std.err2str(ERROR_INIT_NON_STRUCT_TYPE, ty_s);
+    push_mk_err(tc, text, span);
+}
+
+def push_could_not_infer_error(tc: *TypeChecker, span: span.Span): void {
+    let text = std.err2str(ERROR_COULD_NOT_INFER_TYPE);
     push_mk_err(tc, text, span);
 }

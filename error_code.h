@@ -34,3 +34,4 @@
 #define ERROR_WRONG_NUMBER_OF_ARGS      26
 #define ERROR_WRONG_ARG_TYPE            27
 #define ERROR_INIT_NON_STRUCT_TYPE      28
+#define ERROR_COULD_NOT_INFER_TYPE      29
