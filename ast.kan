@@ -531,14 +531,12 @@ def as_int_expr(e: *Expr): *IntExpr {
 /////////// null expr ///////////
 
 type NullExpr struct {
-    e: Expr,
-    ptr: string
+    e: Expr
 }
 
-def new_null_expr(span: span.Span, ptr: string): *Expr {
+def new_null_expr(span: span.Span): *Expr {
     return (new NullExpr {
-        e: create_expr(EXPR_NULL, span),
-        ptr: ptr
+        e: create_expr(EXPR_NULL, span)
     }) as *Expr;
 }
 
@@ -548,6 +546,28 @@ def is_null_expr(e: *Expr): bool {
 
 def as_null_expr(e: *Expr): *NullExpr {
     return e as *NullExpr;
+}
+
+/////////// sizeOf expr ///////////
+
+type SizeOfExpr struct {
+    e: Expr,
+    ty: tyid.Type
+}
+
+def new_sizeof_expr(span: span.Span, ty: tyid.Type): *Expr {
+    return (new SizeOfExpr {
+        e: create_expr(EXPR_SIZEOF, span),
+        ty: ty
+    }) as *Expr;
+}
+
+def is_sizeof_expr(e: *Expr): bool {
+    return e.tag == EXPR_SIZEOF;
+}
+
+def as_sizeof_expr(e: *Expr): *SizeOfExpr {
+    return e as *SizeOfExpr;
 }
 
 /////////// string expr ///////////
@@ -712,9 +732,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     }
 
     if is_null_expr(e) {
-        let n_expr = as_null_expr(e);
-        let len = span.get(span_interner, e.span).len;
-        return std.strndup(n_expr.ptr, len);
+        return std.strdup("null");
     }
 
     if is_string_expr(e) {
@@ -742,6 +760,15 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let s = std.format_str("new %s", expr_s);
 
         delete expr_s;
+        return s;
+    }
+
+    if is_sizeof_expr(e) {
+        let s_expr = as_sizeof_expr(e);
+        let ty_s = tyid.to_string(&s_expr.ty, span_interner);
+        let s = std.format_str("sizeof %s", ty_s);
+
+        delete ty_s;
         return s;
     }
 

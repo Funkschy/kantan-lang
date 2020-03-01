@@ -172,23 +172,30 @@ def ident_type(l: *Lexer): i32 {
         std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
 
         if next == std.char_to_int('x') {
-            return check_keyword(l, 1, 5, "xtern", TOKEN_EXTERN);
+            return check_keyword(l, 2, 4, "tern", TOKEN_EXTERN);
         } else if next == std.char_to_int('l') {
-            return check_keyword(l, 1, 3, "lse", TOKEN_ELSE);
+            return check_keyword(l, 2, 2, "se", TOKEN_ELSE);
         }
     } else if start == std.char_to_int('n') && l.current - l.start > 2 {
         let next = 0;
         std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
 
         if next == std.char_to_int('u') {
-            return check_keyword(l, 1, 3, "ull", TOKEN_NULL);
+            return check_keyword(l, 2, 2, "ll", TOKEN_NULL);
         } else if next == std.char_to_int('e') {
-            return check_keyword(l, 1, 2, "ew", TOKEN_NEW);
+            return check_keyword(l, 2, 1, "w", TOKEN_NEW);
+        }
+    } else if start == std.char_to_int('s') && l.current - l.start > 5 {
+        let next = 0;
+        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+
+        if next == std.char_to_int('t') {
+            return check_keyword(l, 2, 4, "ruct", TOKEN_STRUCT);
+        } else if next == std.char_to_int('i') {
+            return check_keyword(l, 2, 4, "zeof", TOKEN_SIZEOF);
         }
     } else if start == std.char_to_int('w') {
         return check_keyword(l, 1, 4, "hile", TOKEN_WHILE);
-    } else if start == std.char_to_int('s') {
-        return check_keyword(l, 1, 5, "truct", TOKEN_STRUCT);
     } else if start == std.char_to_int('t') {
         return check_keyword(l, 1, 3, "ype", TOKEN_TYPE);
     } else if start == std.char_to_int('r') {

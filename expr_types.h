@@ -11,6 +11,7 @@
 #define EXPR_ACCESS     11
 #define EXPR_AS         12
 #define EXPR_NEW        13
+#define EXPR_SIZEOF     14
 
 #define BINARY_ADD      1
 #define BINARY_SUB      2

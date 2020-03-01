@@ -763,10 +763,6 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.new_int_expr(token.span, token.lexeme);
     }
 
-    if token.ty == TOKEN_NULL {
-        return ast.new_null_expr(token.span, token.lexeme);
-    }
-
     if token.ty == TOKEN_STRING {
         return ast.new_string_expr(token.span, token.lexeme);
     }
@@ -777,6 +773,20 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 
     if token.ty == TOKEN_IDENT {
         return ast.new_ident_expr(token);
+    }
+
+    if token.ty == TOKEN_NULL {
+        return ast.new_null_expr(token.span);
+    }
+
+    if token.ty == TOKEN_SIZEOF {
+        let ty = tyid.empty();
+        if !consume_type(p, &ty) {
+            return null;
+        }
+
+        let span = span.merge(p.lexer.span_interner, token.span, tyid.span(&ty));
+        return ast.new_sizeof_expr(span, ty);
     }
 
     if token.ty == TOKEN_NEW {

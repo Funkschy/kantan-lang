@@ -1567,6 +1567,19 @@ def check_expr_scope_expect(
         return e;
     }
 
+    // EXPR_SIZEOF
+    if ast.is_sizeof_expr(e) {
+        let s_e = ast.as_sizeof_expr(e);
+
+        let ty = lookup_tyid(tc, &s_e.ty);
+        if ty == null {
+            return null;
+        }
+
+        e.ty = get_global_instance(tc, "i32", 3);
+        return e;
+    }
+
     // EXPR_AS
     if ast.is_as_expr(e) {
         let a_e = ast.as_as_expr(e);

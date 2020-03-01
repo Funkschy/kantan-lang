@@ -35,6 +35,7 @@ static char const *const token_strings[] = {
     "struct",
     "as",
     "extern",
+    "sizeof",
     ";",
     ",",
     ":",
@@ -114,7 +115,8 @@ static char const *const expr_type_strings[] = {
     "struct initialization",
     "access expression",
     "cast expression",
-    "new expression"
+    "new expression",
+    "sizeof expression"
 };
 
 static size_t const len_expr_strings = sizeof(expr_type_strings) / sizeof(char *);
