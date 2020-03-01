@@ -546,6 +546,22 @@ def checked_lookup(
     return OK;
 }
 
+def lookup_tyid(tc: *TypeChecker, tyid: *tyid.Type): *ty.Type {
+    let out_ty: *ty.Type = null;
+    if checked_lookup(tc, &tyid.ident, &out_ty, null) == OK {
+        out_ty = instance_of_ty(out_ty);
+        if tyid.is_ptr(tyid) {
+            return push_tmp_ty(tc, ty.new_ptr(tyid.pointer_count, out_ty));
+        } else {
+            return out_ty;
+        }
+    } else {
+        push_not_defined_error(tc, &tyid.ident);
+    }
+
+    return null;
+}
+
 def fill_func_def(
     tc: *TypeChecker,
     f_decl: *func.FuncDef,
@@ -1274,19 +1290,19 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let value: *ast.Expr = null;
 
         if tc.decl_only_pass {
+            // placeholder to bind the name
             let temp_ty = get_global_instance(tc, "void", 4);
             bind(tc, &l_s.ident, temp_ty);
             return s;
         }
 
         if ast.has_type_decl(l_s) {
-            let expected_ident = l_s.ty.ident;
-            let expected_mod: *mod.Module = null;
-            let expected_ty: *ty.Type = null;
-
-            if checked_lookup(tc, &expected_ident, &expected_ty, &expected_mod) == OK {
-                value = check_expr_expect(tc, l_s.value, expected_ty);
+            let expected_ty = lookup_tyid(tc, &l_s.ty);
+            if expected_ty == null {
+                return null;
             }
+
+            value = check_expr_expect(tc, l_s.value, expected_ty);
         } else {
             value = check_expr(tc, l_s.value);
         }
@@ -1379,8 +1395,6 @@ def check_expr_scope_expect(
     if tc.decl_only_pass {
         std.abort();
     }
-
-    // EXPR_AS
 
     // EXPR_INT
     if ast.is_int_expr(e) {
@@ -1550,6 +1564,30 @@ def check_expr_scope_expect(
 
         n_e.expr = inner;
         e.ty = ptr;
+        return e;
+    }
+
+    // EXPR_AS
+    if ast.is_as_expr(e) {
+        let a_e = ast.as_as_expr(e);
+
+        let dest_ty = lookup_tyid(tc, &a_e.ty);
+        if dest_ty == null {
+            return null;
+        }
+
+        let expr = check_expr_expect(tc, a_e.expr, dest_ty);
+        if expr == null {
+            return null;
+        }
+
+        if !ty.is_ptr_type(expr.ty) {
+            push_invalid_cast_error(tc, expr.ty, dest_ty, e.span);
+            return null;
+        }
+
+        a_e.expr = expr;
+        e.ty = dest_ty;
         return e;
     }
 
@@ -1976,5 +2014,27 @@ def push_init_non_struct_error(tc: *TypeChecker, ty: *ty.Type, span: span.Span):
 
 def push_could_not_infer_error(tc: *TypeChecker, span: span.Span): void {
     let text = std.err2str(ERROR_COULD_NOT_INFER_TYPE);
+    push_mk_err(tc, text, span);
+}
+
+def push_invalid_cast_error(
+    tc: *TypeChecker,
+    src: *ty.Type,
+    dest: *ty.Type,
+    span: span.Span
+): void {
+    let src_ty_s = "";
+    let free_src_ty_s = ty.to_string(src, tc.span_interner, &src_ty_s);
+    let dest_ty_s = "";
+    let free_dest_ty_s = ty.to_string(dest, tc.span_interner, &dest_ty_s);
+
+    let text = std.err2str(ERROR_INVALID_CAST, src_ty_s, dest_ty_s);
+    if free_dest_ty_s {
+        delete dest_ty_s;
+    }
+    if free_src_ty_s {
+        delete src_ty_s;
+    }
+
     push_mk_err(tc, text, span);
 }

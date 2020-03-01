@@ -35,3 +35,4 @@
 #define ERROR_WRONG_ARG_TYPE            27
 #define ERROR_INIT_NON_STRUCT_TYPE      28
 #define ERROR_COULD_NOT_INFER_TYPE      29
+#define ERROR_INVALID_CAST              30
