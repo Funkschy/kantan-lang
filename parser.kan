@@ -10,6 +10,7 @@ import "ast";
 import "precedence";
 import "span";
 import "vec";
+import "ptrvec";
 import "std";
 import "mod";
 import "param";

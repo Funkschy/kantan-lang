@@ -2,6 +2,7 @@
 
 import "span";
 import "std";
+import "lexer";
 
 type Ident struct {
     ident: string,

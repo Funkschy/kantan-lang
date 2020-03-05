@@ -5,6 +5,7 @@ import "path";
 import "map";
 import "std";
 import "ty";
+import "span";
 
 #define KANTAN_FILE_ENDING ".kan"
 

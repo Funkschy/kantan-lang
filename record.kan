@@ -5,6 +5,7 @@ import "tyid";
 import "map";
 import "vec";
 import "std";
+import "span";
 
 type Field struct {
     ident: ident.Ident,

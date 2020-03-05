@@ -12,6 +12,8 @@ import "path";
 import "ident";
 import "record";
 import "func";
+import "ty";
+import "tyid";
 
 import "std";
 // TODO: only temp solution

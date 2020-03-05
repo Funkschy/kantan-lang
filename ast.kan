@@ -7,8 +7,10 @@ import "ident";
 import "func";
 import "record";
 import "ptrvec";
+import "vec";
 import "tyid";
 import "ty";
+import "lexer";
 
 import "io"; // TODO: only debug
 
@@ -751,6 +753,12 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let i_expr = as_int_expr(e);
         let len = span.get(span_interner, e.span).len;
         return std.strndup(i_expr.ptr, len);
+    }
+
+    if is_float_expr(e) {
+        let f_expr = as_float_expr(e);
+        let len = span.get(span_interner, e.span).len;
+        return std.strndup(f_expr.ptr, len);
     }
 
     if is_null_expr(e) {
