@@ -182,7 +182,7 @@ def map_free(mm: *Map): void {
 }
 
 def get_abs_import_path(
-    current: *mod.Module,
+    current: *Module,
     imp: *ast.ImportStmt,
     span_interner: *span.SpanInterner,
     dest: *path.PathBuf

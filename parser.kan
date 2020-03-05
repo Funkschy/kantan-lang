@@ -790,7 +790,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
             return null;
         }
 
-        let span = span.merge(p.lexer.span_interner, token.span, tyid.span(&ty));
+        let span = span.merge(p.lexer.span_interner, token.span, tyid.ident_span(&ty));
         return ast.new_sizeof_expr(span, ty);
     }
 
@@ -867,7 +867,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
             return null;
         }
 
-        let span = span.merge(p.lexer.span_interner, left.span, tyid.span(&ty));
+        let span = span.merge(p.lexer.span_interner, left.span, tyid.ident_span(&ty));
         return ast.new_as_expr(span, left, ty);
     }
 

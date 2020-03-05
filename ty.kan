@@ -453,7 +453,7 @@ def fill_width_align(t: *Type): bool {
     let has_unresolved_fields = false;
 
     // TODO: padding
-    if is_ptr(t){
+    if is_ptr_type(t){
         width = 8; // TODO: determine pointer width based on target
     } else if is_i32(t) {
         width = 4;
@@ -461,8 +461,6 @@ def fill_width_align(t: *Type): bool {
         width = 4;
     } else if is_bool(t) {
         width = 1;
-    } else if is_string(t) {
-        width = 8; // TODO: determine pointer width based on target
     } else if is_struct(t) {
         let s_ty = as_struct(t);
 

@@ -908,22 +908,22 @@ def num_args(al: *ArgList): i32 {
     return al.args.len;
 }
 
-def get_arg_at(al: *ArgList, i: i32): *ast.Expr {
-    return ptrvec.get(&al.args, i) as *ast.Expr;
+def get_arg_at(al: *ArgList, i: i32): *Expr {
+    return ptrvec.get(&al.args, i) as *Expr;
 }
 
-def set_arg_at(al: *ArgList, i: i32, expr: *ast.Expr): void {
+def set_arg_at(al: *ArgList, i: i32, expr: *Expr): void {
     ptrvec.set(&al.args, i, expr as *void);
 }
 
-def push_arg(al: *ArgList, arg: *ast.Expr): void {
+def push_arg(al: *ArgList, arg: *Expr): void {
     ptrvec.push_ptr(&al.args, arg as *void);
 }
 
 def free_al(al: *ArgList): void {
     let i = 0;
     while i < al.args.len {
-        let e = ptrvec.get(&al.args, i) as *ast.Expr;
+        let e = ptrvec.get(&al.args, i) as *Expr;
         ast.expr_free(e);
         i = i + 1;
     }
