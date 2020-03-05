@@ -216,9 +216,18 @@ def lex_ident(l: *Lexer): Token {
 }
 
 def lex_num(l: *Lexer): Token {
-    // TODO: float
     while is_num(current(l)) {
         advance(l);
+    }
+
+    // float
+    if current(l) == std.char_to_int('.') {
+        advance(l);
+        while is_num(current(l)) {
+            advance(l);
+        }
+
+        return token_from_start(l, TOKEN_FLOAT);
     }
 
     return token_from_start(l, TOKEN_INT);

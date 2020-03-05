@@ -50,6 +50,18 @@ def is_i32(t: *Type): bool {
     return t.kind == TY_I32;
 }
 
+/////////// f32 type ///////////
+
+def new_f32(): *Type {
+    let t = new_type(TY_F32, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_f32(t: *Type): bool {
+    return t.kind == TY_F32;
+}
+
 /////////// char type ///////////
 
 def new_char(): *Type {
@@ -410,7 +422,7 @@ def get_scope(t: *Type): *scope.Scope {
 }
 
 def is_num(t: *Type): bool {
-    return is_i32(t);
+    return is_i32(t) || is_f32(t);
 }
 
 def is_integer(t: *Type): bool {
@@ -444,6 +456,8 @@ def fill_width_align(t: *Type): bool {
     if is_ptr(t){
         width = 8; // TODO: determine pointer width based on target
     } else if is_i32(t) {
+        width = 4;
+    } else if is_f32(t) {
         width = 4;
     } else if is_bool(t) {
         width = 1;

@@ -528,6 +528,28 @@ def as_int_expr(e: *Expr): *IntExpr {
     return e as *IntExpr;
 }
 
+/////////// float expr ///////////
+
+type FloatExpr struct {
+    e: Expr,
+    ptr: string
+}
+
+def new_float_expr(span: span.Span, ptr: string): *Expr {
+    return (new FloatExpr {
+        e: create_expr(EXPR_FLOAT, span),
+        ptr: ptr
+    }) as *Expr;
+}
+
+def is_float_expr(e: *Expr): bool {
+    return e.tag == EXPR_FLOAT;
+}
+
+def as_float_expr(e: *Expr): *FloatExpr {
+    return e as *FloatExpr;
+}
+
 /////////// null expr ///////////
 
 type NullExpr struct {
