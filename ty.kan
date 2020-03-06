@@ -521,11 +521,13 @@ def to_string(t: *Type, si: *span.SpanInterner, out: *string): bool {
         let f_ty = ty.as_func(t);
         let s_ret = "";
         let free_ret = to_string(f_ty.ret, si, &s_ret);
+        let name = ident.to_string(&f_ty.name, si);
         // TODO: format parameters
-        let s = std.format_str("(...) -> %s", s_ret);
+        let s = std.format_str("%s (...) -> %s", name, s_ret);
         if free_ret {
             delete s_ret;
         }
+        delete name;
         *out = s;
         return true;
     }
