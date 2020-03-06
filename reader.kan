@@ -93,6 +93,7 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
 }
 
 def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): FileAddResult {
+    // TODO: detect duplicate files
     let i = 0;
     while i < len {
         let file_name = *(file_names + i);
