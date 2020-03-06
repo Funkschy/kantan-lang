@@ -248,14 +248,10 @@ def get_and_remove(map: *Map, key: Key): *void {
     }
 
     let probe = probe_get(map, index + 1, map.cap, key);
-    if probe != null {
-        let value = probe.value;
-        std.memset(probe as *void, 0, sizeof Item);
-        map.len = map.len - 1;
-        return value;
+    if probe == null {
+        probe = probe_get(map, 0, index, key);
     }
 
-    probe = probe_get(map, 0, index, key);
     if probe != null {
         let value = probe.value;
         std.memset(probe as *void, 0, sizeof Item);

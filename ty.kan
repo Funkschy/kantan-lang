@@ -476,19 +476,13 @@ def fill_width_align(t: *Type): bool {
             }
 
             if field_initialized {
-                let is_not_resolved = was_touched_by_tychk(f.ty);
-
-                if is_not_resolved {
-                    has_unresolved_fields = true;
-                } else {
-                    let a = f.ty.align;
-                    if a > max_align {
-                        max_align = a;
-                    }
-
-                    let w = f.ty.width;
-                    width_sum = width_sum + w;
+                let a = f.ty.align;
+                if a > max_align {
+                    max_align = a;
                 }
+
+                let w = f.ty.width;
+                width_sum = width_sum + w;
             } else {
                 has_unresolved_fields = true;
             }
