@@ -1,0 +1,7 @@
+type First struct {
+    second: Second
+}
+
+type Second struct {
+    first: First
+}
