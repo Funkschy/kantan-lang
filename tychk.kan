@@ -310,6 +310,27 @@ def check(tc: *TypeChecker): void {
         while next != null {
             let ty = mod.s_lookup(m, next.key.len, next.key.value);
             if ty != null {
+                // DBG
+                io.printf("----\n");
+                let idx = std.ptr_to_int(next.value) - 1;
+                let waiting_for = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
+                if waiting_for == null {
+                    std.abort();
+                }
+
+                let j = 0;
+                while j < waiting_for.len {
+                    let waiting_for_ty = (vec.get_ptr(waiting_for, j) as *WaitingRequest).to_fill;
+                    let s: string = null;
+                    let free_this = ty.to_string(waiting_for_ty, tc.span_interner, &s);
+                    io.printf("DBG: !!!!!!!!!!! is still waiting: %s\n", s);
+                    if free_this {
+                        delete s;
+                    }
+                    j = j + 1;
+                }
+                // DBG
+
                 if ty.is_struct(ty) {
                     let s_ty = ty.as_struct(ty);
                     push_incomplete_ty_error(tc, &s_ty.name);
@@ -339,6 +360,7 @@ def check(tc: *TypeChecker): void {
         i = i + 1;
     }
 
+    // don't execute real pass if there are already errors
     if error {
         return;
     }
@@ -551,7 +573,7 @@ def checked_lookup(
 
 def lookup_tyid(tc: *TypeChecker, tyid: *tyid.Type): *ty.Type {
     let out_ty: *ty.Type = null;
-    if checked_lookup(tc, &tyid.ident, &out_ty, null) == OK {
+    if checked_lookup(tc, &tyid.ident, &out_ty, null) == OK && out_ty != null {
         out_ty = instance_of_ty(out_ty);
         if tyid.is_ptr(tyid) {
             return push_tmp_ty(tc, ty.new_ptr(tyid.pointer_count, out_ty));
@@ -675,7 +697,6 @@ def fill_struct_fields(
     t: *ty.Type
 ): void {
     // TODO: handle self fields
-    ty.tychk_touch(t);
     let s_ty = ty.as_struct(t);
 
     let s = ident.to_string(&s_decl.name, tc.span_interner);
@@ -686,6 +707,7 @@ def fill_struct_fields(
     let waiting = false;
 
     let nf = record.num_fields(s_decl);
+    s_ty.fields = vec.with_cap(sizeof ty.StructField, nf);
     let i = 0;
     while i < nf {
         let f = record.empty_field();
@@ -733,6 +755,8 @@ def fill_struct_fields(
                 }
             }
         } else {
+            // push fake field here, so that the offset is not out of bounds
+            ty.push_field(s_ty, f.ident, null, tc.span_interner);
             error = true;
         }
 
@@ -809,6 +833,10 @@ def wait_for_struct_field(
     }
     ty.push_field(ty.as_struct(s_ty), field.ident, field_ty, tc.span_interner);
 
+    if offset >= ty.as_struct(s_ty).fields.len {
+        std.abort(); // TODO: debug assert
+    }
+
     let request = create_waiting_request(
         tc,
         kind,
@@ -829,10 +857,10 @@ def update_all_waiting(
     ident: *ident.Ident
 ): void {
     // only execute this once
-    if !ty.was_touched_by_tychk(resolved_ty) {
+    if ty.was_touched_by_tychk(resolved_ty) {
         return;
     }
-    ty.tychk_untouch(resolved_ty);
+    ty.tychk_touch(resolved_ty);
 
     let waiting_map = get_waiting_map(tc, mod);
     let waiting = get_waiting(waiting_map, tc.span_interner, ident);
