@@ -16,6 +16,7 @@ import "mod";
 import "param";
 import "tyid";
 import "source";
+import "record";
 
 import "io"; // TODO: only debug
 

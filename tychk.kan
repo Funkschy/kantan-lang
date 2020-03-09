@@ -136,7 +136,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
         } else if request.kind == WAITING_FUNC_DEF {
             kind_s = "func";
         }
-        io.printf("DBG: >>> Adding %s request for '%s': ", kind_s, s);
+        io.printf("DBG: >>> Adding %s request for '%s'\n ", kind_s, s);
         delete s;
     // ------
 
@@ -1419,14 +1419,13 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return s;
         }
 
-        let expr = check_expr(tc, r_s.expr);
-
-        if expr == null {
+        if tc.ctx.current_func == null {
+            push_return_outside_of_func_error(tc, r_s.expr.span);
             return null;
         }
 
-        if tc.ctx.current_func == null {
-            push_return_outside_of_func_error(tc, expr.span);
+        let expr = check_expr_expect(tc, r_s.expr, tc.ctx.current_func.ret);
+        if expr == null {
             return null;
         }
 
