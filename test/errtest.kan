@@ -35,6 +35,7 @@ test.test_ident;
 test.kekw;
 
 test as *TestType;
+let test_test = test;
 let test: i32 = 0;
 
 return 1;
@@ -79,6 +80,8 @@ def function(one: *One, t: Test): *other.MyStruct {
     let ptr = 1 + one;
     test.two.three.i.error;
     t.other;
+    let ms = other.MyStruct { o: null, t: test_test, i: 0 };
+    other.test_function(&ms, S1 { f: ms, i: 1 });
     return &ptr;
 }
 

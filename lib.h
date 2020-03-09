@@ -172,7 +172,7 @@ static char const *const error_texts[] = {
     "Illegal use of declared type",
     "Type '%s' is not callable",
     "Wrong number of arguments, expected '%d', but got '%d'",
-    "Wrong argument type for function. Expected '%s', but got '%s'",
+    "Wrong argument type. Expected '%s', but got '%s'",
     "Expected the name of a struct, but got '%s'",
     "Could not infer type",
     "'%s' cannot be casted into '%s'",
