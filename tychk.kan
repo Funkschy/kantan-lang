@@ -1231,7 +1231,6 @@ def check_for_return_stmt(block: *ast.BlockStmt): i32 {
 // returns the statement which should replace the old one
 // if a new statement is created, this function will free the old one
 def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
-    // STMT_IF
     // STMT_WHILE
     // STMT_DELETE
 
@@ -1379,9 +1378,47 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         return s;
     }
 
+    // STMT_IF
+    if ast.is_if_stmt(s) {
+        let i_s = ast.as_if_stmt(s);
+        let condition = check_expr(tc, i_s.condition);
+
+        if condition == null {
+            return null;
+        }
+
+        let bool_ty = get_global_instance(tc, "bool", 4);
+        if !ty.equals(bool_ty, condition.ty) {
+            push_invalid_condition_error(tc, condition);
+            return null;
+        }
+        i_s.condition = condition;
+
+        let block = check_stmt(tc, i_s.block as *ast.Stmt);
+        if block == null {
+            return null;
+        }
+        i_s.block = block as *ast.BlockStmt;
+
+        if (i_s.else_stmt != null) {
+            let else_stmt = check_stmt(tc, i_s.else_stmt);
+            if else_stmt == null {
+                return null;
+            }
+            i_s.else_stmt = else_stmt;
+        }
+
+        return s;
+    }
+
     // STMT_RETURN
     if ast.is_return_stmt(s) {
         let r_s = ast.as_return_stmt(s);
+        if r_s.expr == null {
+            // TODO: check return outside of func
+            return s;
+        }
+
         let expr = check_expr(tc, r_s.expr);
 
         if expr == null {
@@ -1523,8 +1560,20 @@ def check_expr_scope_expect(
     // EXPR_BINARY
     if ast.is_binary_expr(e) {
         let b_e = ast.as_binary_expr(e);
-        let left = check_expr(tc, b_e.left);
-        let right = check_expr(tc, b_e.right);
+        let left: *ast.Expr = null;
+        let right: *ast.Expr = null;
+
+        if ast.is_null_expr(b_e.left) {
+            right = check_expr(tc, b_e.right);
+            if right != null {
+                left = check_expr_expect(tc, b_e.left, right.ty);
+            }
+        } else {
+            left = check_expr(tc, b_e.left);
+            if left != null {
+                right = check_expr_expect(tc, b_e.right, left.ty);
+            }
+        }
 
         if left == null || right == null {
             return null;
@@ -1775,7 +1824,10 @@ def check_binary_expr(
 
 
     if first.kind == second.kind {
-        if kind == BINARY_EQ || kind == BINARY_NE {
+        if kind == BINARY_EQ || kind == BINARY_NE
+            || kind == BINARY_ST || kind == BINARY_SE
+            || kind == BINARY_GT || kind == BINARY_GE
+        {
             return instance_of_ty(scope.s_get_in(&tc.globals, 4, "bool"));
         }
 
@@ -2087,4 +2139,14 @@ def push_invalid_cast_error(
     }
 
     push_mk_err(tc, text, span);
+}
+
+def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
+    let ty_s = "";
+    let free_ty_s = ty.to_string(e.ty, tc.span_interner, &ty_s);
+    let text = std.err2str(ERROR_INVALID_TYPE_IN_CONDITION, ty_s);
+    if free_ty_s {
+        delete ty_s;
+    }
+    push_mk_err(tc, text, e.span);
 }
