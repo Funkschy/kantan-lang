@@ -163,10 +163,10 @@ def probe_insert(
     return false;
 }
 
-def probe_get(map: *Map, start: i32, len: i32, key: Key): *Item {
+def probe_get(map: *Map, start: i32, end: i32, key: Key): *Item {
     let i = start;
     let item: *Item = null;
-    while i < len {
+    while i < end {
         item = map.items + i;
         if item.key.value != null {
             if key_eq(item.key, key) {
@@ -200,35 +200,14 @@ def resize(map: *Map): void {
 }
 
 def get(map: *Map, key: Key): *void {
-    if map.items == null {
+    let item = get_item(map, key);
+    if item == null {
         return null;
     }
-
-    let index = get_map_index(map.cap, key.value, key.len);
-    let item = map.items + index;
-
-    if item.key.value == null {
-        return null;
-    }
-
-    if key_eq(item.key, key) {
-        return item.value;
-    }
-
-    let probe = probe_get(map, index + 1, map.cap, key);
-    if probe != null {
-        return probe.value;
-    }
-
-    probe = probe_get(map, 0, index, key);
-    if probe != null {
-        return probe.value;
-    }
-
-    return null;
+    return item.value;
 }
 
-def get_and_remove(map: *Map, key: Key): *void {
+def get_item(map: *Map, key: Key): *Item {
     if map.items == null {
         return null;
     }
@@ -236,15 +215,10 @@ def get_and_remove(map: *Map, key: Key): *void {
     let index = get_map_index(map.cap, key.value, key.len);
     let item = map.items + index;
 
-    if item.key.value == null {
-        return null;
-    }
-
-    if key_eq(item.key, key) {
-        let value = item.value;
-        std.memset(item as *void, 0, sizeof Item);
-        map.len = map.len - 1;
-        return value;
+    if item.key.value != null {
+        if key_eq(item.key, key) {
+            return item;
+        }
     }
 
     let probe = probe_get(map, index + 1, map.cap, key);
@@ -253,11 +227,29 @@ def get_and_remove(map: *Map, key: Key): *void {
     }
 
     if probe != null {
-        let value = probe.value;
-        std.memset(probe as *void, 0, sizeof Item);
-        map.len = map.len - 1;
-        return value;
+        return probe;
     }
 
     return null;
+}
+
+def get_and_remove(map: *Map, key: Key): *void {
+    let item = get_item(map, key);
+    if item == null {
+        return null;
+    }
+
+    let value = item.value;
+    std.memset(item as *void, 0, sizeof Item);
+    map.len = map.len - 1;
+    return value;
+}
+
+def dump(map: *Map): void {
+    let iter = iter(map);
+    let item = iter_next(&iter);
+    while item != null {
+        io.printf("%.*s: %p\n", item.key.len, item.key.value, item.value);
+        item = iter_next(&iter);
+    }
 }

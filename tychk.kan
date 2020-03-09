@@ -136,7 +136,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
         } else if request.kind == WAITING_FUNC_DEF {
             kind_s = "func";
         }
-        io.printf("DBG: >>> Adding %s request for '%s'\n", kind_s, s);
+        io.printf("DBG: >>> Adding %s request for '%s': ", kind_s, s);
         delete s;
     // ------
 
@@ -144,7 +144,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
     let request_idx = map.get(&wrm.request_map, key);
     let idx = -1;
 
-    if std.ptr_to_int(request_idx) == 0 {
+    if request_idx == null || std.ptr_to_int(request_idx) == 0 {
         // create new vector
         idx = wrm.requests.len;
         let v = vec.create(sizeof WaitingRequest);
@@ -166,7 +166,7 @@ def get_waiting(wrm: *WaitingRequestMap, si: *span.SpanInterner, ident: *ident.I
     let key = map.key_from_ident(si, ident);
     let request_idx = map.get_and_remove(&wrm.request_map, key);
 
-    if request_idx == null {
+    if request_idx == null || std.ptr_to_int(request_idx) == 0 {
         return null;
     }
 
