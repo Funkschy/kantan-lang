@@ -1355,12 +1355,16 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_block_stmt(s) {
         let b_s = ast.as_block_stmt(s);
 
+        open_scope(tc);
+
         let i = 0;
         while i < b_s.stmts.len {
             let stmt = ast.stmt_at(b_s, i);
             check_stmt(tc, stmt);
             i = i + 1;
         }
+
+        close_scope(tc);
 
         return s;
     }
@@ -1508,6 +1512,9 @@ def check_expr_scope_expect(
             e.ty = scope.get_in(scope, tc.span_interner, ident);
         }
 
+        // TODO: if there is an error during a binding statement (e.g. let)
+        //  just bind a special error type to the name and return null here
+        //  without pushing an actual error. This will prevent 'follow up' errors
         if e.ty == null {
             push_not_defined_error(tc, ident);
             return null;

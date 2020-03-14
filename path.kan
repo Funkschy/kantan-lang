@@ -151,7 +151,7 @@ def create_path_buf(path: string): PathBuf {
     let p = empty();
     if from_str(path, &p) != 0 {
         delete path;
-        return PathBuf { inner: path.empty() };
+        return PathBuf { inner: empty() };
     }
 
     return PathBuf {

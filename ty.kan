@@ -333,7 +333,8 @@ def create_type(kind: i32, data: *void): Type {
         width: WIDTH_UNKNOWN,
         align: 0,
         flags: FLAG_TY_DECL, // types are declarations by default
-        data: data
+        data: data,
+        cached_instance: null
     };
 }
 
@@ -518,7 +519,7 @@ def to_string(t: *Type, si: *span.SpanInterner, out: *string): bool {
     }
 
     if is_func(t) {
-        let f_ty = ty.as_func(t);
+        let f_ty = as_func(t);
         let s_ret = "";
         let free_ret = to_string(f_ty.ret, si, &s_ret);
         let name = ident.to_string(&f_ty.name, si);

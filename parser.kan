@@ -17,6 +17,8 @@ import "param";
 import "tyid";
 import "source";
 import "record";
+import "ident";
+import "func";
 
 import "io"; // TODO: only debug
 
@@ -189,7 +191,7 @@ def consume_type_ident(p: *Parser, ident: *lexer.Token, err: *ParseError): bool 
 }
 
 def consume_type(p: *Parser, dest: *tyid.Type): bool {
-    let num_errs = num_errs(p);
+    let prev_num_errs = num_errs(p);
 
     let pointer_count = 0;
     while peek(p).ty == TOKEN_STAR {
@@ -200,8 +202,8 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
     let ty = lexer.empty_token();
     let illegal_type_err = empty_err();
     if !consume_type_ident(p, &ty, &illegal_type_err) {
-        if num_errs(p) > num_errs {
-            free_errs_from(p, num_errs);
+        if num_errs(p) > prev_num_errs {
+            free_errs_from(p, prev_num_errs);
             let error = create_consume_error_text(p, &ty, "type");
             push_err(p, error);
         }
@@ -236,7 +238,7 @@ def parse(p: *Parser): *mod.Module {
 }
 
 def statement(p: *Parser): *ast.Stmt {
-    let num_errs = num_errs(p);
+    let prev_num_errs = num_errs(p);
     let start = lexer.current_pos(&p.lexer);
 
     let s: *ast.Stmt = null;
@@ -246,7 +248,7 @@ def statement(p: *Parser): *ast.Stmt {
         let end = sync(p);
 
         // no parse error was added...
-        if num_errs == num_errs(p) {
+        if prev_num_errs == num_errs(p) {
             // ... so just add a generic one
             let error = create_statement_error(p, start, end);
             push_err(p, error);
@@ -596,8 +598,8 @@ def parse_param_list(p: *Parser, allow_va: bool): vec.Vec {
 
     let params = vec.create(sizeof param.Param);
 
-    let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RPAREN {
+    let peeked = peek(p);
+    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RPAREN {
         let ident = lexer.empty_token();
         let ty = tyid.empty();
 
@@ -622,10 +624,10 @@ def parse_param_list(p: *Parser, allow_va: bool): vec.Vec {
         let param = param.create(ident, ty);
         vec.push(&params, &param as *void);
 
-        peek = peek(p);
+        peeked = peek(p);
 
         // consume separator
-        if peek.ty == TOKEN_COMMA {
+        if peeked.ty == TOKEN_COMMA {
             consume(p, TOKEN_COMMA);
         }
     }
@@ -643,17 +645,17 @@ def parse_arg_list(p: *Parser): ast.ArgList {
 #define FAIL() ast.free_al(&args); return ast.create_arg_list()
     let args = ast.create_arg_list();
 
-    let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RPAREN {
+    let peeked = peek(p);
+    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RPAREN {
         let arg = expression(p, false);
         if arg == null {
             FAIL();
         }
         ast.push_arg(&args, arg);
 
-        peek = peek(p);
+        peeked = peek(p);
 
-        if peek.ty == TOKEN_COMMA {
+        if peeked.ty == TOKEN_COMMA {
             consume(p, TOKEN_COMMA);
         }
     }
@@ -735,7 +737,7 @@ def parse_expression(p: *Parser, precedence: i32, no_struct: bool): *ast.Expr {
     return left;
 }
 
-def next_higher_precedence(p: *Parser, precedence: i32, no_struct: bool): bool {
+def next_higher_precedence(p: *Parser, prec: i32, no_struct: bool): bool {
     let t = peek(p);
 
     if lexer.is_err(&t) || t.ty == TOKEN_EOF {
@@ -743,10 +745,10 @@ def next_higher_precedence(p: *Parser, precedence: i32, no_struct: bool): bool {
     }
 
     if t.ty == TOKEN_LBRACE {
-        return !no_struct && precedence.get(t.ty) > precedence;
+        return !no_struct && precedence.get(t.ty) > prec;
     }
 
-    return precedence.get(t.ty) > precedence;
+    return precedence.get(t.ty) > prec;
 }
 
 def prefix(p: *Parser, no_struct: bool): *ast.Expr {
