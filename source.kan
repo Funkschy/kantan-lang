@@ -14,7 +14,7 @@ type SourceFile struct {
 }
 
 def empty(): SourceFile {
-    return SourceFile { file: file.empty() };
+    return SourceFile { file: file.empty(), code: null };
 }
 
 def free_sf(sf: *SourceFile): void {

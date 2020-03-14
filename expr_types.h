@@ -20,15 +20,15 @@
 #define BINARY_DIV      4
 #define BINARY_MOD      5
 
-#define BINARY_ST       5
-#define BINARY_SE       6
-#define BINARY_GT       7
-#define BINARY_GE       8
+#define BINARY_ST       6
+#define BINARY_SE       7
+#define BINARY_GT       8
+#define BINARY_GE       9
 
-#define BINARY_LOG_AND  9
-#define BINARY_LOG_OR   10
-#define BINARY_EQ       11
-#define BINARY_NE       12
+#define BINARY_LOG_AND  10
+#define BINARY_LOG_OR   11
+#define BINARY_EQ       12
+#define BINARY_NE       13
 
 #define UNARY_REF       1
 #define UNARY_DEREF     2

@@ -1,5 +1,6 @@
 import "ident";
 import "tyid";
+import "std";
 
 type Param struct {
     name: ident.Ident,
