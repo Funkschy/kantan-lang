@@ -121,12 +121,12 @@ def consume_ident(p: *Parser, ident: *lexer.Token, allow_access_expr: bool): boo
                 return false;
             }
 
-            let span = span.merge(p.lexer.span_interner, first_part.span, ident.span);
+            let merged_span = span.merge(p.lexer.span_interner, first_part.span, ident.span);
             *ident = lexer.create_token_from_span(
                 &p.lexer,
                 TOKEN_IDENT,
                 first_part.lexeme,
-                span
+                merged_span
             );
         }
     }
@@ -167,12 +167,12 @@ def consume_type_ident(p: *Parser, ident: *lexer.Token, err: *ParseError): bool 
             return false;
         }
 
-        let span = span.merge(p.lexer.span_interner, first_part.span, ident.span);
+        let merged_span = span.merge(p.lexer.span_interner, first_part.span, ident.span);
         *ident = lexer.create_token_from_span(
             &p.lexer,
             TOKEN_IDENT,
             first_part.lexeme,
-            span
+            merged_span
         );
         dots = dots + 1;
     }
@@ -385,8 +385,8 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
 def parse_type_stmt(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_TYPE);
 
-    let ident = lexer.empty_token();
-    if !consume_ident(p, &ident, false) {
+    let ident_token = lexer.empty_token();
+    if !consume_ident(p, &ident_token, false) {
         return null;
     }
 
@@ -400,7 +400,7 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
 
     return ast.new_struct_decl_stmt(
         p.lexer.span_interner,
-        ident.create(ident),
+        ident.create(ident_token),
         fields
     );
 }
@@ -451,11 +451,11 @@ def parse_while_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let peek = peek(p);
+    let peeked = peek(p);
     let condition = expression(p, true);
 
     if condition == null {
-        let error = create_consume_error_text(p, &peek, "condition");
+        let error = create_consume_error_text(p, &peeked, "condition");
         push_err(p, error);
         return null;
     }
@@ -474,11 +474,11 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let peek = peek(p);
+    let peeked = peek(p);
     let condition = expression(p, true);
 
     if condition == null {
-        let error = create_consume_error_text(p, &peek, "condition");
+        let error = create_consume_error_text(p, &peeked, "condition");
         push_err(p, error);
         return null;
     }
@@ -496,13 +496,13 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
     consume(p, TOKEN_ELSE);
 
     let else_stmt: *ast.Stmt = null;
-    let peek = peek(p);
-    if peek.ty == TOKEN_IF {
+    let peeked = peek(p);
+    if peeked.ty == TOKEN_IF {
         else_stmt = parse_if_stmt(p);
-    } else if peek.ty == TOKEN_LBRACE {
+    } else if peeked.ty == TOKEN_LBRACE {
         else_stmt = parse_block(p);
     } else {
-        let error = create_consume_error_text(p, &peek, "either 'if' or '{' after else");
+        let error = create_consume_error_text(p, &peeked, "either 'if' or '{' after else");
         push_err(p, error);
     }
 
@@ -530,8 +530,8 @@ def parse_block(p: *Parser): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_LBRACE);
     let statements = ptrvec.create();
 
-    let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RBRACE {
+    let peeked = peek(p);
+    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
         let s = statement(p);
         if s == null {
             free_statements(&statements);
@@ -539,7 +539,7 @@ def parse_block(p: *Parser): *ast.Stmt {
         }
 
         ptrvec.push_ptr(&statements, s as *void);
-        peek = peek(p);
+        peeked = peek(p);
     }
 
     if !consume(p, TOKEN_RBRACE) {
@@ -555,8 +555,8 @@ def parse_field_list(p: *Parser): vec.Vec {
 
     let fields = vec.create(sizeof record.Field);
 
-    let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RBRACE {
+    let peeked = peek(p);
+    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
         let ident = lexer.empty_token();
         if !consume_ident(p, &ident, false) {
             FAIL();
@@ -575,10 +575,10 @@ def parse_field_list(p: *Parser): vec.Vec {
         let field = record.create_field(ident, ty);
         vec.push(&fields, &field as *void);
 
-        peek = peek(p);
+        peeked = peek(p);
 
         // consume separator
-        if peek.ty == TOKEN_COMMA {
+        if peeked.ty == TOKEN_COMMA {
             consume(p, TOKEN_COMMA);
         }
     }
@@ -669,8 +669,8 @@ def parse_init_list(p: *Parser): ast.InitList {
 #define FAIL() ast.free_il(&inits); return ast.create_init_list()
     let inits = ast.create_init_list();
 
-    let peek = peek(p);
-    while peek.ty != TOKEN_EOF && peek.ty != TOKEN_RBRACE {
+    let peeked = peek(p);
+    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
         let ident = lexer.empty_token();
         if !consume_ident(p, &ident, false) {
             FAIL();
@@ -688,9 +688,9 @@ def parse_init_list(p: *Parser): ast.InitList {
         let init = ast.create_init(ident.create(ident), val);
         ast.push_init(&inits, init);
 
-        peek = peek(p);
+        peeked = peek(p);
 
-        if peek.ty == TOKEN_COMMA {
+        if peeked.ty == TOKEN_COMMA {
             consume(p, TOKEN_COMMA);
         }
     }
@@ -708,8 +708,8 @@ def expression(p: *Parser, no_struct: bool): *ast.Expr {
             ast.expr_free(left);
             return null;
         }
-        let span = span.merge(p.lexer.span_interner, left.span, value.span);
-        left = ast.new_assign_expr(span, left, value);
+        let merged_span = span.merge(p.lexer.span_interner, left.span, value.span);
+        left = ast.new_assign_expr(merged_span, left, value);
     }
 
     return left;
@@ -754,8 +754,8 @@ def next_higher_precedence(p: *Parser, prec: i32, no_struct: bool): bool {
 def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 #define UNARY(tok, unary_ty) if token.ty == (tok) { \
         letcheck(expr, parse_expression(p, precedence.unary(), no_struct)); \
-        let span = span.merge(p.lexer.span_interner, token.span, expr.span); \
-        return ast.new_unary_expr(span, (unary_ty), expr); \
+        let merged_span = span.merge(p.lexer.span_interner, token.span, expr.span); \
+        return ast.new_unary_expr(merged_span, (unary_ty), expr); \
     } 0
 
     let token = lexer.empty_token();
@@ -793,14 +793,14 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
             return null;
         }
 
-        let span = span.merge(p.lexer.span_interner, token.span, tyid.ident_span(&ty));
-        return ast.new_sizeof_expr(span, ty);
+        let merged_span = span.merge(p.lexer.span_interner, token.span, tyid.ident_span(&ty));
+        return ast.new_sizeof_expr(merged_span, ty);
     }
 
     if token.ty == TOKEN_NEW {
         letcheck(e, expression(p, no_struct));
-        let span = span.merge(p.lexer.span_interner, token.span, e.span);
-        return ast.new_new_expr(span, e);
+        let merged_span = span.merge(p.lexer.span_interner, token.span, e.span);
+        return ast.new_new_expr(merged_span, e);
     }
 
     UNARY(TOKEN_AMPERSAND, UNARY_REF);
@@ -832,8 +832,8 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     // access expr
     if token.ty == TOKEN_DOT {
         letcheck(right, parse_expression(p, precedence.access(), no_struct));
-        let span = span.merge(p.lexer.span_interner, left.span, right.span);
-        return ast.new_access_expr(span, left, right);
+        let merged_span = span.merge(p.lexer.span_interner, left.span, right.span);
+        return ast.new_access_expr(merged_span, left, right);
     }
 
     // call expr
@@ -846,8 +846,8 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
             return null;
         }
 
-        let span = span.merge(p.lexer.span_interner, left.span, closing_paren.span);
-        return ast.new_call_expr(span, left, args);
+        let merged_span = span.merge(p.lexer.span_interner, left.span, closing_paren.span);
+        return ast.new_call_expr(merged_span, left, args);
     }
 
     // init expr
@@ -860,8 +860,8 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
             return null;
         }
 
-        let span = span.merge(p.lexer.span_interner, left.span, closing_brace.span);
-        return ast.new_init_expr(span, left, inits);
+        let merged_span = span.merge(p.lexer.span_interner, left.span, closing_brace.span);
+        return ast.new_init_expr(merged_span, left, inits);
     }
 
     if token.ty == TOKEN_AS {
@@ -870,8 +870,8 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
             return null;
         }
 
-        let span = span.merge(p.lexer.span_interner, left.span, tyid.ident_span(&ty));
-        return ast.new_as_expr(span, left, ty);
+        let merged_span = span.merge(p.lexer.span_interner, left.span, tyid.ident_span(&ty));
+        return ast.new_as_expr(merged_span, left, ty);
     }
 
     // binary expression
@@ -924,8 +924,8 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     if found {
         let prec = precedence.get(token.ty);
         letcheck(right, parse_expression(p, prec, no_struct));
-        let span = span.merge(p.lexer.span_interner, left.span, right.span);
-        return ast.new_binary_expr(span, ty, token.span, left, right);
+        let merged_span = span.merge(p.lexer.span_interner, left.span, right.span);
+        return ast.new_binary_expr(merged_span, ty, token.span, left, right);
     }
 
     return null;
@@ -945,15 +945,15 @@ def inner_sync(p: *Parser): i32 {
         return lexer.end_pos(&p.lexer);
     }
 
-    let peek = peek(p);
-    while peek.ty != TOKEN_EOF {
-        let span = span.get(p.lexer.span_interner, previous.span);
-        let pos = span.start + span.len;
+    let peeked = peek(p);
+    while peeked.ty != TOKEN_EOF {
+        let merged_span = span.get(p.lexer.span_interner, previous.span);
+        let pos = merged_span.start + merged_span.len;
         if previous.ty == TOKEN_SEMI && peek(p).ty != TOKEN_RBRACE {
             return pos;
         }
 
-        if peek.ty == TOKEN_LET || peek.ty == TOKEN_DEF {
+        if peeked.ty == TOKEN_LET || peeked.ty == TOKEN_DEF {
             return pos;
         }
 
@@ -962,32 +962,32 @@ def inner_sync(p: *Parser): i32 {
         }
 
         if previous.ty == TOKEN_RBRACE {
-            let span = span.get(p.lexer.span_interner, previous.span);
-            return span.start + span.len;
+            let previous_span = span.get(p.lexer.span_interner, previous.span);
+            return previous_span.start + previous_span.len;
         }
 
-        peek = peek(p);
+        peeked = peek(p);
     }
 
-    let span = span.get(p.lexer.span_interner, previous.span);
-    return span.start + span.len;
+    let previous_span = span.get(p.lexer.span_interner, previous.span);
+    return previous_span.start + previous_span.len;
 }
 
 def create_error(span: span.Span, text: string): ParseError {
     return ParseError { span: span, text: text };
 }
 
-def create_type_ident_error(p: *Parser, span: span.Span, text: string, reason: string): ParseError {
-    let len = span.get(p.lexer.span_interner, span).len;
-    return create_error(span, std.err2str(ERROR_INVALID_TYPE_IDENT, len, text, reason));
+def create_type_ident_error(p: *Parser, err_span: span.Span, text: string, reason: string): ParseError {
+    let len = span.get(p.lexer.span_interner, err_span).len;
+    return create_error(err_span, std.err2str(ERROR_INVALID_TYPE_IDENT, len, text, reason));
 }
 
 def create_statement_error(p: *Parser, start: i32, end: i32): ParseError {
-    let span = lexer.create_span(&p.lexer, start, end);
-    let len = span.get(p.lexer.span_interner, span).len;
+    let err_span = lexer.create_span(&p.lexer, start, end);
+    let len = span.get(p.lexer.span_interner, err_span).len;
 
     return create_error(
-        span,
+        err_span,
         std.err2str(
             ERROR_COULD_NOT_PARSE_STMT,
             len,
@@ -1011,17 +1011,17 @@ def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
     );
 }
 
-def create_consume_error(p: *Parser, peek: *lexer.Token, expected_ty: i32): ParseError {
+def create_consume_error(p: *Parser, peeked: *lexer.Token, expected_ty: i32): ParseError {
     return create_consume_error_text(
         p,
-        peek,
+        peeked,
         lexer.token_ty_to_static_string(expected_ty)
     );
 }
 
-def create_consume_error_text(p: *Parser, peek: *lexer.Token, text: string): ParseError {
+def create_consume_error_text(p: *Parser, peeked: *lexer.Token, text: string): ParseError {
     let peek_str: string = null;
-    let needs_free = lexer.token_to_string(peek, p.lexer.span_interner, &peek_str);
+    let needs_free = lexer.token_to_string(peeked, p.lexer.span_interner, &peek_str);
 
     let err_str = std.err2str(
         ERROR_EXPECTED_BUT_GOT,
@@ -1033,5 +1033,5 @@ def create_consume_error_text(p: *Parser, peek: *lexer.Token, text: string): Par
         delete peek_str;
     }
 
-    return create_error(peek.span, err_str);
+    return create_error(peeked.span, err_str);
 }

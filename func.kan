@@ -28,10 +28,10 @@ type FuncDef struct {
     params: ParamList
 }
 
-def create(ident: lexer.Token, params: ParamList, ret_ty: tyid.Type, is_extern: bool): FuncDef {
+def create(name: lexer.Token, params: ParamList, ret_ty: tyid.Type, is_extern: bool): FuncDef {
     return FuncDef {
         is_extern: is_extern,
-        name: ident.create(ident),
+        name: ident.create(name),
         ret_ty: ret_ty,
         params: params
     };

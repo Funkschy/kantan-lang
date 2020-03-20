@@ -268,11 +268,11 @@ type LetStmt struct {
     ty: tyid.Type
 }
 
-def new_let_stmt(ident: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
+def new_let_stmt(ident_token: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
     return (new LetStmt {
         s: Stmt { tag: STMT_LET },
         value: value,
-        ident: ident.create(ident),
+        ident: ident.create(ident_token),
         ty: ty
     }) as *Stmt;
 }
@@ -492,10 +492,10 @@ type IdentExpr struct {
     ident: ident.Ident
 }
 
-def new_ident_expr(ident: lexer.Token): *Expr {
+def new_ident_expr(ident_token: lexer.Token): *Expr {
     return (new IdentExpr {
-        e: create_expr(EXPR_IDENT, ident.span),
-        ident: ident.create(ident)
+        e: create_expr(EXPR_IDENT, ident_token.span),
+        ident: ident.create(ident_token)
     }) as *Expr;
 }
 

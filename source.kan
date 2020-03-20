@@ -31,34 +31,34 @@ def code(sf: *SourceFile): string {
 }
 
 def read(p: path.PathBuf, f: *SourceFile): i32 {
-    let file = file.create(p);
+    let new_file = file.create(p);
     let s: string = null;
-    let res = file.read_to_string(&file, &s);
+    let res = file.read_to_string(&new_file, &s);
 
     if res != 0 {
         return res;
     }
 
-    *f = SourceFile { file: file, code: s };
+    *f = SourceFile { file: new_file, code: s };
 
     return 0;
 }
 
 def find_line(
-    span: *span.BigSpan,
+    target: *span.BigSpan,
     si: *span.SpanInterner,
     file: *SourceFile,
     last_nl_pos: *i32
 ): LineSpan {
     let lines = 1;
-    let last_nl = span.start;
+    let last_nl = target.start;
 
-    let ptr = file.code + span.start;
+    let ptr = file.code + target.start;
     while ptr != file.code {
         if *ptr == '\n' {
             lines = lines + 1;
 
-            if last_nl == span.start {
+            if last_nl == target.start {
                 last_nl = ptr - file.code;
             }
         }
@@ -66,7 +66,7 @@ def find_line(
     }
 
     // there was no new line => span is in first line of file
-    if last_nl == span.start {
+    if last_nl == target.start {
         last_nl = -1; // we add a 1 later, which is correct in every other case
     }
 
@@ -75,8 +75,8 @@ def find_line(
     }
 
     // the \n at the end of the line with span in it
-    let next_nl = std.strchr(file.code + span.start + span.len, '\n');
-    let span = span.create(si, last_nl + 1, next_nl - file.code, span.ctx);
-    return LineSpan { start_number: lines, span: span.get(si, span) };
+    let next_nl = std.strchr(file.code + target.start + target.len, '\n');
+    let line_span = span.create(si, last_nl + 1, next_nl - file.code, target.ctx);
+    return LineSpan { start_number: lines, span: span.get(si, line_span) };
 }
 

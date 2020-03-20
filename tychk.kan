@@ -93,11 +93,11 @@ def patch_waiting_for(
         }
 
         // remove the module path: 'mymod.test' => 'test'
-        let span = span.get(tc.span_interner, waiting_for.ident_span);
-        let start = span.start + dot_index + 1;
-        let end = span.start + span.len;
+        let old_span = span.get(tc.span_interner, waiting_for.ident_span);
+        let start = old_span.start + dot_index + 1;
+        let end = old_span.start + old_span.len;
 
-        let new_span = span.create(tc.span_interner, start, end, span.ctx);
+        let new_span = span.create(tc.span_interner, start, end, old_span.ctx);
         let new_ident = waiting_for.ident + dot_index + 1;
 
         *waiting_for = ident.from_str(new_span, new_ident);
@@ -127,9 +127,9 @@ def create_waiting_request_map(): WaitingRequestMap {
 def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: WaitingRequest): void {
     let requests: *vec.Vec = null;
 
-    let ident = req_waiting_for_ident(&request);
+    let wanted_ident = req_waiting_for_ident(&request);
     // ------
-        let s = ident.to_string(ident, si);
+        let s = ident.to_string(wanted_ident, si);
         let kind_s = "struct";
         if request.kind == WAITING_TYPE_PTR {
             kind_s = "ptr";
@@ -140,7 +140,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
         delete s;
     // ------
 
-    let key = map.key_from_ident(si, ident);
+    let key = map.key_from_ident(si, wanted_ident);
     let request_idx = map.get(&wrm.request_map, key);
     let idx = -1;
 
@@ -509,8 +509,8 @@ def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
     return sorted_mods;
 }
 
-def instance_of_ty(ty: *ty.Type): *ty.Type {
-    return ty.instance_of(ty);
+def instance_of_ty(t: *ty.Type): *ty.Type {
+    return ty.instance_of(t);
 }
 
 def lookup(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
@@ -520,29 +520,29 @@ def lookup(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
 // if the ident has a '.' inside it like 'mymod.test', out_mod will be set to a
 // reference to the correspoding module (mymod) this will happen, even if out_mod
 // does not contain the actual type (test)
-def m_lookup(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Module): *ty.Type {
+def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.Type {
 #define SET_OUT_MOD(m) if out_mod != null { *out_mod = (m); } 0
 
-    let len = ident.len(ident, tc.span_interner);
-    let dot_index = ident.index_of(ident, len, '.');
+    let len = ident.len(name, tc.span_interner);
+    let dot_index = ident.index_of(name, len, '.');
     if dot_index < 0 {
         // same module
         SET_OUT_MOD(tc.ctx.mod);
-        return scope.lookup(&tc.ctx.scopes, ident);
+        return scope.lookup(&tc.ctx.scopes, name);
     }
 
-    let mod = get_mod_by_alias(tc.ctx, dot_index, ident.ident);
-    if mod == null {
+    let m = get_mod_by_alias(tc.ctx, dot_index, name.ident);
+    if m == null {
         SET_OUT_MOD(null);
-        io.printf("DBG DEBUG %.*s mod not found\n", len, ident.ident);
+        io.printf("DBG DEBUG %.*s mod not found\n", len, name.ident);
         return null;
     }
 
-    SET_OUT_MOD(mod);
+    SET_OUT_MOD(m);
 
-    let ty = mod.s_lookup(mod, len - dot_index - 1, ident.ident + dot_index + 1);
+    let ty = mod.s_lookup(m, len - dot_index - 1, name.ident + dot_index + 1);
     if ty == null {
-        io.printf("DBG DEBUG %.*s type not found\n", len, ident.ident);
+        io.printf("DBG DEBUG %.*s type not found\n", len, name.ident);
         return null;
     }
 
@@ -551,11 +551,11 @@ def m_lookup(tc: *TypeChecker, ident: *ident.Ident, out_mod: **mod.Module): *ty.
 
 def checked_lookup(
     tc: *TypeChecker,
-    ident: *ident.Ident,
+    name: *ident.Ident,
     out_ty: **ty.Type,
     out_mod: **mod.Module
 ): i32 {
-    let ty = m_lookup(tc, ident, out_mod);
+    let ty = m_lookup(tc, name, out_mod);
     if out_mod == null {
         *out_ty = ty;
         return OK;
@@ -563,7 +563,7 @@ def checked_lookup(
 
     if *out_mod == null {
         // TODO: should just be module name
-        push_not_defined_error(tc, ident);
+        push_not_defined_error(tc, name);
         return ERROR;
     }
 
@@ -571,17 +571,17 @@ def checked_lookup(
     return OK;
 }
 
-def lookup_tyid(tc: *TypeChecker, tyid: *tyid.Type): *ty.Type {
+def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
     let out_ty: *ty.Type = null;
-    if checked_lookup(tc, &tyid.ident, &out_ty, null) == OK && out_ty != null {
+    if checked_lookup(tc, &name.ident, &out_ty, null) == OK && out_ty != null {
         out_ty = instance_of_ty(out_ty);
-        if tyid.is_ptr(tyid) {
-            return push_tmp_ty(tc, ty.new_ptr(tyid.pointer_count, out_ty));
+        if tyid.is_ptr(name) {
+            return push_tmp_ty(tc, ty.new_ptr(name.pointer_count, out_ty));
         } else {
             return out_ty;
         }
     } else {
-        push_not_defined_error(tc, &tyid.ident);
+        push_not_defined_error(tc, &name.ident);
     }
 
     return null;
@@ -854,7 +854,7 @@ def update_all_waiting(
     tc: *TypeChecker,
     mod: *mod.Module,
     resolved_ty: *ty.Type,
-    ident: *ident.Ident
+    resolved_name: *ident.Ident
 ): void {
     // only execute this once
     if ty.was_touched_by_tychk(resolved_ty) {
@@ -863,10 +863,10 @@ def update_all_waiting(
     ty.tychk_touch(resolved_ty);
 
     let waiting_map = get_waiting_map(tc, mod);
-    let waiting = get_waiting(waiting_map, tc.span_interner, ident);
+    let waiting = get_waiting(waiting_map, tc.span_interner, resolved_name);
 
     if waiting == null {
-        let name = ident.to_string(ident, tc.span_interner);
+        let name = ident.to_string(resolved_name, tc.span_interner);
         io.printf(
             "DBG: no other types waiting for %s width: %d, align: %d\n",
             name, resolved_ty.width, resolved_ty.align
@@ -875,7 +875,7 @@ def update_all_waiting(
         return;
     }
 
-    let name = ident.to_string(ident, tc.span_interner);
+    let name = ident.to_string(resolved_name, tc.span_interner);
     io.printf("DBG: %d types waiting for %s\n", waiting.len, name);
     delete name;
 
@@ -887,7 +887,7 @@ def update_all_waiting(
         i = i + 1;
     }
 
-    let s = ident.to_string(ident, tc.span_interner);
+    let s = ident.to_string(resolved_name, tc.span_interner);
     io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
     delete s;
 }
@@ -989,9 +989,9 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
 
 def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
     // when we support "import as" constructs, this will become more interesting
-    let span = span.get(tc.span_interner, imp.mod.ident_span);
+    let old_span = span.get(tc.span_interner, imp.mod.ident_span);
     let p = path.empty();
-    if path.from_str_len(imp.mod.ident, span.len, &p) != 0 {
+    if path.from_str_len(imp.mod.ident, old_span.len, &p) != 0 {
         return ident.empty();
     }
 
@@ -1003,10 +1003,10 @@ def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
     lsp = lsp + 1; // skip the actual separator
 
     let offset = lsp - imp.mod.ident;
-    let start = span.start + offset;
+    let start = old_span.start + offset;
     let end = start + p.len - offset;
 
-    let new_span = span.create(tc.span_interner, start, end, span.ctx);
+    let new_span = span.create(tc.span_interner, start, end, old_span.ctx);
     return ident.from_str(new_span, lsp);
 }
 
@@ -1460,7 +1460,7 @@ def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.
 def check_expr_scope_expect(
     tc: *TypeChecker,
     e: *ast.Expr,
-    scope: *scope.Scope,
+    lookup_scope: *scope.Scope,
     expected: *ty.Type
 ): *ast.Expr {
     if tc.decl_only_pass {
@@ -1506,10 +1506,10 @@ def check_expr_scope_expect(
     // EXPR_IDENT
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
-        if scope == null {
+        if lookup_scope == null {
             e.ty = lookup(tc, ident);
         } else {
-            e.ty = scope.get_in(scope, tc.span_interner, ident);
+            e.ty = scope.get_in(lookup_scope, tc.span_interner, ident);
         }
 
         // TODO: if there is an error during a binding statement (e.g. let)
@@ -1527,7 +1527,7 @@ def check_expr_scope_expect(
     if ast.is_access_expr(e) {
         let a_e = ast.as_access_expr(e);
 
-        let left = check_expr_scope(tc, a_e.left, scope);
+        let left = check_expr_scope(tc, a_e.left, lookup_scope);
         if left == null {
             return null;
         }
@@ -1910,16 +1910,16 @@ def check_unary_expr(
             return null;
         }
 
-        let ty: *ty.Type = null;
+        let e_ty: *ty.Type = null;
         if ty.is_ptr(expr.ty) {
             let p_ty = ty.as_ptr(expr.ty);
-            ty = ty.new_ptr(p_ty.count + 1, p_ty.inner);
+            e_ty = ty.new_ptr(p_ty.count + 1, p_ty.inner);
         } else {
-            ty = ty.new_ptr(1, expr.ty);
+            e_ty = ty.new_ptr(1, expr.ty);
         }
 
-        push_tmp_ty(tc, ty);
-        return ty;
+        push_tmp_ty(tc, e_ty);
+        return e_ty;
     }
 
     if kind == UNARY_DEREF {
@@ -1930,21 +1930,21 @@ def check_unary_expr(
             return null;
         }
 
-        let ty: *ty.Type = null;
+        let e_ty: *ty.Type = null;
         if ty.is_string(expr.ty) {
-            ty = get_global_instance(tc, "char", 4);
+            e_ty = get_global_instance(tc, "char", 4);
         } else {
             let p_ty = ty.as_ptr(expr.ty);
             if p_ty.count <= 1 {
-                ty = p_ty.inner;
+                e_ty = p_ty.inner;
             } else {
                 let ptr = ty.new_ptr(p_ty.count - 1, p_ty.inner);
                 push_tmp_ty(tc, ptr);
-                ty = ptr;
+                e_ty = ptr;
             }
         }
 
-        return ty;
+        return e_ty;
     }
 
     // TODO: rewrite with function pointers
@@ -2014,11 +2014,10 @@ def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
 }
 
 def push_simple_error(tc: *TypeChecker, code: i32, ident: *ident.Ident): void {
-    let span = ident.ident_span;
-    let len = span.get(tc.span_interner, span).len;
+    let len = span.get(tc.span_interner, ident.ident_span).len;
     let text = std.err2str(code, len, ident.ident);
 
-    push_mk_err(tc, text, span);
+    push_mk_err(tc, text, ident.ident_span);
 }
 
 def push_incomplete_ty_error(tc: *TypeChecker, name: *ident.Ident): void {
@@ -2045,8 +2044,8 @@ def push_return_outside_of_func_error(tc: *TypeChecker, span: span.Span): void {
     push_mk_err(tc, text, span);
 }
 
-def push_not_callable_error(tc: *TypeChecker, span: span.Span, ty: *ty.Type): void {
-    let text = std.err2str(ERROR_CALLING_NON_FUNCTION, ty.to_static_string(ty));
+def push_not_callable_error(tc: *TypeChecker, span: span.Span, actual_ty: *ty.Type): void {
+    let text = std.err2str(ERROR_CALLING_NON_FUNCTION, ty.to_static_string(actual_ty));
     push_mk_err(tc, text, span);
 }
 
@@ -2112,8 +2111,8 @@ def push_missing_return_error(tc: *TypeChecker, span: span.Span): void {
     push_mk_err(tc, text, span);
 }
 
-def push_init_non_struct_error(tc: *TypeChecker, ty: *ty.Type, span: span.Span): void {
-    let ty_s = ty.to_static_string(ty);
+def push_init_non_struct_error(tc: *TypeChecker, actual_ty: *ty.Type, span: span.Span): void {
+    let ty_s = ty.to_static_string(actual_ty);
     let text = std.err2str(ERROR_INIT_NON_STRUCT_TYPE, ty_s);
     push_mk_err(tc, text, span);
 }
