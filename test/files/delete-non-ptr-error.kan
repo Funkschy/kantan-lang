@@ -1,0 +1,11 @@
+type Person struct {
+    name: string
+}
+
+def main(): void {
+    let p = Person { name: "test" };
+    delete p.name; // ok (at least for tychk)
+
+    delete new Person { name: "other" }; // ok aswell
+    delete p; // error
+}

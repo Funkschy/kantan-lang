@@ -176,7 +176,8 @@ static char const *const error_texts[] = {
     "Expected the name of a struct, but got '%s'",
     "Could not infer type",
     "'%s' cannot be casted into '%s'",
-    "Invalid type for condition, expected 'bool', but got '%s'"
+    "Invalid type for condition, expected 'bool', but got '%s'",
+    "Trying to delete non pointer type: '%s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

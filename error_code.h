@@ -37,3 +37,4 @@
 #define ERROR_COULD_NOT_INFER_TYPE      29
 #define ERROR_INVALID_CAST              30
 #define ERROR_INVALID_TYPE_IN_CONDITION 31
+#define ERROR_DELETE_NON_PTR            32
