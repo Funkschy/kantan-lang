@@ -1,0 +1,18 @@
+import "io";
+import "../test/./errtest";
+import "files/empty";
+import "simple";
+
+type Other struct {
+    t: errtest.Test,
+    t: MyStruct
+}
+
+def test_function(m: *MyStruct, o: errtest.S1): Other {
+}
+
+type MyStruct struct {
+    o: *Other,
+    t: errtest.Test,
+    i: i32
+}

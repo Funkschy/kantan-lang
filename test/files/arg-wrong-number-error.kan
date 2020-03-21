@@ -1,0 +1,11 @@
+def test(i: i32): void {
+
+}
+
+def other(): void {
+    test(5);
+}
+
+def other2(): void {
+    test();
+}

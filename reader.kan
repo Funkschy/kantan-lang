@@ -2,20 +2,30 @@ import "vec";
 import "path";
 import "file";
 import "source";
+import "std";
 
 import "io"; // TODO: only debug
 
-type FileAddError struct {
+extern def num_builtin_files(): i32;
+extern def get_builtin_files(): *string;
+
+type FileAddResult struct {
     file_name: string,
     err_code: i32
 }
 
 type FileMap struct {
+    home_dir: string,
     files: vec.Vec // SourceFiles
 }
 
 def create(): FileMap {
-    return FileMap { files: vec.create(sizeof source.SourceFile) };
+    // TODO: windows support
+    // TODO: respond to home not found
+    return FileMap {
+        home_dir: std.getenv("HOME"),
+        files: vec.create(sizeof source.SourceFile)
+    };
 }
 
 def num_files(m: *FileMap): i32 {
@@ -26,6 +36,10 @@ def get_by_idx(m: *FileMap, idx: i32): source.SourceFile {
     let s = source.empty();
     vec.get(&m.files, idx, &s as *void);
     return s;
+}
+
+def get_ptr_by_idx(m: *FileMap, idx: i32): *source.SourceFile {
+    return vec.get_ptr(&m.files, idx) as *source.SourceFile;
 }
 
 def free_fm(m: *FileMap): void {
@@ -41,29 +55,74 @@ def free_fm(m: *FileMap): void {
     vec.free_v(&m.files);
 }
 
-def add_all(m: *FileMap, len: i32, file_names: *string): FileAddError {
-    let i = 1;
+def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
+    let len = num_builtin_files();
+    let file_names = get_builtin_files();
+
+    // TODO: users should be able to change this using env vars
+    let std_dir = std.format_str("%s/.kantan/std", m.home_dir);
+
+    let i = 0;
+    while i < len {
+        let file_name = *(file_names + i);
+
+        let full_file_name = std.format_str("%s/%s", std_dir, file_name);
+
+        let res = 0;
+        if (res = add_file(m, rel_path, full_file_name)) != 0 {
+            delete std_dir;
+            return FileAddResult { file_name: file_name, err_code: res };
+        }
+
+        let idx = num_files(m) - 1;
+        let sptr = get_ptr_by_idx(m, idx);
+
+        if sptr != null {
+            let new_path = path.new_path_buf(file_name);
+            file.free_f(&sptr.file);
+            sptr.file.path = new_path;
+        }
+
+        delete full_file_name;
+
+        i = i + 1;
+    }
+
+    delete std_dir;
+    return FileAddResult { file_name: null, err_code: 0 };
+}
+
+def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): FileAddResult {
+    // TODO: detect duplicate files
+    let i = 0;
     while i < len {
         let file_name = *(file_names + i);
         let res = 0;
-        if (res = reader.add_file(m, file_name)) != 0 {
-            return FileAddError { file_name: file_name, err_code: res };
+        if (res = add_file(m, rel_path, file_name)) != 0 {
+            return FileAddResult { file_name: file_name, err_code: res };
         }
         i = i + 1;
     }
 
-    return FileAddError { file_name: null, err_code: 0 };
+    return FileAddResult { file_name: null, err_code: 0 };
 }
 
-def add_file(m: *FileMap, name: string): i32 {
+def add_file(m: *FileMap, rel_path: *path.Path, name: string): i32 {
     let p = path.empty();
     let res = 0;
-    if (res = path.from_string(name, &p)) != 0 {
+    if (res = path.from_str(name, &p)) != 0 {
         return res;
     }
 
+    let abs_path = path.buf_from(path.empty());
+    let error = path.merge_abs_rel(rel_path, &p, &abs_path);
+    if error != 0 {
+        return error;
+    }
+
     let sf = source.empty();
-    if (res = source.read(p, &sf)) != 0 {
+    if (res = source.read(abs_path, &sf)) != 0 {
+        path.free_pb(&abs_path);
         return res;
     }
 

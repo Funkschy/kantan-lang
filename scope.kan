@@ -1,0 +1,128 @@
+import "map";
+import "ptrvec";
+import "ty";
+import "ident";
+import "span";
+
+type Scope struct {
+    bindings: map.Map // ident to *Type
+}
+
+def create(): Scope {
+    return Scope { bindings: map.create() };
+}
+
+def free_s(s: *Scope): void {
+    map.free_m(&s.bindings);
+}
+
+def bind_in(
+    s: *Scope,
+    span_interner: *span.SpanInterner,
+    ident: *ident.Ident,
+    value: *ty.Type
+): *ty.Type {
+    return map.insert(
+        &s.bindings,
+        map.key_from_ident(span_interner, ident),
+        value as *void
+    ) as *ty.Type;
+}
+
+def s_bind_in(
+    s: *Scope,
+    ident_len: i32,
+    ident: string,
+    value: *ty.Type
+): *ty.Type {
+    return map.insert(
+        &s.bindings,
+        map.create_key(ident_len, ident),
+        value as *void
+    ) as *ty.Type;
+}
+
+def get_in(s: *Scope, span_interner: *span.SpanInterner, ident: *ident.Ident): *ty.Type {
+    return map.get(&s.bindings, map.key_from_ident(span_interner, ident)) as *ty.Type;
+}
+
+def s_get_in(s: *Scope, key_len: i32, key: string): *ty.Type {
+    return map.get(&s.bindings, map.create_key(key_len, key)) as *ty.Type;
+}
+
+type ScopeStack struct {
+    scopes: ptrvec.Vec, // vec of *Scopes
+    span_interner: *span.SpanInterner // redundant, but leads to a nicer interface
+}
+
+def empty_stack(): ScopeStack {
+    return ScopeStack { scopes: ptrvec.create(), span_interner: null };
+}
+
+def create_stack(span_interner: *span.SpanInterner): ScopeStack {
+    return ScopeStack {
+        scopes: ptrvec.create(),
+        span_interner: span_interner
+    };
+}
+
+def free_stack(s: *ScopeStack): void {
+    let i = 2; // dont free global scopes
+    while i < num_scopes(s) {
+        let scope = scope_at(s, i);
+        free_s(scope);
+        delete scope;
+        i = i + 1;
+    }
+    ptrvec.free_v(&s.scopes);
+}
+
+def open_scope(s: *ScopeStack): void {
+    let scope = new create();
+    push_scope(s, scope);
+}
+
+def push_scope(s: *ScopeStack, scope: *Scope): void {
+    ptrvec.push_ptr(&s.scopes, scope as *void);
+}
+
+def close_scope(s: *ScopeStack): void {
+    let top = top(s);
+    free_s(top);
+    delete top;
+    s.scopes.len = s.scopes.len - 1;
+}
+
+def close_scope_no_free(s: *ScopeStack): void {
+    s.scopes.len = s.scopes.len - 1;
+}
+
+def scope_at(s: *ScopeStack, i: i32): *Scope {
+    return ptrvec.get(&s.scopes, i) as *Scope;
+}
+
+def top(s: *ScopeStack): *Scope {
+    return scope_at(s, s.scopes.len - 1);
+}
+
+def bind(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): *ty.Type {
+    return bind_in(top(s), s.span_interner, ident, value);
+}
+
+def num_scopes(s: *ScopeStack): i32 {
+    return s.scopes.len;
+}
+
+def lookup(s: *ScopeStack, ident: *ident.Ident): *ty.Type {
+    let i = num_scopes(s) - 1;
+    while i >= 0 {
+        let scope = scope_at(s, i);
+        let ty: *ty.Type = null;
+        if (ty = get_in(scope, s.span_interner, ident)) != null {
+            return ty;
+        }
+        i = i - 1;
+    }
+
+    return null;
+}

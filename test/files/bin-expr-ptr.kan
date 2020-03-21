@@ -1,0 +1,4 @@
+let first = 3;
+2 + &first;
+&first + 2;
+&first - 2;

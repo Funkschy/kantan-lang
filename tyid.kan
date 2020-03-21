@@ -12,12 +12,7 @@ def empty(): Type {
 }
 
 def is_empty(t: *Type): bool {
-    let empty = empty();
-    // for some reason valgrind reported uninitialized memory for empty Idents
-    // i honestly think, that this was a valgrind bug, because putting the memset
-    // into the empty() function didn't help at all
-    std.memset(&empty as *void, 0, sizeof ident.Ident);
-    return std.memcmp(t as *void, &empty as *void, sizeof Type) == 0;
+    return t.pointer_count == 0 && t.ident.ident == null;
 }
 
 def create(ident: ident.Ident): Type {
@@ -27,7 +22,7 @@ def create(ident: ident.Ident): Type {
     };
 }
 
-def span(t: *Type): span.Span {
+def ident_span(t: *Type): span.Span {
     return t.ident.ident_span;
 }
 
@@ -36,6 +31,10 @@ def create_ptr(ident: ident.Ident, pointer_count: i32): Type {
         pointer_count: pointer_count,
         ident: ident
     };
+}
+
+def is_ptr(t: *Type): bool {
+    return t.pointer_count > 0;
 }
 
 def to_string(ty: *Type, span_interner: *span.SpanInterner): string {

@@ -1,0 +1,9 @@
+import "io";
+
+def main(argc: i32, argv: *string): void {
+    if argc % 2 == 0 {
+        io.printf("even\n");
+    } else {
+        io.printf("uneven\n");
+    }
+}

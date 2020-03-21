@@ -1,0 +1,11 @@
+def test(b: bool): void {
+
+}
+
+def other(): void {
+    test(5);
+}
+
+def other2(): void {
+    test(true);
+}

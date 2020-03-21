@@ -1,25 +1,37 @@
 #include "std.h"
 
-#define LOAD_FACTOR 0.75
-
+import "io";
 import "std";
 import "num";
 import "ident";
 import "span";
 
-import "io"; // TODO: only debug
-
 extern def get_map_index(cap: i32, key: string, key_len: i32): i32;
 
 type Map struct {
-    buckets: *Bucket,
     len: i32,
-    cap: i32
+    cap: i32,
+    items: *Item
 }
 
-type Bucket struct {
-    item: Item,
-    next: *Bucket
+type Iter struct {
+    pos: i32,
+    map: *Map
+}
+
+def iter_next(iter: *Iter): *Item {
+    while iter.pos < iter.map.cap {
+        let item = iter.map.items + iter.pos;
+        iter.pos = iter.pos + 1;
+        if item.key.value != null {
+            return item;
+        }
+    }
+    return null;
+}
+
+def iter(map: *Map): Iter {
+    return Iter{ pos: 0, map: map };
 }
 
 type Key struct {
@@ -27,64 +39,46 @@ type Key struct {
     value: string
 }
 
-def key_from_ident(span_interner: *span.SpanInterner, ident: *ident.Ident): Key {
-    let len = span.get(span_interner, ident.ident_span).len;
-    return Key { len: len, value: ident.ident };
+def create_key(len: i32, value: string): Key {
+    return Key { len: len, value: value };
 }
 
-type Item struct  {
+def key_from_ident(span_interner: *span.SpanInterner, ident: *ident.Ident): Key {
+    let len = span.get(span_interner, ident.ident_span).len;
+    return create_key(len, ident.ident);
+}
+
+type Item struct {
     key: Key,
     value: *void
 }
 
+def create_item(key: Key, value: *void): Item {
+    return Item { key: key, value: value };
+}
+
 def create(): Map {
-    return Map { buckets: null, len: 0, cap: 0 };
+    return Map { len: 0, cap: 0, items: null };
 }
 
 def with_cap(cap: i32): Map {
     if cap % 2 != 0 {
         cap = num.next_pow_of_2(cap);
     }
-    return Map { buckets: std.calloc(cap, sizeof Bucket) as *Bucket, len: 0, cap: cap };
+
+    let items = std.calloc(cap, sizeof Item) as *Item;
+    return Map { len: 0, cap: cap, items: items };
 }
 
 def free_m(m: *Map): void {
-    let i = 0;
-    while i < m.cap {
-        free_buckets(m.buckets + i);
-        i = i + 1;
+    if m.items == null {
+        return;
     }
-    delete m.buckets;
+
+    delete m.items;
 }
 
-def free_buckets(buckets: *Bucket): void {
-    let last = buckets.next;
-    while last != null {
-        let t = last.next;
-        delete last;
-        last = t;
-    }
-}
-
-def resize_if_needed(map: *Map): void {
-    let cap = map.cap;
-    if cap == 0 {
-        map.cap = cap = 16;
-        map.buckets = std.calloc(cap, sizeof Bucket) as *Bucket;
-    }
-
-    if num.int_to_float(map.len) > LOAD_FACTOR * num.int_to_float(cap) {
-        cap = cap * 2;
-
-        let new_buckets = std.calloc(map.cap, sizeof Bucket) as *Bucket;
-        let new_map = Map { buckets: new_buckets, len: map.len, cap: cap };
-
-        insert_all(map, &new_map);
-        *map = new_map;
-    }
-}
-
-def key_eq(first: *Key, second: *Key): bool {
+def key_eq(first: Key, second: Key): bool {
     if first.len != second.len {
         return false;
     }
@@ -92,78 +86,171 @@ def key_eq(first: *Key, second: *Key): bool {
     return std.strncmp(first.value, second.value, first.len) == 0;
 }
 
-def bucket_is_empty(b: *Bucket): bool {
-    return b.item.key.value == null;
+def insert_all(map: *Map, other: *Map): void {
+    let i = 0;
+    while i < other.cap {
+        let item = other.items + i;
+        if item.key.value != null {
+            insert(map, item.key, item.value);
+        }
+        i = i + 1;
+    }
 }
 
-def insert_all(old_map: *Map, new_map: *Map): void {
-    let i = 0;
+// inserts value into map at key
+// returns the replaced value or null
+def insert(map: *Map, key: Key, value: *void): *void {
+    if map.items == null || load_factor(map) > 0.75 {
+        resize(map);
+    }
 
-    // iterate over buckets
-    while i < old_map.cap {
-        let b = old_map.buckets + i;
+    let index = get_map_index(map.cap, key.value, key.len);
+    let item = map.items + index;
 
-        // iterate over list in bucket
-        while b != null {
-            if bucket_is_empty(b) {
-                insert(new_map, b.item.key, b.item.value);
-            }
+    // empty place
+    if item.key.value == null {
+        *item = create_item(key, value);
+        map.len = map.len + 1;
+        return null;
+    }
 
-            b = b.next;
+    // overwrite
+    if key_eq(item.key, key) {
+        let old_val = item.value;
+        item.value = value;
+        return old_val;
+    }
+
+    let replaced: *void = null;
+    // linear probing
+    if probe_insert(map, index + 1, map.cap, key, value, &replaced) {
+        return replaced;
+    }
+
+    probe_insert(map, 0, index, key, value, &replaced);
+    return replaced;
+}
+
+def probe_insert(
+    map: *Map,
+    start: i32,
+    len: i32,
+    key: Key,
+    value: *void,
+    out_old_val: **void
+): bool {
+    let i = start;
+    let item: *Item = null;
+    while i < len {
+        item = map.items + i;
+
+        let insert = false;
+        if item.key.value == null {
+            insert = true;
+        } else if key_eq(item.key, key) {
+            *out_old_val = item.value;
+            insert = true;
+        }
+
+        if insert {
+            *item = create_item(key, value);
+            map.len = map.len + 1;
+            return true;
         }
 
         i = i + 1;
     }
 
+    return false;
 }
 
-def insert(map: *Map, key: Key, value: *void): void {
-    resize_if_needed(map);
-
-    let b = map.buckets + get_map_index(map.cap, key.value, key.len);
-    let item = Item { key: key, value: value };
-
-    if bucket_is_empty(b) {
-        b.item = item;
-        return;
-    }
-
-    while b != null {
-        if bucket_is_empty(b) {
-            b.item = Item { key: key, value: value };
-            return;
+def probe_get(map: *Map, start: i32, end: i32, key: Key): *Item {
+    let i = start;
+    let item: *Item = null;
+    while i < end {
+        item = map.items + i;
+        if item.key.value != null {
+            if key_eq(item.key, key) {
+                return item;
+            }
         }
-
-        // same key
-        if key_eq(&b.item.key, &key) {
-            b.item.value = value;
-            return;
-        }
-
-        // no next bucket
-        if b.next == null {
-            b.next = new Bucket { item: item, next: null };
-            return;
-        }
-
-        b = b.next;
-    }
-}
-
-def get(map: *Map, key: Key): *void {
-    let b = map.buckets + get_map_index(map.cap, key.value, key.len);
-
-    while b != null {
-        if bucket_is_empty(b) {
-            return null;
-        }
-
-        if key_eq(&b.item.key, &key) {
-            return b.item.value;
-        }
-
-        b = b.next;
+        i = i + 1;
     }
 
     return null;
+}
+
+def load_factor(map: *Map): f32 {
+    if map.cap == 0 {
+        return 0.0;
+    }
+
+    return num.int_to_float(map.len) / num.int_to_float(map.cap);
+}
+
+def resize(map: *Map): void {
+    let cap = map.cap * 2;
+    if cap == 0 {
+        cap = 4;
+    }
+
+    let new_map = with_cap(cap);
+    insert_all(&new_map, map);
+    free_m(map);
+    *map = new_map;
+}
+
+def get(map: *Map, key: Key): *void {
+    let item = get_item(map, key);
+    if item == null {
+        return null;
+    }
+    return item.value;
+}
+
+def get_item(map: *Map, key: Key): *Item {
+    if map.items == null {
+        return null;
+    }
+
+    let index = get_map_index(map.cap, key.value, key.len);
+    let item = map.items + index;
+
+    if item.key.value != null {
+        if key_eq(item.key, key) {
+            return item;
+        }
+    }
+
+    let probe = probe_get(map, index + 1, map.cap, key);
+    if probe == null {
+        probe = probe_get(map, 0, index, key);
+    }
+
+    if probe != null {
+        return probe;
+    }
+
+    return null;
+}
+
+def get_and_remove(map: *Map, key: Key): *void {
+    let item = get_item(map, key);
+    if item == null {
+        return null;
+    }
+
+    let value = item.value;
+    std.memset(item as *void, 0, sizeof Item);
+    map.len = map.len - 1;
+    return value;
+}
+
+def dump(map: *Map): void {
+    let iter = iter(map);
+    let item = iter_next(&iter);
+    while item != null {
+        io.printf("%.*s: %p\n", item.key.len, item.key.value, item.value);
+        item = iter_next(&iter);
+    }
 }

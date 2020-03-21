@@ -19,7 +19,7 @@ def insert(tree: *Tree, person: Person): void {
     if tree.root == null {
         tree.root = new_node(person);
         return;
-    } 
+    }
 
     insert_node(tree.root, person);
 }

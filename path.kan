@@ -2,42 +2,221 @@
 #include "error_code.h"
 
 // TODO: should be platform dependant
-#define DEFAULT_SEPARATOR '/'
+#define SYSTEM_SEPARATOR '/'
 
 import "std";
 
+// TODO: only debug
+import "io";
+
+extern def getcwd(buf: string, buf_size: i32): string;
+extern def realpath(path: string, resolved: string): string;
+
 type Path struct {
-    inner: string,
-    separator: char
+    len: i32,
+    inner: string
 }
 
 def empty(): Path {
-    return Path { inner: null, separator: DEFAULT_SEPARATOR };
+    return Path { len: 0, inner: null };
 }
 
-def from_string(s: string, p: *Path): i32 {
-    if std.strlen(s) <= 0 {
+def create(value: string, len: i32): Path {
+    return Path { len: len, inner: value };
+}
+
+def from_str(s: string, p: *Path): i32 {
+    let len = std.strlen(s);
+    if len <= 0 {
         return ERROR_PATH_EMTPY;
     }
 
-    let separator = find_separator(s);
-
-    *p = Path { inner: s, separator: separator };
+    *p = Path { len: len, inner: s };
     return 0;
 }
 
-def find_separator(s: string): char {
-    let ptr = s;
-    while *ptr != '\0' {
-        if *ptr == '\\' {
-            return '\\';
-        }
-        ptr = ptr + 1;
+def from_str_len(s: string, len: i32, p: *Path): i32 {
+    if len <= 0 {
+        return ERROR_PATH_EMTPY;
     }
 
-    return '/';
+    *p = Path { len: len, inner: s };
+    return 0;
+}
+
+def ends_with(p: *Path, s: string): bool {
+    let len = std.strlen(s);
+    if len > p.len {
+        return false;
+    }
+
+    return std.strncmp(p.inner + (p.len - len), s, len) == 0;
+}
+
+def last_separator_ptr(p: *Path): string {
+    let ptr = p.inner + p.len - 1;
+    while ptr > p.inner {
+        ptr = ptr - 1;
+        if *ptr == SYSTEM_SEPARATOR {
+            return ptr;
+        }
+    }
+
+    return null;
+}
+
+def parent(p: *Path): Path {
+    if is_root(p) {
+        return *p;
+    }
+
+    let lsp = last_separator_ptr(p);
+    if lsp != null {
+        return create(p.inner, lsp - p.inner);
+    }
+
+    return *p;
+}
+
+def count_overlap(first: *Path, second: *Path): i32 {
+    let i = 0;
+    let len = first.len;
+    if second.len < first.len {
+        len = second.len;
+    }
+
+    while i < len {
+        if *(first.inner + i) != *(second.inner + i) {
+            return i;
+        }
+        i = i + 1;
+    }
+
+    return len;
+}
+
+// TODO: windows support
+// this function resolves stuff like .. or . in place
+def canonicalize(p: *Path, dest: *PathBuf): i32 {
+    let buf = std.strndup(p.inner, p.len);
+    let real = realpath(buf, null);
+    delete buf;
+
+    if real == null {
+        return ERROR_COULD_NOT_OPEN_FILE;
+    }
+
+    free_pb(dest);
+    *dest = create_path_buf(real);
+
+    return 0;
+}
+
+def is_abs(p: *Path): bool {
+    // TODO: windows support
+    return *p.inner == SYSTEM_SEPARATOR || *p.inner == '~';
+}
+
+def is_root(p: *Path): bool {
+    // TODO: windows support
+    return is_abs(p) && std.strlen(p.inner) == 1;
 }
 
 def to_string(p: *Path): string {
-    return p.inner;
+    return std.strndup(p.inner, p.len);
+}
+
+def get_cwd(): PathBuf {
+    let buf_size = 255;
+    let buf = std.malloc(buf_size * sizeof char) as string;
+
+    // TODO: windows support
+    if getcwd(buf, buf_size) == null {
+        delete buf;
+        return buf_from(empty());
+    }
+
+    return create_path_buf(buf);
+}
+
+type PathBuf struct {
+    inner: Path
+}
+
+def new_path_buf(path: string): PathBuf {
+    return create_path_buf(std.strdup(path));
+}
+
+def create_path_buf(path: string): PathBuf {
+    let p = empty();
+    if from_str(path, &p) != 0 {
+        delete path;
+        return PathBuf { inner: empty() };
+    }
+
+    return PathBuf {
+        inner: p
+    };
+}
+
+def buf_from(path: Path): PathBuf {
+    return PathBuf { inner: path };
+}
+
+def merge_abs_rel(base: *Path, child: *Path, dest: *PathBuf): i32 {
+    return merge_abs_rel_suffix(base, child, null, dest);
+}
+
+def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathBuf): i32 {
+    if base.len == 0 || is_abs(child) {
+        *dest = new_path_buf(child.inner);
+
+        let error = canonicalize(&dest.inner, dest);
+        if error != 0 {
+            free_pb(dest);
+            return error;
+        }
+
+        return 0;
+    }
+
+    let combined: string = null;
+    if suffix != null {
+        combined = std.format_str(
+            "%.*s%c%.*s%s",
+            base.len,
+            base.inner,
+            SYSTEM_SEPARATOR,
+            child.len,
+            child.inner,
+            suffix
+        );
+    } else {
+        combined = std.format_str(
+            "%.*s%c%.*s",
+            base.len,
+            base.inner,
+            SYSTEM_SEPARATOR,
+            child.len,
+            child.inner
+        );
+    }
+
+    let pb = create_path_buf(combined);
+    let error = canonicalize(&pb.inner, &pb);
+
+    if error != 0 {
+        free_pb(&pb);
+        return error;
+    }
+
+    *dest = pb;
+
+    return 0;
+}
+
+def free_pb(pb: *PathBuf): void {
+    if pb.inner.inner != null {
+        delete pb.inner.inner;
+    }
 }

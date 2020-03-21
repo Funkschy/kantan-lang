@@ -1,22 +1,53 @@
 import "ptrvec";
 import "vec";
 import "ast";
+import "path";
+import "map";
+import "std";
+import "ty";
+import "span";
+import "ident";
+import "scope";
+
+#define KANTAN_FILE_ENDING ".kan"
 
 type Module struct {
     statements: ptrvec.Vec,
+    path: path.Path,
      // the following vecs just contain indices into the statements ptrvec
     imports: vec.Vec,
     functions: vec.Vec,
-    structs: vec.Vec
+    structs: vec.Vec,
+    ty: *ty.Type, // the Type containing the bindings
+    idx: i32 // index in modmap used for faster access
 }
 
-def create(): Module {
+def create(p: path.Path): Module {
     return Module {
         statements: ptrvec.create(),
+        path: p,
         imports: vec.create(sizeof i32),
         functions: vec.create(sizeof i32),
-        structs: vec.create(sizeof i32)
+        structs: vec.create(sizeof i32),
+        ty: null,
+        idx: -1
     };
+}
+
+def s_lookup(m: *Module, key_len: i32, key: string): *ty.Type {
+    return scope.s_get_in(ty.get_scope(m.ty), key_len, key);
+}
+
+def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {
+    return ptrvec.get(&mod.statements, i) as *ast.Stmt;
+}
+
+def set_stmt_at(mod: *Module, i: i32, s: *ast.Stmt): void {
+    ptrvec.set(&mod.statements, i, s as *void);
+}
+
+def num_stmts(mod: *Module): i32 {
+    return mod.statements.len;
 }
 
 def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: i32): *ast.Stmt {
@@ -87,5 +118,147 @@ def free_m(mod: *Module): void {
     vec.free_v(&mod.imports);
     vec.free_v(&mod.functions);
     vec.free_v(&mod.structs);
+    ty.type_free(mod.ty);
 }
 
+type Map struct {
+    mods: ptrvec.Vec,
+    mod_paths: map.Map // full mod path -> index in mods
+}
+
+def map_with_cap(size: i32): Map {
+    return Map {
+        mods: ptrvec.with_cap(size),
+        mod_paths: map.with_cap(size)
+    };
+}
+
+def num_mods(mm: *Map): i32 {
+    return mm.mods.len;
+}
+
+def add_mod(mm: *Map, mod: *Module): void {
+    let idx = mm.mods.len;
+    ptrvec.push_ptr(&mm.mods, mod as *void);
+    mod.idx = idx;
+
+    // add one, to be able to tell null apart from 0
+    let idx = std.int_to_ptr(idx + 1);
+    let key = map.create_key(mod.path.len, mod.path.inner);
+    map.insert(&mm.mod_paths, key, idx);
+}
+
+def get_mod(mm: *Map, idx: i32): *Module {
+    return ptrvec.get(&mm.mods, idx) as *Module;
+}
+
+// returns -1 if not found
+def get_mod_idx(mm: *Map, abs_path: *path.Path): i32 {
+    let key = map.create_key(abs_path.len, abs_path.inner);
+    let ptr = map.get(&mm.mod_paths, key);
+    if ptr == null {
+        return -1;
+    }
+
+    return std.ptr_to_int(ptr) - 1;
+}
+
+def get_mod_by_path(mm: *Map, abs_path: *path.Path): *Module {
+    let idx = get_mod_idx(mm, abs_path);
+    if idx < 0 {
+        return null;
+    }
+    return get_mod(mm, idx);
+}
+
+def map_free(mm: *Map): void {
+    let i = 0;
+    while i < num_mods(mm) {
+        let m = get_mod(mm, i);
+        free_m(m);
+        delete m;
+        i = i + 1;
+    }
+    ptrvec.free_v(&mm.mods);
+    map.free_m(&mm.mod_paths);
+}
+
+def get_abs_import_path(
+    current: *Module,
+    imp: *ast.ImportStmt,
+    span_interner: *span.SpanInterner,
+    dest: *path.PathBuf
+): i32 {
+    let len = span.get(span_interner, imp.mod.ident_span).len;
+    let imp_path = path.create(imp.mod.ident, len);
+    let dir = path.parent(&current.path);
+
+    return path.merge_abs_rel_suffix(&dir, &imp_path, KANTAN_FILE_ENDING, dest);
+}
+
+// on error, this will return null and fill (if not null) the
+// supplied errdest parameter with a heap allocated error message!
+def try_get_mod_from_import(
+    mm: *Map,
+    mod: *Module,
+    span_interner: *span.SpanInterner,
+    imp: *ast.ImportStmt,
+    errdest: *string
+): *Module {
+    // TODO: extract errors to lib.h with the ususal error code system
+
+    let plen = ident.len(&imp.mod, span_interner);
+    let path_str = std.format_str("%.*s%s", plen, imp.mod.ident, KANTAN_FILE_ENDING);
+    let p = path.create(path_str, plen + std.strlen(KANTAN_FILE_ENDING));
+
+    let imported_mod = get_mod_by_path(mm, &p);
+    delete path_str;
+
+    if imported_mod != null {
+        return imported_mod;
+    }
+
+    // if not in stdlib, try absolute path
+    let abs = path.buf_from(path.empty());
+    let error = get_abs_import_path(mod, imp, span_interner, &abs);
+
+    if error != 0 {
+        let p = path.parent(&mod.path);
+        let mod_s = path.to_string(&p);
+        let imp_s = ident.to_string(&imp.mod, span_interner);
+
+        if errdest != null {
+            let err = std.format_str(
+                "%s: %s/%s%s",
+                std.strerror(error),
+                mod_s,
+                imp_s,
+                KANTAN_FILE_ENDING
+            );
+
+            *errdest = err;
+        }
+
+        delete imp_s;
+        delete mod_s;
+
+        return null;
+    }
+
+    imported_mod = get_mod_by_path(mm, &abs.inner);
+
+    // nothing we can do...
+    if imported_mod == null {
+        if errdest != null {
+            let s = path.to_string(&abs.inner);
+            *errdest = std.format_str("%s is not being compiled", s);
+            delete s;
+        }
+
+        path.free_pb(&abs);
+        return null;
+    }
+
+    path.free_pb(&abs);
+    return imported_mod;
+}

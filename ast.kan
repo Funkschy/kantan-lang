@@ -7,12 +7,16 @@ import "ident";
 import "func";
 import "record";
 import "ptrvec";
+import "vec";
 import "tyid";
+import "ty";
+import "lexer";
 
 import "io"; // TODO: only debug
 
 extern def binary2str(op: i32): string;
 extern def unary2str(op: i32): string;
+extern def expr2str(op: i32): string;
 
 /////////// expr stmt ///////////
 
@@ -177,6 +181,10 @@ def as_block_stmt(s: *Stmt): *BlockStmt {
     return s as *BlockStmt;
 }
 
+def stmt_at(b: *BlockStmt, i: i32): *Stmt {
+    return ptrvec.get(&b.stmts, i) as *Stmt;
+}
+
 /////////// Func Decl stmt ///////////
 
 type FuncDeclStmt struct {
@@ -233,15 +241,13 @@ def as_struct_decl_stmt(s: *Stmt): *StructDeclStmt {
 
 type ImportStmt struct {
     s: Stmt,
-    path_span: span.Span,
-    mod_path: string
+    mod: ident.Ident
 }
 
 def new_import_stmt(span: span.Span, mod_path: string): *Stmt {
     return (new ImportStmt {
         s: Stmt { tag: STMT_IMPORT },
-        path_span: span,
-        mod_path: mod_path
+        mod: ident.from_str(span, mod_path)
     }) as *Stmt;
 }
 
@@ -262,11 +268,11 @@ type LetStmt struct {
     ty: tyid.Type
 }
 
-def new_let_stmt(ident: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
+def new_let_stmt(ident_token: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
     return (new LetStmt {
         s: Stmt { tag: STMT_LET },
         value: value,
-        ident: ident.create(ident),
+        ident: ident.create(ident_token),
         ty: ty
     }) as *Stmt;
 }
@@ -347,7 +353,7 @@ type AccessExpr struct {
 
 def new_access_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
     return (new AccessExpr {
-        e: Expr { tag: EXPR_ACCESS, span: span },
+        e: create_expr(EXPR_ACCESS, span),
         left: left,
         right: right
     }) as *Expr;
@@ -371,7 +377,7 @@ type AsExpr struct {
 
 def new_as_expr(span: span.Span, expr: *Expr, ty: tyid.Type): *Expr {
     return (new AsExpr {
-        e: Expr { tag: EXPR_AS, span: span },
+        e: create_expr(EXPR_AS, span),
         expr: expr,
         ty: ty
     }) as *Expr;
@@ -394,7 +400,7 @@ type NewExpr struct {
 
 def new_new_expr(span: span.Span, expr: *Expr): *Expr {
     return (new NewExpr {
-        e: Expr { tag: EXPR_NEW, span: span },
+        e: create_expr(EXPR_NEW, span),
         expr: expr
     }) as *Expr;
 }
@@ -411,19 +417,14 @@ def as_new_expr(e: *Expr): *NewExpr {
 
 type CallExpr struct {
     e: Expr,
-    ident: *Expr, // either IdentExpr or AccessExpr
+    callee: *Expr,
     args: ArgList
 }
 
-def new_call_expr(span: span.Span, ident: *Expr, args: ArgList): *Expr {
-    if !is_ident_expr(ident) && !is_access_expr(ident) {
-        expr_free(ident);
-        return null;
-    }
-
+def new_call_expr(span: span.Span, callee: *Expr, args: ArgList): *Expr {
     return (new CallExpr {
-        e: Expr { tag: EXPR_CALL, span: span },
-        ident: ident,
+        e: create_expr(EXPR_CALL, span),
+        callee: callee,
         args: args
     }) as *Expr;
 }
@@ -440,19 +441,14 @@ def as_call_expr(e: *Expr): *CallExpr {
 
 type InitExpr struct {
     e: Expr,
-    ident: *Expr, // either IdentExpr or AccessExpr
+    struct_ty: *Expr,
     inits: InitList
 }
 
-def new_init_expr(span: span.Span, ident: *Expr, inits: InitList): *Expr {
-    if !is_ident_expr(ident) && !is_access_expr(ident) {
-        expr_free(ident);
-        return null;
-    }
-
+def new_init_expr(span: span.Span, struct_ty: *Expr, inits: InitList): *Expr {
     return (new InitExpr {
-        e: Expr { tag: EXPR_INIT, span: span },
-        ident: ident,
+        e: create_expr(EXPR_INIT, span),
+        struct_ty: struct_ty,
         inits: inits
     }) as *Expr;
 }
@@ -475,7 +471,7 @@ type AssignExpr struct {
 
 def new_assign_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
     return (new AssignExpr {
-        e: Expr { tag: EXPR_ASSIGN, span: span },
+        e: create_expr(EXPR_ASSIGN, span),
         left: left,
         right: right
     }) as *Expr;
@@ -496,10 +492,10 @@ type IdentExpr struct {
     ident: ident.Ident
 }
 
-def new_ident_expr(ident: lexer.Token): *Expr {
+def new_ident_expr(ident_token: lexer.Token): *Expr {
     return (new IdentExpr {
-        e: Expr { tag: EXPR_IDENT, span: ident.span },
-        ident: ident.create(ident)
+        e: create_expr(EXPR_IDENT, ident_token.span),
+        ident: ident.create(ident_token)
     }) as *Expr;
 }
 
@@ -521,7 +517,7 @@ type IntExpr struct {
 
 def new_int_expr(span: span.Span, ptr: string): *Expr {
     return (new IntExpr {
-        e: Expr { tag: EXPR_INT, span: span },
+        e: create_expr(EXPR_INT, span),
         ptr: ptr
     }) as *Expr;
 }
@@ -534,6 +530,70 @@ def as_int_expr(e: *Expr): *IntExpr {
     return e as *IntExpr;
 }
 
+/////////// float expr ///////////
+
+type FloatExpr struct {
+    e: Expr,
+    ptr: string
+}
+
+def new_float_expr(span: span.Span, ptr: string): *Expr {
+    return (new FloatExpr {
+        e: create_expr(EXPR_FLOAT, span),
+        ptr: ptr
+    }) as *Expr;
+}
+
+def is_float_expr(e: *Expr): bool {
+    return e.tag == EXPR_FLOAT;
+}
+
+def as_float_expr(e: *Expr): *FloatExpr {
+    return e as *FloatExpr;
+}
+
+/////////// null expr ///////////
+
+type NullExpr struct {
+    e: Expr
+}
+
+def new_null_expr(span: span.Span): *Expr {
+    return (new NullExpr {
+        e: create_expr(EXPR_NULL, span)
+    }) as *Expr;
+}
+
+def is_null_expr(e: *Expr): bool {
+    return e.tag == EXPR_NULL;
+}
+
+def as_null_expr(e: *Expr): *NullExpr {
+    return e as *NullExpr;
+}
+
+/////////// sizeOf expr ///////////
+
+type SizeOfExpr struct {
+    e: Expr,
+    ty: tyid.Type
+}
+
+def new_sizeof_expr(span: span.Span, ty: tyid.Type): *Expr {
+    return (new SizeOfExpr {
+        e: create_expr(EXPR_SIZEOF, span),
+        ty: ty
+    }) as *Expr;
+}
+
+def is_sizeof_expr(e: *Expr): bool {
+    return e.tag == EXPR_SIZEOF;
+}
+
+def as_sizeof_expr(e: *Expr): *SizeOfExpr {
+    return e as *SizeOfExpr;
+}
+
 /////////// string expr ///////////
 
 type StringExpr struct {
@@ -543,7 +603,7 @@ type StringExpr struct {
 
 def new_string_expr(span: span.Span, ptr: string): *Expr {
     return (new StringExpr {
-        e: Expr { tag: EXPR_STRING, span: span },
+        e: create_expr(EXPR_STRING, span),
         ptr: ptr
     }) as *Expr;
 }
@@ -565,7 +625,7 @@ type CharExpr struct {
 
 def new_char_expr(span: span.Span, ptr: string): *Expr {
     return (new CharExpr {
-        e: Expr { tag: EXPR_CHAR, span: span },
+        e: create_expr(EXPR_CHAR, span),
         ptr: ptr
     }) as *Expr;
 }
@@ -584,15 +644,23 @@ type BinaryExpr struct {
     e: Expr,
     left: *Expr,
     right: *Expr,
-    ty: i32
+    kind: i32,
+    op_span: span.Span
 }
 
-def new_binary_expr(span: span.Span, ty: i32, left: *Expr, right: *Expr): *Expr {
+def new_binary_expr(
+    span: span.Span,
+    kind: i32,
+    op_span: span.Span,
+    left: *Expr,
+    right: *Expr
+): *Expr {
     return (new BinaryExpr {
-        e: Expr { tag: EXPR_BINARY, span: span },
+        e: create_expr(EXPR_BINARY, span),
         left: left,
         right: right,
-        ty: ty
+        kind: kind,
+        op_span: op_span
     }) as *Expr;
 }
 
@@ -608,14 +676,14 @@ def as_binary_expr(e: *Expr): *BinaryExpr {
 
 type UnaryExpr struct {
     e: Expr,
-    ty: i32,
+    kind: i32,
     right: *Expr
 }
 
-def new_unary_expr(span: span.Span, ty: i32, right: *Expr): *Expr {
+def new_unary_expr(span: span.Span, kind: i32, right: *Expr): *Expr {
     return (new UnaryExpr {
-        e: Expr { tag: EXPR_UNARY, span: span },
-        ty: ty,
+        e: create_expr(EXPR_UNARY, span),
+        kind: kind,
         right: right
     }) as *Expr;
 }
@@ -632,7 +700,12 @@ def as_unary_expr(e: *Expr): *UnaryExpr {
 
 type Expr struct {
     tag: i32,
+    ty: *ty.Type,
     span: span.Span
+}
+
+def create_expr(tag: i32, span: span.Span): Expr {
+    return Expr { tag: tag, ty: null, span: span };
 }
 
 def expr_free(e: *Expr): void {
@@ -654,11 +727,11 @@ def expr_free(e: *Expr): void {
         expr_free(a_expr.right);
     } else if is_call_expr(e) {
         let c_expr = as_call_expr(e);
-        expr_free(c_expr.ident as *Expr);
+        expr_free(c_expr.callee);
         free_al(&c_expr.args);
     } else if is_init_expr(e) {
         let i_expr = as_init_expr(e);
-        expr_free(i_expr.ident as *Expr);
+        expr_free(i_expr.struct_ty);
         free_il(&i_expr.inits);
     } else if is_unary_expr(e) {
         expr_free(as_unary_expr(e).right);
@@ -672,10 +745,24 @@ def expr_free(e: *Expr): void {
 }
 
 def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
+    if e == null {
+        return std.strdup("(nil)");
+    }
+
     if is_int_expr(e) {
         let i_expr = as_int_expr(e);
         let len = span.get(span_interner, e.span).len;
         return std.strndup(i_expr.ptr, len);
+    }
+
+    if is_float_expr(e) {
+        let f_expr = as_float_expr(e);
+        let len = span.get(span_interner, e.span).len;
+        return std.strndup(f_expr.ptr, len);
+    }
+
+    if is_null_expr(e) {
+        return std.strdup("null");
     }
 
     if is_string_expr(e) {
@@ -703,6 +790,15 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
         let s = std.format_str("new %s", expr_s);
 
         delete expr_s;
+        return s;
+    }
+
+    if is_sizeof_expr(e) {
+        let s_expr = as_sizeof_expr(e);
+        let ty_s = tyid.to_string(&s_expr.ty, span_interner);
+        let s = std.format_str("sizeof %s", ty_s);
+
+        delete ty_s;
         return s;
     }
 
@@ -746,7 +842,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_unary_expr(e) {
         let u_expr = as_unary_expr(e);
         let right = expr_to_string(u_expr.right, span_interner);
-        let tok_str = unary2str(u_expr.ty);
+        let tok_str = unary2str(u_expr.kind);
 
         let s = std.format_str("(%s%s)", tok_str, right);
         delete right;
@@ -759,7 +855,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
 
         let left = expr_to_string(b_expr.left, span_interner);
         let right = expr_to_string(b_expr.right, span_interner);
-        let tok_str = binary2str(b_expr.ty);
+        let tok_str = binary2str(b_expr.kind);
 
         let s = std.format_str("(%s%s%s)", left, tok_str, right);
         delete left;
@@ -771,7 +867,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_call_expr(e) {
         let c_expr = as_call_expr(e);
 
-        let ident = expr_to_string(c_expr.ident as *Expr, span_interner);
+        let ident = expr_to_string(c_expr.callee, span_interner);
         let args = arg_list_to_string(&c_expr.args, span_interner);
 
         let s = std.format_str("%s(%s)", ident, args);
@@ -784,7 +880,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_init_expr(e) {
         let i_expr = as_init_expr(e);
 
-        let ident = expr_to_string(i_expr.ident as *Expr, span_interner);
+        let ident = expr_to_string(i_expr.struct_ty, span_interner);
         let inits = init_list_to_string(&i_expr.inits, span_interner);
 
         let s = std.format_str("%s{%s}", ident, inits);
@@ -808,19 +904,27 @@ def create_arg_list(): ArgList {
     return ArgList { args: ptrvec.create() };
 }
 
-def get_arg_at(al: *ArgList, i: i32): *ast.Expr {
-    return ptrvec.get(&al.args, i) as *ast.Expr;
+def num_args(al: *ArgList): i32 {
+    return al.args.len;
 }
 
-def push_arg(al: *ArgList, arg: *ast.Expr): void {
+def get_arg_at(al: *ArgList, i: i32): *Expr {
+    return ptrvec.get(&al.args, i) as *Expr;
+}
+
+def set_arg_at(al: *ArgList, i: i32, expr: *Expr): void {
+    ptrvec.set(&al.args, i, expr as *void);
+}
+
+def push_arg(al: *ArgList, arg: *Expr): void {
     ptrvec.push_ptr(&al.args, arg as *void);
 }
 
 def free_al(al: *ArgList): void {
     let i = 0;
     while i < al.args.len {
-        let e = ptrvec.get(&al.args, i) as *ast.Expr;
-        ast.expr_free(e);
+        let e = ptrvec.get(&al.args, i) as *Expr;
+        expr_free(e);
         i = i + 1;
     }
 
@@ -883,7 +987,23 @@ def create_init_list(): InitList {
     return InitList { inits: vec.create(sizeof Init) };
 }
 
-def get_init_at(il: *InitList, i: i32, dest: *Init): bool {
+def num_inits(il: *InitList): i32 {
+    return il.inits.len;
+}
+
+def init_expr_at(il: *InitList, i: i32): *Expr {
+    let init = empty_init();
+    if !init_at(il, i, &init) {
+        return null;
+    }
+    return init.expr;
+}
+
+def set_init_expr_at(il: *InitList, i: i32, value: *Expr): void {
+    (vec.get_ptr(&il.inits, i) as *Init).expr = value;
+}
+
+def init_at(il: *InitList, i: i32, dest: *Init): bool {
     return vec.get(&il.inits, i, dest as *void);
 }
 
@@ -895,8 +1015,8 @@ def free_il(il: *InitList): void {
     let i = 0;
     while i < il.inits.len {
         let init = empty_init();
-        get_init_at(il, i, &init);
-        ast.expr_free(init.expr);
+        init_at(il, i, &init);
+        expr_free(init.expr);
         i = i + 1;
     }
 
@@ -909,7 +1029,7 @@ def init_list_to_string(il: *InitList, span_interner: *span.SpanInterner): strin
     let i = 0;
     while i < il.inits.len {
         let init = empty_init();
-        if !get_init_at(il, i, &init) {
+        if !init_at(il, i, &init) {
             delete inits;
             return null;
         }

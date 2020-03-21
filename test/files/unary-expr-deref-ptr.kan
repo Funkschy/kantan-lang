@@ -1,0 +1,3 @@
+let ty = 5;
+let ptr = &ty;
+ty = *ptr;

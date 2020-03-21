@@ -1,0 +1,19 @@
+type MyStruct struct {
+
+}
+
+def first(p: *MyStruct): *MyStruct {
+    return p; // ok
+}
+
+def second(p: *MyStruct): *MyStruct {
+    return &p; // not ok
+}
+
+type MyOtherStruct struct {
+
+}
+
+def third(p: MyOtherStruct): MyStruct {
+    return p; // obviously not ok
+}

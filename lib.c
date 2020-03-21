@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <errno.h>
 #include <sys/stat.h>
 
 #include "./error_code.h"
@@ -13,6 +14,10 @@
 
 // forward decls
 int vformat_str(char **dest, char const *fmt, va_list args);
+
+int32_t get_errno() {
+    return errno;
+}
 
 char const *const get_str(int32_t index, size_t len, char const *const * array) {
     if (index < 0 || index > len) {
@@ -32,6 +37,14 @@ char const *const binary2str(int32_t op) {
 
 char const *const unary2str(int32_t op) {
     return get_str(op, len_unary_strings, unary_type_ops);
+}
+
+char const *const expr2str(int32_t type) {
+    return get_str(type, len_expr_strings, expr_type_strings);
+}
+
+char const *const type2str(int32_t type) {
+    return get_str(type, len_type_strings, type_type_strings);
 }
 
 char const *const format_str(char const *fmt, ...) {
@@ -189,6 +202,20 @@ uint64_t next_pow_of_2(uint64_t num) {
     return n;
 }
 
+void flag_set(uint32_t *flags, uint32_t flag) {
+    *flags |= flag;
+}
+
+bool flag_get(uint32_t *flags, uint32_t flag) {
+    return *flags & flag;
+}
+
+void flag_unset(uint32_t *flags, uint32_t flag) {
+    if (flag_get(flags, flag)) {
+        *flags ^= flag;
+    }
+}
+
 _Float32 int_to_float(int64_t i) {
     return (_Float32) i;
 }
@@ -199,4 +226,9 @@ int32_t char_to_int(char c) {
 
 int32_t ptr_to_int(void* ptr) {
     return (int32_t)((size_t) ptr);
+}
+
+void *int_to_ptr(int32_t i) {
+    size_t s = i;
+    return *((void **)&s);
 }

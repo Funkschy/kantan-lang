@@ -1,0 +1,594 @@
+#include "std.h"
+#include "ty_types.h"
+
+import "ptrvec";
+import "vec";
+import "std";
+import "ident";
+import "span";
+import "scope";
+
+extern def type2str(kind: i32): string;
+
+// TODO: this should be imported, but can't because of circular dependencies
+// for some reason, this works anyway
+// import "mod";
+
+#define WIDTH_UNKNOWN -1
+
+// These flags have to be powers of 2
+#define FLAG_SCOPED        1
+#define FLAG_UNSIZED       2
+// this gets set, when tychk visits a type for the first time and gets unset
+// when the type is fully resolved
+#define FLAG_TYCHK_TOUCHED 4
+// if this flag is set, this type refers to a declaration, not an actual instance
+// this is used to check for things like 'bool == false' which would be legal otherwise
+#define FLAG_TY_DECL       8
+
+/////////// void type ///////////
+
+def new_void(): *Type {
+    let t = new_type(TY_VOID, null);
+    std.flag_set(&t.flags, FLAG_UNSIZED);
+    return t;
+}
+
+def is_void(t: *Type): bool {
+    return t.kind == TY_VOID;
+}
+
+/////////// i32 type ///////////
+
+def new_i32(): *Type {
+    let t = new_type(TY_I32, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_i32(t: *Type): bool {
+    return t.kind == TY_I32;
+}
+
+/////////// f32 type ///////////
+
+def new_f32(): *Type {
+    let t = new_type(TY_F32, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_f32(t: *Type): bool {
+    return t.kind == TY_F32;
+}
+
+/////////// char type ///////////
+
+def new_char(): *Type {
+    let t = new_type(TY_CHAR, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_char(t: *Type): bool {
+    return t.kind == TY_CHAR;
+}
+
+/////////// bool type ///////////
+
+def new_bool(): *Type {
+    let t = new_type(TY_BOOL, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_bool(t: *Type): bool {
+    return t.kind == TY_BOOL;
+}
+
+/////////// pointer type ///////////
+
+type Ptr struct {
+    count: i32,
+    inner: *Type
+}
+
+// TODO: don't allow pointers to Mod
+def new_ptr(count: i32, inner: *Type): *Type {
+    let ptr = new Ptr {
+        count: count,
+        inner: inner
+    };
+
+    let t = new_type(TY_PTR, ptr as *void);
+    if inner != null && count < 2 {
+        // only auto deref once
+        t.flags = inner.flags;
+    }
+
+    // pointers always have a size
+    std.flag_unset(&t.flags, FLAG_UNSIZED);
+    // you cannot declare a pointer
+    std.flag_unset(&t.flags, FLAG_TY_DECL);
+    fill_width_align(t);
+    return t;
+}
+
+def update_inner(ptr_ty: *Type, inner: *Type): void {
+    let p = as_ptr(ptr_ty);
+    p.inner = inner;
+    // only auto deref once
+    if p.count < 2 {
+        // use flags from inner type, except for unsized and decl
+        ptr_ty.flags = inner.flags;
+    }
+    // pointers always have a size
+    std.flag_unset(&ptr_ty.flags, FLAG_UNSIZED);
+    // you cannot declare a pointer
+    std.flag_unset(&ptr_ty.flags, FLAG_TY_DECL);
+}
+
+def is_ptr(t: *Type): bool {
+    return t.kind == TY_PTR;
+}
+
+def is_ptr_type(t: *Type): bool {
+    return t.kind == TY_PTR || t.kind == TY_STRING;
+}
+
+def as_ptr(t: *Type): *Ptr {
+    return t.data as *Ptr;
+}
+
+/////////// string type ///////////
+
+def new_string(): *Type {
+    let t = new_type(TY_STRING, null);
+
+    // pointers always have a size
+    std.flag_unset(&t.flags, FLAG_UNSIZED);
+    // you cannot declare a pointer
+    std.flag_unset(&t.flags, FLAG_TY_DECL);
+
+    fill_width_align(t);
+    return t;
+}
+
+def is_string(t: *Type): bool {
+    return t.kind == TY_STRING;
+}
+
+/////////// struct type ///////////
+
+type StructField struct {
+    name: ident.Ident,
+    ty: *Type
+}
+
+type Struct struct {
+    name: ident.Ident,
+    scope: scope.Scope,
+    fields: vec.Vec // <StructField>
+}
+
+// this function is used to initialize placeholder structs of tychk
+def init_struct(t: *Type, name: ident.Ident): void {
+    let s = new Struct {
+        name: name,
+        scope: scope.create(),
+        fields: vec.create(sizeof StructField)
+    };
+
+    t.data = s as *void;
+    t.width = WIDTH_UNKNOWN;
+    std.flag_set(&t.flags, FLAG_SCOPED);
+}
+
+def is_struct(t: *Type): bool {
+    return t.kind == TY_STRUCT;
+}
+
+def is_struct_decl(t: *Type): bool {
+    return is_struct(t) && is_decl(t);
+}
+
+def push_field(t: *Struct, name: ident.Ident, ty: *Type, si: *span.SpanInterner): void {
+    let field = StructField { name: name, ty: ty };
+    vec.push(&t.fields, &field as *void);
+    scope.bind_in(&t.scope, si, &name, ty);
+}
+
+def field_at(t: *Struct, i: i32): *StructField {
+    return vec.get_ptr(&t.fields, i) as *StructField;
+}
+
+def update_field_ty(t: *Struct, field: *StructField, si: *span.SpanInterner): void {
+    scope.bind_in(&t.scope, si, &field.name, field.ty);
+}
+
+def num_fields(t: *Struct): i32 {
+    return t.fields.len;
+}
+
+def as_struct(t: *Type): *Struct {
+    return t.data as *Struct;
+}
+
+/////////// func type ///////////
+
+type Param struct {
+    name: ident.Ident,
+    ty: *Type
+}
+
+def create_param(name: ident.Ident, ty: *Type): Param {
+    return Param { name: name, ty: ty };
+}
+
+type Func struct {
+    ret: *Type,
+    params: vec.Vec, // <Param>
+    name: ident.Ident
+}
+
+// this function is used to initialize placeholder functions of tychk
+def init_func(t: *Type, name: ident.Ident): void {
+    let f = new Func {
+        ret: null,
+        params: vec.create(sizeof Param),
+        name: name
+    };
+    std.flag_set(&t.flags, FLAG_UNSIZED);
+
+    t.data = f as *void;
+}
+
+// TODO: this is inefficient
+def func_is_initalized(t: *Func): bool {
+    if t.ret == null {
+        return false;
+    }
+
+    let i = 0;
+    while i < t.params.len {
+        let p = param_at(t, i);
+        if p.ty == null {
+            return false;
+        }
+        i = i + 1;
+    }
+
+    return true;
+}
+
+def param_at(t: *Func, i: i32): *Param {
+    return vec.get_ptr(&t.params, i) as *Param;
+}
+
+def is_func(t: *Type): bool {
+    return t.kind == TY_FUNC;
+}
+
+def as_func(t: *Type): *Func {
+    return t.data as *Func;
+}
+
+/////////// mod type ///////////
+
+type Mod struct {
+    scope: scope.Scope
+}
+
+def new_mod(): *Type {
+    let m = new Mod {
+        scope: scope.create()
+    };
+
+    let t = new_type(TY_MOD, m as *void);
+
+    std.flag_set(&t.flags, FLAG_SCOPED);
+    std.flag_set(&t.flags, FLAG_UNSIZED);
+
+    return t;
+}
+
+def is_mod(t: *Type): bool {
+    return t.kind == TY_MOD;
+}
+
+def as_mod(t: *Type): *Mod {
+    return t.data as *Mod;
+}
+
+/////////// base type ///////////
+
+type Type struct {
+    kind: i32,
+    width: i32, // width in bytes
+    align: i32,
+    flags: i32,
+    data: *void, // extra data, eg. 'Struct' or 'Func'
+    cached_instance: *Type // only ever create one instance of a single type
+}
+
+def new_type(kind: i32, data: *void): *Type {
+    return new create_type(kind, data);
+}
+
+def was_touched_by_tychk(t: *Type): bool {
+    return std.flag_get(&t.flags, FLAG_TYCHK_TOUCHED);
+}
+
+def tychk_touch(t: *Type): void {
+    std.flag_set(&t.flags, FLAG_TYCHK_TOUCHED);
+}
+
+def tychk_untouch(t: *Type): void {
+    std.flag_unset(&t.flags, FLAG_TYCHK_TOUCHED);
+}
+
+def create_type(kind: i32, data: *void): Type {
+    return Type {
+        kind: kind,
+        width: WIDTH_UNKNOWN,
+        align: 0,
+        flags: FLAG_TY_DECL, // types are declarations by default
+        data: data,
+        cached_instance: null
+    };
+}
+
+def instance_of(base: *Type): *Type {
+    if base.cached_instance != null {
+        return base.cached_instance;
+    }
+
+    let inst = new *base;
+    std.flag_unset(&inst.flags, FLAG_TY_DECL);
+    base.cached_instance = inst;
+
+    return inst;
+}
+
+def is_decl(t: *Type): bool {
+    return std.flag_get(&t.flags, FLAG_TY_DECL);
+}
+
+// if the type is not unsized and the with is unknown it wasn't
+// constructed correctly
+def is_initialized(t: *Type): bool {
+    return t.width != WIDTH_UNKNOWN || std.flag_get(&t.flags, FLAG_UNSIZED);
+}
+
+def is_scoped(t: *Type): bool {
+    if t == null {
+        return false;
+    }
+
+    return std.flag_get(&t.flags, FLAG_SCOPED);
+}
+
+def type_free(t: *Type): void {
+    if t == null {
+        return;
+    }
+
+    if is_func(t) {
+        let f_ty = as_func(t);
+        // the inner types are garbage collected by tychk
+        vec.free_v(&f_ty.params);
+        delete t.data;
+    }
+
+    if is_struct(t) {
+        let s_ty = as_struct(t);
+        // the inner types are garbage collected by tychk
+        vec.free_v(&s_ty.fields);
+        scope.free_s(&s_ty.scope);
+        delete t.data;
+    }
+
+    if is_mod(t) {
+        let m_ty = as_mod(t);
+        scope.free_s(&m_ty.scope);
+        delete t.data;
+    }
+
+    if is_ptr(t) {
+        delete t.data;
+    }
+
+    if t.cached_instance != null {
+        delete t.cached_instance;
+    }
+
+    delete t;
+}
+
+// looks for an ident in types with FLAG_SCOPED
+def get_scope(t: *Type): *scope.Scope {
+    if is_mod(t) {
+        return &as_mod(t).scope;
+    }
+
+    if is_struct(t) {
+        return &as_struct(t).scope;
+    }
+
+    if is_ptr(t) {
+        return get_scope(as_ptr(t).inner);
+    }
+
+    return null;
+}
+
+def is_num(t: *Type): bool {
+    return is_i32(t) || is_f32(t);
+}
+
+def is_integer(t: *Type): bool {
+    return is_i32(t);
+}
+
+/////////// align utils ///////////
+// TODO: should be in separate file, but can't because of circular imports
+
+def width_was_calculated(t: *Type): bool {
+    return t.align > 0;
+}
+
+// TODO: implement either lookup table or full method dispatching for Type
+// returns true, if the types width/alignment could be calculated
+def fill_width_align(t: *Type): bool {
+    if std.flag_get(&t.flags, FLAG_UNSIZED) {
+        return false;
+    }
+
+    if width_was_calculated(t) {
+        return true;
+    }
+
+    // if align is 0 at end of this function, use width as align
+    let align = 0;
+    let width = WIDTH_UNKNOWN;
+    let has_unresolved_fields = false;
+
+    // TODO: padding
+    if is_ptr_type(t){
+        width = 8; // TODO: determine pointer width based on target
+    } else if is_i32(t) {
+        width = 4;
+    } else if is_f32(t) {
+        width = 4;
+    } else if is_bool(t) {
+        width = 1;
+    } else if is_struct(t) {
+        let s_ty = as_struct(t);
+
+        let max_align = align;
+        let width_sum = 0;
+
+        let i = 0;
+        while i < s_ty.fields.len {
+            let f = field_at(s_ty, i);
+            let field_initialized = f != null;
+            if field_initialized {
+                field_initialized = f.ty != null;
+            }
+
+            if field_initialized {
+                let a = f.ty.align;
+                if a > max_align {
+                    max_align = a;
+                }
+
+                let w = f.ty.width;
+                width_sum = width_sum + w;
+            } else {
+                has_unresolved_fields = true;
+            }
+
+            i = i + 1;
+        }
+
+        width = width_sum;
+        align = max_align;
+    }
+
+    if has_unresolved_fields {
+        return false;
+    }
+
+    if width != WIDTH_UNKNOWN {
+        t.width = width;
+        if align == 0 {
+            align = width;
+        }
+        t.align = align;
+        return true;
+    }
+
+    return false;
+}
+
+// returns true if the string needs to be freed
+def to_string(t: *Type, si: *span.SpanInterner, out: *string): bool {
+    if t == null {
+        *out = null;
+        return false;
+    }
+
+    if is_func(t) {
+        let f_ty = as_func(t);
+        let s_ret = "";
+        let free_ret = to_string(f_ty.ret, si, &s_ret);
+        let name = ident.to_string(&f_ty.name, si);
+        // TODO: format parameters
+        let s = std.format_str("%s (...) -> %s", name, s_ret);
+        if free_ret {
+            delete s_ret;
+        }
+        delete name;
+        *out = s;
+        return true;
+    }
+
+    if is_struct(t) {
+        let s_ty = as_struct(t);
+        let name = ident.to_string(&s_ty.name, si);
+        *out = name;
+        return true;
+    }
+
+    if is_ptr(t) {
+        let p_ty = as_ptr(t);
+        let asterisks = std.malloc(p_ty.count) as string;
+        std.memset(asterisks as *void, std.char_to_int('*'), p_ty.count);
+
+        let s_inner = "";
+        let free_inner = to_string(p_ty.inner, si, &s_inner);
+        let s = std.format_str("%.*s%s", p_ty.count, asterisks, s_inner);
+        if free_inner {
+            delete s_inner;
+        }
+        delete asterisks;
+
+        *out = s;
+        return true;
+    }
+
+    *out = to_static_string(t);
+    return false;
+}
+
+def to_static_string(t: *Type): string {
+    return type2str(t.kind);
+}
+
+def equals(first: *Type, second: *Type): bool {
+    if first == null || second == null {
+        return false;
+    }
+
+    if first.kind != second.kind {
+        return false;
+    }
+
+    let first_ptr_count = 0;
+    let second_ptr_count = 0;
+
+    if is_ptr(first) {
+        let p_ty = as_ptr(first);
+        first_ptr_count = p_ty.count;
+        first = p_ty.inner;
+    }
+    if is_ptr(second) {
+        let p_ty = as_ptr(second);
+        second_ptr_count = p_ty.count;
+        second = p_ty.inner;
+    }
+
+    // only pointers and struct instances are created multiple times, everything
+    // else should be unique in memory
+    return first == second && first_ptr_count == second_ptr_count;
+}

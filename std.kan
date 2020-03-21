@@ -8,14 +8,24 @@ extern def strdup(s: string): string;
 extern def strlen(s: string): i32;
 extern def strcat(first: string, second: string): string;
 extern def strcpy(dest: string, src: string): string;
+extern def strchr(haystack: string, needle: char): string;
 extern def memcmp(first: *void, second: *void, size: i32): i32;
 extern def memset(p: *void, val: i32, n: i32): i32;
 extern def memcpy(dest: *void, src: *void, size: i32): void;
+extern def memmove(dest: *void, src: *void, size: i32): void;
 extern def realloc(ptr: *void, size: i32): *void;
+extern def abort(): void;
+extern def strerror(err: i32): string;
+extern def getenv(name: string): string;
 
 // in lib.c
+extern def get_errno(): i32;
 extern def err2str(code: i32, ...): string;
 extern def format_str(fmt: string, ...): string;
 extern def read_char(s: string, s_len: i32, dest: *i32): i32;
 extern def char_to_int(c: char): i32;
 extern def ptr_to_int(p: *void): i32;
+extern def int_to_ptr(i: i32): *void;
+extern def flag_set(flags: *i32, flag: i32): void;
+extern def flag_unset(flags: *i32, flag: i32): void;
+extern def flag_get(flags: *i32, flag: i32): bool;

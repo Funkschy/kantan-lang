@@ -1,0 +1,23 @@
+type One struct {
+    two: Two
+}
+
+type Two struct {
+    three: *Three
+}
+
+type Three struct {
+    i: i32
+}
+
+def function_error(one: *One): void {
+    let test = 1;
+    1 + test;
+    one.two.three.i.error;
+}
+
+def function_correct(one: *One): void {
+    one.two.three.i = 0;
+    let o = One { two: Two { three: null } };
+    o.two.three = new Three { i: 5 };
+}

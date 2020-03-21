@@ -1,5 +1,8 @@
+#include "std.h"
+
 import "span";
 import "std";
+import "lexer";
 
 type Ident struct {
     ident: string,
@@ -10,8 +13,33 @@ def create(t: lexer.Token): Ident {
     return Ident { ident: t.lexeme, ident_span: t.span };
 }
 
+def from_str(span: span.Span, str: string): Ident {
+    return Ident { ident: str, ident_span: span };
+}
+
 def empty(): Ident {
     return create(lexer.empty_token());
+}
+
+def len(i: *Ident, span_interner: *span.SpanInterner): i32 {
+    return span.get(span_interner, i.ident_span).len;
+}
+
+def char_at(i: *Ident, pos: i32): char {
+    return *(i.ident + pos);
+}
+
+// -1 if not found
+def index_of(id: *Ident, ident_len: i32, c: char): i32 {
+    let i = 0;
+    let break = false;
+    while i < ident_len && !break {
+        if char_at(id, i) == '.' {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
 }
 
 // this does a strdup and needs to be freed

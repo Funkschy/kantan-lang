@@ -3,21 +3,28 @@ import "path";
 extern def read_file(path: string, dest: *string): i32;
 
 type File struct {
-    path: path.Path
+    path: path.PathBuf
 }
 
 def empty(): File {
-    return File { path: path.empty() };
+    return File { path: path.buf_from(path.empty()) };
 }
 
-def create(path: path.Path): File {
+def create(path: path.PathBuf): File {
     return File { path: path };
 }
 
-def name(f: *File): string {
-    return path.to_string(&f.path);
+def name_dup(f: *File): string {
+    return path.to_string(&f.path.inner);
 }
 
 def read_to_string(s: *File, dest: *string): i32 {
-    return read_file(path.to_string(&s.path), dest);
+    let path = path.to_string(&s.path.inner);
+    let ret_code = read_file(path, dest);
+    delete path;
+    return ret_code;
+}
+
+def free_f(f: *File): void {
+    path.free_pb(&f.path);
 }

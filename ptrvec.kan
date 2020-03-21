@@ -17,6 +17,39 @@ def with_cap(cap: i32): Vec {
     return Vec { len: 0, cap: cap, elements: std.calloc(cap, sizeof *void) as **void };
 }
 
+def is_empty(v: *Vec): bool {
+    return v.len <= 0;
+}
+
+def pop(v: *Vec): *void {
+    if !is_empty(v) {
+        let elem = get(v, 0);
+        v.len = v.len - 1;
+        std.memmove(
+            v.elements as *void,
+            (v.elements + 1) as *void,
+            v.len * sizeof **void
+        );
+        return elem;
+    }
+    return null;
+}
+
+def append(v: *Vec, other: *Vec): void {
+    if is_empty(other) {
+        return;
+    }
+
+    let new_len = v.len + other.len;
+    resize_s(v, new_len);
+    std.memcpy(
+        (v.elements + v.len) as *void,
+        other.elements as *void,
+        other.len * sizeof *void
+    );
+    v.len = new_len;
+}
+
 def push_ptr(v: *Vec, elem: *void): void {
     if v.len + 1 > v.cap {
         resize(v);
@@ -34,16 +67,45 @@ def get(v: *Vec, i: i32): *void {
     return null;
 }
 
+def unsafe_get(v: *Vec, i: i32): *void {
+    return *(v.elements + i);
+}
+
+def set(v: *Vec, i: i32, elem: *void): void {
+    if i >= 0 && i < v.cap {
+        *(v.elements + i) = elem;
+        // assume all values in between to be initialized
+        if i >= v.len {
+            v.len = i + 1;
+        }
+    }
+}
+
+def resize_s(v: *Vec, size: i32): void {
+    size = size * sizeof **void;
+    if size <= v.cap {
+        return;
+    }
+
+    v.cap = size;
+    if v.elements == null {
+        v.elements = std.malloc(v.cap * sizeof **void) as **void;
+    } else {
+        v.elements = std.realloc(v.elements as *void, v.cap * sizeof **void) as **void;
+    }
+}
+
 def resize(v: *Vec): void {
     if v.elements == null {
-        v.cap = 2;
-        v.elements = std.malloc(v.cap * sizeof *void) as **void;
+        resize_s(v, 2);
     } else {
-        v.cap = v.cap * 2;
-        v.elements = std.realloc(v.elements as *void, v.cap * sizeof *void) as **void;
+        resize_s(v, v.cap * 2);
     }
 }
 
 def free_v(v: *Vec): void {
+    if v.elements == null {
+        return;
+    }
     delete v.elements;
 }
