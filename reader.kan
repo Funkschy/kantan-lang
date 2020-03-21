@@ -69,7 +69,7 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
         let full_file_name = std.format_str("%s/%s", std_dir, file_name);
 
         let res = 0;
-        if (res = reader.add_file(m, rel_path, full_file_name)) != 0 {
+        if (res = add_file(m, rel_path, full_file_name)) != 0 {
             delete std_dir;
             return FileAddResult { file_name: file_name, err_code: res };
         }
@@ -98,7 +98,7 @@ def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): F
     while i < len {
         let file_name = *(file_names + i);
         let res = 0;
-        if (res = reader.add_file(m, rel_path, file_name)) != 0 {
+        if (res = add_file(m, rel_path, file_name)) != 0 {
             return FileAddResult { file_name: file_name, err_code: res };
         }
         i = i + 1;

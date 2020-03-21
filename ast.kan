@@ -924,7 +924,7 @@ def free_al(al: *ArgList): void {
     let i = 0;
     while i < al.args.len {
         let e = ptrvec.get(&al.args, i) as *Expr;
-        ast.expr_free(e);
+        expr_free(e);
         i = i + 1;
     }
 
@@ -1016,7 +1016,7 @@ def free_il(il: *InitList): void {
     while i < il.inits.len {
         let init = empty_init();
         init_at(il, i, &init);
-        ast.expr_free(init.expr);
+        expr_free(init.expr);
         i = i + 1;
     }
 

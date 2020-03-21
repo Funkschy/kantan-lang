@@ -225,16 +225,16 @@ def peek(p: *Parser): lexer.Token {
 def parse(p: *Parser): *mod.Module {
     // TODO: getter
     let path = p.lexer.source.file.path.inner;
-    let mod = new mod.create(path);
+    let curr_mod = new mod.create(path);
 
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
         if s != null {
-            mod.push_stmt(mod, s);
+            mod.push_stmt(curr_mod, s);
         }
     }
 
-    return mod;
+    return curr_mod;
 }
 
 def statement(p: *Parser): *ast.Stmt {
@@ -557,11 +557,11 @@ def parse_field_list(p: *Parser): vec.Vec {
 
     let peeked = peek(p);
     while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
-        let ident = lexer.empty_token();
-        if !consume_ident(p, &ident, false) {
+        let ident_token = lexer.empty_token();
+        if !consume_ident(p, &ident_token, false) {
             FAIL();
         }
-        let ident = ident.create(ident);
+        let ident = ident.create(ident_token);
 
         if !consume(p, TOKEN_COLON) {
             FAIL();
@@ -600,14 +600,14 @@ def parse_param_list(p: *Parser, allow_va: bool): vec.Vec {
 
     let peeked = peek(p);
     while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RPAREN {
-        let ident = lexer.empty_token();
+        let ident_token = lexer.empty_token();
         let ty = tyid.empty();
 
         if allow_va && peek(p).ty == TOKEN_TRIPLE_DOT {
-            consume_token(p, TOKEN_TRIPLE_DOT, &ident);
+            consume_token(p, TOKEN_TRIPLE_DOT, &ident_token);
         } else {
-            ident = lexer.empty_token();
-            if !consume_ident(p, &ident, false) {
+            ident_token = lexer.empty_token();
+            if !consume_ident(p, &ident_token, false) {
                 FAIL();
             }
 
@@ -620,7 +620,7 @@ def parse_param_list(p: *Parser, allow_va: bool): vec.Vec {
             }
         }
 
-        let ident = ident.create(ident);
+        let ident = ident.create(ident_token);
         let param = param.create(ident, ty);
         vec.push(&params, &param as *void);
 
@@ -671,8 +671,8 @@ def parse_init_list(p: *Parser): ast.InitList {
 
     let peeked = peek(p);
     while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
-        let ident = lexer.empty_token();
-        if !consume_ident(p, &ident, false) {
+        let ident_token = lexer.empty_token();
+        if !consume_ident(p, &ident_token, false) {
             FAIL();
         }
 
@@ -685,7 +685,7 @@ def parse_init_list(p: *Parser): ast.InitList {
             FAIL();
         }
 
-        let init = ast.create_init(ident.create(ident), val);
+        let init = ast.create_init(ident.create(ident_token), val);
         ast.push_init(&inits, init);
 
         peeked = peek(p);

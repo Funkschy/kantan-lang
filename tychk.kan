@@ -14,6 +14,7 @@ import "record";
 import "func";
 import "ty";
 import "tyid";
+import "param";
 
 import "std";
 // TODO: only temp solution
@@ -308,31 +309,31 @@ def check(tc: *TypeChecker): void {
         let next = map.iter_next(&iter);
 
         while next != null {
-            let ty = mod.s_lookup(m, next.key.len, next.key.value);
-            if ty != null {
-                // DBG
-                io.printf("----\n");
-                let idx = std.ptr_to_int(next.value) - 1;
-                let waiting_for = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
-                if waiting_for == null {
-                    std.abort();
-                }
+            let incomplete_ty = mod.s_lookup(m, next.key.len, next.key.value);
+            if incomplete_ty != null {
+                // DBG START
+                // io.printf("----\n");
+                // let idx = std.ptr_to_int(next.value) - 1;
+                // let waiting_for = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
+                // if waiting_for == null {
+                //     std.abort();
+                // }
 
-                let j = 0;
-                while j < waiting_for.len {
-                    let waiting_for_ty = (vec.get_ptr(waiting_for, j) as *WaitingRequest).to_fill;
-                    let s: string = null;
-                    let free_this = ty.to_string(waiting_for_ty, tc.span_interner, &s);
-                    io.printf("DBG: !!!!!!!!!!! is still waiting: %s\n", s);
-                    if free_this {
-                        delete s;
-                    }
-                    j = j + 1;
-                }
-                // DBG
+                // let j = 0;
+                // while j < waiting_for.len {
+                //     let waiting_for_ty = (vec.get_ptr(waiting_for, j) as *WaitingRequest).to_fill;
+                //     let s: string = null;
+                //     let free_this = ty.to_string(waiting_for_ty, tc.span_interner, &s);
+                //     io.printf("DBG: !!!!!!!!!!! is still waiting: %s\n", s);
+                //     if free_this {
+                //         delete s;
+                //     }
+                //     j = j + 1;
+                // }
+                // DBG END
 
-                if ty.is_struct(ty) {
-                    let s_ty = ty.as_struct(ty);
+                if ty.is_struct(incomplete_ty) {
+                    let s_ty = ty.as_struct(incomplete_ty);
                     push_incomplete_ty_error(tc, &s_ty.name);
                     error = true;
                 } else {
@@ -394,8 +395,8 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     return false;
 }
 
-def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): i32 {
-    if mod.ty == null {
+def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
+    if m.ty == null {
         std.abort();
     }
 
@@ -406,7 +407,7 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): i32 {
         d_o = " decl only ";
     }
 
-    io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, mod.path.len, mod.path.inner);
+    io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, m.path.len, m.path.inner);
     let ctx = get_ctx(tc, idx);
     if ctx == null {
         std.abort();
@@ -418,11 +419,11 @@ def check_mod(tc: *TypeChecker, mod: *mod.Module, idx: i32, mode: i32): i32 {
     let ret = OK;
 
     let i = 0;
-    while i < mod.num_stmts(mod) {
-        let result = check_stmt(tc, mod.get_stmt_at(mod, i));
+    while i < mod.num_stmts(m) {
+        let result = check_stmt(tc, mod.get_stmt_at(m, i));
 
         if result != null {
-            mod.set_stmt_at(mod, i, result);
+            mod.set_stmt_at(m, i, result);
         } else {
             ret = ERROR;
         }
@@ -1231,7 +1232,6 @@ def check_for_return_stmt(block: *ast.BlockStmt): i32 {
 // returns the statement which should replace the old one
 // if a new statement is created, this function will free the old one
 def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
-    // STMT_WHILE
     // STMT_DELETE
 
     // STMT_IMPORT
@@ -1411,6 +1411,31 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             }
             i_s.else_stmt = else_stmt;
         }
+
+        return s;
+    }
+
+    // STMT_WHILE
+    if ast.is_while_stmt(s) {
+        let w_s = ast.as_while_stmt(s);
+        let condition = check_expr(tc, w_s.condition);
+
+        if condition == null {
+            return null;
+        }
+
+        let bool_ty = get_global_instance(tc, "bool", 4);
+        if !ty.equals(bool_ty, condition.ty) {
+            push_invalid_condition_error(tc, condition);
+            return null;
+        }
+        w_s.condition = condition;
+
+        let block = check_stmt(tc, w_s.block as *ast.Stmt);
+        if block == null {
+            return null;
+        }
+        w_s.block = block as *ast.BlockStmt;
 
         return s;
     }
