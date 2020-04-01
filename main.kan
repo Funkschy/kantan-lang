@@ -85,7 +85,8 @@ def main(argc: i32, argv: *string): i32 {
         i = i + 1;
     }
 
-    // TODO: only type check, if not parse errors where found?
+    // TODO: only type check, if no parse errors where found?
+    //  this does not seem to be a problem right now
     let tc = tychk.create(&span_interner, &mm);
     tychk.check(&tc);
 
@@ -237,6 +238,8 @@ def print_error(
     let col = span.start - last_nl;
 
     // TODO: this only works when the filepath is in a subdir of abs_path
+    //  i don't actually know, if this is still a problem, this needs to be
+    //  experimented with
     if path.is_abs(file_path) {
         let overlap = path.count_overlap(abs_path, file_path);
         if overlap == abs_path.len {

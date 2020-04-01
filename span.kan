@@ -5,7 +5,6 @@
 // 0b1111_1111_1111_1111
 #define MAX_CTX 65535
 
-import "io"; // TODO: only debug
 import "std";
 import "vec";
 
@@ -30,7 +29,8 @@ def merge(si: *SpanInterner, first: Span, second: Span): Span {
     let second = get(si, second);
     // spans should be in same file
     if first.ctx != second.ctx {
-        // TODO: assert
+        // TODO: is this an actual programmer error? In this case we could just
+        //  call std.abort() and call it a day
         return empty();
     }
 

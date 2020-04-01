@@ -20,8 +20,6 @@ import "record";
 import "ident";
 import "func";
 
-import "io"; // TODO: only debug
-
 type ParseError struct {
     span: span.Span,
     text: string

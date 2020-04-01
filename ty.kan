@@ -11,8 +11,8 @@ import "scope";
 extern def type2str(kind: i32): string;
 
 // TODO: this should be imported, but can't because of circular dependencies
-// for some reason, this works anyway
-// import "mod";
+//  for some reason, this works anyway
+//  import "mod";
 
 #define WIDTH_UNKNOWN -1
 
@@ -88,12 +88,15 @@ def is_bool(t: *Type): bool {
 
 /////////// pointer type ///////////
 
+// TODO: remember to make the result of pointer subtraction dependent on the
+//  pointers types
 type Ptr struct {
     count: i32,
     inner: *Type
 }
 
-// TODO: don't allow pointers to Mod
+// TODO: don't allow pointers to Mod or other non-runtime abstractions (e.g Types)
+//  should we actually check this here, or just in the typechecker itself?
 def new_ptr(count: i32, inner: *Type): *Type {
     let ptr = new Ptr {
         count: count,
@@ -244,6 +247,8 @@ def init_func(t: *Type, name: ident.Ident): void {
 }
 
 // TODO: this is inefficient
+//  do we actually need to iterate everything all the time? We don't want to
+//  iterate over the params, which were already initialized last time
 def func_is_initalized(t: *Func): bool {
     if t.ret == null {
         return false;
@@ -453,7 +458,10 @@ def fill_width_align(t: *Type): bool {
     let width = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
 
-    // TODO: padding
+    // FIXME: Padding
+    //  the current implementation of this size calculation is just wrong
+    //  we need to actually check for alignment and padding and not just take
+    //  the sizes one by one
     if is_ptr_type(t){
         width = 8; // TODO: determine pointer width based on target
     } else if is_i32(t) {

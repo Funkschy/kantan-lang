@@ -17,7 +17,7 @@ import "tyid";
 import "param";
 
 import "std";
-// TODO: only temp solution
+// TODO: only for debug purposes
 import "io";
 
 extern def isort(arr: *i32, len: i32): *i32;
@@ -1059,7 +1059,7 @@ def check_import(
 def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let ty = declare_struct(tc, sd);
     if ty == null {
-        // TODO: error
+        // TODO: output an actual error message here, instead of just failing silently
         return null;
     }
 
@@ -1462,6 +1462,8 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let r_s = ast.as_return_stmt(s);
         if r_s.expr == null {
             // TODO: check return outside of func
+            //  in case of an empty "return" statement, we don't actually have a
+            //  span to create an error out of
             return s;
         }
 

@@ -4,8 +4,6 @@ import "file";
 import "source";
 import "std";
 
-import "io"; // TODO: only debug
-
 extern def num_builtin_files(): i32;
 extern def get_builtin_files(): *string;
 
