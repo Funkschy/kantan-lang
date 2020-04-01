@@ -10,7 +10,7 @@ import "scope";
 
 extern def type2str(kind: i32): string;
 
-// TODO: this should be imported, but can't because of circular dependencies
+// TODO(#15): this should be imported, but can't because of circular dependencies
 //  for some reason, this works anyway
 //  import "mod";
 
@@ -88,14 +88,14 @@ def is_bool(t: *Type): bool {
 
 /////////// pointer type ///////////
 
-// TODO: remember to make the result of pointer subtraction dependent on the
+// TODO(#22): remember to make the result of pointer subtraction dependent on the
 //  pointers types
 type Ptr struct {
     count: i32,
     inner: *Type
 }
 
-// TODO: don't allow pointers to Mod or other non-runtime abstractions (e.g Types)
+// TODO(#28): don't allow pointers to Mod or other non-runtime abstractions (e.g Types)
 //  should we actually check this here, or just in the typechecker itself?
 def new_ptr(count: i32, inner: *Type): *Type {
     let ptr = new Ptr {
@@ -246,7 +246,7 @@ def init_func(t: *Type, name: ident.Ident): void {
     t.data = f as *void;
 }
 
-// TODO: this is inefficient
+// TODO(#33): this is inefficient
 //  do we actually need to iterate everything all the time? We don't want to
 //  iterate over the params, which were already initialized last time
 def func_is_initalized(t: *Func): bool {
@@ -436,13 +436,13 @@ def is_integer(t: *Type): bool {
 }
 
 /////////// align utils ///////////
-// TODO: should be in separate file, but can't because of circular imports
+// TODO(#36): should be in separate file, but can't because of circular imports
 
 def width_was_calculated(t: *Type): bool {
     return t.align > 0;
 }
 
-// TODO: implement either lookup table or full method dispatching for Type
+// TODO(#38): implement either lookup table or full method dispatching for Type
 // returns true, if the types width/alignment could be calculated
 def fill_width_align(t: *Type): bool {
     if std.flag_get(&t.flags, FLAG_UNSIZED) {
@@ -458,12 +458,12 @@ def fill_width_align(t: *Type): bool {
     let width = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
 
-    // FIXME: Padding
+    // FIXME(#40): Padding
     //  the current implementation of this size calculation is just wrong
     //  we need to actually check for alignment and padding and not just take
     //  the sizes one by one
     if is_ptr_type(t){
-        width = 8; // TODO: determine pointer width based on target
+        width = 8; // TODO(#42): determine pointer width based on target
     } else if is_i32(t) {
         width = 4;
     } else if is_f32(t) {
@@ -531,7 +531,7 @@ def to_string(t: *Type, si: *span.SpanInterner, out: *string): bool {
         let s_ret = "";
         let free_ret = to_string(f_ty.ret, si, &s_ret);
         let name = ident.to_string(&f_ty.name, si);
-        // TODO: format parameters
+        // TODO(#44): format parameters
         let s = std.format_str("%s (...) -> %s", name, s_ret);
         if free_ret {
             delete s_ret;

@@ -221,7 +221,7 @@ def peek(p: *Parser): lexer.Token {
 }
 
 def parse(p: *Parser): *mod.Module {
-    // TODO: getter
+    // TODO(#9): getter
     let path = p.lexer.source.file.path.inner;
     let curr_mod = new mod.create(path);
 
@@ -374,7 +374,7 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
 
     let e = expression(p, false);
     if e == null {
-        // TODO: create error
+        // TODO(#17): create error
         return null;
     }
     return ast.new_let_stmt(ident, ty, e);
@@ -662,7 +662,7 @@ def parse_arg_list(p: *Parser): ast.ArgList {
 #undef FAIL
 }
 
-// TODO: allow trailing commas
+// TODO(#24): allow trailing commas
 def parse_init_list(p: *Parser): ast.InitList {
 #define FAIL() ast.free_il(&inits); return ast.create_init_list()
     let inits = ast.create_init_list();
@@ -815,7 +815,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
             return null;
         }
 
-        // TODO: this can over/underflow. Needs to be checked for interning
+        // TODO(#30): this can over/underflow. Needs to be checked for interning
         e.span.start = e.span.start - 1;
         e.span.len_or_tag = e.span.len_or_tag + 2;
 

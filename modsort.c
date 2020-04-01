@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
-// TODO: this entire implementation is really inefficient
+// TODO(#3): this entire implementation is really inefficient
 
 typedef struct {
     int32_t orig_idx;

@@ -29,7 +29,7 @@ def merge(si: *SpanInterner, first: Span, second: Span): Span {
     let second = get(si, second);
     // spans should be in same file
     if first.ctx != second.ctx {
-        // TODO: is this an actual programmer error? In this case we could just
+        // TODO(#12): is this an actual programmer error? In this case we could just
         //  call std.abort() and call it a day
         return empty();
     }
@@ -73,7 +73,7 @@ type BigSpan struct {
 }
 
 type SpanInterner struct {
-    // TODO: should have a map, so that we dont intern the same thing twice
+    // TODO(#20): should have a map, so that we dont intern the same thing twice
     spans: vec.Vec // vector of BigSpan
 }
 

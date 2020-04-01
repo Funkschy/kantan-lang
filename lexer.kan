@@ -71,7 +71,7 @@ def create(src: source.SourceFile, span_interner: *span.SpanInterner, ctx: i32):
     return Lexer {
         has_peek: false,
         ctx: ctx,
-        // TODO: save length while reading file
+        // TODO(#2): save length while reading file
         //  we should probably save it inside of the source.SourceFile anyway
         source_len: std.strlen(src.code),
         peek: init_peek,
@@ -250,7 +250,7 @@ def lex_char(l: *Lexer): Token {
 
     let len = l.current - l.start;
     if len == 4 && *(l.start + 1) == '\\' {
-        // TODO: add checks for allowed escape sequences
+        // TODO(#6): add checks for allowed escape sequences
         return create_token(l, TOKEN_CHAR, l.start + 1, l.current - 1);
     }
 

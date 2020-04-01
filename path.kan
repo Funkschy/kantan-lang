@@ -1,7 +1,7 @@
 #include "std.h"
 #include "error_code.h"
 
-// TODO: should be platform dependant
+// TODO(#8): should be platform dependant
 #define SYSTEM_SEPARATOR '/'
 
 import "std";
@@ -92,7 +92,7 @@ def count_overlap(first: *Path, second: *Path): i32 {
     return len;
 }
 
-// TODO: windows support
+// TODO(#16): windows support
 //  this functions uses the posix only "realpath" function
 // this function resolves stuff like .. or . in place
 def canonicalize(p: *Path, dest: *PathBuf): i32 {
@@ -111,12 +111,12 @@ def canonicalize(p: *Path, dest: *PathBuf): i32 {
 }
 
 def is_abs(p: *Path): bool {
-    // TODO: windows support
+    // TODO(#23): windows support
     return *p.inner == SYSTEM_SEPARATOR || *p.inner == '~';
 }
 
 def is_root(p: *Path): bool {
-    // TODO: windows support
+    // TODO(#29): windows support
     return is_abs(p) && std.strlen(p.inner) == 1;
 }
 
@@ -128,7 +128,7 @@ def get_cwd(): PathBuf {
     let buf_size = 255;
     let buf = std.malloc(buf_size * sizeof char) as string;
 
-    // TODO: windows support
+    // TODO(#34): windows support
     if getcwd(buf, buf_size) == null {
         delete buf;
         return buf_from(empty());

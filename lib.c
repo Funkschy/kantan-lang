@@ -127,7 +127,7 @@ bool is_file(char const *path) {
 
 int32_t read_file(char const *path, char const **content) {
     if (!is_file(path)) {
-        // TODO: custom error, and check if this works on windows
+        // TODO(#4): custom error, and check if this works on windows
         return ERROR_COULD_NOT_OPEN_FILE;
     }
 

@@ -17,7 +17,7 @@ import "tyid";
 import "param";
 
 import "std";
-// TODO: only for debug purposes
+// TODO(#21): only for debug purposes
 import "io";
 
 extern def isort(arr: *i32, len: i32): *i32;
@@ -285,7 +285,7 @@ def check(tc: *TypeChecker): void {
     }
 
     // the decl only pass
-    // TODO: dont check stdlib if not needed
+    // TODO(#27): dont check stdlib if not needed
     i = 0;
     while i < n {
         let idx = *(tc.sorted_mods + i);
@@ -450,7 +450,7 @@ def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
 }
 
 def create_global_scope(tc: *TypeChecker): scope.Scope {
-    // TODO: this should probably be defined in something like a builtin.kan
+    // TODO(#32): this should probably be defined in something like a builtin.kan
     let global = scope.create();
     scope.s_bind_in(&global, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
     scope.s_bind_in(&global, 3, "f32", push_tmp_ty(tc, ty.new_f32()));
@@ -563,7 +563,7 @@ def checked_lookup(
     }
 
     if *out_mod == null {
-        // TODO: should just be module name
+        // TODO(#35): should just be module name
         push_not_defined_error(tc, name);
         return ERROR;
     }
@@ -635,7 +635,7 @@ def fill_func_def(
     while i < num_params {
         let p = func.get_param_ptr(f_decl, i);
 
-        // TODO: handle varargs
+        // TODO(#37): handle varargs
         if !param.is_varargs(p) {
             let p_mod: *mod.Module = null;
             let p_ty_name = p.ty.ident;
@@ -697,7 +697,7 @@ def fill_struct_fields(
     s_decl: *record.StructDecl,
     t: *ty.Type
 ): void {
-    // TODO: handle self fields
+    // TODO(#39): handle self fields
     let s_ty = ty.as_struct(t);
 
     let s = ident.to_string(&s_decl.name, tc.span_interner);
@@ -835,7 +835,7 @@ def wait_for_struct_field(
     ty.push_field(ty.as_struct(s_ty), field.ident, field_ty, tc.span_interner);
 
     if offset >= ty.as_struct(s_ty).fields.len {
-        std.abort(); // TODO: debug assert
+        std.abort(); // TODO(#41): debug assert
     }
 
     let request = create_waiting_request(
@@ -934,7 +934,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         // overwrite old type in struct
         ty.update_field_ty(waiting_s_ty, field, tc.span_interner);
 
-        // TODO: calling this all the time is very inefficient
+        // TODO(#43): calling this all the time is very inefficient
         let completely_initialized = ty.fill_width_align(waiting_ty);
         if completely_initialized {
             // recursively update types waiting for waiting_ty
@@ -1032,7 +1032,7 @@ def check_import(
 
     // no such module
     if imported_mod == null {
-        // TODO: for some reason this error is sometimes duplicated
+        // TODO(#45): for some reason this error is sometimes duplicated
         //  to recreate, just import a non existing file
         push_mk_err(tc, error, i_s.mod.ident_span);
         return false;
@@ -1059,7 +1059,7 @@ def check_import(
 def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let ty = declare_struct(tc, sd);
     if ty == null {
-        // TODO: output an actual error message here, instead of just failing silently
+        // TODO(#46): output an actual error message here, instead of just failing silently
         return null;
     }
 
@@ -1235,7 +1235,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // STMT_IMPORT
     if ast.is_import_stmt(s) {
         if !in_global_scope(tc) {
-            // TODO: currently not allowed error
+            // TODO(#47): currently not allowed error
             io.printf("import not in global scope\n");
             std.abort();
         }
@@ -1257,7 +1257,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_struct_decl_stmt(s) {
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
-            // TODO: currently not allowed error
+            // TODO(#48): currently not allowed error
             io.printf("struct decl not in global scope\n");
             std.abort();
         }
@@ -1283,7 +1283,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_func_decl_stmt(s) {
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
-            // TODO: currently not allowed error
+            // TODO(#49): currently not allowed error
             io.printf("func decl not in global scope\n");
             std.abort();
         }
@@ -1461,7 +1461,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_return_stmt(s) {
         let r_s = ast.as_return_stmt(s);
         if r_s.expr == null {
-            // TODO: check return outside of func
+            // TODO(#50): check return outside of func
             //  in case of an empty "return" statement, we don't actually have a
             //  span to create an error out of
             return s;
@@ -1556,7 +1556,7 @@ def check_expr_scope_expect(
             e.ty = scope.get_in(lookup_scope, tc.span_interner, ident);
         }
 
-        // TODO: if there is an error during a binding statement (e.g. let)
+        // TODO(#51): if there is an error during a binding statement (e.g. let)
         //  just bind a special error type to the name and return null here
         //  without pushing an actual error. This will prevent 'follow up' errors
         if e.ty == null {
@@ -1584,7 +1584,7 @@ def check_expr_scope_expect(
             // instance (basically class vs object of that class). There is currently
             // no mechanism to access the fields of a struct definition, which could
             // change in the future
-            // TODO: the span here is the span of the entire left access, which
+            // TODO(#52): the span here is the span of the entire left access, which
             //  is probably not what we want...
             push_not_accessible_with_error(tc, a_e.left);
             return null;
@@ -1764,7 +1764,7 @@ def check_expr_scope_expect(
                 return null;
             }
             // else if !func.is_varargs
-            // TODO: handle varargs
+            // TODO(#53): handle varargs
         }
 
         let i = 0;
@@ -1833,7 +1833,7 @@ def check_expr_scope_expect(
             i = i + 1;
         }
 
-        // TODO: those names are really confusing
+        // TODO(#54): those names are really confusing
         i_e.struct_ty = left;
         e.ty = instance_of_ty(left.ty);
         return e;
@@ -1991,7 +1991,7 @@ def check_unary_expr(
         return e_ty;
     }
 
-    // TODO: rewrite with function pointers
+    // TODO(#55): rewrite with function pointers
     if kind == UNARY_NEG_BOOL {
         if !ty.is_bool(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);

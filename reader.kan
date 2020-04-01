@@ -18,8 +18,8 @@ type FileMap struct {
 }
 
 def create(): FileMap {
-    // TODO: windows support
-    // TODO: respond to home not found
+    // TODO(#11): windows support
+    // TODO(#19): respond to home not found
     return FileMap {
         home_dir: std.getenv("HOME"),
         files: vec.create(sizeof source.SourceFile)
@@ -57,7 +57,7 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
     let len = num_builtin_files();
     let file_names = get_builtin_files();
 
-    // TODO: users should be able to change this using env vars
+    // TODO(#26): users should be able to change this using env vars
     let std_dir = std.format_str("%s/.kantan/std", m.home_dir);
 
     let i = 0;
@@ -91,7 +91,7 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
 }
 
 def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): FileAddResult {
-    // TODO: detect duplicate files
+    // TODO(#31): detect duplicate files
     let i = 0;
     while i < len {
         let file_name = *(file_names + i);

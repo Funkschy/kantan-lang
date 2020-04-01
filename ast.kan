@@ -12,8 +12,6 @@ import "tyid";
 import "ty";
 import "lexer";
 
-import "io"; // TODO: only debug
-
 extern def binary2str(op: i32): string;
 extern def unary2str(op: i32): string;
 extern def expr2str(op: i32): string;
@@ -509,7 +507,7 @@ def as_ident_expr(e: *Expr): *IdentExpr {
 
 /////////// int expr ///////////
 
-// TODO: hex, oct ...
+// TODO(#10): hex, oct ...
 type IntExpr struct {
     e: Expr,
     ptr: string
@@ -894,7 +892,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
 }
 
 /////////// ArgList ///////////
-// TODO: should be in own file, but can't because compiler can't handle circular imports
+// TODO(#18): should be in own file, but can't because compiler can't handle circular imports
 
 type ArgList struct {
     args: ptrvec.Vec
@@ -964,7 +962,7 @@ def arg_list_to_string(al: *ArgList, span_interner: *span.SpanInterner): string 
 }
 
 /////////// InitList ///////////
-// TODO: should be in own file, but can't because compiler can'e handle circular imports
+// TODO(#25): should be in own file, but can't because compiler can'e handle circular imports
 
 type Init struct {
     ident: ident.Ident,

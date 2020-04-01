@@ -205,7 +205,7 @@ def try_get_mod_from_import(
     imp: *ast.ImportStmt,
     errdest: *string
 ): *Module {
-    // TODO: extract errors to lib.h with the ususal error code system
+    // TODO(#7): extract errors to lib.h with the ususal error code system
 
     let plen = ident.len(&imp.mod, span_interner);
     let path_str = std.format_str("%.*s%s", plen, imp.mod.ident, KANTAN_FILE_ENDING);
