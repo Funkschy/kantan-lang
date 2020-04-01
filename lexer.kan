@@ -4,6 +4,7 @@
 import "std";
 import "span";
 import "source";
+import "path";
 
 extern def tok2str(ty: i32): string;
 
@@ -119,6 +120,10 @@ def current(l: *Lexer): i32 {
     let read_bytes = current_pos(l);
     std.read_char(l.current, l.source_len - read_bytes, &c);
     return c;
+}
+
+def path(l: *Lexer): path.Path {
+    return l.source.file.path.inner;
 }
 
 def is_num(c: i32): bool {

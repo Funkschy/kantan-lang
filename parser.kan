@@ -221,8 +221,7 @@ def peek(p: *Parser): lexer.Token {
 }
 
 def parse(p: *Parser): *mod.Module {
-    // TODO(#56): implement some kind of getter function for this
-    let path = p.lexer.source.file.path.inner;
+    let path = lexer.path(&p.lexer);
     let curr_mod = new mod.create(path);
 
     while peek(p).ty != TOKEN_EOF {
