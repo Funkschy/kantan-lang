@@ -373,7 +373,6 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
 
     let e = expression(p, false);
     if e == null {
-        // TODO(#17): create error
         return null;
     }
     return ast.new_let_stmt(ident, ty, e);

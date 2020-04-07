@@ -1,7 +1,0 @@
-def main(): void {
-    import "io";
-    def test(): void {
-
-    }
-    type Test struct {}
-}

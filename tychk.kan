@@ -700,7 +700,6 @@ def fill_struct_fields(
     s_decl: *record.StructDecl,
     t: *ty.Type
 ): void {
-    // TODO(#39): handle self fields
     let s_ty = ty.as_struct(t);
 
     let s = ident.to_string(&s_decl.name, tc.span_interner);
