@@ -26,6 +26,18 @@ extern def type2str(kind: i32): string;
 // this is used to check for things like 'bool == false' which would be legal otherwise
 #define FLAG_TY_DECL       8
 
+/////////// error type ///////////
+
+def new_error(): *Type {
+    let t = new_type(TY_ERROR, null);
+    std.flag_set(&t.flags, FLAG_UNSIZED);
+    return t;
+}
+
+def is_error(t: *Type): bool {
+    return t.kind == TY_ERROR;
+}
+
 /////////// void type ///////////
 
 def new_void(): *Type {

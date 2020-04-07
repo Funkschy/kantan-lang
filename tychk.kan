@@ -34,6 +34,8 @@ extern def isort(arr: *i32, len: i32): *i32;
 
 #define OFFSET_RETURN_TYPE -1
 
+#define ERROR_TY "__error_ty__"
+
 // Used as some kind of callback
 // When we resolve statements it may happen, that the statement uses type we
 // have not yet resolved. In this case a waiting request will be placed for the
@@ -457,6 +459,7 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     scope.s_bind_in(&global, 6, "string", push_tmp_ty(tc, ty.new_string()));
     scope.s_bind_in(&global, 4, "char", push_tmp_ty(tc, ty.new_char()));
     scope.s_bind_in(&global, 4, "void", push_tmp_ty(tc, ty.new_void()));
+    scope.s_bind_in(&global, std.strlen(ERROR_TY), ERROR_TY, push_tmp_ty(tc, ty.new_error()));
 
     let bool_ty = push_tmp_ty(tc, ty.new_bool());
     scope.s_bind_in(&global, 4, "bool", bool_ty);
@@ -1319,7 +1322,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         if tc.decl_only_pass {
             // placeholder to bind the name
-            let temp_ty = get_global_instance(tc, "void", 4);
+            let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
+            // we need to bind the name here, so we can give an error, when someone
+            // tries to write a function with the same name
             bind(tc, &l_s.ident, temp_ty);
             return s;
         }
@@ -1397,7 +1402,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         d_s.expr = expr;
         return s;
     }
-
 
     // STMT_IF
     if ast.is_if_stmt(s) {
@@ -1556,11 +1560,15 @@ def check_expr_scope_expect(
             e.ty = scope.get_in(lookup_scope, tc.span_interner, ident);
         }
 
-        // TODO(#51): if there is an error during a binding statement (e.g. let)
-        //  just bind a special error type to the name and return null here
-        //  without pushing an actual error. This will prevent 'follow up' errors
         if e.ty == null {
             push_not_defined_error(tc, ident);
+            return null;
+        }
+
+        if ty.is_error(e.ty) {
+            // when a binding definition fails, we just bind a special error
+            // type to the name and return null here without pushing an actual error.
+            // This will prevent 'follow up' errors
             return null;
         }
 

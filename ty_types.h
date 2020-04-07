@@ -1,4 +1,4 @@
-#define TY_UNKNOWN          0
+#define TY_ERROR            0
 #define TY_PTR              1
 #define TY_BOOL             2
 #define TY_I32              3
