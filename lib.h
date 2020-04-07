@@ -177,7 +177,8 @@ static char const *const error_texts[] = {
     "Could not infer type",
     "'%s' cannot be casted into '%s'",
     "Invalid type for condition, expected 'bool', but got '%s'",
-    "Trying to delete non pointer type: '%s'"
+    "Trying to delete non pointer type: '%s'",
+    "%s is currently not allowed, this may change in a future Kantan release"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

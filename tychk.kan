@@ -1237,13 +1237,14 @@ def check_for_return_stmt(block: *ast.BlockStmt): i32 {
 def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // STMT_IMPORT
     if ast.is_import_stmt(s) {
-        if !in_global_scope(tc) {
-            // TODO(#47): currently not allowed error
-            io.printf("import not in global scope\n");
-            std.abort();
-        }
-
         let i_s = ast.as_import_stmt(s);
+
+        if !in_global_scope(tc) {
+            push_currently_not_allowed_error(
+                tc, "Importing outside the global scope", i_s.mod.ident_span
+            );
+            return null;
+        }
 
         let alias: ident.Ident = ident.empty();
         let ty: *ty.Type = null;
@@ -1258,18 +1259,20 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // STMT_STRUCT_DECL
     if ast.is_struct_decl_stmt(s) {
+        let sd = &ast.as_struct_decl_stmt(s).decl;
+
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
-            // TODO(#48): currently not allowed error
-            io.printf("struct decl not in global scope\n");
-            std.abort();
+            push_currently_not_allowed_error(
+                tc, "Declaring Structs outside the global scope", sd.name.ident_span
+            );
+            return null;
         }
 
         if !tc.decl_only_pass {
             return s;
         }
 
-        let sd = &ast.as_struct_decl_stmt(s).decl;
         let ty = check_struct_decl(tc, sd);
 
         if ty != null {
@@ -1284,16 +1287,18 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // STMT_FUNC_DECL
     if ast.is_func_decl_stmt(s) {
+        let f_s = ast.as_func_decl_stmt(s);
+        let fd = &f_s.decl;
+
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
-            // TODO(#49): currently not allowed error
-            io.printf("func decl not in global scope\n");
-            std.abort();
+            push_currently_not_allowed_error(
+                tc, "Declaring Functions outside the global scope", fd.name.ident_span
+            );
+            return null;
         }
 
-        let f_s = ast.as_func_decl_stmt(s);
         if tc.decl_only_pass {
-            let fd = &f_s.decl;
             let ty = check_func_decl(tc, fd);
 
             if ty != null {
@@ -2214,4 +2219,9 @@ def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr): void {
         delete ty_s;
     }
     push_mk_err(tc, text, e.span);
+}
+
+def push_currently_not_allowed_error(tc: *TypeChecker, rsn: string, span: span.Span): void {
+    let text = std.err2str(ERROR_CURRENTLY_NOT_ALLOWED, rsn);
+    push_mk_err(tc, text, span);
 }
