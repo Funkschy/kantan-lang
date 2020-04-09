@@ -1901,6 +1901,10 @@ def check_binary_expr(
             RET_INVALID_TYS();
         }
 
+        // TODO(#58): should we allow float comparisons with '=='?
+        //  0.1 == 0.2 == 0.3 is false after all
+        //  should we just expose a compare function in the stdlib?
+
         if ty.is_num(first) {
             // everything except || and && is fine
             return first;
