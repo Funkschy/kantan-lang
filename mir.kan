@@ -1,0 +1,124 @@
+#include "mir_types.h"
+
+// TODO(#57): implement mir representation
+//  there are currently only placeholder types with no fields in mir.kan
+
+import "span";
+import "ty";
+
+type Name struct {
+    owned: bool,
+    len: i32,
+    data: string
+}
+
+def free_name(n: *Name): void {
+    if n.owned {
+        delete n.data;
+    }
+}
+
+type Label struct {
+    name: Name
+}
+
+type Address struct {
+    kind: i32,
+    data: *void
+}
+
+type ExprBinary struct {}
+
+type ExprUnary struct {}
+
+type ExprCopy struct {}
+
+type ExprCall struct {}
+
+type ExprStrucGep struct {}
+
+type ExprStructInit struct {}
+
+type ExprNew struct {}
+
+type ExprSizeOf struct {}
+
+type ExprGetParam struct {}
+
+type ExprBitCast struct {}
+
+// An expression is always on the right side of an assignment instruction
+// In the comments, this assignment is denoted as 'x = '
+//
+// x = y op z:
+//  Binary(Address, BinaryType, Address)
+// x = op y
+//  Unary(UnaryType, Address),
+// x = y:
+//  Copy(Address),
+// x = call f (y, z):
+//  Call(Name, Vec<Address>, return: Type, varargs: bool)
+// Gets a pointer to the Xth element of a struct or array
+// x = base + offset:
+//  StructGep(Address, u32)
+// x = test { 41, "test" }:
+//  StructInit(UserIdent, Vec<Address>),
+// allocates the value of its address on the heap
+// x = new 5:
+//  New(Address, Type),
+// x = sizeof(ty):
+//  SizeOf(Type),
+// x = param #y:
+//  GetParam(u32),
+// Cast the value at the address to the supplied type
+// x = bitcast e to ty2:
+//  BitCast(Address, Type),
+type Expression struct {
+    kind: i32,
+    data: *void
+}
+
+type InstDecl struct {
+    addr: Address,
+    ty: *ty.Type
+}
+
+type InstAssign struct {}
+
+type InstJmp struct {}
+
+type InstJmpIf struct {}
+
+type InstReturn struct {}
+
+type InstLabel struct {}
+
+type InstDelete struct {}
+
+type InstNop struct {}
+
+// A single MIR instruction
+//
+// can be one of the following
+// let x: i32:
+//  Decl(Address, Type),
+// x = <expr>:
+//  Assignment(Address, Expr),
+// goto l:
+//  Jmp(Label),
+// if x goto l0 else goto l1:
+//  JmpIf(Address, Label, Label),
+// return x:
+//  Return(Optional Address),
+// .L0::
+//  Label(Label),
+// frees heap memory:
+//  Delete(Address),
+// No operation:
+//  Nop,
+type Inst struct {
+    kind: i32,
+    span: span.Span,
+    data: *void
+}
+

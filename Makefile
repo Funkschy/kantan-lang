@@ -24,7 +24,8 @@ K_FILES = ast.kan \
 		  ty.kan \
 		  tychk.kan \
 		  tyid.kan \
-		  vec.kan
+		  vec.kan \
+		  mir.kan
 C_FILES = lib.c \
 		  modsort.c \
 		  lib.h \
@@ -33,6 +34,7 @@ C_FILES = lib.c \
 		  stmt_types.h \
 		  error_code.h \
 		  ty_types.h \
+		  mir_types.h \
 		  std.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
