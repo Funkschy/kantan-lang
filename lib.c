@@ -47,6 +47,29 @@ char const *const type2str(int32_t type) {
     return get_str(type, len_type_strings, type_type_strings);
 }
 
+void assert_fmt(bool condition, char const *fmt, ...) {
+#if DEBUG_ASSERT
+    if (condition) {
+        return;
+    }
+
+    char *s = NULL;
+    va_list args;
+    va_start(args, fmt);
+    int32_t size = vformat_str(&s, fmt, args);
+    va_end(args);
+
+    if (size < 0) {
+        return;
+    }
+
+    printf("%s\n", s);
+    free(s);
+
+    abort();
+#endif
+}
+
 char const *const format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;

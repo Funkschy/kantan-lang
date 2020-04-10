@@ -5,6 +5,7 @@ import "source";
 import "std";
 import "span";
 import "io";
+import "dbg";
 
 extern def num_builtin_files(): i32;
 extern def get_builtin_files(): *string;
@@ -48,10 +49,7 @@ def get_ptr_from_span(m: *FileMap, span: *span.Span): *source.SourceFile {
     let i = 0;
     while i < m.files.len {
         let file = get_ptr_by_idx(m, i);
-        if file == null {
-            io.printf("File was null\n");
-            std.abort();
-        }
+        dbg.assert(file != null, "File was null");
 
         if span.start >= file.code && span.end <= file.code + file.len {
             return file;

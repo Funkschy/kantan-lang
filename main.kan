@@ -1,5 +1,6 @@
 #include "std.h"
  // #define DEBUG
+#define DEBUG_ASSERT 0
 
 import "parser";
 import "io";

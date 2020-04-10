@@ -43,8 +43,8 @@ def create_key(len: i32, value: string): Key {
     return Key { len: len, value: value };
 }
 
-def key_from_ident(ident: *ident.Ident): Key {
-    return create_key(ident.len(ident), ident.start(ident));
+def key_from_ident(i: *ident.Ident): Key {
+    return create_key(ident.len(i), ident.start(i));
 }
 
 type Item struct {

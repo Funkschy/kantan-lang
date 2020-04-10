@@ -125,7 +125,7 @@ def current(l: *Lexer): i32 {
     return c;
 }
 
-def path(l: *Lexer): path.Path {
+def get_path(l: *Lexer): path.Path {
     return l.source.file.path.inner;
 }
 

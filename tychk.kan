@@ -15,6 +15,7 @@ import "func";
 import "ty";
 import "tyid";
 import "param";
+import "dbg";
 
 import "std";
 // TODO(#21): only for debug purposes
@@ -330,19 +331,15 @@ def check(tc: *TypeChecker): void {
                 // }
                 // DBG END
 
-                if ty.is_struct(incomplete_ty) {
-                    let s_ty = ty.as_struct(incomplete_ty);
-                    push_incomplete_ty_error(tc, &s_ty.name);
-                    error = true;
-                } else {
-                    std.abort();
-                }
+                dbg.assert(ty.is_struct(incomplete_ty), "incomplete_ty wasn't a struct");
+
+                let s_ty = ty.as_struct(incomplete_ty);
+                push_incomplete_ty_error(tc, &s_ty.name);
+                error = true;
             } else {
                 let idx = std.ptr_to_int(next.value) - 1;
                 let pending = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
-                if pending == null {
-                    std.abort();
-                }
+                dbg.assert(pending != null, "pending was null");
 
                 let j = 0;
                 while j < pending.len {
@@ -377,10 +374,7 @@ def check(tc: *TypeChecker): void {
 }
 
 def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
-    if m.ty != null {
-        std.abort();
-    }
-
+    dbg.assert(m.ty == null, "mod type should be null");
     io.printf("DBG: Initializing (%d) %.*s\n", idx, m.path.len, m.path.inner);
 
     let ty = ty.new_mod();
@@ -394,10 +388,7 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
 }
 
 def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
-    if m.ty == null {
-        std.abort();
-    }
-
+    dbg.assert(m.ty != null, "mod type should not be null");
     let decl_only = mode == DECL_ONLY_PASS;
 
     let d_o = "";
@@ -407,9 +398,7 @@ def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
 
     io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, m.path.len, m.path.inner);
     let ctx = get_ctx(tc, idx);
-    if ctx == null {
-        std.abort();
-    }
+    dbg.assert(ctx != null, "ctx should not be null");
 
     tc.ctx = ctx;
     tc.decl_only_pass = decl_only;
@@ -832,9 +821,7 @@ def wait_for_struct_field(
     }
     ty.push_field(ty.as_struct(s_ty), field.ident, field_ty);
 
-    if offset >= ty.as_struct(s_ty).fields.len {
-        std.abort(); // TODO(#41): debug assert
-    }
+    dbg.assert(offset < ty.as_struct(s_ty).fields.len, "offset too big");
 
     let request = create_waiting_request(
         tc,
@@ -1043,9 +1030,7 @@ def check_import(
     add_import_alias(tc, &alias, imported_mod);
 
     let mod_ty = imported_mod.ty;
-    if mod_ty == null {
-        std.abort();
-    }
+    dbg.assert(mod_ty != null, "mod_ty should not be null");
 
     *out_alias = alias;
     *out_ty = mod_ty;
@@ -1268,14 +1253,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         let ty = check_struct_decl(tc, sd);
+        dbg.assert(ty != null, "struct type should never be null");
 
-        if ty != null {
-            bind(tc, &sd.name, ty);
-        } else {
-            std.abort();
-            return null;
-        }
-
+        bind(tc, &sd.name, ty);
         return s;
     }
 
@@ -1510,9 +1490,7 @@ def check_expr_scope_expect(
     lookup_scope: *scope.Scope,
     expected: *ty.Type
 ): *ast.Expr {
-    if tc.decl_only_pass {
-        std.abort();
-    }
+    dbg.assert(!tc.decl_only_pass, "expressions should not be checked during the decl_only_pass");
 
     // EXPR_INT
     if ast.is_int_expr(e) {
@@ -1863,10 +1841,10 @@ def check_binary_expr(
 #define RET_INVALID_TYS() push_bin_invalid_types_error(tc, first, second, op_span); \
             return null
 
-    if kind < BINARY_ADD || kind > BINARY_NE {
-        io.printf("Invalid binary expression: %d\n", kind);
-        std.abort();
-    }
+    dbg.assert_fmt(
+        kind >= BINARY_ADD && kind <= BINARY_NE,
+        "Invalid binary expression: %d\n", kind
+    );
 
     if first == null || second == null {
         push_internal_error(tc, span, "types were null");
@@ -1942,10 +1920,10 @@ def check_unary_expr(
     expr: *ast.Expr,
     span: span.Span
 ): *ty.Type {
-    if kind < UNARY_REF || kind > UNARY_NEG_NUM {
-        io.printf("Invalid unary expression: %d\n", kind);
-        std.abort();
-    }
+    dbg.assert_fmt(
+        kind >= UNARY_REF && kind <= UNARY_NEG_NUM,
+        "Invalid unary expression: %d\n", kind
+    );
 
     if expr.ty == null {
         push_internal_error(tc, span, "Unary expr type was null");
@@ -2068,11 +2046,11 @@ def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
     push_mk_err(tc, text, span);
 }
 
-def push_simple_error(tc: *TypeChecker, code: i32, ident: *ident.Ident): void {
-    let len = ident.len(ident);
-    let text = std.err2str(code, len, ident.start(ident));
+def push_simple_error(tc: *TypeChecker, code: i32, i: *ident.Ident): void {
+    let len = ident.len(i);
+    let text = std.err2str(code, len, ident.start(i));
 
-    push_mk_err(tc, text, ident.span);
+    push_mk_err(tc, text, i.span);
 }
 
 def push_incomplete_ty_error(tc: *TypeChecker, name: *ident.Ident): void {
