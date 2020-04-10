@@ -22,8 +22,23 @@ type Label struct {
     name: Name
 }
 
+type AddressName struct {
+    value: Name
+}
+
+type AddressConst struct {
+    span: span.Span
+}
+
+type AddressTemp struct {}
+
+type AddressGlobal struct {}
+
+type AddressRef struct {}
+
 type Address struct {
     kind: i32,
+    ty: *ty.Type,
     data: *void
 }
 

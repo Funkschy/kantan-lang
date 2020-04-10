@@ -1,3 +1,7 @@
+// TODO(#59): The whole span logic would be simpler if a span would just consist of
+//  2 pointers: type Span struct { start: string, end: string }
+//  the ctx could be obtained by keeping a memory map of the source files
+
 // 0b1000_0000_0000_0000
 #define TAG_INTERNED 32768
 // 0b0111_1111_1111_1111
