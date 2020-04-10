@@ -3,6 +3,8 @@ import "path";
 import "file";
 import "source";
 import "std";
+import "span";
+import "io";
 
 extern def num_builtin_files(): i32;
 extern def get_builtin_files(): *string;
@@ -38,6 +40,27 @@ def get_by_idx(m: *FileMap, idx: i32): source.SourceFile {
 
 def get_ptr_by_idx(m: *FileMap, idx: i32): *source.SourceFile {
     return vec.get_ptr(&m.files, idx) as *source.SourceFile;
+}
+
+def get_ptr_from_span(m: *FileMap, span: *span.Span): *source.SourceFile {
+    // TODO(#60): this should use a binary search or some kind of tree
+
+    let i = 0;
+    while i < m.files.len {
+        let file = get_ptr_by_idx(m, i);
+        if file == null {
+            io.printf("File was null\n");
+            std.abort();
+        }
+
+        if span.start >= file.code && span.end <= file.code + file.len {
+            return file;
+        }
+
+        i = i + 1;
+    }
+
+    return null;
 }
 
 def free_fm(m: *FileMap): void {

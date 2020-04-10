@@ -12,5 +12,5 @@ def create(name: ident.Ident, ty: tyid.Type): Param {
 }
 
 def is_varargs(p: *Param): bool {
-    return std.memcmp(p.name.ident as *void, "..." as *void, 3) == 0;
+    return std.memcmp(ident.start(&p.name) as *void, "..." as *void, 3) == 0;
 }

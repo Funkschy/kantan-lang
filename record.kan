@@ -30,7 +30,7 @@ def free_fields(fs: *Fields): void {
     vec.free_v(&fs.fields);
 }
 
-def create_fields(si: *span.SpanInterner, fields: vec.Vec): Fields {
+def create_fields(fields: vec.Vec): Fields {
     let field_map = map.with_cap(fields.len);
 
     let i = 0;
@@ -38,10 +38,10 @@ def create_fields(si: *span.SpanInterner, fields: vec.Vec): Fields {
         let field = empty_field();
         vec.get(&fields, i, &field as *void);
 
-        let s = tyid.to_string(&field.ty, si);
+        let s = tyid.to_string(&field.ty);
         delete s;
 
-        let key = map.key_from_ident(si, &field.ident);
+        let key = map.key_from_ident(&field.ident);
         // add one, to be able to tell null apart from 0
         let index = std.int_to_ptr(i) + 1;
 
@@ -56,7 +56,7 @@ def fields_get_field_at(fs: *Fields, i: i32, dest: *Field): bool {
     return vec.get(&fs.fields, i, dest as *void);
 }
 
-def fields_to_string(fs: *Fields, span_interner: *span.SpanInterner): string {
+def fields_to_string(fs: *Fields): string {
     let fields = (new '\0') as string;
 
     let i = 0;
@@ -66,8 +66,8 @@ def fields_to_string(fs: *Fields, span_interner: *span.SpanInterner): string {
             delete fields;
             return null;
         }
-        let n = ident.to_string(&f.ident, span_interner);
-        let t = tyid.to_string(&f.ty, span_interner);
+        let n = ident.to_string(&f.ident);
+        let t = tyid.to_string(&f.ty);
 
         let extra_len = 2; // ': '
         if i > 0 {
@@ -101,8 +101,8 @@ type StructDecl struct {
     fields: Fields
 }
 
-def create_struct(si: *span.SpanInterner, name: ident.Ident, fields: vec.Vec): StructDecl {
-    let fields = create_fields(si, fields);
+def create_struct(name: ident.Ident, fields: vec.Vec): StructDecl {
+    let fields = create_fields(fields);
     return StructDecl { name: name, fields: fields };
 }
 
@@ -118,9 +118,9 @@ def field_at(s: *StructDecl, i: i32, dest: *Field): bool {
     return fields_get_field_at(&s.fields, i, dest);
 }
 
-def field_by_ident(s: *StructDecl, name: ident.Ident, si: *span.SpanInterner, dest: *Field): bool {
+def field_by_ident(s: *StructDecl, name: ident.Ident, dest: *Field): bool {
     // since the map can only save pointers, the i32 is inside a *void
-    let ptr = map.get(&s.fields.field_map, map.key_from_ident(si, &name));
+    let ptr = map.get(&s.fields.field_map, map.key_from_ident(&name));
     if ptr == null {
         return false;
     }
@@ -129,9 +129,9 @@ def field_by_ident(s: *StructDecl, name: ident.Ident, si: *span.SpanInterner, de
     return field_at(s, idx, dest);
 }
 
-def to_string(s: *StructDecl, span_interner: *span.SpanInterner): string {
-    let name = ident.to_string(&s.name, span_interner);
-    let fields = fields_to_string(&s.fields, span_interner);
+def to_string(s: *StructDecl): string {
+    let name = ident.to_string(&s.name);
+    let fields = fields_to_string(&s.fields);
     let s = std.format_str("type %s struct { %s }", name, fields);
 
     delete name;

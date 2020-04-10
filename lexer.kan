@@ -12,12 +12,15 @@ extern def tok2str(ty: i32): string;
 
 type Token struct {
     ty: i32,
-    span: span.Span,
-    lexeme: string
+    span: span.Span
 }
 
 def empty_token(): Token {
-    return Token { ty: TOKEN_UNKNOWN_ERR, span: span.empty(), lexeme: null };
+    return Token { ty: TOKEN_UNKNOWN_ERR, span: span.empty() };
+}
+
+def lexeme(tok: *Token): string {
+    return tok.span.start;
 }
 
 def is_err(token: *Token): bool {
@@ -29,22 +32,22 @@ def token_ty_to_static_string(ty: i32): string {
     return tok2str(ty);
 }
 
-def token_len(token: *Token, si: *span.SpanInterner): i32 {
-    return span.get(si, token.span).len;
+def token_len(token: *Token): i32 {
+    return span.len(token.span);
 }
 
 // returned boolean indicates if the strings has to be freed
-def token_to_string(token: *Token, si: *span.SpanInterner, dest: *string): bool {
+def token_to_string(token: *Token, dest: *string): bool {
     // this is the range of tokens, that need to be formatted
     if token.ty >= TOKEN_INT && token.ty <= TOKEN_IDENT {
-        let len = token_len(token, si);
-        *dest = std.strndup(token.lexeme, len);
+        let len = token_len(token);
+        *dest = std.strndup(lexeme(token), len);
         return true;
     }
 
     if token.ty == TOKEN_STRING || token.ty == TOKEN_CHAR {
-        let len = token_len(token, si);
-        *dest = std.strndup(token.lexeme - 1, len + 2);
+        let len = token_len(token);
+        *dest = std.strndup(lexeme(token) - 1, len + 2);
         return true;
     }
 
@@ -56,35 +59,27 @@ def token_to_string(token: *Token, si: *span.SpanInterner, dest: *string): bool 
 
 type Lexer struct {
     has_peek: bool,
-    ctx: i32,
-    source_len: i32,
     peek: Token,
     source: source.SourceFile,
     start: string,
-    current: string,
-    span_interner: *span.SpanInterner
+    current: string
 }
 
-def create(src: source.SourceFile, span_interner: *span.SpanInterner, ctx: i32): Lexer {
-    let span = span.create(span_interner, 0, 0, ctx);
-    let init_peek = Token { ty: TOKEN_UNKNOWN_ERR, span: span, lexeme: null };
+def create(src: source.SourceFile): Lexer {
+    let span = span.create(src.code, src.code);
+    let init_peek = Token { ty: TOKEN_UNKNOWN_ERR, span: span };
 
     return Lexer {
         has_peek: false,
-        ctx: ctx,
-        // TODO(#2): save length while reading file
-        //  we should probably save it inside of the source.SourceFile anyway
-        source_len: std.strlen(src.code),
         peek: init_peek,
         source: src,
         start: src.code,
-        current: src.code,
-        span_interner: span_interner
+        current: src.code
     };
 }
 
 def end_pos(l: *Lexer): i32 {
-    return l.source_len - 1;
+    return l.source.len - 1;
 }
 
 def peek(l: *Lexer): Token {
@@ -109,16 +104,24 @@ def next_token(l: *Lexer): Token {
 
 def current_pos(l: *Lexer): i32 {
     if l.has_peek {
-        return l.peek.span.start;
+        return l.peek.span.start - l.source.code;
     }
 
     return l.current - l.source.code;
 }
 
+def current_ptr(l: *Lexer): string {
+    if l.has_peek {
+        return l.peek.span.start;
+    }
+
+    return l.current;
+}
+
 def current(l: *Lexer): i32 {
     let c = 0;
     let read_bytes = current_pos(l);
-    std.read_char(l.current, l.source_len - read_bytes, &c);
+    std.read_char(l.current, l.source.len - read_bytes, &c);
     return c;
 }
 
@@ -148,13 +151,13 @@ def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: i32): 
 def ident_type(l: *Lexer): i32 {
     let bytes_until = l.start - l.source.code;
     let start = 0;
-    let len = std.read_char(l.start, l.source_len - bytes_until, &start);
+    let len = std.read_char(l.start, l.source.len - bytes_until, &start);
 
     if start == std.char_to_int('l') {
         return check_keyword(l, 1, 2, "et", TOKEN_LET);
     } else if start == std.char_to_int('i') && l.current - l.start > 1 {
         let next = 0;
-        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
         if next == std.char_to_int('f') {
             return check_keyword(l, 2, 0, "", TOKEN_IF);
@@ -163,9 +166,9 @@ def ident_type(l: *Lexer): i32 {
         }
     } else if start == std.char_to_int('d') && l.current - l.start > 2 {
         let next = 0;
-        len = len + std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+        len = len + std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
         // read third char
-        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
         if next == std.char_to_int('f') {
             return check_keyword(l, 1, 2, "ef", TOKEN_DEF);
@@ -174,7 +177,7 @@ def ident_type(l: *Lexer): i32 {
         }
     } else if start == std.char_to_int('e') && l.current - l.start > 3 {
         let next = 0;
-        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
         if next == std.char_to_int('x') {
             return check_keyword(l, 2, 4, "tern", TOKEN_EXTERN);
@@ -183,7 +186,7 @@ def ident_type(l: *Lexer): i32 {
         }
     } else if start == std.char_to_int('n') && l.current - l.start > 2 {
         let next = 0;
-        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
         if next == std.char_to_int('u') {
             return check_keyword(l, 2, 2, "ll", TOKEN_NULL);
@@ -192,7 +195,7 @@ def ident_type(l: *Lexer): i32 {
         }
     } else if start == std.char_to_int('s') && l.current - l.start > 5 {
         let next = 0;
-        std.read_char(l.start + len, l.source_len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
         if next == std.char_to_int('t') {
             return check_keyword(l, 2, 4, "ruct", TOKEN_STRUCT);
@@ -301,29 +304,23 @@ def at_end(l: *Lexer): bool {
 def advance(l: *Lexer): i32 {
     let read_bytes = current_pos(l);
     let c = 0;
-    let len = std.read_char(l.current, l.source_len - read_bytes, &c);
+    let len = std.read_char(l.current, l.source.len - read_bytes, &c);
 
     l.current = l.current + len;
     return c;
 }
 
-def create_span(l: *Lexer, start: i32, end: i32): span.Span {
-    return span.create(l.span_interner, start, end, l.ctx);
-}
-
 def create_token(l: *Lexer, ty: i32, start: string, end: string): Token {
     return Token {
         ty: ty,
-        span: create_span(l, start - l.source.code, end - l.source.code),
-        lexeme: start
+        span: span.create(start, end)
     };
 }
 
 def create_token_from_span(l: *Lexer, ty: i32, start: string, span: span.Span): Token {
     return Token {
         ty: ty,
-        span: span,
-        lexeme: start
+        span: span
     };
 }
 
@@ -333,11 +330,10 @@ def token_from_start(l: *Lexer, ty: i32): Token {
 
 def get_next_token(l: *Lexer): Token {
     if at_end(l) {
-        let pos = current_pos(l);
+        let ptr = current_ptr(l);
         return Token {
             ty: TOKEN_EOF,
-            span: create_span(l, pos, pos),
-            lexeme: null
+            span: span.create(ptr, ptr)
         };
     }
 

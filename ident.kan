@@ -5,28 +5,31 @@ import "std";
 import "lexer";
 
 type Ident struct {
-    ident: string,
-    ident_span: span.Span
+    span: span.Span
 }
 
 def create(t: lexer.Token): Ident {
-    return Ident { ident: t.lexeme, ident_span: t.span };
+    return Ident { span: t.span };
 }
 
-def from_str(span: span.Span, str: string): Ident {
-    return Ident { ident: str, ident_span: span };
+def from_span(span: span.Span): Ident {
+    return Ident { span: span };
 }
 
 def empty(): Ident {
     return create(lexer.empty_token());
 }
 
-def len(i: *Ident, span_interner: *span.SpanInterner): i32 {
-    return span.get(span_interner, i.ident_span).len;
+def start(i: *Ident): string {
+    return i.span.start;
+}
+
+def len(i: *Ident): i32 {
+    return span.len(i.span);
 }
 
 def char_at(i: *Ident, pos: i32): char {
-    return *(i.ident + pos);
+    return *(i.span.start + pos);
 }
 
 // -1 if not found
@@ -43,7 +46,7 @@ def index_of(id: *Ident, ident_len: i32, c: char): i32 {
 }
 
 // this does a strdup and needs to be freed
-def to_string(i: *Ident, span_interner: *span.SpanInterner): string {
-    let len = span.get(span_interner, i.ident_span).len;
-    return std.strndup(i.ident, len);
+def to_string(i: *Ident): string {
+    let len = len(i);
+    return std.strndup(i.span.start, len);
 }

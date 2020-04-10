@@ -29,7 +29,6 @@ def main(argc: i32, argv: *string): i32 {
     let cwd = cwd_buf.inner;
 
     let num_total_errs = 0;
-    let span_interner = span.create_interner();
 
     let file_map = reader.create();
     let res = reader.add_std_lib(&file_map, &cwd);
@@ -59,24 +58,24 @@ def main(argc: i32, argv: *string): i32 {
     let i = 0;
     while i < reader.num_files(&file_map) {
         let src = reader.get_by_idx(&file_map, i);
-        let p = parser.create(src, &span_interner, i);
+        let p = parser.create(src);
         let curr_mod = parser.parse(&p);
 
         let num_errs = parser.num_errs(&p);
         num_total_errs = num_total_errs + num_errs;
         if num_errs > 0 {
             io.printf("%d parse errors found\n", num_errs);
-            print_parse_errors(&p, &span_interner, &file_map, &cwd);
+            print_parse_errors(&p, &file_map, &cwd);
         }
 
         mod.add_mod(&mm, curr_mod);
-        print_dbg_mod_info(curr_mod, &span_interner);
+        print_dbg_mod_info(curr_mod);
 
         // just get the first stmt
         let s = mod.get_stmt(curr_mod, 0);
 
         if s != null {
-            print_dbg_stmt_info(s, &span_interner);
+            print_dbg_stmt_info(s);
         } else {
             io.printf("ERROR: no valid statement in file\n");
         }
@@ -87,26 +86,25 @@ def main(argc: i32, argv: *string): i32 {
 
     // TODO(#5): only type check, if no parse errors where found?
     //  this does not seem to be a problem right now
-    let tc = tychk.create(&span_interner, &mm);
+    let tc = tychk.create(&mm);
     tychk.check(&tc);
 
     let num_errs = tychk.num_errs(&tc);
     num_total_errs = num_total_errs + num_errs;
     if num_errs > 0 {
         io.printf("%d type errors found\n", num_errs);
-        print_type_errors(&tc, &span_interner, &file_map, &cwd);
+        print_type_errors(&tc, &file_map, &cwd);
     }
 
     tychk.free_tc(&tc);
     reader.free_fm(&file_map);
     mod.map_free(&mm);
     path.free_pb(&cwd_buf);
-    span.free_interner(&span_interner);
 
     return num_total_errs;
 }
 
-def print_dbg_stmt_info(s: *ast.Stmt, span_interner: *span.SpanInterner): void {
+def print_dbg_stmt_info(s: *ast.Stmt): void {
 #ifdef DEBUG
     let is_expr = ast.is_expr_stmt(s);
     io.printf("is expr: %d\n", is_expr);
@@ -114,7 +112,7 @@ def print_dbg_stmt_info(s: *ast.Stmt, span_interner: *span.SpanInterner): void {
     if is_expr {
         let e = ast.as_expr_stmt(s).expr;
 
-        let s = ast.expr_to_string(e, span_interner);
+        let s = ast.expr_to_string(e);
         io.printf("%s\n", s);
         delete s;
 
@@ -125,20 +123,20 @@ def print_dbg_stmt_info(s: *ast.Stmt, span_interner: *span.SpanInterner): void {
 
     } else if ast.is_struct_decl_stmt(s) {
         let decl_s = ast.as_struct_decl_stmt(s);
-        let s = record.to_string(&decl_s.decl, span_interner);
+        let s = record.to_string(&decl_s.decl);
         io.printf("%s\n", s);
         delete s;
     } else if ast.is_let_stmt(s) {
         let ls = ast.as_let_stmt(s);
 
-        let ident: string = ls.ident.ident;
-        let ident_len = span.get(span_interner, ls.ident.ident_span).len;
-        let value = ast.expr_to_string(ls.value, span_interner);
+        let ident: string = ident.start(&ls.ident);
+        let ident_len = ident.len(&ls.ident);
+        let value = ast.expr_to_string(ls.value);
 
         let ty = (new '\0') as string;
         if ast.has_type_decl(ls) {
             delete ty;
-            let tys = tyid.to_string(&ls.ty, span_interner);
+            let tys = tyid.to_string(&ls.ty);
             ty = std.format_str(": %s", tys);
             delete tys;
         }
@@ -150,13 +148,13 @@ def print_dbg_stmt_info(s: *ast.Stmt, span_interner: *span.SpanInterner): void {
 #endif
 }
 
-def print_dbg_mod_info(curr_mod: *mod.Module, span_interner: *span.SpanInterner): void {
+def print_dbg_mod_info(curr_mod: *mod.Module): void {
 #ifdef DEBUG
     let num_imports = mod.num_imports(curr_mod);
     let j = 0;
     while j < num_imports {
         let is = mod.get_import_at(curr_mod, j);
-        let s = ident.to_string(&is.curr_mod, span_interner);
+        let s = ident.to_string(&is.curr_mod);
         io.printf("import '%s'\n", s);
         delete s;
 
@@ -166,8 +164,8 @@ def print_dbg_mod_info(curr_mod: *mod.Module, span_interner: *span.SpanInterner)
     io.printf("%d functions\n", mod.num_functions(curr_mod));
     if mod.num_functions(curr_mod) > 0 {
         let first = mod.get_function_at(curr_mod, 0);
-        let s = tyid.to_string(&first.decl.ret_ty, span_interner);
-        let name = ident.to_string(&first.decl.name, span_interner);
+        let s = tyid.to_string(&first.decl.ret_ty);
+        let name = ident.to_string(&first.decl.name);
         io.printf("def %s: %s\n", name, s);
         delete s;
         delete name;
@@ -176,7 +174,7 @@ def print_dbg_mod_info(curr_mod: *mod.Module, span_interner: *span.SpanInterner)
     io.printf("%d structs\n", mod.num_structs(curr_mod));
     if mod.num_structs(curr_mod) > 0 {
         let first = mod.get_struct_at(curr_mod, 0);
-        let s = record.to_string(&first.decl, span_interner);
+        let s = record.to_string(&first.decl);
         io.printf("%s\n", s);
         delete s;
     }
@@ -185,17 +183,16 @@ def print_dbg_mod_info(curr_mod: *mod.Module, span_interner: *span.SpanInterner)
 
 def print_parse_errors(
     p: *parser.Parser,
-    si: *span.SpanInterner,
     fm: *reader.FileMap,
     abs_path: *path.Path
 ): void {
     let i = 0;
     while i < parser.num_errs(p) {
         let err = parser.get_err(p, i);
-        let span = span.get(si, err.span);
-        let src = reader.get_ptr_by_idx(fm, span.ctx);
+        let span = err.span;
+        let src = reader.get_ptr_from_span(fm, &span);
 
-        print_error(si, err.text, &span, src, abs_path);
+        print_error(err.text, &span, src, abs_path);
 
         i = i + 1;
     }
@@ -203,39 +200,37 @@ def print_parse_errors(
 
 def print_type_errors(
     tc: *tychk.TypeChecker,
-    si: *span.SpanInterner,
     fm: *reader.FileMap,
     abs_path: *path.Path
 ): void {
     let i = 0;
     while i < tychk.num_errs(tc) {
         let err = tychk.get_err(tc, i);
-        let span = span.get(si, err.span);
-        let src = reader.get_ptr_by_idx(fm, span.ctx);
+        let span = err.span;
+        let src = reader.get_ptr_from_span(fm, &span);
 
-        print_error(si, err.text, &span, src, abs_path);
+        print_error(err.text, &span, src, abs_path);
 
         i = i + 1;
     }
 }
 
-def printf_spanned(span: *span.BigSpan, file: *source.SourceFile): void {
-    io.printf(" | %.*s\n", span.len, file.code + span.start);
+def printf_spanned(span: span.Span, file: *source.SourceFile): void {
+    io.printf(" | %.*s\n", span.len(span), span.start);
 }
 
 def print_error(
-    si: *span.SpanInterner,
     err_text: string,
-    span: *span.BigSpan,
+    span: *span.Span,
     file: *source.SourceFile,
     abs_path: *path.Path
 ): void {
     let last_nl = 0;
-    let line = source.find_line(span, si, file, &last_nl);
+    let line = source.find_line(span, file, &last_nl);
     let name = source.file_name_dup(file);
     let offset = 0;
     let file_path = &file.file.path.inner;
-    let col = span.start - last_nl;
+    let col = span.start - file.code - last_nl;
 
     // TODO(#13): this only works when the filepath is in a subdir of abs_path
     //  i don't actually know, if this is still a problem, this needs to be
@@ -255,7 +250,7 @@ def print_error(
         col
     );
 
-    printf_spanned(&line.span, file);
+    printf_spanned(line.span, file);
     io.printf("\n");
 
     delete name;

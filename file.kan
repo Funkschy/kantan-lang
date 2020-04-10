@@ -1,6 +1,6 @@
 import "path";
 
-extern def read_file(path: string, dest: *string): i32;
+extern def read_file(path: string, dest: *string, len: *i32): i32;
 
 type File struct {
     path: path.PathBuf
@@ -18,9 +18,9 @@ def name_dup(f: *File): string {
     return path.to_string(&f.path.inner);
 }
 
-def read_to_string(s: *File, dest: *string): i32 {
+def read_to_string(s: *File, dest: *string, len: *i32): i32 {
     let path = path.to_string(&s.path.inner);
-    let ret_code = read_file(path, dest);
+    let ret_code = read_file(path, dest, len);
     delete path;
     return ret_code;
 }

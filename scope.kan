@@ -18,13 +18,12 @@ def free_s(s: *Scope): void {
 
 def bind_in(
     s: *Scope,
-    span_interner: *span.SpanInterner,
     ident: *ident.Ident,
     value: *ty.Type
 ): *ty.Type {
     return map.insert(
         &s.bindings,
-        map.key_from_ident(span_interner, ident),
+        map.key_from_ident(ident),
         value as *void
     ) as *ty.Type;
 }
@@ -42,8 +41,8 @@ def s_bind_in(
     ) as *ty.Type;
 }
 
-def get_in(s: *Scope, span_interner: *span.SpanInterner, ident: *ident.Ident): *ty.Type {
-    return map.get(&s.bindings, map.key_from_ident(span_interner, ident)) as *ty.Type;
+def get_in(s: *Scope, ident: *ident.Ident): *ty.Type {
+    return map.get(&s.bindings, map.key_from_ident(ident)) as *ty.Type;
 }
 
 def s_get_in(s: *Scope, key_len: i32, key: string): *ty.Type {
@@ -51,18 +50,16 @@ def s_get_in(s: *Scope, key_len: i32, key: string): *ty.Type {
 }
 
 type ScopeStack struct {
-    scopes: ptrvec.Vec, // vec of *Scopes
-    span_interner: *span.SpanInterner // redundant, but leads to a nicer interface
+    scopes: ptrvec.Vec // vec of *Scopes
 }
 
 def empty_stack(): ScopeStack {
-    return ScopeStack { scopes: ptrvec.create(), span_interner: null };
+    return ScopeStack { scopes: ptrvec.create() };
 }
 
-def create_stack(span_interner: *span.SpanInterner): ScopeStack {
+def create_stack(): ScopeStack {
     return ScopeStack {
-        scopes: ptrvec.create(),
-        span_interner: span_interner
+        scopes: ptrvec.create()
     };
 }
 
@@ -106,7 +103,7 @@ def top(s: *ScopeStack): *Scope {
 }
 
 def bind(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): *ty.Type {
-    return bind_in(top(s), s.span_interner, ident, value);
+    return bind_in(top(s), ident, value);
 }
 
 def num_scopes(s: *ScopeStack): i32 {
@@ -118,7 +115,7 @@ def lookup(s: *ScopeStack, ident: *ident.Ident): *ty.Type {
     while i >= 0 {
         let scope = scope_at(s, i);
         let ty: *ty.Type = null;
-        if (ty = get_in(scope, s.span_interner, ident)) != null {
+        if (ty = get_in(scope, ident)) != null {
             return ty;
         }
         i = i - 1;

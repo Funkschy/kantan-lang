@@ -83,27 +83,25 @@ def patch_waiting_for(
         return;
     }
 
-    let len = ident.len(waiting_for, tc.span_interner);
+    let len = ident.len(waiting_for);
     let dot_index = ident.index_of(waiting_for, len, '.');
     if dot_index > 0 {
-        let ident_mod = get_mod_by_alias(tc.ctx, dot_index, waiting_for.ident);
+        let ident_mod = get_mod_by_alias(tc.ctx, dot_index, ident.start(waiting_for));
         if ident_mod != waiting_for_mod {
             if ident_mod == null {
-                io.printf("ERROR: alias '%.*s' was null\n", dot_index, waiting_for.ident);
+                io.printf("ERROR: alias '%.*s' was null\n", dot_index, ident.start(waiting_for));
             }
             // not recoverable and probably unreachable
             std.abort();
         }
 
         // remove the module path: 'mymod.test' => 'test'
-        let old_span = span.get(tc.span_interner, waiting_for.ident_span);
+        let old_span = waiting_for.span;
         let start = old_span.start + dot_index + 1;
-        let end = old_span.start + old_span.len;
+        let end = old_span.end;
 
-        let new_span = span.create(tc.span_interner, start, end, old_span.ctx);
-        let new_ident = waiting_for.ident + dot_index + 1;
-
-        *waiting_for = ident.from_str(new_span, new_ident);
+        let new_span = span.create(start, end);
+        *waiting_for = ident.from_span(new_span);
     }
 }
 
@@ -127,12 +125,12 @@ def create_waiting_request_map(): WaitingRequestMap {
     return map;
 }
 
-def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: WaitingRequest): void {
+def add_request(wrm: *WaitingRequestMap, request: WaitingRequest): void {
     let requests: *vec.Vec = null;
 
     let wanted_ident = req_waiting_for_ident(&request);
     // ------
-        let s = ident.to_string(wanted_ident, si);
+        let s = ident.to_string(wanted_ident);
         let kind_s = "struct";
         if request.kind == WAITING_TYPE_PTR {
             kind_s = "ptr";
@@ -143,7 +141,7 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
         delete s;
     // ------
 
-    let key = map.key_from_ident(si, wanted_ident);
+    let key = map.key_from_ident(wanted_ident);
     let request_idx = map.get(&wrm.request_map, key);
     let idx = -1;
 
@@ -165,8 +163,8 @@ def add_request(wrm: *WaitingRequestMap, si: *span.SpanInterner, request: Waitin
     vec.push(requests, &request as *void);
 }
 
-def get_waiting(wrm: *WaitingRequestMap, si: *span.SpanInterner, ident: *ident.Ident): *vec.Vec {
-    let key = map.key_from_ident(si, ident);
+def get_waiting(wrm: *WaitingRequestMap, ident: *ident.Ident): *vec.Vec {
+    let key = map.key_from_ident(ident);
     let request_idx = map.get_and_remove(&wrm.request_map, key);
 
     if request_idx == null || std.ptr_to_int(request_idx) == 0 {
@@ -209,8 +207,8 @@ type Ctx struct {
     scopes: scope.ScopeStack
 }
 
-def create_ctx(mod: *mod.Module, si: *span.SpanInterner, global: *scope.Scope): *Ctx {
-    let scopes = scope.create_stack(si);
+def create_ctx(mod: *mod.Module, global: *scope.Scope): *Ctx {
+    let scopes = scope.create_stack();
     scope.push_scope(&scopes, global);
     scope.push_scope(&scopes, ty.get_scope(mod.ty));
 
@@ -234,7 +232,6 @@ def get_mod_by_alias(ctx: *Ctx, alias_len: i32, alias: string): *mod.Module {
 
 type TypeChecker struct {
     decl_only_pass: bool, // the first pass ignores everything but declarations
-    span_interner: *span.SpanInterner,
     mods: *mod.Map,
     sorted_mods: *i32,
     // types that get created during type checking and need to be freed afterwards
@@ -246,14 +243,13 @@ type TypeChecker struct {
     contexts: ptrvec.Vec
 }
 
-def create(span_interner: *span.SpanInterner, mods: *mod.Map): TypeChecker {
+def create(mods: *mod.Map): TypeChecker {
     let num_mods = mod.num_mods(mods);
 
     let tc = TypeChecker {
         decl_only_pass: false,
-        span_interner: span_interner,
         mods: mods,
-        sorted_mods: sorted_mods(mods, span_interner),
+        sorted_mods: sorted_mods(mods),
         temp_types: ptrvec.with_cap(256),
         ctx: null,
         globals: scope.create(),
@@ -325,7 +321,7 @@ def check(tc: *TypeChecker): void {
                 // while j < waiting_for.len {
                 //     let waiting_for_ty = (vec.get_ptr(waiting_for, j) as *WaitingRequest).to_fill;
                 //     let s: string = null;
-                //     let free_this = ty.to_string(waiting_for_ty, tc.span_interner, &s);
+                //     let free_this = ty.to_string(waiting_for_ty, &s);
                 //     io.printf("DBG: !!!!!!!!!!! is still waiting: %s\n", s);
                 //     if free_this {
                 //         delete s;
@@ -390,7 +386,7 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     let ty = ty.new_mod();
     m.ty = ty;
 
-    let ctx = create_ctx(m, tc.span_interner, &tc.globals);
+    let ctx = create_ctx(m, &tc.globals);
     ptrvec.set(&tc.contexts, idx, ctx as *void);
     tc.ctx = ctx;
 
@@ -444,7 +440,7 @@ def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
         *map = create_waiting_request_map();
     }
 
-    add_request(map, tc.span_interner, req);
+    add_request(map, req);
 }
 
 def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
@@ -492,11 +488,11 @@ def get_err(tc: *TypeChecker, i: i32): *TypeError {
 }
 
 def add_import_alias(tc: *TypeChecker, ident: *ident.Ident, mod: *mod.Module): void {
-    map.insert(&tc.ctx.imports, map.key_from_ident(tc.span_interner, ident), mod as *void);
+    map.insert(&tc.ctx.imports, map.key_from_ident(ident), mod as *void);
 }
 
 // sorts the mods after the number of imports inside
-def sorted_mods(mods: *mod.Map, si: *span.SpanInterner): *i32 {
+def sorted_mods(mods: *mod.Map): *i32 {
     let num_mods = mod.num_mods(mods);
     let import_nums = std.malloc(num_mods * sizeof i32) as *i32;
 
@@ -527,7 +523,7 @@ def lookup(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
 def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.Type {
 #define SET_OUT_MOD(m) if out_mod != null { *out_mod = (m); } 0
 
-    let len = ident.len(name, tc.span_interner);
+    let len = ident.len(name);
     let dot_index = ident.index_of(name, len, '.');
     if dot_index < 0 {
         // same module
@@ -535,18 +531,18 @@ def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.T
         return scope.lookup(&tc.ctx.scopes, name);
     }
 
-    let m = get_mod_by_alias(tc.ctx, dot_index, name.ident);
+    let m = get_mod_by_alias(tc.ctx, dot_index, ident.start(name));
     if m == null {
         SET_OUT_MOD(null);
-        io.printf("DBG DEBUG %.*s mod not found\n", len, name.ident);
+        io.printf("DBG DEBUG %.*s mod not found\n", len, ident.start(name));
         return null;
     }
 
     SET_OUT_MOD(m);
 
-    let ty = mod.s_lookup(m, len - dot_index - 1, name.ident + dot_index + 1);
+    let ty = mod.s_lookup(m, len - dot_index - 1, ident.start(name) + dot_index + 1);
     if ty == null {
-        io.printf("DBG DEBUG %.*s type not found\n", len, name.ident);
+        io.printf("DBG DEBUG %.*s type not found\n", len, ident.start(name));
         return null;
     }
 
@@ -598,7 +594,7 @@ def fill_func_def(
 ): i32 {
     let f_ty = ty.as_func(t);
 
-    let name = ident.to_string(&f_ty.name, tc.span_interner);
+    let name = ident.to_string(&f_ty.name);
     io.printf("DBG: Filling '%s'\n", name);
     delete name;
 
@@ -702,7 +698,7 @@ def fill_struct_fields(
 ): void {
     let s_ty = ty.as_struct(t);
 
-    let s = ident.to_string(&s_decl.name, tc.span_interner);
+    let s = ident.to_string(&s_decl.name);
     io.printf("----\nDBG: resolving %s\n", s);
     delete s;
 
@@ -715,11 +711,11 @@ def fill_struct_fields(
     while i < nf {
         let f = record.empty_field();
         if !record.field_at(s_decl, i, &f) {
-            push_internal_error(tc, s_decl.name.ident_span, "could not get field");
+            push_internal_error(tc, s_decl.name.span, "could not get field");
             return;
         }
 
-        let s = tyid.to_string(&f.ty, tc.span_interner);
+        let s = tyid.to_string(&f.ty);
         io.printf("DBG: field_ty %s\n", s);
         delete s;
 
@@ -739,7 +735,7 @@ def fill_struct_fields(
                         push_tmp_ty(tc, field_ty);
                     }
 
-                    ty.push_field(s_ty, f.ident, field_ty, tc.span_interner);
+                    ty.push_field(s_ty, f.ident, field_ty);
                 } else if is_struct {
                     // a struct that has not been initialized
                     wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
@@ -748,7 +744,7 @@ def fill_struct_fields(
                     }
                 } else {
                     // struct types should be the only uninitialized
-                    push_internal_error(tc, f.ident.ident_span, "reached unreachable code");
+                    push_internal_error(tc, f.ident.span, "reached unreachable code");
                     return;
                 }
             } else {
@@ -759,14 +755,14 @@ def fill_struct_fields(
             }
         } else {
             // push fake field here, so that the offset is not out of bounds
-            ty.push_field(s_ty, f.ident, null, tc.span_interner);
+            ty.push_field(s_ty, f.ident, null);
             error = true;
         }
 
         i = i + 1;
     }
 
-    let s = ident.to_string(&s_decl.name, tc.span_interner);
+    let s = ident.to_string(&s_decl.name);
 
     if !error && !waiting {
         ty.fill_width_align(t);
@@ -834,7 +830,7 @@ def wait_for_struct_field(
         field_ty = ty.new_ptr(field.ty.pointer_count, null);
         push_tmp_ty(tc, field_ty);
     }
-    ty.push_field(ty.as_struct(s_ty), field.ident, field_ty, tc.span_interner);
+    ty.push_field(ty.as_struct(s_ty), field.ident, field_ty);
 
     if offset >= ty.as_struct(s_ty).fields.len {
         std.abort(); // TODO(#41): debug assert
@@ -866,10 +862,10 @@ def update_all_waiting(
     ty.tychk_touch(resolved_ty);
 
     let waiting_map = get_waiting_map(tc, mod);
-    let waiting = get_waiting(waiting_map, tc.span_interner, resolved_name);
+    let waiting = get_waiting(waiting_map, resolved_name);
 
     if waiting == null {
-        let name = ident.to_string(resolved_name, tc.span_interner);
+        let name = ident.to_string(resolved_name);
         io.printf(
             "DBG: no other types waiting for %s width: %d, align: %d\n",
             name, resolved_ty.width, resolved_ty.align
@@ -878,7 +874,7 @@ def update_all_waiting(
         return;
     }
 
-    let name = ident.to_string(resolved_name, tc.span_interner);
+    let name = ident.to_string(resolved_name);
     io.printf("DBG: %d types waiting for %s\n", waiting.len, name);
     delete name;
 
@@ -890,7 +886,7 @@ def update_all_waiting(
         i = i + 1;
     }
 
-    let s = ident.to_string(resolved_name, tc.span_interner);
+    let s = ident.to_string(resolved_name);
     io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
     delete s;
 }
@@ -907,12 +903,12 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         // ----- DBG -----
         let resolved_name: string = null;
         if ty.is_struct(resolved_ty) {
-            resolved_name = ident.to_string(&ty.as_struct(resolved_ty).name, tc.span_interner);
+            resolved_name = ident.to_string(&ty.as_struct(resolved_ty).name);
         } else {
             resolved_name = std.strdup("type");
         }
 
-        let waiting_name = ident.to_string(waiting_ident, tc.span_interner);
+        let waiting_name = ident.to_string(waiting_ident);
         io.printf(
             "DBG: %s was waiting for %s\n", waiting_name, resolved_name
         );
@@ -926,7 +922,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
             field.ty = resolved_ty;
         } else if req.kind == WAITING_TYPE_PTR {
             if !ty.is_ptr(field.ty) {
-                push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
+                push_internal_error(tc, waiting_ident.span, "type is not a ptr");
                 return;
             }
 
@@ -934,7 +930,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         }
 
         // overwrite old type in struct
-        ty.update_field_ty(waiting_s_ty, field, tc.span_interner);
+        ty.update_field_ty(waiting_s_ty, field);
 
         // TODO(#43): calling this all the time is very inefficient
         let completely_initialized = ty.fill_width_align(waiting_ty);
@@ -958,7 +954,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 if ty.is_ptr(waiting_f_ty.ret) {
                     ty.update_inner(waiting_f_ty.ret, resolved_ty);
                 } else {
-                    push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
+                    push_internal_error(tc, waiting_ident.span, "type is not a ptr");
                     return;
                 }
             } else {
@@ -973,7 +969,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                     if ty.is_ptr(p.ty) {
                         ty.update_inner(p.ty, resolved_ty);
                     } else {
-                        push_internal_error(tc, waiting_ident.ident_span, "type is not a ptr");
+                        push_internal_error(tc, waiting_ident.span, "type is not a ptr");
                         return;
                     }
                 } else {
@@ -983,7 +979,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         }
 
         if ty.func_is_initalized(waiting_f_ty) {
-            let s = ident.to_string(&waiting_f_ty.name, tc.span_interner);
+            let s = ident.to_string(&waiting_f_ty.name);
             io.printf("DBG: %s is fully initialized\n", s);
             delete s;
         }
@@ -992,9 +988,9 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
 
 def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
     // when we support "import as" constructs, this will become more interesting
-    let old_span = span.get(tc.span_interner, imp.mod.ident_span);
+    let old_span = imp.mod.span;
     let p = path.empty();
-    if path.from_str_len(imp.mod.ident, old_span.len, &p) != 0 {
+    if path.from_str_len(ident.start(&imp.mod), ident.len(&imp.mod), &p) != 0 {
         return ident.empty();
     }
 
@@ -1005,12 +1001,12 @@ def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
     }
     lsp = lsp + 1; // skip the actual separator
 
-    let offset = lsp - imp.mod.ident;
+    let offset = lsp - ident.start(&imp.mod);
     let start = old_span.start + offset;
     let end = start + p.len - offset;
 
-    let new_span = span.create(tc.span_interner, start, end, old_span.ctx);
-    return ident.from_str(new_span, lsp);
+    let new_span = span.create(start, end);
+    return ident.from_span(new_span);
 }
 
 def in_global_scope(tc: *TypeChecker): bool {
@@ -1027,7 +1023,6 @@ def check_import(
     let imported_mod = mod.try_get_mod_from_import(
         tc.mods,
         tc.ctx.mod,
-        tc.span_interner,
         i_s,
         &error
     );
@@ -1036,13 +1031,13 @@ def check_import(
     if imported_mod == null {
         // TODO(#45): for some reason this error is sometimes duplicated
         //  to recreate, just import a non existing file
-        push_mk_err(tc, error, i_s.mod.ident_span);
+        push_mk_err(tc, error, i_s.mod.span);
         return false;
     }
 
     let alias = get_import_alias(tc, i_s);
-    if alias.ident == null {
-        push_internal_error(tc, i_s.mod.ident_span, "import alias was empty");
+    if ident.start(&alias) == null {
+        push_internal_error(tc, i_s.mod.span, "import alias was empty");
         return false;
     }
     add_import_alias(tc, &alias, imported_mod);
@@ -1120,14 +1115,14 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     }
 
     if !ty.is_func(f_ty) {
-        push_internal_error(tc, f_name.ident_span, "type is not a function");
+        push_internal_error(tc, f_name.span, "type is not a function");
         return null;
     }
 
     let f_ty = ty.as_func(f_ty);
     if !ty.func_is_initalized(f_ty) {
         // --- DBG ---
-            let name_s = ident.to_string(f_name, tc.span_interner);
+            let name_s = ident.to_string(f_name);
             io.printf("DBG: %s is not fully initialized\n", name_s);
             delete name_s;
         // --- DBG ---
@@ -1136,7 +1131,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
         return null;
     }
 
-    let name_s = ident.to_string(f_name, tc.span_interner);
+    let name_s = ident.to_string(f_name);
     io.printf(">> DBG: Checking %s body\n", name_s);
     delete name_s;
 
@@ -1157,7 +1152,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     }
 
     if f_s.block == null {
-        push_internal_error(tc, f_s.decl.name.ident_span, "func body is null");
+        push_internal_error(tc, f_s.decl.name.span, "func body is null");
         close_scope(tc);
         tc.ctx.current_func = last_func;
         return null;
@@ -1174,7 +1169,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
 
     if !ty.is_void(f_ty.ret) {
         if check_for_return_stmt(f_s.block) == ERROR {
-            push_missing_return_error(tc, f_s.decl.name.ident_span);
+            push_missing_return_error(tc, f_s.decl.name.span);
             return null;
         }
     }
@@ -1240,7 +1235,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         if !in_global_scope(tc) {
             push_currently_not_allowed_error(
-                tc, "Importing outside the global scope", i_s.mod.ident_span
+                tc, "Importing outside the global scope", i_s.mod.span
             );
             return null;
         }
@@ -1263,7 +1258,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
             push_currently_not_allowed_error(
-                tc, "Declaring Structs outside the global scope", sd.name.ident_span
+                tc, "Declaring Structs outside the global scope", sd.name.span
             );
             return null;
         }
@@ -1292,7 +1287,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let in_global_scope = in_global_scope(tc);
         if !in_global_scope {
             push_currently_not_allowed_error(
-                tc, "Declaring Functions outside the global scope", fd.name.ident_span
+                tc, "Declaring Functions outside the global scope", fd.name.span
             );
             return null;
         }
@@ -1561,7 +1556,7 @@ def check_expr_scope_expect(
         if lookup_scope == null {
             e.ty = lookup(tc, ident);
         } else {
-            e.ty = scope.get_in(lookup_scope, tc.span_interner, ident);
+            e.ty = scope.get_in(lookup_scope, ident);
         }
 
         if e.ty == null {
@@ -2074,10 +2069,10 @@ def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
 }
 
 def push_simple_error(tc: *TypeChecker, code: i32, ident: *ident.Ident): void {
-    let len = span.get(tc.span_interner, ident.ident_span).len;
-    let text = std.err2str(code, len, ident.ident);
+    let len = ident.len(ident);
+    let text = std.err2str(code, len, ident.start(ident));
 
-    push_mk_err(tc, text, ident.ident_span);
+    push_mk_err(tc, text, ident.span);
 }
 
 def push_incomplete_ty_error(tc: *TypeChecker, name: *ident.Ident): void {
@@ -2133,9 +2128,9 @@ def push_wrong_arg_type_error(
     span: span.Span
 ): void {
     let expected_ty_s = "";
-    let free_expected_ty_s = ty.to_string(expected, tc.span_interner, &expected_ty_s);
+    let free_expected_ty_s = ty.to_string(expected, &expected_ty_s);
     let actual_ty_s = "";
-    let free_actual_ty_s = ty.to_string(actual, tc.span_interner, &actual_ty_s);
+    let free_actual_ty_s = ty.to_string(actual, &actual_ty_s);
 
     let text = std.err2str(ERROR_WRONG_ARG_TYPE, expected_ty_s, actual_ty_s);
     if free_expected_ty_s {
@@ -2151,9 +2146,9 @@ def push_wrong_arg_type_error(
 
 def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
     let ret_ty_s = "";
-    let free_ret_ty_s = ty.to_string(tc.ctx.current_func.ret, tc.span_interner, &ret_ty_s);
+    let free_ret_ty_s = ty.to_string(tc.ctx.current_func.ret, &ret_ty_s);
     let ty_s = "";
-    let free_ty_s = ty.to_string(expr.ty, tc.span_interner, &ty_s);
+    let free_ty_s = ty.to_string(expr.ty, &ty_s);
 
     let text = std.err2str(ERROR_WRONG_RETURN_TYPE, ret_ty_s, ty_s);
     if free_ty_s {
@@ -2189,9 +2184,9 @@ def push_invalid_cast_error(
     span: span.Span
 ): void {
     let src_ty_s = "";
-    let free_src_ty_s = ty.to_string(src, tc.span_interner, &src_ty_s);
+    let free_src_ty_s = ty.to_string(src, &src_ty_s);
     let dest_ty_s = "";
-    let free_dest_ty_s = ty.to_string(dest, tc.span_interner, &dest_ty_s);
+    let free_dest_ty_s = ty.to_string(dest, &dest_ty_s);
 
     let text = std.err2str(ERROR_INVALID_CAST, src_ty_s, dest_ty_s);
     if free_dest_ty_s {
@@ -2206,7 +2201,7 @@ def push_invalid_cast_error(
 
 def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
     let ty_s = "";
-    let free_ty_s = ty.to_string(e.ty, tc.span_interner, &ty_s);
+    let free_ty_s = ty.to_string(e.ty, &ty_s);
     let text = std.err2str(ERROR_INVALID_TYPE_IN_CONDITION, ty_s);
     if free_ty_s {
         delete ty_s;
@@ -2216,7 +2211,7 @@ def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
 
 def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr): void {
     let ty_s = "";
-    let free_ty_s = ty.to_string(e.ty, tc.span_interner, &ty_s);
+    let free_ty_s = ty.to_string(e.ty, &ty_s);
     let text = std.err2str(ERROR_DELETE_NON_PTR, ty_s);
     if free_ty_s {
         delete ty_s;

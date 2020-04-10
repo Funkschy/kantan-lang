@@ -1,111 +1,38 @@
-// TODO(#59): The whole span logic would be simpler if a span would just consist of
-//  2 pointers: type Span struct { start: string, end: string }
-//  the ctx could be obtained by keeping a memory map of the source files
-
-// 0b1000_0000_0000_0000
-#define TAG_INTERNED 32768
-// 0b0111_1111_1111_1111
-#define MAX_LEN 32767
-// 0b1111_1111_1111_1111
-#define MAX_CTX 65535
-
-import "std";
-import "vec";
-
 // A position in the source code
-// Strongly inspired by:
-// https://github.com/rust-lang/rust/blob/master/src/libsyntax_pos/span_encoding.rs
 type Span struct {
-     // (should be u32) index into the file
-    start: i32,
-    // (should be u16) either the length or a tag, that means that this is interned
-    len_or_tag: i32,
-    // (should be u16) the file or the index to the inlined BigSpan
-    ctx_or_index: i32
+    start: string,
+    end: string
 }
 
 def empty(): Span {
-    return Span { start: 0, len_or_tag: 0, ctx_or_index: 0 };
+    return Span { start: null, end: null };
 }
 
-def merge(si: *SpanInterner, first: Span, second: Span): Span {
-    let first = get(si, first);
-    let second = get(si, second);
-    // spans should be in same file
-    if first.ctx != second.ctx {
-        // TODO(#12): is this an actual programmer error? In this case we could just
-        //  call std.abort() and call it a day
-        return empty();
+def merge(first: Span, second: Span): Span {
+    let start = first.start;
+    let end = second.end;
+
+    if second.start < start {
+        start = second.start;
     }
 
-    return create(si, first.start, second.start + second.len, first.ctx);
+    if first.end > end {
+        end = first.end;
+    }
+
+    return create(start, end);
 }
 
-def create(si: *SpanInterner, start: i32, end: i32, ctx: i32): Span {
+def create(start: string, end: string): Span {
     if end < start {
         let t = start;
         start = end;
         end = t;
     }
 
-    let len = end - start;
-    if len < MAX_LEN && ctx < MAX_CTX{
-        // inlined
-        return Span { start: start, len_or_tag: len, ctx_or_index: ctx };
-    } else {
-        let big = BigSpan { start: start, len: len, ctx: ctx };
-        let i = intern(si, &big);
-        return Span { start: start, len_or_tag: TAG_INTERNED, ctx_or_index: i };
-    }
-
-    // unreachable
-    return Span { start: 0, len_or_tag: 0, ctx_or_index: 0 };
+    return Span { start: start, end: end };
 }
 
-def is_interned(span: *Span): bool {
-    return span.len_or_tag == TAG_INTERNED;
-}
-
-// Currently the same as Span, but this will change when more int types are introduced
-type BigSpan struct {
-     // index into the file
-    start: i32,
-    // the length
-    len: i32,
-    // the file
-    ctx: i32
-}
-
-type SpanInterner struct {
-    // TODO(#20): should have a map, so that we dont intern the same thing twice
-    spans: vec.Vec // vector of BigSpan
-}
-
-def create_interner(): SpanInterner {
-    return SpanInterner { spans: vec.create(sizeof BigSpan) };
-}
-
-// returns an index which can be used with the get() function
-def intern(si: *SpanInterner, span: *BigSpan): i32 {
-    let index: i32 = si.spans.len;
-    vec.push(&si.spans, span as *void);
-    return index;
-}
-
-def get(si: *SpanInterner, span: Span): BigSpan {
-    if !is_interned(&span) {
-        return BigSpan { start: span.start, len: span.len_or_tag, ctx: span.ctx_or_index };
-    }
-
-    return get_index(si, span.ctx_or_index);
-}
-
-def get_index(si: *SpanInterner, index: i32): BigSpan {
-    let span = BigSpan { start: 0, len: 0, ctx: 0 };
-    vec.get(&si.spans, index, &span as *void);
-    return span;
-}
-
-def free_interner(si: *SpanInterner): void {
-    vec.free_v(&si.spans);
+def len(span: Span): i32 {
+    return span.end - span.start;
 }

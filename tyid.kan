@@ -12,7 +12,7 @@ def empty(): Type {
 }
 
 def is_empty(t: *Type): bool {
-    return t.pointer_count == 0 && t.ident.ident == null;
+    return t.pointer_count == 0 && ident.start(&t.ident) == null;
 }
 
 def create(ident: ident.Ident): Type {
@@ -23,7 +23,7 @@ def create(ident: ident.Ident): Type {
 }
 
 def ident_span(t: *Type): span.Span {
-    return t.ident.ident_span;
+    return t.ident.span;
 }
 
 def create_ptr(ident: ident.Ident, pointer_count: i32): Type {
@@ -37,8 +37,8 @@ def is_ptr(t: *Type): bool {
     return t.pointer_count > 0;
 }
 
-def to_string(ty: *Type, span_interner: *span.SpanInterner): string {
-    let ident = ident.to_string(&ty.ident, span_interner);
+def to_string(ty: *Type): string {
+    let ident = ident.to_string(&ty.ident);
     let ident_len = std.strlen(ident);
 
     let len = ty.pointer_count + ident_len + 1;

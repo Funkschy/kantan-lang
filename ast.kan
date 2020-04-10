@@ -220,10 +220,10 @@ type StructDeclStmt struct {
     decl: record.StructDecl
 }
 
-def new_struct_decl_stmt(si: *span.SpanInterner, name: ident.Ident, fields: vec.Vec): *Stmt {
+def new_struct_decl_stmt(name: ident.Ident, fields: vec.Vec): *Stmt {
     return (new StructDeclStmt {
         s: Stmt { tag: STMT_STRUCT_DECL },
-        decl: record.create_struct(si, name, fields)
+        decl: record.create_struct(name, fields)
     }) as *Stmt;
 }
 
@@ -242,10 +242,10 @@ type ImportStmt struct {
     mod: ident.Ident
 }
 
-def new_import_stmt(span: span.Span, mod_path: string): *Stmt {
+def new_import_stmt(span: span.Span): *Stmt {
     return (new ImportStmt {
         s: Stmt { tag: STMT_IMPORT },
-        mod: ident.from_str(span, mod_path)
+        mod: ident.from_span(span)
     }) as *Stmt;
 }
 
@@ -742,20 +742,20 @@ def expr_free(e: *Expr): void {
     delete e;
 }
 
-def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
+def expr_to_string(e: *Expr): string {
     if e == null {
         return std.strdup("(nil)");
     }
 
     if is_int_expr(e) {
         let i_expr = as_int_expr(e);
-        let len = span.get(span_interner, e.span).len;
+        let len = span.len(e.span);
         return std.strndup(i_expr.ptr, len);
     }
 
     if is_float_expr(e) {
         let f_expr = as_float_expr(e);
-        let len = span.get(span_interner, e.span).len;
+        let len = span.len(e.span);
         return std.strndup(f_expr.ptr, len);
     }
 
@@ -765,26 +765,26 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
 
     if is_string_expr(e) {
         let s_expr = as_string_expr(e);
-        let len = span.get(span_interner, e.span).len;
+        let len = span.len(e.span);
         // include the quotes
         return std.strndup(s_expr.ptr - 1, len + 2);
     }
 
     if is_char_expr(e) {
         let c_expr = as_char_expr(e);
-        let len = span.get(span_interner, e.span).len;
+        let len = span.len(e.span);
         // include the quotes
         return std.strndup(c_expr.ptr - 1, len + 2);
     }
 
     if is_ident_expr(e) {
         let i_expr = as_ident_expr(e);
-        return ident.to_string(&i_expr.ident, span_interner);
+        return ident.to_string(&i_expr.ident);
     }
 
     if is_new_expr(e) {
         let n_expr = as_new_expr(e);
-        let expr_s = expr_to_string(n_expr.expr, span_interner);
+        let expr_s = expr_to_string(n_expr.expr);
         let s = std.format_str("new %s", expr_s);
 
         delete expr_s;
@@ -793,7 +793,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
 
     if is_sizeof_expr(e) {
         let s_expr = as_sizeof_expr(e);
-        let ty_s = tyid.to_string(&s_expr.ty, span_interner);
+        let ty_s = tyid.to_string(&s_expr.ty);
         let s = std.format_str("sizeof %s", ty_s);
 
         delete ty_s;
@@ -802,8 +802,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
 
     if is_as_expr(e) {
         let a_expr = as_as_expr(e);
-        let expr_s = expr_to_string(a_expr.expr, span_interner);
-        let ty_s = tyid.to_string(&a_expr.ty, span_interner);
+        let expr_s = expr_to_string(a_expr.expr);
+        let ty_s = tyid.to_string(&a_expr.ty);
         let s = std.format_str("%s as %s", expr_s, ty_s);
 
         delete expr_s;
@@ -814,8 +814,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_assign_expr(e) {
         let a_expr = as_assign_expr(e);
 
-        let left = expr_to_string(a_expr.left, span_interner);
-        let right = expr_to_string(a_expr.right, span_interner);
+        let left = expr_to_string(a_expr.left);
+        let right = expr_to_string(a_expr.right);
 
         let s = std.format_str("%s = %s", left, right);
         delete left;
@@ -827,8 +827,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_access_expr(e) {
         let a_expr = as_access_expr(e);
 
-        let left = expr_to_string(a_expr.left, span_interner);
-        let right = expr_to_string(a_expr.right, span_interner);
+        let left = expr_to_string(a_expr.left);
+        let right = expr_to_string(a_expr.right);
 
         let s = std.format_str("%s.%s", left, right);
         delete left;
@@ -839,7 +839,7 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
 
     if is_unary_expr(e) {
         let u_expr = as_unary_expr(e);
-        let right = expr_to_string(u_expr.right, span_interner);
+        let right = expr_to_string(u_expr.right);
         let tok_str = unary2str(u_expr.kind);
 
         let s = std.format_str("(%s%s)", tok_str, right);
@@ -851,8 +851,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_binary_expr(e) {
         let b_expr = as_binary_expr(e);
 
-        let left = expr_to_string(b_expr.left, span_interner);
-        let right = expr_to_string(b_expr.right, span_interner);
+        let left = expr_to_string(b_expr.left);
+        let right = expr_to_string(b_expr.right);
         let tok_str = binary2str(b_expr.kind);
 
         let s = std.format_str("(%s%s%s)", left, tok_str, right);
@@ -865,8 +865,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_call_expr(e) {
         let c_expr = as_call_expr(e);
 
-        let ident = expr_to_string(c_expr.callee, span_interner);
-        let args = arg_list_to_string(&c_expr.args, span_interner);
+        let ident = expr_to_string(c_expr.callee);
+        let args = arg_list_to_string(&c_expr.args);
 
         let s = std.format_str("%s(%s)", ident, args);
         delete ident;
@@ -878,8 +878,8 @@ def expr_to_string(e: *Expr, span_interner: *span.SpanInterner): string {
     if is_init_expr(e) {
         let i_expr = as_init_expr(e);
 
-        let ident = expr_to_string(i_expr.struct_ty, span_interner);
-        let inits = init_list_to_string(&i_expr.inits, span_interner);
+        let ident = expr_to_string(i_expr.struct_ty);
+        let inits = init_list_to_string(&i_expr.inits);
 
         let s = std.format_str("%s{%s}", ident, inits);
         delete ident;
@@ -929,13 +929,13 @@ def free_al(al: *ArgList): void {
     ptrvec.free_v(&al.args);
 }
 
-def arg_list_to_string(al: *ArgList, span_interner: *span.SpanInterner): string {
+def arg_list_to_string(al: *ArgList): string {
     let args = (new '\0') as string;
 
     let i = 0;
     while i < al.args.len {
         let a = get_arg_at(al, i);
-        let s = expr_to_string(a, span_interner);
+        let s = expr_to_string(a);
 
         let comma_len = 0;
         if i > 0 {
@@ -1021,7 +1021,7 @@ def free_il(il: *InitList): void {
     vec.free_v(&il.inits);
 }
 
-def init_list_to_string(il: *InitList, span_interner: *span.SpanInterner): string {
+def init_list_to_string(il: *InitList): string {
     let inits = (new '\0') as string;
 
     let i = 0;
@@ -1031,8 +1031,8 @@ def init_list_to_string(il: *InitList, span_interner: *span.SpanInterner): strin
             delete inits;
             return null;
         }
-        let n = ident.to_string(&init.ident, span_interner);
-        let e = expr_to_string(init.expr, span_interner);
+        let n = ident.to_string(&init.ident);
+        let e = expr_to_string(init.expr);
 
         let extra_len = 2; // ': '
         if i > 0 {
