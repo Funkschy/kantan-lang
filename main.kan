@@ -1,5 +1,4 @@
 #include "std.h"
- // #define DEBUG
 #define DEBUG_ASSERT 0
 
 import "io";
@@ -72,13 +71,11 @@ def main(argc: i32, argv: *string): i32 {
         }
 
         mod.add_mod(&mm, curr_mod);
-        print_dbg_mod_info(curr_mod);
 
         // just get the first stmt
         let s = mod.get_stmt(curr_mod, 0);
 
         if s != null {
-            print_dbg_stmt_info(s);
         } else {
             io.printf("ERROR: no valid statement in file\n");
         }
@@ -105,83 +102,6 @@ def main(argc: i32, argv: *string): i32 {
     path.free_pb(&cwd_buf);
 
     return num_total_errs;
-}
-
-def print_dbg_stmt_info(s: *ast.Stmt): void {
-#ifdef DEBUG
-    let is_expr = ast.is_expr_stmt(s);
-    io.printf("is expr: %d\n", is_expr);
-
-    if is_expr {
-        let e = ast.as_expr_stmt(s).expr;
-
-        let s = ast.expr_to_string(e);
-        io.printf("%s\n", s);
-        delete s;
-
-        if ast.is_int_expr(e) {
-            ty.make_i32(e.ty);
-            io.printf("width: %d, align: %d\n", e.ty.width, e.ty.align);
-        }
-
-    } else if ast.is_struct_decl_stmt(s) {
-        let decl_s = ast.as_struct_decl_stmt(s);
-        let s = record.to_string(&decl_s.decl);
-        io.printf("%s\n", s);
-        delete s;
-    } else if ast.is_let_stmt(s) {
-        let ls = ast.as_let_stmt(s);
-
-        let ident: string = ident.start(&ls.ident);
-        let ident_len = ident.len(&ls.ident);
-        let value = ast.expr_to_string(ls.value);
-
-        let ty = (new '\0') as string;
-        if ast.has_type_decl(ls) {
-            delete ty;
-            let tys = tyid.to_string(&ls.ty);
-            ty = std.format_str(": %s", tys);
-            delete tys;
-        }
-
-        io.printf("let %.*s%s = %s;\n", ident_len, ident, ty, value);
-        delete value;
-        delete ty;
-    }
-#endif
-}
-
-def print_dbg_mod_info(curr_mod: *mod.Module): void {
-#ifdef DEBUG
-    let num_imports = mod.num_imports(curr_mod);
-    let j = 0;
-    while j < num_imports {
-        let is = mod.get_import_at(curr_mod, j);
-        let s = ident.to_string(&is.curr_mod);
-        io.printf("import '%s'\n", s);
-        delete s;
-
-        j = j + 1;
-    }
-
-    io.printf("%d functions\n", mod.num_functions(curr_mod));
-    if mod.num_functions(curr_mod) > 0 {
-        let first = mod.get_function_at(curr_mod, 0);
-        let s = tyid.to_string(&first.decl.ret_ty);
-        let name = ident.to_string(&first.decl.name);
-        io.printf("def %s: %s\n", name, s);
-        delete s;
-        delete name;
-    }
-
-    io.printf("%d structs\n", mod.num_structs(curr_mod));
-    if mod.num_structs(curr_mod) > 0 {
-        let first = mod.get_struct_at(curr_mod, 0);
-        let s = record.to_string(&first.decl);
-        io.printf("%s\n", s);
-        delete s;
-    }
-#endif
 }
 
 def print_parse_errors(
