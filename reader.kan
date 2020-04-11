@@ -43,7 +43,7 @@ def get_ptr_by_idx(m: *FileMap, idx: i32): *source.SourceFile {
     return vec.get_ptr(&m.files, idx) as *source.SourceFile;
 }
 
-def get_ptr_from_span(m: *FileMap, span: *span.Span): *source.SourceFile {
+def get_ptr_from_span(m: *FileMap, span: span.Span): *source.SourceFile {
     // TODO(#60): this should use a binary search or some kind of tree
 
     let i = 0;

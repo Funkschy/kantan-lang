@@ -47,7 +47,7 @@ def read(p: path.PathBuf, f: *SourceFile): i32 {
 }
 
 def find_line(
-    target: *span.Span,
+    target: span.Span,
     file: *SourceFile,
     last_nl_pos: *i32
 ): LineSpan {

@@ -2,11 +2,13 @@
  // #define DEBUG
 #define DEBUG_ASSERT 0
 
-import "parser";
 import "io";
+import "std";
+import "dbg";
+
+import "parser";
 import "ast";
 import "reader";
-import "std";
 import "span";
 import "source";
 import "mod";
@@ -190,10 +192,9 @@ def print_parse_errors(
     let i = 0;
     while i < parser.num_errs(p) {
         let err = parser.get_err(p, i);
-        let span = err.span;
-        let src = reader.get_ptr_from_span(fm, &span);
+        let src = reader.get_ptr_from_span(fm, err.span);
 
-        print_error(err.text, &span, src, abs_path);
+        print_error(err.text, err.span, src, abs_path);
 
         i = i + 1;
     }
@@ -207,10 +208,9 @@ def print_type_errors(
     let i = 0;
     while i < tychk.num_errs(tc) {
         let err = tychk.get_err(tc, i);
-        let span = err.span;
-        let src = reader.get_ptr_from_span(fm, &span);
+        let src = reader.get_ptr_from_span(fm, err.span);
 
-        print_error(err.text, &span, src, abs_path);
+        print_error(err.text, err.span, src, abs_path);
 
         i = i + 1;
     }
@@ -222,13 +222,16 @@ def printf_spanned(span: span.Span, file: *source.SourceFile): void {
 
 def print_error(
     err_text: string,
-    span: *span.Span,
+    span: span.Span,
     file: *source.SourceFile,
     abs_path: *path.Path
 ): void {
+    dbg.assert(file != null, "source file was null");
+
     let last_nl = 0;
     let line = source.find_line(span, file, &last_nl);
     let name = source.file_name_dup(file);
+
     let offset = 0;
     let file_path = &file.file.path.inner;
     let col = span.start - file.code - last_nl;

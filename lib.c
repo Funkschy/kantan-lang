@@ -118,10 +118,7 @@ int32_t read_char(char const *string, int32_t s_len, int32_t *ch) {
     }
 
     if (ch != NULL) {
-        char buffer[4] = {0};
-        memcpy(buffer, string, c_len);
-
-        *ch = *(int32_t *)buffer;
+        memcpy(ch, string, c_len);
     }
 
     return c_len;
