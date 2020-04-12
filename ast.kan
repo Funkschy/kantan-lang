@@ -24,7 +24,7 @@ type ExprStmt struct {
 }
 
 def new_expr_stmt(e: *Expr): *Stmt {
-    return (new ExprStmt { s: Stmt { tag: STMT_EXPR }, expr: e }) as *Stmt;
+    return (new ExprStmt { s: Stmt { tag: STMT_EXPR, span: e.span }, expr: e }) as *Stmt;
 }
 
 def is_expr_stmt(s: *Stmt): bool {
@@ -42,9 +42,9 @@ type DeleteStmt struct {
     expr: *Expr
 }
 
-def new_delete_stmt(expr: *Expr): *Stmt {
+def new_delete_stmt(span: span.Span, expr: *Expr): *Stmt {
     return (new DeleteStmt {
-        s: Stmt { tag: STMT_DELETE },
+        s: Stmt { tag: STMT_DELETE, span: span },
         expr: expr
     }) as *Stmt;
 }
@@ -64,9 +64,9 @@ type ReturnStmt struct {
     expr: *Expr
 }
 
-def new_return_stmt(expr: *Expr): *Stmt {
+def new_return_stmt(span: span.Span, expr: *Expr): *Stmt {
     return (new ReturnStmt {
-        s: Stmt { tag: STMT_RETURN },
+        s: Stmt { tag: STMT_RETURN, span: span },
         expr: expr
     }) as *Stmt;
 }
@@ -87,9 +87,9 @@ type WhileStmt struct {
     block: *BlockStmt
 }
 
-def new_while_stmt(condition: *Expr, block: *BlockStmt): *Stmt {
+def new_while_stmt(span: span.Span, condition: *Expr, block: *BlockStmt): *Stmt {
     return (new WhileStmt {
-        s: Stmt { tag: STMT_WHILE },
+        s: Stmt { tag: STMT_WHILE, span: span },
         condition: condition,
         block: block
     }) as *Stmt;
@@ -112,9 +112,9 @@ type IfStmt struct {
     else_stmt: *Stmt // either IfStmt or BlockStmt
 }
 
-def new_if_stmt(condition: *Expr, block: *BlockStmt, else_stmt: *Stmt): *Stmt {
+def new_if_stmt(span: span.Span, condition: *Expr, block: *BlockStmt, else_stmt: *Stmt): *Stmt {
     return (new IfStmt {
-        s: Stmt { tag: STMT_IF },
+        s: Stmt { tag: STMT_IF, span: span },
         condition: condition,
         block: block,
         else_stmt: else_stmt
@@ -164,9 +164,9 @@ type BlockStmt struct {
     stmts: ptrvec.Vec
 }
 
-def new_block_stmt(statements: ptrvec.Vec): *Stmt {
+def new_block_stmt(span: span.Span, statements: ptrvec.Vec): *Stmt {
     return (new BlockStmt{
-        s: Stmt { tag: STMT_BLOCK },
+        s: Stmt { tag: STMT_BLOCK, span: span },
         stmts: statements
     }) as *Stmt;
 }
@@ -192,6 +192,7 @@ type FuncDeclStmt struct {
 }
 
 def new_func_decl_stmt(
+    span: span.Span,
     ident: lexer.Token,
     params: func.ParamList,
     ret_ty: tyid.Type,
@@ -199,7 +200,7 @@ def new_func_decl_stmt(
     block: *BlockStmt
 ): *Stmt {
     return (new FuncDeclStmt {
-        s: Stmt { tag: STMT_FUNC_DECL },
+        s: Stmt { tag: STMT_FUNC_DECL, span: span },
         decl: func.create(ident, params, ret_ty, is_extern),
         block: block
     }) as *Stmt;
@@ -220,9 +221,9 @@ type StructDeclStmt struct {
     decl: record.StructDecl
 }
 
-def new_struct_decl_stmt(name: ident.Ident, fields: vec.Vec): *Stmt {
+def new_struct_decl_stmt(span: span.Span, name: ident.Ident, fields: vec.Vec): *Stmt {
     return (new StructDeclStmt {
-        s: Stmt { tag: STMT_STRUCT_DECL },
+        s: Stmt { tag: STMT_STRUCT_DECL, span: span },
         decl: record.create_struct(name, fields)
     }) as *Stmt;
 }
@@ -242,10 +243,10 @@ type ImportStmt struct {
     mod: ident.Ident
 }
 
-def new_import_stmt(span: span.Span): *Stmt {
+def new_import_stmt(span: span.Span, mod_name: ident.Ident): *Stmt {
     return (new ImportStmt {
-        s: Stmt { tag: STMT_IMPORT },
-        mod: ident.from_span(span)
+        s: Stmt { tag: STMT_IMPORT, span: span },
+        mod: mod_name
     }) as *Stmt;
 }
 
@@ -266,9 +267,9 @@ type LetStmt struct {
     ty: tyid.Type
 }
 
-def new_let_stmt(ident_token: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
+def new_let_stmt(span: span.Span, ident_token: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
     return (new LetStmt {
-        s: Stmt { tag: STMT_LET },
+        s: Stmt { tag: STMT_LET, span: span },
         value: value,
         ident: ident.create(ident_token),
         ty: ty
@@ -293,7 +294,8 @@ def has_type_decl(s: *LetStmt): bool {
 //  this is needed for certain error messages (return error for empty return),
 //  but also for emitting debug symbols later on
 type Stmt struct {
-    tag: i32
+    tag: i32,
+    span: span.Span
 }
 
 def stmt_free(s: *Stmt): void {

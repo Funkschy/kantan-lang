@@ -4,6 +4,8 @@
 #include "./std.h"
 
 #define CONSUME_RET_NULL(ty) if !consume(p, (ty)) { return null; } 0
+#define CONSUME_TOK_RET_NULL(name, ty) let name = lexer.empty_token(); \
+    if !consume_token(p, (ty), &(name)) { return null; } 0
 
 import "lexer";
 import "ast";
@@ -324,36 +326,39 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
 }
 
 def parse_delete_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_DELETE);
+    CONSUME_TOK_RET_NULL(del_tok, TOKEN_DELETE);
 
     letcheck(expr, expression(p, false));
-    return ast.new_delete_stmt(expr);
+    let del_span = span.merge(del_tok.span, expr.span);
+    return ast.new_delete_stmt(del_span, expr);
 }
 
 def parse_return_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_RETURN);
+    CONSUME_TOK_RET_NULL(ret_tok, TOKEN_RETURN);
 
     if peek(p).ty == TOKEN_SEMI {
-        return ast.new_return_stmt(null);
+        return ast.new_return_stmt(ret_tok.span, null);
     }
 
     letcheck(expr, expression(p, false));
-    return ast.new_return_stmt(expr);
+    let ret_span = span.merge(ret_tok.span, expr.span);
+    return ast.new_return_stmt(ret_span, expr);
 }
 
 def parse_import_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_IMPORT);
+    CONSUME_TOK_RET_NULL(import_tok, TOKEN_IMPORT);
 
     let mod_path = lexer.empty_token();
     if !consume_token(p, TOKEN_STRING, &mod_path) {
         return null;
     }
 
-    return ast.new_import_stmt(mod_path.span);
+    let import_span = span.merge(import_tok.span, mod_path.span);
+    return ast.new_import_stmt(import_span, ident.create(mod_path));
 }
 
 def parse_let_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_LET);
+    CONSUME_TOK_RET_NULL(let_tok, TOKEN_LET);
 
     let ident = lexer.empty_token();
     if !consume_ident(p, &ident, false) {
@@ -374,11 +379,13 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
     if e == null {
         return null;
     }
-    return ast.new_let_stmt(ident, ty, e);
+
+    let let_span = span.merge(let_tok.span, e.span);
+    return ast.new_let_stmt(let_span, ident, ty, e);
 }
 
 def parse_type_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_TYPE);
+    CONSUME_TOK_RET_NULL(type_tok, TOKEN_TYPE);
 
     let ident_token = lexer.empty_token();
     if !consume_ident(p, &ident_token, false) {
@@ -387,20 +394,24 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
 
     CONSUME_RET_NULL(TOKEN_STRUCT);
     CONSUME_RET_NULL(TOKEN_LBRACE);
-    let fields = parse_field_list(p);
+
+    let closing_brace = lexer.empty_token();
+    let fields = parse_field_list(p, &closing_brace);
     if fields.elem_size == 0 {
         vec.free_v(&fields);
         return null;
     }
 
+    let struct_span = span.merge(type_tok.span, closing_brace.span);
     return ast.new_struct_decl_stmt(
+        struct_span,
         ident.create(ident_token),
         fields
     );
 }
 
 def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_DEF);
+    CONSUME_TOK_RET_NULL(def_tok, TOKEN_DEF);
 
     let ident = lexer.empty_token();
     if !consume_ident(p, &ident, false) {
@@ -422,6 +433,8 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
         return null;
     }
 
+    let end_span = tyid.ident_span(&ret_ty);
+
     let block: *ast.Stmt = null;
     if !is_extern {
         block = parse_block(p);
@@ -429,9 +442,12 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
             func.free_pl(&param_list);
             return null;
         }
+        end_span = block.span;
     }
 
+    let func_span = span.merge(def_tok.span, end_span);
     return ast.new_func_decl_stmt(
+        func_span,
         ident,
         param_list,
         ret_ty,
@@ -441,9 +457,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
 }
 
 def parse_while_stmt(p: *Parser): *ast.Stmt {
-    if !consume(p, TOKEN_WHILE) {
-        return null;
-    }
+    CONSUME_TOK_RET_NULL(while_tok, TOKEN_WHILE);
 
     let peeked = peek(p);
     let condition = expression(p, true);
@@ -460,13 +474,12 @@ def parse_while_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    return ast.new_while_stmt(condition, ast.as_block_stmt(block));
+    let while_span = span.merge(while_tok.span, block.span);
+    return ast.new_while_stmt(while_span, condition, ast.as_block_stmt(block));
 }
 
 def parse_if_stmt(p: *Parser): *ast.Stmt {
-    if !consume(p, TOKEN_IF) {
-        return null;
-    }
+    CONSUME_TOK_RET_NULL(if_tok, TOKEN_IF);
 
     let peeked = peek(p);
     let condition = expression(p, true);
@@ -483,7 +496,8 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let if_stmt = ast.new_if_stmt(condition, ast.as_block_stmt(block), null);
+    let if_span = span.merge(if_tok.span, block.span);
+    let if_stmt = ast.new_if_stmt(if_span, condition, ast.as_block_stmt(block), null);
     if peek(p).ty != TOKEN_ELSE {
         return if_stmt;
     }
@@ -505,7 +519,11 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
+    let complete_span = span.merge(if_span, else_stmt.span);
+
     ast.as_if_stmt(if_stmt).else_stmt = else_stmt;
+    if_stmt.span = complete_span;
+
     return if_stmt;
 }
 
@@ -521,7 +539,7 @@ def free_statements(statements: *ptrvec.Vec): void {
 }
 
 def parse_block(p: *Parser): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_LBRACE);
+    CONSUME_TOK_RET_NULL(open_brace_tok, TOKEN_LBRACE);
     let statements = ptrvec.create();
 
     let peeked = peek(p);
@@ -536,15 +554,17 @@ def parse_block(p: *Parser): *ast.Stmt {
         peeked = peek(p);
     }
 
-    if !consume(p, TOKEN_RBRACE) {
+    let closing_brace = lexer.empty_token();
+    if !consume_token(p, TOKEN_RBRACE, &closing_brace) {
         free_statements(&statements);
         return null;
     }
 
-    return ast.new_block_stmt(statements);
+    let block_span = span.merge(open_brace_tok.span, closing_brace.span);
+    return ast.new_block_stmt(block_span, statements);
 }
 
-def parse_field_list(p: *Parser): vec.Vec {
+def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
 #define FAIL() vec.free_v(&fields); return vec.create(0)
 
     let fields = vec.create(sizeof record.Field);
@@ -577,7 +597,7 @@ def parse_field_list(p: *Parser): vec.Vec {
         }
     }
 
-    if !consume(p, TOKEN_RBRACE) {
+    if !consume_token(p, TOKEN_RBRACE, closing_brace) {
         FAIL();
     }
 
