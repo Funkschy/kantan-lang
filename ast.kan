@@ -290,9 +290,6 @@ def has_type_decl(s: *LetStmt): bool {
 
 /////////// base stmt ///////////
 
-// TODO(#61): statements need to have a span aswell
-//  this is needed for certain error messages (return error for empty return),
-//  but also for emitting debug symbols later on
 type Stmt struct {
     tag: i32,
     span: span.Span
