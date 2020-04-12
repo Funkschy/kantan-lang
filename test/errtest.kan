@@ -38,6 +38,7 @@ test as *TestType;
 let test_test = test;
 let test: i32 = 0;
 
+return;
 return 1;
 delete 1;
 

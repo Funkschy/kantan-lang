@@ -1443,16 +1443,13 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // STMT_RETURN
     if ast.is_return_stmt(s) {
         let r_s = ast.as_return_stmt(s);
-        if r_s.expr == null {
-            // TODO(#50): check return outside of func
-            //  in case of an empty "return" statement, we don't actually have a
-            //  span to create an error out of
-            return s;
+        if tc.ctx.current_func == null {
+            push_return_outside_of_func_error(tc, s.span);
+            return null;
         }
 
-        if tc.ctx.current_func == null {
-            push_return_outside_of_func_error(tc, r_s.expr.span);
-            return null;
+        if r_s.expr == null {
+            return s;
         }
 
         let expr = check_expr_expect(tc, r_s.expr, tc.ctx.current_func.ret);
