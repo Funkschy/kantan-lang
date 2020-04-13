@@ -1,8 +1,5 @@
 #include "mir_types.h"
 
-// TODO(#57): implement mir representation
-//  there are currently only placeholder types with no fields in mir.kan
-
 import "span";
 import "ty";
 
@@ -30,11 +27,17 @@ type AddressConst struct {
     span: span.Span
 }
 
-type AddressTemp struct {}
+type AddressTemp struct {
+    value: i32
+}
 
-type AddressGlobal struct {}
+type AddressGlobal struct {
+    name: Name
+}
 
-type AddressRef struct {}
+type AddressRef struct {
+    name: Name
+}
 
 type Address struct {
     kind: i32,
@@ -42,25 +45,52 @@ type Address struct {
     data: *void
 }
 
-type ExprBinary struct {}
+type ExprBinary struct {
+    kind: i32,
+    left: Address,
+    right: Address
+}
 
-type ExprUnary struct {}
+type ExprUnary struct {
+    kind: i32,
+    addr: Address
+}
 
-type ExprCopy struct {}
+type ExprCopy struct {
+    addr: Address
+}
 
-type ExprCall struct {}
+type ExprCall struct {
+    name: Name,
+    args: vec.Vec // Vec<Address>
+}
 
-type ExprStrucGep struct {}
+type ExprStrucGep struct {
+    addr: Address,
+    idx: i32
+}
 
-type ExprStructInit struct {}
+type ExprStructInit struct {
+    name: Name,
+    args: vec.Vec // Vec<Address>
+}
 
-type ExprNew struct {}
+type ExprNew struct {
+    addr: Address
+}
 
-type ExprSizeOf struct {}
+type ExprSizeOf struct {
+    addr: Address
+}
 
-type ExprGetParam struct {}
+type ExprGetParam struct {
+    idx: i32
+}
 
-type ExprBitCast struct {}
+type ExprBitCast struct {
+    addr: Address,
+    into: *ty.Type
+}
 
 // An expression is always on the right side of an assignment instruction
 // In the comments, this assignment is denoted as 'x = '
@@ -98,19 +128,32 @@ type InstDecl struct {
     ty: *ty.Type
 }
 
-type InstAssign struct {}
+type InstAssign struct {
+    dest: Address,
+    value: Expression
+}
 
-type InstJmp struct {}
+type InstJmp struct {
+    target: Label
+}
 
-type InstJmpIf struct {}
+type InstJmpIf struct {
+    condition: Address,
+    if_target: Label,
+    else_target: Label
+}
 
-type InstReturn struct {}
+type InstReturn struct {
+    value: Address // MIR_ADDR_EMPTY if empty return: 'return;'
+}
 
-type InstLabel struct {}
+type InstLabel struct {
+    value: Label
+}
 
-type InstDelete struct {}
-
-type InstNop struct {}
+type InstDelete struct {
+    addr: Address
+}
 
 // A single MIR instruction
 //
@@ -125,7 +168,7 @@ type InstNop struct {}
 //  JmpIf(Address, Label, Label),
 // return x:
 //  Return(Optional Address),
-// .L0::
+// .L0:
 //  Label(Label),
 // frees heap memory:
 //  Delete(Address),
@@ -136,4 +179,3 @@ type Inst struct {
     span: span.Span,
     data: *void
 }
-

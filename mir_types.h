@@ -25,3 +25,26 @@
 #define MIR_EXPR_SIZEOF         7
 #define MIR_EXPR_GETPARAM       8
 #define MIR_EXPR_BITCAST        9
+
+#define MIR_BIN_ADD_SCALAR      0
+#define MIR_BIN_SUB_SCALAR      1
+
+#define MIR_BIN_ADD             2
+#define MIR_BIN_SUB             3
+#define MIR_BIN_MUL             4
+#define MIR_BIN_DIV             5
+#define MIR_BIN_MOD             6
+
+#define MIR_BIN_ST              7
+#define MIR_BIN_SE              8
+#define MIR_BIN_GT              9
+#define MIR_BIN_GE              10
+#define MIR_BIN_EQ              13
+#define MIR_BIN_NE              14
+
+#define MIR_BIN_BOOL_AND        15
+#define MIR_BIN_BOOL_OR         16
+
+#define MIR_UNARY_BOOL_NEG      0
+#define MIR_UNARY_INT_NEG       1
+#define MIR_UNARY_DEREF         2
