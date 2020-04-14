@@ -51,6 +51,9 @@ def read(p: path.PathBuf, f: *SourceFile): i32 {
     return 0;
 }
 
+// TODO(#63): counting lines is really inefficient.
+//  we need a way to map span.Span to source.SourcePos efficiently for the mir
+//  translation
 def line_info(
     file: *SourceFile,
     target: span.Span,
