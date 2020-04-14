@@ -13,7 +13,9 @@ def create(): Vec {
 }
 
 def with_cap(cap: i32): Vec {
-    return Vec { len: 0, cap: cap, elements: std.calloc(cap, sizeof *void) as **void };
+    let vec = create();
+    resize_s(&vec, cap);
+    return vec;
 }
 
 def is_empty(v: *Vec): bool {
@@ -88,9 +90,10 @@ def resize_s(v: *Vec, size: i32): void {
 
     v.cap = size;
     if v.elements == null {
-        v.elements = std.malloc(v.cap * sizeof **void) as **void;
+        v.elements = std.calloc(v.cap, sizeof **void) as **void;
     } else {
         v.elements = std.realloc(v.elements as *void, v.cap * sizeof **void) as **void;
+        std.memset((v.elements + v.len) as *void, v.cap * sizeof **void, 0);
     }
 }
 
