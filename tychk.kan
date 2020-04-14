@@ -1299,6 +1299,8 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let l_s = ast.as_let_stmt(s);
         let value: *ast.Expr = null;
 
+        // this is only executed for global let statements, since we don't check
+        // the function bodies in the decl_only_pass
         if tc.decl_only_pass {
             // placeholder to bind the name
             let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
@@ -1320,6 +1322,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         if value == null {
+            // bind the error type here, to get rid of follow up errors
+            let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
+            bind(tc, &l_s.ident, temp_ty);
             return null;
         }
 
