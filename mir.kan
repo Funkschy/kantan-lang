@@ -212,7 +212,7 @@ def inst_to_string(inst: *Inst): string {
         let s = std.format_str(
             "let %.*s: %s",
             decl.name.len,
-            decl.name.data,
+            decl.name.data
 
         );
 
