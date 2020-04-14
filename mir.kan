@@ -4,6 +4,7 @@ import "span";
 import "ty";
 import "std";
 import "source";
+import "vec";
 
 type MetaData struct {
     pos: source.SourcePos
