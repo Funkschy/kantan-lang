@@ -1,7 +1,7 @@
 #define MIR_INST_DECL           0
 #define MIR_INST_ASSIGN         1
 #define MIR_INST_JMP            2
-#define MIR_INST_JmpIf          3
+#define MIR_INST_JMPIF          3
 #define MIR_INST_RETURN         4
 #define MIR_INST_LABEL          5
 #define MIR_INST_DELETE         6

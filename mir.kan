@@ -2,6 +2,12 @@
 
 import "span";
 import "ty";
+import "std";
+import "source";
+
+type MetaData struct {
+    pos: source.SourcePos
+}
 
 type Name struct {
     owned: bool,
@@ -124,8 +130,24 @@ type Expression struct {
 }
 
 type InstDecl struct {
-    addr: Address,
+    name: Name,
     ty: *ty.Type
+}
+
+def new_inst_decl(meta: MetaData, name: Name, ty: *ty.Type): Inst {
+    return Inst {
+        kind: MIR_INST_DECL,
+        meta: meta,
+        data: (new InstDecl {name: name, ty: ty}) as *void
+    };
+}
+
+def is_inst_decl(inst: *Inst): bool {
+    return inst.kind == MIR_INST_DECL;
+}
+
+def as_inst_decl(inst: *Inst): *InstDecl {
+    return inst.data as *InstDecl;
 }
 
 type InstAssign struct {
@@ -176,6 +198,35 @@ type InstDelete struct {
 //  Nop,
 type Inst struct {
     kind: i32,
-    span: span.Span,
+    meta: MetaData,
     data: *void
+}
+
+def inst_to_string(inst: *Inst): string {
+    if is_inst_decl(inst) {
+        let decl = as_inst_decl(inst);
+        let ty_s: string = null;
+        let free_ty_s = ty.to_string(decl.ty, &ty_s);
+
+        let s = std.format_str(
+            "let %.*s: %s",
+            decl.name.len,
+            decl.name.data,
+
+        );
+
+        if free_ty_s {
+            delete ty_s;
+        }
+
+        return s;
+    }
+
+    return null;
+}
+
+def free_inst(inst: *Inst): void {
+    if inst.data != null {
+        delete inst.data;
+    }
 }

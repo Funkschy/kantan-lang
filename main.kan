@@ -19,6 +19,9 @@ import "ptrvec";
 import "tychk";
 import "path";
 
+import "mir";
+import "mirc";
+
 def main(argc: i32, argv: *string): i32 {
     if argc <= 1 {
         io.printf("ERROR: no input files\n");
@@ -148,13 +151,11 @@ def print_error(
 ): void {
     dbg.assert(file != null, "source file was null");
 
-    let last_nl = 0;
-    let line = source.find_line(span, file, &last_nl);
+    let line_info = source.find_line(file, span);
     let name = source.file_name_dup(file);
 
     let offset = 0;
     let file_path = &file.file.path.inner;
-    let col = span.start - file.code - last_nl;
 
     // TODO(#13): this only works when the filepath is in a subdir of abs_path
     //  i don't actually know, if this is still a problem, this needs to be
@@ -170,11 +171,11 @@ def print_error(
         "ERROR: %s\n--> %s:%d:%d\n",
         err_text,
         name + offset,
-        line.start_number,
-        col
+        line_info.pos.lnr,
+        line_info.pos.col
     );
 
-    printf_spanned(line.span, file);
+    printf_spanned(line_info.span, file);
     io.printf("\n");
 
     delete name;
