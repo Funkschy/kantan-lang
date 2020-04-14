@@ -11,6 +11,7 @@
 #include "./lib.h"
 
 #define HASH_NUM 65599
+#define DEBUG_ASSERT 1
 
 // forward decls
 int vformat_str(char **dest, char const *fmt, va_list args);

@@ -1,5 +1,4 @@
 #include "std.h"
-#define DEBUG_ASSERT 0
 
 import "io";
 import "std";
