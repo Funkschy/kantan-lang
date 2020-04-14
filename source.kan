@@ -2,6 +2,9 @@ import "path";
 import "file";
 import "span";
 import "std";
+import "ptrvec";
+
+import "dbg";
 
 type LineSpan struct {
     pos: SourcePos,
@@ -16,16 +19,19 @@ type SourcePos struct {
 type SourceFile struct {
     len: i32,
     code: string,
-    file: file.File
+    file: file.File,
+    map: SourceMap
 }
 
 def empty(): SourceFile {
-    return SourceFile { len: 0, code: null, file: file.empty() };
+    let map = SourceMap { line_starts: ptrvec.create() };
+    return SourceFile { len: 0, code: null, file: file.empty(), map: map };
 }
 
 def free_sf(sf: *SourceFile): void {
     delete sf.code;
     file.free_f(&sf.file);
+    free_srcmap(&sf.map);
 }
 
 def file_name_dup(sf: *SourceFile): string {
@@ -46,7 +52,8 @@ def read(p: path.PathBuf, f: *SourceFile): i32 {
         return res;
     }
 
-    *f = SourceFile { len: len, code: s, file: new_file };
+    let map = map_from_source(s, len);
+    *f = SourceFile { len: len, code: s, file: new_file, map: map };
 
     return 0;
 }
@@ -84,7 +91,7 @@ def line_info(
 
     // the \n at the end of the line with span in it
     if out_line_end != null {
-        *out_line_end = std.strchr(target.end, '\n');
+        *out_line_end = std.find_char(target.end, '\n');
     }
     if out_line_start != null {
         *out_line_start = last_nl + 1;
@@ -102,5 +109,69 @@ def find_line(file: *SourceFile, target: span.Span): LineSpan {
     let line_span = span.empty();
 
     line_info(file, target, &line_span.start, &line_span.end, &pos.lnr, &pos.col);
+
+    let line = find_span_in_srcmap(&file.map, target);
+    // dbg.assert_fmt(pos.lnr == line, "%d != %d", pos.lnr, line);
+
     return LineSpan { pos: pos, span: line_span };
+}
+
+// This is used to convert Spans into SourcePos' quickly
+type SourceMap struct {
+    line_starts: ptrvec.Vec // ptrvec.Vec<string>
+}
+
+def map_from_source(code: string, len: i32): SourceMap {
+    let line_estimate = len / 24; // assume that a line has 24 chars on avg
+    let vec = ptrvec.with_cap(line_estimate);
+    let pos = code;
+    let end = code + len;
+
+    while pos != null && pos != end {
+        ptrvec.push_ptr(&vec, pos as *void);
+        pos = std.find_char(pos, '\n');
+        if pos != null {
+            pos = pos + 1;
+        }
+    }
+
+    return SourceMap { line_starts: vec };
+}
+
+def find_span_in_srcmap(m: *SourceMap, span: span.Span): i32 {
+    let start = 0;
+    let end = m.line_starts.len - 1;
+
+    while start <= end {
+        let idx = (start + end) / 2;
+        let line_start = line_at(m, idx);
+        let line_end = line_at(m, idx + 1);
+
+        if line_end == null {
+            // no next line, so just search for the end of the string
+            line_end = std.strchr(line_start, 0);
+        }
+        line_end = line_end - 1;
+
+        if line_start <= span.start && span.start <= line_end {
+            // span is in this line
+            return idx + 1;
+        } else if span.start > line_start {
+            // span is to the right of current line
+            start = idx + 1;
+        } else {
+            // span is to the left of current line
+            end = idx - 1;
+        }
+    }
+
+    return -1;
+}
+
+def line_at(m: *SourceMap, idx: i32): string {
+    return ptrvec.get(&m.line_starts, idx) as string;
+}
+
+def free_srcmap(m: *SourceMap): void {
+    ptrvec.free_v(&m.line_starts);
 }
