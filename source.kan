@@ -58,9 +58,6 @@ def read(p: path.PathBuf, f: *SourceFile): i32 {
     return 0;
 }
 
-// TODO(#63): counting lines is really inefficient.
-//  we need a way to map span.Span to source.SourcePos efficiently for the mir
-//  translation
 def line_info(
     file: *SourceFile,
     target: span.Span,
@@ -69,19 +66,16 @@ def line_info(
     out_line_nr: *i32,
     out_col: *i32
 ): void {
-    let lines = 1;
     let last_nl = target.start;
 
     let ptr = target.start;
     while ptr != file.code {
         if *ptr == '\n' {
-            lines = lines + 1;
-
-            if last_nl == target.start {
-                last_nl = ptr;
-            }
+            last_nl = ptr;
+            ptr = file.code; // there is currently no 'break' keyword
+        } else {
+            ptr = ptr - 1;
         }
-        ptr = ptr - 1;
     }
 
     // there was no new line => span is in first line of file
@@ -100,7 +94,7 @@ def line_info(
         *out_col = target.start - last_nl;
     }
     if out_line_nr != null {
-        *out_line_nr = lines;
+        *out_line_nr = find_line_in_srcmap(&file.map, target);
     }
 }
 
@@ -109,9 +103,6 @@ def find_line(file: *SourceFile, target: span.Span): LineSpan {
     let line_span = span.empty();
 
     line_info(file, target, &line_span.start, &line_span.end, &pos.lnr, &pos.col);
-
-    let line = find_span_in_srcmap(&file.map, target);
-    // dbg.assert_fmt(pos.lnr == line, "%d != %d", pos.lnr, line);
 
     return LineSpan { pos: pos, span: line_span };
 }
@@ -138,7 +129,9 @@ def map_from_source(code: string, len: i32): SourceMap {
     return SourceMap { line_starts: vec };
 }
 
-def find_span_in_srcmap(m: *SourceMap, span: span.Span): i32 {
+// does a binary search inside the SourceMap, to find the line number of the
+// specified span
+def find_line_in_srcmap(m: *SourceMap, span: span.Span): i32 {
     let start = 0;
     let end = m.line_starts.len - 1;
 

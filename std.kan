@@ -9,6 +9,7 @@ extern def strlen(s: string): i32;
 extern def strcat(first: string, second: string): string;
 extern def strcpy(dest: string, src: string): string;
 extern def strchr(haystack: string, needle: i32): string;
+extern def strrchr(haystack: string, needle: i32): string;
 extern def memcmp(first: *void, second: *void, size: i32): i32;
 extern def memset(p: *void, val: i32, n: i32): i32;
 extern def memcpy(dest: *void, src: *void, size: i32): void;
@@ -32,4 +33,8 @@ extern def flag_get(flags: *i32, flag: i32): bool;
 
 def find_char(haystack: string, needle: char): string {
     return strchr(haystack, char_to_int(needle));
+}
+
+def find_last_char(haystack: string, needle: char): string {
+    return strrchr(haystack, char_to_int(needle));
 }
