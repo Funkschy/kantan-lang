@@ -1,4 +1,5 @@
 #include "mir_types.h"
+#include "std.h"
 
 import "span";
 import "ty";
@@ -26,6 +27,10 @@ type Label struct {
     name: Name
 }
 
+def label_name(l: *Label): Name {
+    return Name { owned: false, len: l.name.len, data: l.name.data };
+}
+
 type AddressName struct {
     value: Name
 }
@@ -46,10 +51,18 @@ type AddressRef struct {
     name: Name
 }
 
+def is_addr_empty(a: *Address): bool {
+    return a.kind == MIR_ADDR_EMPTY;
+}
+
 type Address struct {
     kind: i32,
     ty: *ty.Type,
     data: *void
+}
+
+def addr_to_string(a: *Address): string {
+    return null;
 }
 
 type ExprBinary struct {
@@ -130,6 +143,10 @@ type Expression struct {
     data: *void
 }
 
+def expr_to_string(e: *Expression): string {
+    return null;
+}
+
 type InstDecl struct {
     name: Name,
     ty: *ty.Type
@@ -156,8 +173,24 @@ type InstAssign struct {
     value: Expression
 }
 
+def is_inst_assign(inst: *Inst): bool {
+    return inst.kind == MIR_INST_ASSIGN;
+}
+
+def as_inst_assign(inst: *Inst): *InstAssign {
+    return inst.data as *InstAssign;
+}
+
 type InstJmp struct {
     target: Label
+}
+
+def is_inst_jmp(inst: *Inst): bool {
+    return inst.kind == MIR_INST_JMP;
+}
+
+def as_inst_jmp(inst: *Inst): *InstJmp {
+    return inst.data as *InstJmp;
 }
 
 type InstJmpIf struct {
@@ -166,12 +199,44 @@ type InstJmpIf struct {
     else_target: Label
 }
 
+def is_inst_jmpif(inst: *Inst): bool {
+    return inst.kind == MIR_INST_JMPIF;
+}
+
+def as_inst_jmpif(inst: *Inst): *InstJmpIf {
+    return inst.data as *InstJmpIf;
+}
+
 type InstReturn struct {
     value: Address // MIR_ADDR_EMPTY if empty return: 'return;'
 }
 
+def is_inst_return(inst: *Inst): bool {
+    return inst.kind == MIR_INST_RETURN;
+}
+
+def as_inst_return(inst: *Inst): *InstReturn {
+    return inst.data as *InstReturn;
+}
+
 type InstLabel struct {
     value: Label
+}
+
+def is_inst_label(inst: *Inst): bool {
+    return inst.kind == MIR_INST_LABEL;
+}
+
+def as_inst_label(inst: *Inst): *InstLabel {
+    return inst.data as *InstLabel;
+}
+
+def is_inst_delete(inst: *Inst): bool {
+    return inst.kind == MIR_INST_DELETE;
+}
+
+def as_inst_delete(inst: *Inst): *InstDelete {
+    return inst.data as *InstDelete;
 }
 
 type InstDelete struct {
@@ -220,6 +285,68 @@ def inst_to_string(inst: *Inst): string {
             delete ty_s;
         }
 
+        return s;
+    }
+
+    if is_inst_assign(inst) {
+        let assign = as_inst_assign(inst);
+        let a_s = addr_to_string(&assign.dest);
+        let e_s = expr_to_string(&assign.value);
+
+        let s = std.format_str("%s = %s", a_s, e_s);
+
+        delete a_s;
+        delete e_s;
+
+        return s;
+    }
+
+    if is_inst_jmp(inst) {
+        let jmp = as_inst_jmp(inst);
+        let label = label_name(&jmp.target);
+
+        // just copy the data, since this function is for debug only
+        return std.strndup(label.data, label.len);
+    }
+
+    if is_inst_jmpif(inst) {
+        let jmpif = as_inst_jmpif(inst);
+        let if_label = label_name(&jmpif.if_target);
+        let else_label = label_name(&jmpif.else_target);
+        let condition = addr_to_string(&jmpif.condition);
+
+        let s = std.format_str("jmp %s;%.*s;%.*s", condition, if_label, else_label);
+        delete condition;
+
+        return s;
+    }
+
+    if is_inst_return(inst) {
+        let ret = as_inst_return(inst);
+        if is_addr_empty(&ret.value) {
+            return std.strdup("return");
+        }
+
+        let a_s = addr_to_string(&ret.value);
+        let s = std.format_str("return %s", a_s);
+
+        delete a_s;
+        return s;
+    }
+
+    if is_inst_label(inst) {
+        let label = as_inst_label(inst);
+        let name = label_name(&label.value);
+        return std.format_str("%.*s:", name.len, name.data);
+    }
+
+    if is_inst_delete(inst) {
+        let del = as_inst_delete(inst);
+        let a_s = addr_to_string(&del.addr);
+
+        let s = std.format_str("delete %s", a_s);
+
+        delete a_s;
         return s;
     }
 
