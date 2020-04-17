@@ -35,20 +35,60 @@ type AddressName struct {
     value: Name
 }
 
+def as_addr_name(a: *Address): *AddressName {
+    return a.data as *AddressName;
+}
+
+def is_addr_name(a: *Address): bool {
+    return a.kind == MIR_ADDR_NAME;
+}
+
 type AddressConst struct {
     span: span.Span
+}
+
+def as_addr_const(a: *Address): *AddressConst {
+    return a.data as *AddressConst;
+}
+
+def is_addr_const(a: *Address): bool {
+    return a.kind == MIR_ADDR_CONST;
 }
 
 type AddressTemp struct {
     value: i32
 }
 
+def as_addr_temp(a: *Address): *AddressTemp {
+    return a.data as *AddressTemp;
+}
+
+def is_addr_temp(a: *Address): bool {
+    return a.kind == MIR_ADDR_TEMP;
+}
+
 type AddressGlobal struct {
     name: Name
 }
 
+def as_addr_global(a: *Address): *AddressGlobal {
+    return a.data as *AddressGlobal;
+}
+
+def is_addr_global(a: *Address): bool {
+    return a.kind == MIR_ADDR_GLOBAL;
+}
+
 type AddressRef struct {
     name: Name
+}
+
+def as_addr_ref(a: *Address): *AddressRef {
+    return a.data as *AddressRef;
+}
+
+def is_addr_ref(a: *Address): bool {
+    return a.kind == MIR_ADDR_REF;
 }
 
 def is_addr_empty(a: *Address): bool {
@@ -62,6 +102,35 @@ type Address struct {
 }
 
 def addr_to_string(a: *Address): string {
+    if is_addr_name(a) {
+        let name = as_addr_name(a);
+        return std.strndup(name.value.data, name.value.len);
+    }
+
+    if is_addr_const(a) {
+        let const = as_addr_const(a);
+        return std.strndup(const.span.start, span.len(const.span));
+    }
+
+    if is_addr_temp(a) {
+        let tmp = as_addr_temp(a);
+        return std.format_str("_t%d", tmp.value);
+    }
+
+    if is_addr_global(a) {
+        let global = as_addr_global(a);
+        return std.strndup(global.name.data, global.name.len);
+    }
+
+    if is_addr_ref(a) {
+        let ref = as_addr_ref(a);
+        return std.format_str("&%.*s", ref.name.len, ref.name.data);
+    }
+
+    if is_addr_empty(a) {
+        return std.strdup("_");
+    }
+
     return null;
 }
 
@@ -243,6 +312,10 @@ type InstDelete struct {
     addr: Address
 }
 
+def is_inst_nop(inst: *Inst): bool {
+    return inst.kind == MIR_INST_NOP;
+}
+
 // A single MIR instruction
 //
 // can be one of the following
@@ -348,6 +421,10 @@ def inst_to_string(inst: *Inst): string {
 
         delete a_s;
         return s;
+    }
+
+    if is_inst_nop(inst) {
+        return std.strdup("nop");
     }
 
     return null;
