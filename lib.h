@@ -183,3 +183,35 @@ static char const *const error_texts[] = {
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
 
+// MIR binary kinds
+static char const *const mir_binary_kind_strings[] = {
+    NULL,
+    "+", // MIR_BIN_ADD_SCALAR
+    "-", // MIR_BIN_SUB_SCALAR
+    "+", // MIR_BIN_ADD
+    "-", // MIR_BIN_SUB
+    "*", // MIR_BIN_MUL
+    "/", // MIR_BIN_DIV
+    "%", // MIR_BIN_MOD
+    "<", // MIR_BIN_ST
+    "<=", // MIR_BIN_SE
+    ">", // MIR_BIN_GT
+    ">=", // MIR_BIN_GE
+    "==", // MIR_BIN_EQ
+    "!=", // MIR_BIN_NE
+    "&&", // MIR_BIN_BOOL_AND
+    "||", // MIR_BIN_BOOL_OR
+};
+
+static size_t const len_mir_binary_kind_strings = sizeof(mir_binary_kind_strings) / sizeof(char *);
+
+// MIR unary kinds
+static char const *const mir_unary_kind_strings[] = {
+    NULL,
+    "!", // MIR_UNARY_BOOL_NEG
+    "-", // MIR_UNARY_INT_NEG
+    "*", // MIR_UNARY_DEREF
+};
+
+static size_t const len_mir_unary_kind_strings = sizeof(mir_unary_kind_strings) / sizeof(char *);
+

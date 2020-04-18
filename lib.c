@@ -40,6 +40,14 @@ char const *const unary2str(int32_t op) {
     return get_str(op, len_unary_strings, unary_type_ops);
 }
 
+char const *const mir_binary2str(int32_t op) {
+    return get_str(op, len_mir_binary_kind_strings, mir_binary_kind_strings);
+}
+
+char const *const mir_unary2str(int32_t op) {
+    return get_str(op, len_mir_unary_kind_strings, mir_unary_kind_strings);
+}
+
 char const *const expr2str(int32_t type) {
     return get_str(type, len_expr_strings, expr_type_strings);
 }
