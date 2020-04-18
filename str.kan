@@ -1,0 +1,38 @@
+#define GROW_AMOUNT 16
+
+import "std";
+
+type StrBuf struct {
+    len: i32,
+    cap: i32,
+    content: string
+}
+
+def create_buf(): StrBuf {
+    let cap = 16;
+    let content = std.malloc(cap) as string;
+    *content = '\0';
+
+    return StrBuf {
+        len: 0,
+        cap: cap - 1, // subtract one for null terminator
+        content: content
+    };
+}
+
+def free_buf(buf: *StrBuf): void {
+    delete buf.content;
+}
+
+def append(buf: *StrBuf, s: string): void {
+    let len = std.strlen(s);
+    if len + buf.len > buf.cap {
+        let new_cap = len + buf.cap + 1 + GROW_AMOUNT;
+        buf.content = std.realloc(buf.content as *void, new_cap) as string;
+        buf.cap = new_cap - 1;
+    }
+
+    std.memcpy((buf.content + buf.len) as *void, s as *void, len);
+    buf.len = buf.len + len;
+    *(buf.content + buf.len) = '\0';
+}
