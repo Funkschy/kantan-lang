@@ -6,6 +6,10 @@ import "ty";
 import "std";
 import "source";
 import "vec";
+import "str";
+
+extern def mir_binary2str(kind: i32): string;
+extern def mir_unary2str(kind: i32): string;
 
 type MetaData struct {
     pos: source.SourcePos
@@ -140,13 +144,45 @@ type ExprBinary struct {
     right: Address
 }
 
+def binary_kind_to_static_string(kind: i32): string {
+    return mir_binary2str(kind);
+}
+
+def as_expr_binary(e: *Expression): *ExprBinary {
+    return e.data as *ExprBinary;
+}
+
+def is_expr_binary(e: *Expression): bool {
+    return e.kind == MIR_EXPR_BINARY;
+}
+
 type ExprUnary struct {
     kind: i32,
     addr: Address
 }
 
+def unary_kind_to_static_string(kind: i32): string {
+    return mir_unary2str(kind);
+}
+
+def as_expr_unary(e: *Expression): *ExprUnary {
+    return e.data as *ExprUnary;
+}
+
+def is_expr_unary(e: *Expression): bool {
+    return e.kind == MIR_EXPR_UNARY;
+}
+
 type ExprCopy struct {
     addr: Address
+}
+
+def as_expr_copy(e: *Expression): *ExprCopy {
+    return e.data as *ExprCopy;
+}
+
+def is_expr_copy(e: *Expression): bool {
+    return e.kind == MIR_EXPR_COPY;
 }
 
 type ExprCall struct {
@@ -154,9 +190,29 @@ type ExprCall struct {
     args: vec.Vec // Vec<Address>
 }
 
-type ExprStrucGep struct {
+def call_arg_at(call: *ExprCall, idx: i32): *Address {
+    return vec.get_ptr(&call.args, idx) as *Address;
+}
+
+def as_expr_call(e: *Expression): *ExprCall {
+    return e.data as *ExprCall;
+}
+
+def is_expr_call(e: *Expression): bool {
+    return e.kind == MIR_EXPR_CALL;
+}
+
+type ExprStructGep struct {
     addr: Address,
     idx: i32
+}
+
+def as_expr_struct_gep(e: *Expression): *ExprStructGep {
+    return e.data as *ExprStructGep;
+}
+
+def is_expr_struct_gep(e: *Expression): bool {
+    return e.kind == MIR_EXPR_STRUCTGEP;
 }
 
 type ExprStructInit struct {
@@ -164,21 +220,65 @@ type ExprStructInit struct {
     args: vec.Vec // Vec<Address>
 }
 
+def init_arg_at(init: *ExprStructInit, idx: i32): *Address {
+    return vec.get_ptr(&init.args, idx) as *Address;
+}
+
+def as_expr_struct_init(e: *Expression): *ExprStructInit {
+    return e.data as *ExprStructInit;
+}
+
+def is_expr_struct_init(e: *Expression): bool {
+    return e.kind == MIR_EXPR_STRUCTINIT;
+}
+
 type ExprNew struct {
     addr: Address
+}
+
+def as_expr_new(e: *Expression): *ExprNew {
+    return e.data as *ExprNew;
+}
+
+def is_expr_new(e: *Expression): bool {
+    return e.kind == MIR_EXPR_NEW;
 }
 
 type ExprSizeOf struct {
     addr: Address
 }
 
+def as_expr_sizeof(e: *Expression): *ExprSizeOf {
+    return e.data as *ExprSizeOf;
+}
+
+def is_expr_sizeof(e: *Expression): bool {
+    return e.kind == MIR_EXPR_SIZEOF;
+}
+
 type ExprGetParam struct {
     idx: i32
+}
+
+def as_expr_getparam(e: *Expression): *ExprGetParam {
+    return e.data as *ExprGetParam;
+}
+
+def is_expr_getparam(e: *Expression): bool {
+    return e.kind == MIR_EXPR_GETPARAM;
 }
 
 type ExprBitCast struct {
     addr: Address,
     into: *ty.Type
+}
+
+def as_expr_bitcast(e: *Expression): *ExprBitCast {
+    return e.data as *ExprBitCast;
+}
+
+def is_expr_bitcast(e: *Expression): bool {
+    return e.kind == MIR_EXPR_BITCAST;
 }
 
 // An expression is always on the right side of an assignment instruction
@@ -213,6 +313,148 @@ type Expression struct {
 }
 
 def expr_to_string(e: *Expression): string {
+    if is_expr_binary(e) {
+        let bin = as_expr_binary(e);
+
+        let left = addr_to_string(&bin.left);
+        let right = addr_to_string(&bin.right);
+        let op = binary_kind_to_static_string(bin.kind);
+
+        let s = std.format_str("%s%s%s", left, op, right);
+
+        delete left;
+        delete right;
+        return s;
+    }
+
+    if is_expr_unary(e) {
+        let unary = as_expr_unary(e);
+
+        let addr = addr_to_string(&unary.addr);
+        let op = unary_kind_to_static_string(unary.kind);
+
+        let s = std.format_str("%s%s", op, addr);
+
+        delete addr;
+        return s;
+    }
+
+    if is_expr_copy(e) {
+        let copy = as_expr_copy(e);
+
+        let addr = addr_to_string(&copy.addr);
+        let s = std.format_str("copy %s", addr);
+
+        delete addr;
+        return s;
+    }
+
+    if is_expr_call(e) {
+        let call = as_expr_call(e);
+
+        let buf = str.create_buf();
+
+        let i = 0;
+        while i < call.args.len {
+            let arg = call_arg_at(call, i);
+            let arg_s = addr_to_string(arg);
+
+            str.append(&buf, arg_s);
+            if i < call.args.len - 1 {
+                str.append(&buf, ", ");
+            }
+
+            delete arg_s;
+            i = i + 1;
+        }
+
+        let name = call.name;
+        let s = std.format_str("%.*s(%s)", name.len, name.data, buf.content);
+
+        str.free_buf(&buf);
+
+        return s;
+    }
+
+    if is_expr_struct_gep(e) {
+        let gep = as_expr_struct_gep(e);
+        let addr_s = addr_to_string(&gep.addr);
+
+        let s = std.format_str("gep(%s, %d)", addr_s, gep.idx);
+
+        delete addr_s;
+        return s;
+    }
+
+    if is_expr_struct_init(e) {
+        let init = as_expr_struct_init(e);
+
+        let buf = str.create_buf();
+
+        let i = 0;
+        while i < init.args.len {
+            let arg = init_arg_at(init, i);
+            let arg_s = addr_to_string(arg);
+
+            str.append(&buf, arg_s);
+            if i < init.args.len - 1 {
+                str.append(&buf, ", ");
+            }
+
+            delete arg_s;
+            i = i + 1;
+        }
+
+        let name = init.name;
+        let s = std.format_str("%.*s{%s}", name.len, name.data, buf.content);
+
+        str.free_buf(&buf);
+
+        return s;
+        return s;
+    }
+
+    if is_expr_new(e) {
+        let n = as_expr_new(e);
+        let addr_s = addr_to_string(&n.addr);
+
+        let s = std.format_str("new %s", addr_s);
+
+        delete addr_s;
+        return s;
+    }
+
+    if is_expr_sizeof(e) {
+        let so = as_expr_sizeof(e);
+        let addr_s = addr_to_string(&so.addr);
+
+        let s = std.format_str("sizeof(%s)", addr_s);
+
+        delete addr_s;
+        return s;
+    }
+
+    if is_expr_getparam(e) {
+        let gp = as_expr_getparam(e);
+        return std.format_str("getparam(%d)", gp.idx);
+    }
+
+    if is_expr_bitcast(e) {
+        let cast = as_expr_bitcast(e);
+        let addr_s = addr_to_string(&cast.addr);
+        let ty_s: string = null;
+        let free_ty_s = ty.to_string(cast.into, &ty_s);
+
+        let s = std.format_str("(%s as %s)", addr_s, ty_s);
+
+        delete addr_s;
+        if free_ty_s {
+            delete ty_s;
+        }
+
+        return s;
+    }
+
     return null;
 }
 
