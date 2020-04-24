@@ -1310,8 +1310,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return s;
         }
 
+        let expected_ty: *ty.Type = null;
         if ast.has_type_decl(l_s) {
-            let expected_ty = lookup_tyid(tc, &l_s.ty);
+            expected_ty = lookup_tyid(tc, &l_s.ty);
             if expected_ty == null {
                 return null;
             }
@@ -1326,6 +1327,13 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
             bind(tc, &l_s.ident, temp_ty);
             return null;
+        }
+
+        if expected_ty != null {
+            if !ty.equals(value.ty, expected_ty) {
+                push_wrong_let_type_error(tc, expected_ty, value.ty, s.span);
+                return null;
+            }
         }
 
         l_s.value = value;
@@ -2107,12 +2115,31 @@ def push_wrong_arg_type_error(
     actual: *ty.Type,
     span: span.Span
 ): void {
+    push_wrong_type_error(tc, ERROR_WRONG_ARG_TYPE, expected, actual, span);
+}
+
+def push_wrong_let_type_error(
+    tc: *TypeChecker,
+    expected: *ty.Type,
+    actual: *ty.Type,
+    span: span.Span
+): void {
+    push_wrong_type_error(tc, ERROR_LET_DIFFERENT_TYPES, expected, actual, span);
+}
+
+def push_wrong_type_error(
+    tc: *TypeChecker,
+    err_kind: i32,
+    expected: *ty.Type,
+    actual: *ty.Type,
+    span: span.Span
+): void {
     let expected_ty_s = "";
     let free_expected_ty_s = ty.to_string(expected, &expected_ty_s);
     let actual_ty_s = "";
     let free_actual_ty_s = ty.to_string(actual, &actual_ty_s);
 
-    let text = std.err2str(ERROR_WRONG_ARG_TYPE, expected_ty_s, actual_ty_s);
+    let text = std.err2str(err_kind, expected_ty_s, actual_ty_s);
     if free_expected_ty_s {
         delete expected_ty_s;
     }
