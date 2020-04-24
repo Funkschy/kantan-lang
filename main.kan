@@ -103,7 +103,12 @@ def main(argc: i32, argv: *string): i32 {
     mod.map_free(&mm);
     path.free_pb(&cwd_buf);
 
-    return num_total_errs;
+    if num_total_errs > 0 {
+        io.printf("%d compile errors found\n", num_total_errs);
+        return 1;
+    }
+
+    return 0;
 }
 
 def print_parse_errors(
