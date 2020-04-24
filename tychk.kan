@@ -1332,6 +1332,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         if expected_ty != null {
             if !ty.equals(value.ty, expected_ty) {
                 push_wrong_let_type_error(tc, expected_ty, value.ty, s.span);
+                // bind the error type here, to get rid of follow up errors
+                let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
+                bind(tc, &l_s.ident, temp_ty);
                 return null;
             }
         }

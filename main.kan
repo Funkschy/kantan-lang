@@ -143,7 +143,20 @@ def print_type_errors(
 }
 
 def printf_spanned(span: span.Span, file: *source.SourceFile): void {
-    io.printf(" | %.*s\n", span.len(span), span.start);
+    io.printf(" | ");
+
+    let ptr = span.start;
+    let len = span.len(span);
+    while ptr - span.start < len {
+        let c = *ptr;
+        io.putchar(std.char_to_int(c));
+        if c == '\n' {
+            io.printf(" | ");
+        }
+        ptr = ptr + 1;
+    }
+
+    io.putchar(std.char_to_int('\n'));
 }
 
 def print_error(
