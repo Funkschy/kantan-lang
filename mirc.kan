@@ -1,1 +1,118 @@
+#include "std.h"
+
+import "ty";
+import "mod";
+import "mir";
+import "ast";
+import "map";
+import "std";
+import "dbg";
+import "path";
+import "ptrvec";
+import "scope";
+
 // TODO(#62): implement mir compiler
+
+def compile_all(mods: *mod.Map, globals: scope.Scope, types: ptrvec.Vec): void {
+    // TODO: the mir compilation can be done in parallel
+    let i = 0;
+    while i < mod.num_mods(mods) {
+        let m = mod.get_mod(mods, i);
+
+        let mirc = create_mirc(mods, globals.bindings, m);
+        compile(&mirc);
+        free_mirc(&mirc);
+
+        i = i + 1;
+    }
+}
+
+// Compiles a single *mod.Module to a mir.Module
+type MirCompiler struct {
+    mods: *mod.Map,
+    globals: map.Map, // map.Map<mir.Name, mir.GlobalConst>
+    global_types: map.Map, // map.Map<ident.Ident, *ty.Type>
+    mod: *mod.Module
+}
+
+def create_mirc(mods: *mod.Map, global_types: map.Map, m: *mod.Module): MirCompiler {
+    return MirCompiler {
+        mods: mods,
+        globals: map.create(),
+        global_types: global_types,
+        mod: m
+    };
+}
+
+def free_mirc(c: *MirCompiler): void {}
+
+def compile(c: *MirCompiler): mir.Module {
+    return mir.create_mod(c.globals, mir.create_inst_block());
+}
+
+def mod_at(c: *MirCompiler, i: i32): *mod.Module {
+    return mod.get_mod(c.mods, i);
+}
+
+def add_expr(c: *MirCompiler, b: *mir.InstBlock, e: *ast.Expr): mir.Address {
+    return mir.create_addr_null(null);
+}
+
+// Checks if the expression (e) is a rvalue. If it is, the out_address is filled
+// with the correct mir.Address for this value
+// (e.g. AddressConst for an int literal)
+def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
+    if ast.is_int_expr(e) {
+        *out = mir.create_addr_const(e.ty, e.span);
+        return true;
+    }
+
+    if ast.is_float_expr(e) {
+        *out = mir.create_addr_const(e.ty, e.span);
+        return true;
+    }
+
+    if ast.is_null_expr(e) {
+        *out = mir.create_addr_null(e.ty);
+        return true;
+    }
+
+    if ast.is_string_expr(e) {
+        let name = string_lit(c, e);
+        *out = mir.new_address_global(name, e.ty);
+        return true;
+    }
+
+    if ast.is_char_expr(e) {
+        *out = mir.create_addr_const(e.ty, e.span);
+        return true;
+    }
+
+    return false;
+}
+
+def string_lit(c: *MirCompiler, e: *ast.Expr): mir.Name {
+    return add_global(c, mir.create_global_data(e.span, e.ty));
+}
+
+def add_global(c: *MirCompiler, data: mir.GlobalData): mir.Name {
+    return mir.ref_name(0, null);
+}
+
+def mangle_name(c: *MirCompiler, m: *mod.Module, name: mir.Name, t: *ty.Type): mir.Name {
+    dbg.assert(t != null, "type was null");
+
+    if ty.is_func(t) {
+        let f_ty = ty.as_func(t);
+        let declared_in = mod_at(c, f_ty.declared_in);
+        // TODO: implement function name mangling
+    }
+
+    if ty.is_struct(t) {
+        let s_ty = ty.as_struct(t);
+        let declared_in = mod_at(c, s_ty.declared_in);
+        // TODO: implement struct name mangling
+    }
+
+    return name;
+}

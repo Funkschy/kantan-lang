@@ -16,6 +16,10 @@ type SourcePos struct {
     col: i32  // column number. Starting from 1
 }
 
+def empty_pos(): SourcePos {
+    return SourcePos { lnr: 0, col: 0 };
+}
+
 type SourceFile struct {
     len: i32,
     code: string,

@@ -597,14 +597,12 @@ def as_sizeof_expr(e: *Expr): *SizeOfExpr {
 /////////// string expr ///////////
 
 type StringExpr struct {
-    e: Expr,
-    ptr: string
+    e: Expr
 }
 
-def new_string_expr(span: span.Span, ptr: string): *Expr {
+def new_string_expr(span: span.Span): *Expr {
     return (new StringExpr {
-        e: create_expr(EXPR_STRING, span),
-        ptr: ptr
+        e: create_expr(EXPR_STRING, span)
     }) as *Expr;
 }
 
@@ -766,10 +764,9 @@ def expr_to_string(e: *Expr): string {
     }
 
     if is_string_expr(e) {
-        let s_expr = as_string_expr(e);
         let len = span.len(e.span);
         // include the quotes
-        return std.strndup(s_expr.ptr - 1, len + 2);
+        return std.strndup(e.span.start - 1, len + 2);
     }
 
     if is_char_expr(e) {

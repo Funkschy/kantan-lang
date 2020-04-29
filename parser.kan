@@ -786,7 +786,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     }
 
     if token.ty == TOKEN_STRING {
-        return ast.new_string_expr(token.span, lexer.lexeme(&token));
+        return ast.new_string_expr(token.span);
     }
 
     if token.ty == TOKEN_CHAR {

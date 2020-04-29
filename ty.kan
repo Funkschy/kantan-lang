@@ -183,14 +183,16 @@ type StructField struct {
 type Struct struct {
     name: ident.Ident,
     scope: scope.Scope,
+    declared_in: i32, // mod index
     fields: vec.Vec // <StructField>
 }
 
 // this function is used to initialize placeholder structs of tychk
-def init_struct(t: *Type, name: ident.Ident): void {
+def init_struct(t: *Type, name: ident.Ident, declared_in: i32): void {
     let s = new Struct {
         name: name,
         scope: scope.create(),
+        declared_in: declared_in,
         fields: vec.create(sizeof StructField)
     };
 
@@ -241,14 +243,16 @@ def create_param(name: ident.Ident, ty: *Type): Param {
 }
 
 type Func struct {
+    declared_in: i32, // mod index
     ret: *Type,
     params: vec.Vec, // <Param>
     name: ident.Ident
 }
 
 // this function is used to initialize placeholder functions of tychk
-def init_func(t: *Type, name: ident.Ident): void {
+def init_func(t: *Type, name: ident.Ident, declared_in: i32): void {
     let f = new Func {
+        declared_in: declared_in,
         ret: null,
         params: vec.create(sizeof Param),
         name: name

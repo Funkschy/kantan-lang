@@ -235,13 +235,53 @@ type TypeChecker struct {
     decl_only_pass: bool, // the first pass ignores everything but declarations
     mods: *mod.Map,
     sorted_mods: *i32,
-    // types that get created during type checking and need to be freed afterwards
-    temp_types: ptrvec.Vec,
+    types: ptrvec.Vec,
     ctx: *Ctx,
     globals: scope.Scope,
     errors: vec.Vec, // <TypeError>
     requests: vec.Vec, // Vec<WaitingRequestMap> indexed by mod idx
     contexts: ptrvec.Vec
+}
+
+// Basically the stuff, that is not freed after the typechecker is done
+type CheckResult struct {
+    had_errors: bool,
+    types: ptrvec.Vec,
+    mods: *mod.Map,
+    globals: scope.Scope
+}
+
+def create_result(
+    had_errors: bool,
+    types: ptrvec.Vec,
+    mods: *mod.Map,
+    globals: scope.Scope
+): CheckResult {
+    return CheckResult {
+        had_errors: had_errors,
+        types: types,
+        mods: mods,
+        globals: globals
+    };
+}
+
+def free_result(r: *CheckResult): void {
+    let i = 0;
+    while i < r.types.len {
+        ty.type_free(ptrvec.get(&r.types, i) as *ty.Type);
+        i = i + 1;
+    }
+
+    ptrvec.free_v(&r.types);
+    scope.free_s(&r.globals);
+}
+
+def create_err_result(tc: *TypeChecker): CheckResult {
+    return create_result(true, tc.types, tc.mods, tc.globals);
+}
+
+def create_check_result(tc: *TypeChecker): CheckResult {
+    return create_result(num_errs(tc) > 0, tc.types, tc.mods, tc.globals);
 }
 
 def create(mods: *mod.Map): TypeChecker {
@@ -251,7 +291,7 @@ def create(mods: *mod.Map): TypeChecker {
         decl_only_pass: false,
         mods: mods,
         sorted_mods: sorted_mods(mods),
-        temp_types: ptrvec.with_cap(256),
+        types: ptrvec.with_cap(256),
         ctx: null,
         globals: scope.create(),
         errors: vec.create(sizeof TypeError),
@@ -268,7 +308,7 @@ def get_ctx(tc: *TypeChecker, idx: i32): *Ctx {
     return ptrvec.unsafe_get(&tc.contexts, idx) as *Ctx;
 }
 
-def check(tc: *TypeChecker): void {
+def check(tc: *TypeChecker): CheckResult {
     let error = false;
 
     // first init all modules, since the waiting system expects this
@@ -358,7 +398,7 @@ def check(tc: *TypeChecker): void {
 
     // don't execute real pass if there are already errors
     if error {
-        return;
+        return create_err_result(tc);
     }
 
     // the real pass
@@ -371,6 +411,8 @@ def check(tc: *TypeChecker): void {
 
         i = i + 1;
     }
+
+    return create_check_result(tc);
 }
 
 def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
@@ -664,7 +706,7 @@ def fill_func_def(
 }
 
 def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
-    ptrvec.push_ptr(&tc.temp_types, ty as *void);
+    ptrvec.push_ptr(&tc.types, ty as *void);
     return ty;
 }
 
@@ -1059,7 +1101,7 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let definition = ty.new_type(TY_STRUCT, null);
     push_tmp_ty(tc, definition);
 
-    ty.init_struct(definition, sd.name);
+    ty.init_struct(definition, sd.name, tc.ctx.mod.idx);
     return definition;
 }
 
@@ -1086,7 +1128,7 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let definition = ty.new_type(TY_FUNC, null);
     push_tmp_ty(tc, definition);
 
-    ty.init_func(definition, fd.name);
+    ty.init_func(definition, fd.name, tc.ctx.mod.idx);
     return definition;
 }
 
@@ -2020,24 +2062,14 @@ def check_unary_expr(
 }
 
 def free_tc(tc: *TypeChecker): void {
-    let i = 0;
-    while i < tc.temp_types.len {
-        ty.type_free(ptrvec.get(&tc.temp_types, i) as *ty.Type);
-        i = i + 1;
-    }
-
-    ptrvec.free_v(&tc.temp_types);
     delete tc.sorted_mods;
 
-    i = 0;
+    let i = 0;
     while i < tc.errors.len {
         free_err(get_err(tc, i));
         i = i + 1;
     }
     vec.free_v(&tc.errors);
-
-    scope.free_s(&tc.globals);
-
 
     i = 0;
     while i < tc.requests.len {

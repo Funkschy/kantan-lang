@@ -88,16 +88,22 @@ def main(argc: i32, argv: *string): i32 {
     // TODO(#5): only type check, if no parse errors where found?
     //  this does not seem to be a problem right now
     let tc = tychk.create(&mm);
-    tychk.check(&tc);
+    let tychk_res = tychk.check(&tc);
 
-    let num_errs = tychk.num_errs(&tc);
-    num_total_errs = num_total_errs + num_errs;
-    if num_errs > 0 {
+    if tychk_res.had_errors {
+        let num_errs = tychk.num_errs(&tc);
+        num_total_errs = num_total_errs + num_errs;
         io.printf("%d type errors found\n", num_errs);
         print_type_errors(&tc, &file_map, &cwd);
     }
 
     tychk.free_tc(&tc);
+
+    mirc.compile_all(tychk_res.mods, tychk_res.globals, tychk_res.types);
+
+    // this also frees all the types, so it has to happen after compilation
+    // TODO: implement some form of type garbage collection
+    tychk.free_result(&tychk_res);
     reader.free_fm(&file_map);
     mod.map_free(&mm);
     path.free_pb(&cwd_buf);
@@ -142,12 +148,12 @@ def print_type_errors(
     }
 }
 
-def printf_spanned(span: span.Span, file: *source.SourceFile): void {
+def printf_spanned(s: span.Span, file: *source.SourceFile): void {
     io.printf(" | ");
 
-    let ptr = span.start;
-    let len = span.len(span);
-    while ptr - span.start < len {
+    let ptr = s.start;
+    let len = span.len(s);
+    while ptr - s.start < len {
         let c = *ptr;
         io.putchar(std.char_to_int(c));
         if c == '\n' {

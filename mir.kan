@@ -1,24 +1,103 @@
 #include "mir_types.h"
 #include "std.h"
 
-import "span";
 import "ty";
 import "std";
-import "source";
 import "vec";
 import "str";
+import "map";
+import "span";
+import "source";
 
 extern def mir_binary2str(kind: i32): string;
 extern def mir_unary2str(kind: i32): string;
 
+type Module struct {
+    globals: map.Map, // map.Map<Name, GlobalConst>
+    instructions: InstBlock
+}
+
+def create_mod(globals: map.Map, instructions: InstBlock): Module {
+    return Module {
+        globals: globals,
+        instructions: instructions
+    };
+}
+
 type MetaData struct {
     pos: source.SourcePos
+}
+
+def create_meta(pos: source.SourcePos): MetaData {
+    return MetaData { pos: pos };
+}
+
+type GlobalData struct {
+    src_pos: span.Span,
+    ty: *ty.Type
+}
+
+def create_global_data(src_pos: span.Span, ty: *ty.Type): GlobalData {
+    return GlobalData {
+        src_pos: src_pos,
+        ty: ty
+    };
+}
+
+type GlobalConst struct {
+    name: Name,
+    data: GlobalData
+}
+
+def create_const(name: Name, src_pos: span.Span, ty: *ty.Type): GlobalConst {
+    return GlobalConst {
+        name: name,
+        data: create_global_data(src_pos, ty)
+    };
+}
+
+def const_name(c: *GlobalConst): Name {
+    return ref_name(c.name.len, c.name.data);
+}
+
+type InstBlock struct {
+    instructions: vec.Vec // vec.Vec<Inst>
+}
+
+def create_inst_block(): InstBlock {
+    return InstBlock { instructions: vec.create(sizeof Inst) };
+}
+
+def add_instr(b: *InstBlock, inst: Inst): void {
+    vec.push(&b.instructions, &inst as *void);
+}
+
+type BasicBlock struct {
+    label: Label,
+    instructions: vec.Vec, // vec.Vec<Inst>
+    terminator: Inst
+}
+
+def create_bb(label: Label): BasicBlock {
+    return BasicBlock {
+        label: label,
+        instructions: vec.create(sizeof Inst),
+        terminator: create_inst_nop()
+    };
 }
 
 type Name struct {
     owned: bool,
     len: i32,
     data: string
+}
+
+def make_owned_name(len: i32, data: string): Name {
+    return Name { owned: true, len: len, data: data };
+}
+
+def ref_name(len: i32, data: string): Name {
+    return Name { owned: false, len: len, data: data };
 }
 
 def free_name(n: *Name): void {
@@ -32,7 +111,7 @@ type Label struct {
 }
 
 def label_name(l: *Label): Name {
-    return Name { owned: false, len: l.name.len, data: l.name.data };
+    return ref_name(l.name.len, l.name.data);
 }
 
 type AddressName struct {
@@ -49,6 +128,11 @@ def is_addr_name(a: *Address): bool {
 
 type AddressConst struct {
     span: span.Span
+}
+
+def create_addr_const(ty: *ty.Type, s: span.Span): Address {
+    let cnst = (new AddressConst { span: s }) as *void;
+    return create_addr(MIR_ADDR_CONST, ty, cnst);
 }
 
 def as_addr_const(a: *Address): *AddressConst {
@@ -75,6 +159,14 @@ type AddressGlobal struct {
     name: Name
 }
 
+def new_address_global(name: Name, ty: *ty.Type): Address {
+    return Address {
+        kind: MIR_ADDR_GLOBAL,
+        ty: ty,
+        data: (new AddressGlobal { name: name }) as *void
+    };
+}
+
 def as_addr_global(a: *Address): *AddressGlobal {
     return a.data as *AddressGlobal;
 }
@@ -99,10 +191,30 @@ def is_addr_empty(a: *Address): bool {
     return a.kind == MIR_ADDR_EMPTY;
 }
 
+def create_addr_null(ty: *ty.Type): Address {
+    return create_addr(MIR_ADDR_NULL, ty, null);
+}
+
+def is_addr_null(a: *Address): bool {
+    return a.kind == MIR_ADDR_NULL;
+}
+
 type Address struct {
     kind: i32,
     ty: *ty.Type,
     data: *void
+}
+
+def create_addr(kind: i32, ty: *ty.Type, data: *void): Address {
+    return Address {
+        kind: kind, ty: ty, data: data
+    };
+}
+
+def free_add(a: *Address): void {
+    if a.data != null {
+        delete a.data;
+    }
 }
 
 def addr_to_string(a: *Address): string {
@@ -133,6 +245,10 @@ def addr_to_string(a: *Address): string {
 
     if is_addr_empty(a) {
         return std.strdup("_");
+    }
+
+    if is_addr_null(a) {
+        return std.strdup("null");
     }
 
     return null;
@@ -552,6 +668,14 @@ def as_inst_delete(inst: *Inst): *InstDelete {
 
 type InstDelete struct {
     addr: Address
+}
+
+def create_inst_nop(): Inst {
+    return Inst {
+        kind: MIR_INST_NOP,
+        meta: create_meta(source.empty_pos()),
+        data: null
+    };
 }
 
 def is_inst_nop(inst: *Inst): bool {
