@@ -14,7 +14,7 @@ import "scope";
 // TODO(#62): implement mir compiler
 
 def compile_all(mods: *mod.Map, globals: scope.Scope, types: ptrvec.Vec): void {
-    // TODO: the mir compilation can be done in parallel
+    // TODO(#64): the mir compilation can be done in parallel
     let i = 0;
     while i < mod.num_mods(mods) {
         let m = mod.get_mod(mods, i);
@@ -105,13 +105,13 @@ def mangle_name(c: *MirCompiler, m: *mod.Module, name: mir.Name, t: *ty.Type): m
     if ty.is_func(t) {
         let f_ty = ty.as_func(t);
         let declared_in = mod_at(c, f_ty.declared_in);
-        // TODO: implement function name mangling
+        // TODO(#65): implement function name mangling
     }
 
     if ty.is_struct(t) {
         let s_ty = ty.as_struct(t);
         let declared_in = mod_at(c, s_ty.declared_in);
-        // TODO: implement struct name mangling
+        // TODO(#66): implement struct name mangling
     }
 
     return name;
