@@ -63,8 +63,10 @@ def create_stack(): ScopeStack {
     };
 }
 
-def free_stack(s: *ScopeStack): void {
-    let i = 2; // dont free global scopes
+def free_stack(s: *ScopeStack, start_idx: i32): void {
+    let i = start_idx; // dont free global scopes
+    // since all opened scopes are also closed, this code will never be
+    // executed, should be remove it or keep it here, just to be sure?
     while i < num_scopes(s) {
         let scope = scope_at(s, i);
         free_s(scope);

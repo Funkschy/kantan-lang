@@ -28,7 +28,8 @@ K_FILES = ast.kan \
 		  dbg.kan \
 		  str.kan \
 		  mir.kan \
-		  mirc.kan
+		  mirc.kan \
+		  nt.kan
 C_FILES = lib.c \
 		  modsort.c \
 		  lib.h \

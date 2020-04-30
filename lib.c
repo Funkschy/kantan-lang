@@ -219,6 +219,11 @@ int vformat_str(char **dest, char const *fmt, va_list args){
     return size;
 }
 
+int32_t int_num_digits(int32_t i) {
+    // pass NULL as str, so that we just get the size
+    return snprintf(NULL, 0, "%d", i);
+}
+
 uint64_t next_pow_of_2(uint64_t num) {
     uint64_t n = num - 1;
     n |= n >> 1;

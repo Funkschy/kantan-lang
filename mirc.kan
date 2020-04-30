@@ -10,6 +10,7 @@ import "dbg";
 import "path";
 import "ptrvec";
 import "scope";
+import "nt";
 
 // TODO(#62): implement mir compiler
 

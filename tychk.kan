@@ -222,7 +222,7 @@ def create_ctx(mod: *mod.Module, global: *scope.Scope): *Ctx {
 }
 
 def free_ctx(ctx: *Ctx): void {
-    scope.free_stack(&ctx.scopes);
+    scope.free_stack(&ctx.scopes, 2);
     map.free_m(&ctx.imports);
     delete ctx;
 }
