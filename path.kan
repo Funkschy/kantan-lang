@@ -237,7 +237,7 @@ def common_parent(first: Path, second: Path): PathBuf {
         smaller_len = second.len;
     }
 
-    // TODO: on windows paths start with a drive letter, so we need to adjust
+    // TODO(#69): on windows paths start with a drive letter, so we need to adjust
     //  the code to handle this
     let last_separator = 0;
     let i = 0;

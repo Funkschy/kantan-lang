@@ -237,7 +237,7 @@ def try_get_mod_from_import(
         let imp_s = ident.to_string(&imp.mod);
 
         if errdest != null {
-            // TODO: the error message produced for a 'file not found' error
+            // TODO(#68): the error message produced for a 'file not found' error
             //  is 'no such process, which is confusing'
             let err = std.format_str(
                 "%s: %s%s%s",
