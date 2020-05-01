@@ -6,3 +6,8 @@ extern def assert_fmt(condition: bool, fmt: string, ...): void;
 def assert(condition: bool, err_text: string): void {
     assert_fmt(condition, err_text);
 }
+
+def not_implemented(): void {
+    io.printf("not implemented\n");
+    std.abort();
+}

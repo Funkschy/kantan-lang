@@ -12,25 +12,27 @@ import "scope";
 #define KANTAN_FILE_ENDING ".kan"
 
 type Module struct {
+    is_std_lib: bool,
+    idx: i32, // index in modmap used for faster access
     statements: ptrvec.Vec,
     path: path.Path,
      // the following vecs just contain indices into the statements ptrvec
     imports: vec.Vec,
     functions: vec.Vec,
     structs: vec.Vec,
-    ty: *ty.Type, // the Type containing the bindings
-    idx: i32 // index in modmap used for faster access
+    ty: *ty.Type // the Type containing the bindings
 }
 
-def create(p: path.Path): Module {
+def create(p: path.Path, is_std_lib: bool): Module {
     return Module {
+        is_std_lib: is_std_lib,
+        idx: -1,
         statements: ptrvec.create(),
         path: p,
         imports: vec.create(sizeof i32),
         functions: vec.create(sizeof i32),
         structs: vec.create(sizeof i32),
-        ty: null,
-        idx: -1
+        ty: null
     };
 }
 

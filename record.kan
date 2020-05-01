@@ -6,6 +6,7 @@ import "map";
 import "vec";
 import "std";
 import "span";
+import "ty";
 
 type Field struct {
     ident: ident.Ident,
@@ -98,12 +99,13 @@ def fields_to_string(fs: *Fields): string {
 
 type StructDecl struct {
     name: ident.Ident,
-    fields: Fields
+    fields: Fields,
+    struct_ty: *ty.Type
 }
 
 def create_struct(name: ident.Ident, fields: vec.Vec): StructDecl {
     let fields = create_fields(fields);
-    return StructDecl { name: name, fields: fields };
+    return StructDecl { name: name, fields: fields, struct_ty: null };
 }
 
 def free_struct(s: *StructDecl): void {

@@ -1,3 +1,5 @@
+#include "std.h"
+
 import "vec";
 import "path";
 import "file";
@@ -17,7 +19,16 @@ type FileAddResult struct {
 
 type FileMap struct {
     home_dir: string,
-    files: vec.Vec // SourceFiles
+    files: vec.Vec, // vec.Vec<source.SourceFile>
+    // the largest shared path of all source files
+    // Example:
+    // The following files have a common root of '/home/'
+    // /home/user/test.kan
+    // /home/user/kantan/other.kan
+    // /home/program.kan
+    //
+    // if we removed program.kan, the common root would be '/home/user/'
+    proj_root: path.PathBuf
 }
 
 def create(): FileMap {
@@ -25,7 +36,8 @@ def create(): FileMap {
     // TODO(#19): respond to home not found
     return FileMap {
         home_dir: std.getenv("HOME"),
-        files: vec.create(sizeof source.SourceFile)
+        files: vec.create(sizeof source.SourceFile),
+        proj_root: path.buf_from(path.empty())
     };
 }
 
@@ -72,6 +84,7 @@ def free_fm(m: *FileMap): void {
     }
 
     vec.free_v(&m.files);
+    path.free_pb(&m.proj_root);
 }
 
 def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
@@ -88,7 +101,7 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
         let full_file_name = std.format_str("%s/%s", std_dir, file_name);
 
         let res = 0;
-        if (res = add_file(m, rel_path, full_file_name)) != 0 {
+        if (res = add_file(m, rel_path, full_file_name, true)) != 0 {
             delete std_dir;
             return FileAddResult { file_name: file_name, err_code: res };
         }
@@ -117,7 +130,7 @@ def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): F
     while i < len {
         let file_name = *(file_names + i);
         let res = 0;
-        if (res = add_file(m, rel_path, file_name)) != 0 {
+        if (res = add_file(m, rel_path, file_name, false)) != 0 {
             return FileAddResult { file_name: file_name, err_code: res };
         }
         i = i + 1;
@@ -126,7 +139,7 @@ def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): F
     return FileAddResult { file_name: null, err_code: 0 };
 }
 
-def add_file(m: *FileMap, rel_path: *path.Path, name: string): i32 {
+def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool): i32 {
     let p = path.empty();
     let res = 0;
     if (res = path.from_str(name, &p)) != 0 {
@@ -140,12 +153,26 @@ def add_file(m: *FileMap, rel_path: *path.Path, name: string): i32 {
     }
 
     let sf = source.empty();
-    if (res = source.read(abs_path, &sf)) != 0 {
+    if (res = source.read(abs_path, &sf, is_std_lib)) != 0 {
         path.free_pb(&abs_path);
         return res;
     }
 
     vec.push(&m.files, &sf as *void);
+    if !is_std_lib {
+        update_root(m, abs_path.inner);
+    }
 
     return 0;
+}
+
+def update_root(m: *FileMap, p: path.Path): void {
+    if m.proj_root.inner.len == 0 {
+        m.proj_root = path.new_path_buf_l(p.len, p.inner);
+        return;
+    }
+
+    let common = path.common_parent(m.proj_root.inner, p);
+    path.free_pb(&m.proj_root);
+    m.proj_root = common;
 }

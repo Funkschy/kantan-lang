@@ -5,6 +5,7 @@
 #define SYSTEM_SEPARATOR '/'
 
 import "std";
+import "dbg";
 
 extern def getcwd(buf: string, buf_size: i32): string;
 extern def realpath(path: string, resolved: string): string;
@@ -145,6 +146,11 @@ def new_path_buf(path: string): PathBuf {
     return create_path_buf(std.strdup(path));
 }
 
+def new_path_buf_l(len: i32, path: string): PathBuf {
+    let dup = std.strdup(path);
+    return buf_from(create(dup, len));
+}
+
 def create_path_buf(path: string): PathBuf {
     let p = empty();
     if from_str(path, &p) != 0 {
@@ -211,6 +217,44 @@ def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathB
     *dest = pb;
 
     return 0;
+}
+
+// the largest shared path of the 2 paths
+// Example:
+// The following files have a common sub path of '/home/user/'
+// /home/user/test.kan
+// /home/user/kantan/other.kan
+def common_parent(first: Path, second: Path): PathBuf {
+    dbg.assert(is_abs(&first), "First path was not absolute");
+    dbg.assert(is_abs(&second), "Second path was not absolute");
+
+    let smaller_len = first.len;
+    if second.len < smaller_len {
+        smaller_len = second.len;
+    }
+
+    // TODO: on windows paths start with a drive letter, so we need to adjust
+    //  the code to handle this
+    let last_separator = 0;
+    let i = 0;
+    while i < smaller_len {
+        let ptr = first.inner + i;
+
+        if *ptr != *(second.inner + i) {
+            let len = last_separator + 1;
+
+            return new_path_buf_l(len, first.inner);
+        }
+
+        if *ptr == SYSTEM_SEPARATOR {
+            last_separator = i;
+        }
+
+        i = i + 1;
+    }
+
+    // both paths are either identical or one is a subpath of the other one
+    return new_path_buf_l(smaller_len, first.inner);
 }
 
 def free_pb(pb: *PathBuf): void {

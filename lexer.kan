@@ -129,6 +129,10 @@ def get_path(l: *Lexer): path.Path {
     return l.source.file.path.inner;
 }
 
+def is_std_lib(l: *Lexer): bool {
+    return l.source.is_std_lib;
+}
+
 def is_num(c: i32): bool {
     return c >= std.char_to_int('0') && c <= std.char_to_int('9');
 }

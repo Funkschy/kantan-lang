@@ -4,6 +4,7 @@ import "ident";
 import "vec";
 import "param";
 import "tyid";
+import "ty";
 
 type ParamList struct {
     params: vec.Vec
@@ -25,7 +26,8 @@ type FuncDef struct {
     is_extern: bool,
     name: ident.Ident,
     ret_ty: tyid.Type,
-    params: ParamList
+    params: ParamList,
+    func_ty: *ty.Type
 }
 
 def create(name: lexer.Token, params: ParamList, ret_ty: tyid.Type, is_extern: bool): FuncDef {
@@ -33,7 +35,8 @@ def create(name: lexer.Token, params: ParamList, ret_ty: tyid.Type, is_extern: b
         is_extern: is_extern,
         name: ident.create(name),
         ret_ty: ret_ty,
-        params: params
+        params: params,
+        func_ty: null
     };
 }
 

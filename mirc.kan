@@ -1,6 +1,7 @@
 #include "std.h"
 
 import "ty";
+import "nt";
 import "mod";
 import "mir";
 import "ast";
@@ -8,13 +9,18 @@ import "map";
 import "std";
 import "dbg";
 import "path";
-import "ptrvec";
 import "scope";
-import "nt";
+import "ident";
+import "ptrvec";
 
 // TODO(#62): implement mir compiler
 
-def compile_all(mods: *mod.Map, globals: scope.Scope, types: ptrvec.Vec): void {
+def compile_all(
+    proj_root: path.Path,
+    mods: *mod.Map,
+    globals: scope.Scope,
+    types: ptrvec.Vec
+): void {
     // TODO(#64): the mir compilation can be done in parallel
     let i = 0;
     while i < mod.num_mods(mods) {
@@ -48,7 +54,25 @@ def create_mirc(mods: *mod.Map, global_types: map.Map, m: *mod.Module): MirCompi
 def free_mirc(c: *MirCompiler): void {}
 
 def compile(c: *MirCompiler): mir.Module {
+    let i = 0;
+    let n = mod.num_stmts(c.mod);
+    while i < n {
+        let s = mod.get_stmt_at(c.mod, i);
+        compile_stmt(c, s);
+        i = i + 1;
+    }
+
     return mir.create_mod(c.globals, mir.create_inst_block());
+}
+
+def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
+    if ast.is_func_decl_stmt(s) {
+        let decl_stmt = ast.as_func_decl_stmt(s);
+        let decl = &decl_stmt.decl;
+
+        let name = mangle_func_name(c, &decl.name, decl.func_ty);
+        io.printf("%.*s\n", name.len, name.data);
+    }
 }
 
 def mod_at(c: *MirCompiler, i: i32): *mod.Module {
@@ -56,6 +80,16 @@ def mod_at(c: *MirCompiler, i: i32): *mod.Module {
 }
 
 def add_expr(c: *MirCompiler, b: *mir.InstBlock, e: *ast.Expr): mir.Address {
+    if ast.is_ident_expr(e) {
+        // TODO: lookup
+        dbg.not_implemented();
+    }
+
+    let a = mir.create_addr_empty();
+    if rvalue_expr(c, e, &a) {
+        return a;
+    }
+
     return mir.create_addr_null(null);
 }
 
@@ -100,20 +134,34 @@ def add_global(c: *MirCompiler, data: mir.GlobalData): mir.Name {
     return mir.ref_name(0, null);
 }
 
-def mangle_name(c: *MirCompiler, m: *mod.Module, name: mir.Name, t: *ty.Type): mir.Name {
+def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name {
     dbg.assert(t != null, "type was null");
+    dbg.assert(ty.is_func(t), "type was not a function");
 
-    if ty.is_func(t) {
-        let f_ty = ty.as_func(t);
-        let declared_in = mod_at(c, f_ty.declared_in);
-        // TODO(#65): implement function name mangling
-    }
+    let f_ty = ty.as_func(t);
+    let declared_in = mod_at(c, f_ty.declared_in);
+    // TODO(#65): implement function name mangling
 
-    if ty.is_struct(t) {
-        let s_ty = ty.as_struct(t);
-        let declared_in = mod_at(c, s_ty.declared_in);
-        // TODO(#66): implement struct name mangling
-    }
+    let p = declared_in.path;
+    let len = p.len + 1 + ident.len(name);
+    // let name = std.format_str("%.*s/%.*s", p.len, p.inner, ident.len(name), ident.start(name));
 
-    return name;
+    // return mir.make_owned_name(len, name);
+    return ident_to_mir_name(name);
 }
+
+def mangle_struct_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name {
+    dbg.assert(t != null, "type was null");
+    dbg.assert(ty.is_struct(t), "type was not a struct");
+
+    let s_ty = ty.as_struct(t);
+    let declared_in = mod_at(c, s_ty.declared_in);
+    // TODO(#66): implement struct name mangling
+
+    return ident_to_mir_name(name);
+}
+
+def ident_to_mir_name(i: *ident.Ident): mir.Name {
+    return mir.ref_name(ident.len(i), ident.start(i));
+}
+

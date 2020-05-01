@@ -1298,6 +1298,8 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         dbg.assert(ty != null, "struct type should never be null");
 
         bind(tc, &sd.name, ty);
+        sd.struct_ty = ty;
+
         return s;
     }
 
@@ -1319,6 +1321,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
             if ty != null {
                 bind(tc, &fd.name, ty);
+                fd.func_ty = ty;
             } else {
                 return null;
             }

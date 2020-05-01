@@ -1,3 +1,5 @@
+#include "std.h"
+
 import "path";
 import "file";
 import "span";
@@ -21,6 +23,7 @@ def empty_pos(): SourcePos {
 }
 
 type SourceFile struct {
+    is_std_lib: bool,
     len: i32,
     code: string,
     file: file.File,
@@ -29,7 +32,13 @@ type SourceFile struct {
 
 def empty(): SourceFile {
     let map = SourceMap { line_starts: ptrvec.create() };
-    return SourceFile { len: 0, code: null, file: file.empty(), map: map };
+    return SourceFile {
+        is_std_lib: false,
+        len: 0,
+        code: null,
+        file: file.empty(),
+        map: map
+    };
 }
 
 def free_sf(sf: *SourceFile): void {
@@ -46,7 +55,7 @@ def code(sf: *SourceFile): string {
     return sf.code;
 }
 
-def read(p: path.PathBuf, f: *SourceFile): i32 {
+def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): i32 {
     let new_file = file.create(p);
     let s: string = null;
     let len = 0;
@@ -57,7 +66,13 @@ def read(p: path.PathBuf, f: *SourceFile): i32 {
     }
 
     let map = map_from_source(s, len);
-    *f = SourceFile { len: len, code: s, file: new_file, map: map };
+    *f = SourceFile {
+        is_std_lib: is_std_lib,
+        len: len,
+        code: s,
+        file: new_file,
+        map: map
+    };
 
     return 0;
 }

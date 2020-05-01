@@ -187,6 +187,10 @@ def is_addr_ref(a: *Address): bool {
     return a.kind == MIR_ADDR_REF;
 }
 
+def create_addr_empty(): Address {
+    return create_addr(MIR_ADDR_EMPTY, null, null);
+}
+
 def is_addr_empty(a: *Address): bool {
     return a.kind == MIR_ADDR_EMPTY;
 }
