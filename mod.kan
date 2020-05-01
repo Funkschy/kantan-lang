@@ -36,6 +36,13 @@ def create(p: path.Path, is_std_lib: bool): Module {
     };
 }
 
+def kantan_file_ending(len: *i32): string {
+    if len != null {
+        *len = std.strlen(KANTAN_FILE_ENDING);
+    }
+    return KANTAN_FILE_ENDING;
+}
+
 def s_lookup(m: *Module, key_len: i32, key: string): *ty.Type {
     return scope.s_get_in(ty.get_scope(m.ty), key_len, key);
 }
@@ -194,7 +201,7 @@ def get_abs_import_path(
     let imp_path = path.create(ident.start(&imp.mod), len);
     let dir = path.parent(&current.path);
 
-    return path.merge_abs_rel_suffix(&dir, &imp_path, KANTAN_FILE_ENDING, dest);
+    return path.merge_abs_rel_suffix(&dir, &imp_path, kantan_file_ending(null), dest);
 }
 
 // on error, this will return null and fill (if not null) the
@@ -208,8 +215,10 @@ def try_get_mod_from_import(
     // TODO(#7): extract errors to lib.h with the ususal error code system
 
     let plen = ident.len(&imp.mod);
-    let path_str = std.format_str("%.*s%s", plen, ident.start(&imp.mod), KANTAN_FILE_ENDING);
-    let p = path.create(path_str, plen + std.strlen(KANTAN_FILE_ENDING));
+    let file_ending_len = 0;
+    let file_ending = kantan_file_ending(&file_ending_len);
+    let path_str = std.format_str("%.*s%s", plen, ident.start(&imp.mod), file_ending);
+    let p = path.create(path_str, plen + file_ending_len);
 
     let imported_mod = get_mod_by_path(mm, &p);
     delete path_str;
@@ -228,12 +237,14 @@ def try_get_mod_from_import(
         let imp_s = ident.to_string(&imp.mod);
 
         if errdest != null {
+            // TODO: the error message produced for a 'file not found' error
+            //  is 'no such process, which is confusing'
             let err = std.format_str(
-                "%s: %s/%s%s",
+                "%s: %s%s%s",
                 std.strerror(error),
                 mod_s,
                 imp_s,
-                KANTAN_FILE_ENDING
+                file_ending
             );
 
             *errdest = err;

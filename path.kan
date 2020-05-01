@@ -23,6 +23,10 @@ def create(value: string, len: i32): Path {
     return Path { len: len, inner: value };
 }
 
+def sys_separator(): char {
+    return SYSTEM_SEPARATOR;
+}
+
 def from_str(s: string, p: *Path): i32 {
     let len = std.strlen(s);
     if len <= 0 {
@@ -70,7 +74,7 @@ def parent(p: *Path): Path {
 
     let lsp = last_separator_ptr(p);
     if lsp != null {
-        return create(p.inner, lsp - p.inner);
+        return create(p.inner, lsp - p.inner + 1);
     }
 
     return *p;

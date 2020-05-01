@@ -168,6 +168,7 @@ def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool):
 
 def update_root(m: *FileMap, p: path.Path): void {
     if m.proj_root.inner.len == 0 {
+        let p = path.parent(&p);
         m.proj_root = path.new_path_buf_l(p.len, p.inner);
         return;
     }

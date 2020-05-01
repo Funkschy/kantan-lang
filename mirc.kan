@@ -15,18 +15,21 @@ import "ptrvec";
 
 // TODO(#62): implement mir compiler
 
-def compile_all(
-    proj_root: path.Path,
+// Data which is shared between all the MirCompiler instances
+type CompilationData struct {
     mods: *mod.Map,
-    globals: scope.Scope,
-    types: ptrvec.Vec
-): void {
+    proj_root: path.Path,
+    global_types: map.Map // map.Map<ident.Ident, *ty.Type>
+}
+
+def compile_all(data: CompilationData, types: ptrvec.Vec): void {
     // TODO(#64): the mir compilation can be done in parallel
     let i = 0;
-    while i < mod.num_mods(mods) {
-        let m = mod.get_mod(mods, i);
+    let n = mod.num_mods(data.mods);
+    while i < n {
+        let m = mod.get_mod(data.mods, i);
 
-        let mirc = create_mirc(mods, globals.bindings, m);
+        let mirc = create_mirc(m, &data);
         compile(&mirc);
         free_mirc(&mirc);
 
@@ -36,18 +39,16 @@ def compile_all(
 
 // Compiles a single *mod.Module to a mir.Module
 type MirCompiler struct {
-    mods: *mod.Map,
-    globals: map.Map, // map.Map<mir.Name, mir.GlobalConst>
-    global_types: map.Map, // map.Map<ident.Ident, *ty.Type>
-    mod: *mod.Module
+    mod: *mod.Module,
+    data: *CompilationData,
+    globals: map.Map // map.Map<mir.Name, mir.GlobalConst>
 }
 
-def create_mirc(mods: *mod.Map, global_types: map.Map, m: *mod.Module): MirCompiler {
+def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
     return MirCompiler {
-        mods: mods,
-        globals: map.create(),
-        global_types: global_types,
-        mod: m
+        mod: m,
+        data: data,
+        globals: map.create()
     };
 }
 
@@ -71,12 +72,13 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let decl = &decl_stmt.decl;
 
         let name = mangle_func_name(c, &decl.name, decl.func_ty);
-        io.printf("%.*s\n", name.len, name.data);
+        io.printf("name: %.*s\n", name.len, name.data);
+        mir.free_name(&name);
     }
 }
 
 def mod_at(c: *MirCompiler, i: i32): *mod.Module {
-    return mod.get_mod(c.mods, i);
+    return mod.get_mod(c.data.mods, i);
 }
 
 def add_expr(c: *MirCompiler, b: *mir.InstBlock, e: *ast.Expr): mir.Address {
@@ -142,11 +144,40 @@ def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name
     let declared_in = mod_at(c, f_ty.declared_in);
     // TODO(#65): implement function name mangling
 
-    let p = declared_in.path;
-    let len = p.len + 1 + ident.len(name);
-    // let name = std.format_str("%.*s/%.*s", p.len, p.inner, ident.len(name), ident.start(name));
+    if !declared_in.is_std_lib {
+        let p = declared_in.path;
 
-    // return mir.make_owned_name(len, name);
+        let file_ending_len = 0;
+        mod.kantan_file_ending(&file_ending_len);
+
+        let mod_len = p.len - c.data.proj_root.len - file_ending_len;
+        let mod_name = p.inner + c.data.proj_root.len;
+
+        // +1 for '.'
+        let len = mod_len + ident.len(name) + 1;
+        let name_data = std.malloc(len + 1) as string;
+        io.printf("%.*s/%.*s\n", p.len, p.inner, ident.len(name), ident.start(name));
+
+        let i = 0;
+        let sep = path.sys_separator();
+        while i < mod_len {
+            let c = *(mod_name + i);
+            if c == sep {
+                c = '.';
+            }
+            *(name_data + i) = c;
+            i = i + 1;
+        }
+        *(name_data + mod_len) = '.';
+
+        let dest = name_data + mod_len + 1;
+        let src = ident.start(name);
+        std.memcpy(dest as *void, src as *void, ident.len(name));
+        *(name_data + len) = '\0';
+
+        return mir.make_owned_name(len, name_data);
+    }
+
     return ident_to_mir_name(name);
 }
 
