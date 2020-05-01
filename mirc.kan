@@ -1,5 +1,6 @@
 #include "std.h"
 
+import "io";
 import "ty";
 import "nt";
 import "mod";
