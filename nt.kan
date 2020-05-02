@@ -25,16 +25,16 @@ def create_scope(): NameScope {
 }
 
 def free_s(ns: *NameScope): void {
-    let ns_iter = map.iter(&ns.bindings);
 
-    let bind = map.iter_next(&ns_iter);
-    while bind != null {
-        let idx = std.ptr_to_int(map.get(&ns.bindings, bind.key));
-        let name = vec.get_ptr(&ns.mangled_names, idx) as *mir.Name;
+    let i = 0;
+    while i < ns.mangled_names.len {
+        let name = vec.get_ptr(&ns.mangled_names, i) as *mir.Name;
+
         dbg.assert(name != null, "name was null");
-        mir.free_name(name);
+        dbg.assert(name.owned, "mangled names should be owned");
 
-        bind = map.iter_next(&ns_iter);
+        mir.free_name(name);
+        i = i + 1;
     }
 
     map.free_m(&ns.bindings);
@@ -79,12 +79,8 @@ def create(): NameTable {
 }
 
 def free_nt(nt: *NameTable): void {
-    let i = 0;
-    while i < nt.scopes.len {
-        let scope = scope_at(nt, i);
-        free_s(scope);
-        i = i + 1;
-    }
+    dbg.assert_fmt(nt.scopes.len == 0, "%d open scopes left", nt.scopes.len);
+
     vec.free_v(&nt.scopes);
     map.free_m(&nt.in_scope);
 }
@@ -133,7 +129,13 @@ def num_in_scope(nt: *NameTable, name: mir.Name): i32 {
 
 def set_in_scope(nt: *NameTable, name: mir.Name, count: i32): void {
     let key = map.create_key(name.len, name.data);
-    map.get_item(&nt.in_scope, key).value = std.int_to_ptr(count);
+    let item = map.get_item(&nt.in_scope, key);
+    let count = std.int_to_ptr(count);
+    if item == null {
+        map.insert(&nt.in_scope, key, count);
+        return;
+    }
+    item.value = count;
 }
 
 def close_scope(nt: *NameTable): void {

@@ -14,13 +14,29 @@ extern def mir_unary2str(kind: i32): string;
 
 type Module struct {
     globals: map.Map, // map.Map<Name, GlobalConst>
-    instructions: InstBlock
+    functions: map.Map // map.Map<Name, Func>
 }
 
-def create_mod(globals: map.Map, instructions: InstBlock): Module {
+def create_mod(globals: map.Map, funcs: map.Map): Module {
     return Module {
         globals: globals,
-        instructions: instructions
+        functions: funcs
+    };
+}
+
+def free_mod(m: *Module): void {
+    map.free_m(&m.functions);
+}
+
+type Func struct {
+    blocks: BlockMap,
+    ty: *ty.Type
+}
+
+def create_func(ty: *ty.Type): Func {
+    return Func {
+        blocks: create_block_map(),
+        ty: ty
     };
 }
 
@@ -74,14 +90,14 @@ def add_instr(b: *InstBlock, inst: Inst): void {
 
 type BasicBlock struct {
     label: Label,
-    instructions: vec.Vec, // vec.Vec<Inst>
+    instructions: InstBlock,
     terminator: Inst
 }
 
 def create_bb(label: Label): BasicBlock {
     return BasicBlock {
         label: label,
-        instructions: vec.create(sizeof Inst),
+        instructions: create_inst_block(),
         terminator: create_inst_nop()
     };
 }
@@ -804,4 +820,12 @@ def free_inst(inst: *Inst): void {
     if inst.data != null {
         delete inst.data;
     }
+}
+
+type BlockMap struct {
+
+}
+
+def create_block_map(): BlockMap {
+    return BlockMap {};
 }
