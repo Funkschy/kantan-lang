@@ -44,22 +44,15 @@ BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))
 KANTAN_RUST = kantan
-KANTAN_KANTAN = $(START_FOLDER)/compiler
-KANTAN = $(KANTAN_RUST)
+KANTAN_KANTAN = valgrind --leak-check=full $(START_FOLDER)/compiler
 
-ifeq ($(KANTAN), $(KANTAN_RUST))
-	KANTAN_FLAGS = -o compiler.o
-else
-	KANTAN_FLAGS =
-endif
-
-$(BIN_NAME): $(K_FILES) $(C_FILES)
+$(BIN_NAME) : $(K_FILES) $(C_FILES)
 	mkdir $(BUILD_FOLDER) ;
 	for file in $(K_FILES) ; do \
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
 	pushd $(BUILD_FOLDER) ; \
-	if $(KANTAN) $(K_FILES) $(KANTAN_FLAGS) ; then \
+	if $(KANTAN_RUST) $(K_FILES) -o compiler.o ; then \
 		gcc -Wall compiler.o $(NEW_C_FILES) -o $(BIN_NAME) ; \
 		rm compiler.o ; \
 		mv $(BIN_NAME) $(START_FOLDER) ; \
@@ -71,5 +64,16 @@ $(BIN_NAME): $(K_FILES) $(C_FILES)
 		rm -r $(BUILD_FOLDER) ; \
 	fi
 
-clean: $(BIN_NAME)
-	rm $(BIN_NAME)
+self : $(BIN_NAME) $(K_FILES) $(C_FILES)
+	mkdir $(BUILD_FOLDER) ;
+	for file in $(K_FILES) ; do \
+		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
+	done
+	pushd $(BUILD_FOLDER) ; \
+	$(KANTAN_KANTAN) $(K_FILES) ; \
+	popd ; \
+	rm -r $(BUILD_FOLDER) ; \
+
+clean :
+	rm $(BIN_NAME) ; \
+	rm -r $(BUILD_FOLDER)
