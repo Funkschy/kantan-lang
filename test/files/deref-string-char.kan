@@ -1,4 +1,6 @@
 let c = ' ';
-let s = "test";
-c = *s;
-c = **&s;
+def main(): void {
+    let s = "test";
+    c = *s;
+    c = **&s;
+}

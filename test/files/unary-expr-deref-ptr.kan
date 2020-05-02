@@ -1,3 +1,6 @@
 let ty = 5;
 let ptr = &ty;
-ty = *ptr;
+
+def main(): void {
+    ty = *ptr;
+}

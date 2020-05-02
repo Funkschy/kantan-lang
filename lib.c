@@ -52,6 +52,10 @@ char const *const expr2str(int32_t type) {
     return get_str(type, len_expr_strings, expr_type_strings);
 }
 
+char const *const stmt2str(int32_t type) {
+    return get_str(type, len_stmt_strings, stmt_type_strings);
+}
+
 char const *const type2str(int32_t type) {
     return get_str(type, len_type_strings, type_type_strings);
 }

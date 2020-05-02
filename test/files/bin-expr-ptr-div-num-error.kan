@@ -1,2 +1,4 @@
 let first = 4;
-&first / 2;
+def main(): void {
+    &first / 2;
+}

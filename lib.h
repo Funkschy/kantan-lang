@@ -123,6 +123,23 @@ static char const *const expr_type_strings[] = {
 
 static size_t const len_expr_strings = sizeof(expr_type_strings) / sizeof(char *);
 
+// STMT types
+static char const *const stmt_type_strings[] = {
+    "error",
+    "expression",
+    "let",
+    "import",
+    "function declaration",
+    "structured type declaration",
+    "block",
+    "if",
+    "while",
+    "delete",
+    "return"
+};
+
+static size_t const len_stmt_strings = sizeof(stmt_type_strings) / sizeof(char *);
+
 // Type types
 static char const *const type_type_strings[] = {
     "error",

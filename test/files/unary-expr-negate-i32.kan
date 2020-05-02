@@ -1,2 +1,4 @@
-let test = 50;
-test = -test;
+def main(): void {
+    let test = 50;
+    test = -test;
+}

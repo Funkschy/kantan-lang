@@ -1,2 +1,4 @@
-let s = "hello";
--s;
+def main(): void {
+    let s = "hello";
+    -s;
+}

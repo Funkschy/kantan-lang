@@ -2,4 +2,6 @@ type Test struct {
     other: *Test
 }
 
-Test.other;
+def main(): void {
+    Test.other;
+}

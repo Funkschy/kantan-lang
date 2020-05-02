@@ -1,3 +1,5 @@
-let first = 1;
-let second = 2;
-&first + &second;
+def main(): void {
+    let first = 1;
+    let second = 2;
+    &first + &second;
+}

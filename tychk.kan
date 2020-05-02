@@ -22,6 +22,7 @@ import "std";
 import "io";
 
 extern def isort(arr: *i32, len: i32): *i32;
+extern def stmt2str(kind: i32): string;
 
 #define OK                  0
 #define ERROR              -1
@@ -1367,6 +1368,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             value = check_expr(tc, l_s.value);
         }
 
+        // TODO: if a let stmt is in global scope, it should only allow compile time
+        //  expressions as initialization
+
         if value == null {
             // bind the error type here, to get rid of follow up errors
             let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
@@ -1392,6 +1396,20 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // the statements below this should only be resolved in the real pass
     if tc.decl_only_pass {
         return s;
+    }
+
+    if in_global_scope(tc) {
+        if ast.is_return_stmt(s) {
+            push_return_outside_of_func_error(tc, s.span);
+            return null;
+        }
+
+        let rsn = std.format_str(
+            "using '%s statements' inside the global scope", stmt2str(s.tag)
+        );
+        push_currently_not_allowed_error(tc, rsn, s.span);
+        delete rsn;
+        return null;
     }
 
     // STMT_BLOCK
@@ -1504,11 +1522,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // STMT_RETURN
     if ast.is_return_stmt(s) {
         let r_s = ast.as_return_stmt(s);
-        if tc.ctx.current_func == null {
-            push_return_outside_of_func_error(tc, s.span);
-            return null;
-        }
-
         if r_s.expr == null {
             return s;
         }

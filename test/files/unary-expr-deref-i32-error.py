@@ -18,10 +18,10 @@ class Test(Code):
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)
             return self.create_error(msg)
 
-        if error.line != 1:
+        if error.line != 2:
             return self.create_error('wrong line')
 
-        if error.col != 1:
+        if error.col != 5:
             print(error.col)
             return self.create_error('wrong column')
 
