@@ -1368,7 +1368,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             value = check_expr(tc, l_s.value);
         }
 
-        // TODO: if a let stmt is in global scope, it should only allow compile time
+        // TODO(#71): if a let stmt is in global scope, it should only allow compile time
         //  expressions as initialization
 
         if value == null {

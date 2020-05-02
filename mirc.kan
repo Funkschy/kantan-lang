@@ -193,7 +193,7 @@ def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name
     let f_ty = ty.as_func(t);
     let declared_in = mod_at(c, f_ty.declared_in);
 
-    // TODO: only mangle function name, if not extern
+    // TODO(#70): only mangle function name, if not extern
     return mangle_name(c, name, declared_in);
 }
 
