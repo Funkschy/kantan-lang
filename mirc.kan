@@ -193,7 +193,10 @@ def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name
     let f_ty = ty.as_func(t);
     let declared_in = mod_at(c, f_ty.declared_in);
 
-    // TODO(#70): only mangle function name, if not extern
+    if f_ty.is_extern {
+        return mir.ref_name(ident.len(name), ident.start(name));
+    }
+
     return mangle_name(c, name, declared_in);
 }
 
@@ -208,18 +211,20 @@ def mangle_struct_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Na
 }
 
 def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): mir.Name {
+    let name_len = 0;
+    let name_data = "";
+    let p = declared_in.path;
+
+    let file_ending_len = 0;
+    mod.kantan_file_ending(&file_ending_len);
+
     if !declared_in.is_std_lib {
-        let p = declared_in.path;
-
-        let file_ending_len = 0;
-        mod.kantan_file_ending(&file_ending_len);
-
         let mod_len = p.len - c.data.proj_root.len - file_ending_len;
         let mod_name = p.inner + c.data.proj_root.len;
 
         // +1 for '.'
-        let len = mod_len + ident.len(name) + 1;
-        let name_data = std.malloc(len + 1) as string;
+        name_len = mod_len + ident.len(name) + 1;
+        name_data = std.malloc(name_len + 1) as string;
 
         let i = 0;
         let sep = path.sys_separator();
@@ -236,12 +241,19 @@ def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): 
         let dest = name_data + mod_len + 1;
         let src = ident.start(name);
         std.memcpy(dest as *void, src as *void, ident.len(name));
-        *(name_data + len) = '\0';
+        *(name_data + name_len) = '\0';
+    } else {
+        let file_name_len = p.len - file_ending_len;
+        let file_name = p.inner;
 
-        return mir.make_owned_name(len, name_data);
+        name_len = 4 + file_name_len + 1 + ident.len(name);
+        name_data = std.format_str(
+            "std.%.*s.%.*s", file_name_len, file_name, ident.len(name), ident.start(name)
+        );
+        io.printf("%d\n", name_len);
     }
 
-    return ident_to_mir_name(name);
+    return mir.make_owned_name(name_len, name_data);
 }
 
 def ident_to_mir_name(i: *ident.Ident): mir.Name {

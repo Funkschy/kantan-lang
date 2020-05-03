@@ -1129,7 +1129,7 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let definition = ty.new_type(TY_FUNC, null);
     push_tmp_ty(tc, definition);
 
-    ty.init_func(definition, fd.name, tc.ctx.mod.idx);
+    ty.init_func(definition, fd.name, tc.ctx.mod.idx, fd.is_extern);
     return definition;
 }
 
