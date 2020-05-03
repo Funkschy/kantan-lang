@@ -105,6 +105,8 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     }
 
     if ast.is_block_stmt(s) {
+        dbg.assert(c.current_func != null, "current_func was null");
+
         let block_stmt = ast.as_block_stmt(s);
         bind_s(c, 5, "block");
 
@@ -214,6 +216,9 @@ def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): 
     let name_len = 0;
     let name_data = "";
     let p = declared_in.path;
+
+    // TODO(#72): this name mangling algorithm assumes the existence of a global
+    //  file path root. This does not necessarily exist in windows
 
     let file_ending_len = 0;
     mod.kantan_file_ending(&file_ending_len);
