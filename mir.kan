@@ -116,6 +116,10 @@ def ref_name(len: i32, data: string): Name {
     return Name { owned: false, len: len, data: data };
 }
 
+def empty_name(): Name {
+    return ref_name(0, null);
+}
+
 def free_name(n: *Name): void {
     if n.owned {
         delete n.data;
@@ -134,6 +138,11 @@ type AddressName struct {
     value: Name
 }
 
+def new_addr_name(value: Name, ty: *ty.Type): Address {
+    let n = (new AddressName { value: value }) as *void;
+    return create_addr(MIR_ADDR_NAME, ty, n);
+}
+
 def as_addr_name(a: *Address): *AddressName {
     return a.data as *AddressName;
 }
@@ -146,7 +155,7 @@ type AddressConst struct {
     span: span.Span
 }
 
-def create_addr_const(ty: *ty.Type, s: span.Span): Address {
+def new_addr_const(ty: *ty.Type, s: span.Span): Address {
     let cnst = (new AddressConst { span: s }) as *void;
     return create_addr(MIR_ADDR_CONST, ty, cnst);
 }
@@ -231,7 +240,7 @@ def create_addr(kind: i32, ty: *ty.Type, data: *void): Address {
     };
 }
 
-def free_add(a: *Address): void {
+def free_addr(a: *Address): void {
     if a.data != null {
         delete a.data;
     }
@@ -313,6 +322,11 @@ type ExprCopy struct {
     addr: Address
 }
 
+def new_copy_expr(addr: Address): Expression {
+    let cpy = (new ExprCopy { addr: addr }) as *void;
+    return create_expr(MIR_EXPR_COPY, cpy);
+}
+
 def as_expr_copy(e: *Expression): *ExprCopy {
     return e.data as *ExprCopy;
 }
@@ -323,7 +337,8 @@ def is_expr_copy(e: *Expression): bool {
 
 type ExprCall struct {
     name: Name,
-    args: vec.Vec // Vec<Address>
+    args: vec.Vec, // Vec<Address>
+    varargs: bool
 }
 
 def call_arg_at(call: *ExprCall, idx: i32): *Address {
@@ -427,25 +442,77 @@ def is_expr_bitcast(e: *Expression): bool {
 // x = y:
 //  Copy(Address),
 // x = call f (y, z):
-//  Call(Name, Vec<Address>, return: Type, varargs: bool)
+//  Call(Name, Vec<Address>, varargs: bool)
 // Gets a pointer to the Xth element of a struct or array
 // x = base + offset:
-//  StructGep(Address, u32)
+//  StructGep(Address, i32)
 // x = test { 41, "test" }:
-//  StructInit(UserIdent, Vec<Address>),
+//  StructInit(Name, Vec<Address>),
 // allocates the value of its address on the heap
 // x = new 5:
-//  New(Address, Type),
+//  New(Address),
 // x = sizeof(ty):
-//  SizeOf(Type),
+//  SizeOf(Address),
 // x = param #y:
-//  GetParam(u32),
+//  GetParam(i32),
 // Cast the value at the address to the supplied type
 // x = bitcast e to ty2:
 //  BitCast(Address, Type),
 type Expression struct {
     kind: i32,
     data: *void
+}
+
+def create_expr(kind: i32, data: *void): Expression {
+    return Expression {kind: kind, data: data};
+}
+
+def empty_expr(): Expression {
+    return create_expr(0, null);
+}
+
+def free_expr(e: *Expression): void {
+    if is_expr_binary(e) {
+        let b_expr = as_expr_binary(e);
+        free_addr(&b_expr.left);
+        free_addr(&b_expr.right);
+    } else if is_expr_unary(e) {
+        let u_expr = as_expr_unary(e);
+        free_addr(&u_expr.addr);
+    } else if is_expr_copy(e) {
+        let c_expr = as_expr_copy(e);
+        free_addr(&c_expr.addr);
+    } else if is_expr_call(e) {
+        let c_expr = as_expr_call(e);
+        let i = 0;
+        while i < c_expr.args.len {
+            free_addr(call_arg_at(c_expr, i));
+            i = i + 1;
+        }
+    } else if is_expr_struct_gep(e) {
+        let gep_expr = as_expr_struct_gep(e);
+        free_addr(&gep_expr.addr);
+    } else if is_expr_struct_init(e) {
+        let i_expr = as_expr_struct_init(e);
+        let i = 0;
+        while i < i_expr.args.len {
+            free_addr(init_arg_at(i_expr, i));
+            i = i + 1;
+        }
+    } else if is_expr_new(e) {
+        let new_expr = as_expr_new(e);
+        free_addr(&new_expr.addr);
+    } else if is_expr_sizeof(e) {
+        let so_expr = as_expr_sizeof(e);
+        free_addr(&so_expr.addr);
+    } else if is_expr_bitcast(e) {
+        let bc_expr = as_expr_bitcast(e);
+        free_addr(&bc_expr.addr);
+    }
+
+    if e.data != null {
+        delete e.data;
+    }
 }
 
 def expr_to_string(e: *Expression): string {

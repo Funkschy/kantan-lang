@@ -5,6 +5,8 @@
 // minor changes), while the prod one just uses numbers as variable names
 #define DBG_MIR_NAMES 1
 
+#include "std.h"
+
 import "map";
 import "vec";
 import "mir";
@@ -25,7 +27,6 @@ def create_scope(): NameScope {
 }
 
 def free_s(ns: *NameScope): void {
-
     let i = 0;
     while i < ns.mangled_names.len {
         let name = vec.get_ptr(&ns.mangled_names, i) as *mir.Name;
@@ -49,6 +50,18 @@ def bind_in(ns: *NameScope, original: mir.Name, mangled: mir.Name): void {
     let idx = ns.mangled_names.len;
     vec.push(&ns.mangled_names, &mangled as *void);
     map.insert(&ns.bindings, key, std.int_to_ptr(idx));
+}
+
+def get_in(ns: *NameScope, name: mir.Name, out: *mir.Name): bool {
+    let key = map.create_key(name.len, name.data);
+    let index = map.get(&ns.bindings, key);
+    if index == null {
+        return false;
+    }
+
+    let found = vec.get_ptr(&ns.mangled_names, std.ptr_to_int(index)) as *mir.Name;
+    *out = *found;
+    return true;
 }
 
 // Debug NameTable
@@ -161,6 +174,23 @@ def close_scope(nt: *NameTable): void {
 
 def push_scope(s: *NameTable, scope: *NameScope): void {
     vec.push(&s.scopes, scope as *void);
+}
+
+def lookup(nt: *NameTable, name: mir.Name, out: *mir.Name): bool {
+    dbg.assert(!name.owned, "name should not be owned");
+
+    let i = nt.scopes.len - 1;
+    while i >= 0 {
+        let scope = scope_at(nt, i);
+        let mangled = mir.empty_name();
+        if get_in(scope, name, &mangled) {
+            *out = mangled;
+            return true;
+        }
+        i = i - 1;
+    }
+
+    return false;
 }
 
 #endif

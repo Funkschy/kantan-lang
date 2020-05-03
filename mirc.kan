@@ -63,6 +63,16 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
 
 def free_mirc(c: *MirCompiler): void {
     nt.free_nt(&c.names);
+
+    // free function names
+    let f_iter = map.iter(&c.functions);
+    let item = map.iter_next(&f_iter);
+    while item != null {
+        // this map owns its names, so this is basically just a transmute
+        let name = mir.make_owned_name(item.key.len, item.key.value);
+        mir.free_name(&name);
+        item = map.iter_next(&f_iter);
+    }
 }
 
 def compile(c: *MirCompiler): mir.Module {
@@ -80,6 +90,12 @@ def compile(c: *MirCompiler): mir.Module {
     nt.close_scope(&c.names);
 
     return mir.create_mod(c.globals, c.functions);
+}
+
+def add_function(c: *MirCompiler, f: *mir.Func, n: mir.Name): void {
+    dbg.assert(n.owned, "Function name should be owned");
+    let key = map.create_key(n.len, n.data);
+    map.insert(&c.functions, key, f as *void);
 }
 
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
@@ -100,7 +116,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             c.current_func = prev_func;
         }
 
-        mir.free_name(&name);
+        add_function(c, &mir_func, name);
         return;
     }
 
@@ -123,6 +139,35 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
         return;
     }
+
+    if ast.is_let_stmt(s) {
+        let let_stmt = ast.as_let_stmt(s);
+
+        let a = mir.create_addr_empty();
+        let mir_expr = mir.empty_expr();
+
+        if address_expression(c, let_stmt.value, &a) {
+            mir_expr = mir.new_copy_expr(a);
+        } else {
+            mir_expr = compile_expression(c, let_stmt.value);
+        }
+
+        bind_ident(c, &let_stmt.ident);
+        mir.free_expr(&mir_expr);
+        // TODO: push decl and assign instructions here
+        return;
+    }
+
+    if ast.is_expr_stmt(s) {
+        let e = ast.as_expr_stmt(s);
+        let a = add_expr_instruction(c, e.expr);
+        mir.free_addr(&a);
+        return;
+    }
+}
+
+def bind_ident(c: *MirCompiler, i: *ident.Ident): void {
+    nt.bind(&c.names, mir.ref_name(ident.len(i), ident.start(i)));
 }
 
 def bind_s(c: *MirCompiler, len: i32, s: string): void {
@@ -133,15 +178,42 @@ def mod_at(c: *MirCompiler, i: i32): *mod.Module {
     return mod.get_mod(c.data.mods, i);
 }
 
-def add_expr(c: *MirCompiler, b: *mir.InstBlock, e: *ast.Expr): mir.Address {
+def compile_expression(c: *MirCompiler, e: *ast.Expr): mir.Expression {
+    return mir.Expression { kind: 0, data: null };
+}
+
+// checks if the supplied expression is an "address expression", so either
+// a name, or an rvalue. If it is, returns true and fills the out parameter
+// with the correct address
+def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     if ast.is_ident_expr(e) {
-        // TODO: lookup
-        dbg.not_implemented();
+        let ident = &ast.as_ident_expr(e).ident;
+        let name = ident_to_mir_name(ident);
+        let mangled = mir.empty_name();
+        if nt.lookup(&c.names, name, &mangled) {
+            io.printf(
+                "demangled %.*s to %.*s\n",
+                mangled.len, mangled.data, name.len, name.data
+            );
+            *out = mir.new_addr_name(mangled, e.ty);
+            return true;
+        }
     }
 
+    return rvalue_expr(c, e, out);
+}
+
+// creates one or multiple instructions for the given expression and returns
+// the address of the result
+def add_expr_instruction(c: *MirCompiler, e: *ast.Expr): mir.Address {
     let a = mir.create_addr_empty();
-    if rvalue_expr(c, e, &a) {
+    if address_expression(c, e, &a) {
         return a;
+    }
+
+    let mir_expr = compile_expression(c, e);
+    if mir.is_expr_copy(&mir_expr) {
+        return mir.as_expr_copy(&mir_expr).addr;
     }
 
     return mir.create_addr_null(null);
@@ -152,12 +224,12 @@ def add_expr(c: *MirCompiler, b: *mir.InstBlock, e: *ast.Expr): mir.Address {
 // (e.g. AddressConst for an int literal)
 def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     if ast.is_int_expr(e) {
-        *out = mir.create_addr_const(e.ty, e.span);
+        *out = mir.new_addr_const(e.ty, e.span);
         return true;
     }
 
     if ast.is_float_expr(e) {
-        *out = mir.create_addr_const(e.ty, e.span);
+        *out = mir.new_addr_const(e.ty, e.span);
         return true;
     }
 
@@ -173,7 +245,7 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     }
 
     if ast.is_char_expr(e) {
-        *out = mir.create_addr_const(e.ty, e.span);
+        *out = mir.new_addr_const(e.ty, e.span);
         return true;
     }
 
@@ -196,7 +268,11 @@ def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name
     let declared_in = mod_at(c, f_ty.declared_in);
 
     if f_ty.is_extern {
-        return mir.ref_name(ident.len(name), ident.start(name));
+        // function names must be owned, so just copy data here
+        // there aren't many extern functions anyway
+        let len = ident.len(name);
+        let data = std.strndup(ident.start(name), len);
+        return mir.make_owned_name(len, data);
     }
 
     return mangle_name(c, name, declared_in);
@@ -264,4 +340,3 @@ def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): 
 def ident_to_mir_name(i: *ident.Ident): mir.Name {
     return mir.ref_name(ident.len(i), ident.start(i));
 }
-
