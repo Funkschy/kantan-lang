@@ -267,6 +267,7 @@ def statement(p: *Parser): *ast.Stmt {
     return s;
 }
 
+// returns true, if the caller needs to consume a ';'
 def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
     let peek = peek(p);
 
@@ -277,6 +278,11 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
 
     if peek.ty == TOKEN_IF {
         *dest = parse_if_stmt(p);
+        return false;
+    }
+
+    if peek.ty == TOKEN_LBRACE {
+        *dest = parse_block(p);
         return false;
     }
 
