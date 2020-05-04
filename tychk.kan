@@ -418,7 +418,8 @@ def check(tc: *TypeChecker): CheckResult {
 
 def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     dbg.assert(m.ty == null, "mod type should be null");
-    io.printf("DBG: Initializing (%d) %.*s\n", idx, m.path.len, m.path.inner);
+    let p = mod.get_path(m);
+    io.printf("DBG: Initializing (%d) %.*s\n", idx, p.len, p.inner);
 
     let ty = ty.new_mod();
     m.ty = ty;
@@ -439,7 +440,8 @@ def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
         d_o = " decl only ";
     }
 
-    io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, m.path.len, m.path.inner);
+    let p = mod.get_path(m);
+    io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, p.len, p.inner);
     let ctx = get_ctx(tc, idx);
     dbg.assert(ctx != null, "ctx should not be null");
 

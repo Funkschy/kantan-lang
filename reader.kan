@@ -45,12 +45,6 @@ def num_files(m: *FileMap): i32 {
     return m.files.len;
 }
 
-def get_by_idx(m: *FileMap, idx: i32): source.SourceFile {
-    let s = source.empty();
-    vec.get(&m.files, idx, &s as *void);
-    return s;
-}
-
 def get_ptr_by_idx(m: *FileMap, idx: i32): *source.SourceFile {
     return vec.get_ptr(&m.files, idx) as *source.SourceFile;
 }

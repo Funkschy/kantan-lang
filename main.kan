@@ -61,7 +61,7 @@ def main(argc: i32, argv: *string): i32 {
 
     let i = 0;
     while i < reader.num_files(&file_map) {
-        let src = reader.get_by_idx(&file_map, i);
+        let src = reader.get_ptr_by_idx(&file_map, i);
         let p = parser.create(src);
         let curr_mod = parser.parse(&p);
 

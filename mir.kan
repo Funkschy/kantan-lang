@@ -1,11 +1,13 @@
 #include "mir_types.h"
 #include "std.h"
 
+import "io";
 import "ty";
 import "std";
 import "vec";
 import "str";
 import "map";
+import "dbg";
 import "span";
 import "source";
 
@@ -33,11 +35,21 @@ type Func struct {
     ty: *ty.Type
 }
 
-def create_func(ty: *ty.Type): Func {
+def create_func(t: *ty.Type, mangled_name: Name): Func {
+    dbg.assert(ty.is_func(t), "func type was not func");
+
     return Func {
-        blocks: create_block_map(),
-        ty: ty
+        blocks: create_block_map(mangled_name),
+        ty: t
     };
+}
+
+def free_func(f: *Func): void {
+    free_block_map(&f.blocks);
+}
+
+def func_push_instr(f: *Func, inst: *Inst): void {
+    bm_push_instr(&f.blocks, inst);
 }
 
 type MetaData struct {
@@ -84,8 +96,21 @@ def create_inst_block(): InstBlock {
     return InstBlock { instructions: vec.create(sizeof Inst) };
 }
 
-def add_instr(b: *InstBlock, inst: Inst): void {
-    vec.push(&b.instructions, &inst as *void);
+def push_instr(b: *InstBlock, inst: *Inst): void {
+    vec.push(&b.instructions, inst as *void);
+}
+
+def get_instr(b: *InstBlock, idx: i32): *Inst {
+    return vec.get_ptr(&b.instructions, idx) as *Inst;
+}
+
+def free_inst_block(b: *InstBlock): void {
+    let i = 0;
+    while i < b.instructions.len {
+        free_inst(vec.get_ptr(&b.instructions, i) as *Inst);
+        i = i + 1;
+    }
+    vec.free_v(&b.instructions);
 }
 
 type BasicBlock struct {
@@ -102,6 +127,25 @@ def create_bb(label: Label): BasicBlock {
     };
 }
 
+// number of instructions excluding label and terminator
+def bb_num_instr(bb: *BasicBlock): i32 {
+    return bb.instructions.instructions.len;
+}
+
+def bb_push_instr(bb: *BasicBlock, inst: *Inst): void {
+    push_instr(&bb.instructions, inst);
+}
+
+def bb_get_instr(bb: *BasicBlock, idx: i32): *Inst {
+    return get_instr(&bb.instructions, idx);
+}
+
+def free_bb(bb: *BasicBlock): void {
+    free_label(&bb.label);
+    free_inst_block(&bb.instructions);
+    free_inst(&bb.terminator);
+}
+
 type Name struct {
     owned: bool,
     len: i32,
@@ -110,6 +154,11 @@ type Name struct {
 
 def make_owned_name(len: i32, data: string): Name {
     return Name { owned: true, len: len, data: data };
+}
+
+// like make_copied_name, but copies the data automatically
+def make_copied_name(len: i32, data: string): Name {
+    return make_owned_name(len, std.strndup(data, len));
 }
 
 def ref_name(len: i32, data: string): Name {
@@ -128,6 +177,19 @@ def free_name(n: *Name): void {
 
 type Label struct {
     name: Name
+}
+
+def create_label(n: Name): Label {
+    dbg.assert(n.owned, "Labels must own their name");
+    return Label { name: n };
+}
+
+def clone_label(l: *Label): Label {
+    return create_label(make_copied_name(l.name.len, l.name.data));
+}
+
+def free_label(l: *Label): void {
+    free_name(&l.name);
 }
 
 def label_name(l: *Label): Name {
@@ -699,6 +761,14 @@ type InstJmp struct {
     target: Label
 }
 
+def new_inst_jmp(meta: MetaData, target: Label): Inst {
+    return Inst {
+        kind: MIR_INST_JMP,
+        meta: meta,
+        data: (new InstJmp {target: target}) as *void
+    };
+}
+
 def is_inst_jmp(inst: *Inst): bool {
     return inst.kind == MIR_INST_JMP;
 }
@@ -745,16 +815,16 @@ def as_inst_label(inst: *Inst): *InstLabel {
     return inst.data as *InstLabel;
 }
 
+type InstDelete struct {
+    addr: Address
+}
+
 def is_inst_delete(inst: *Inst): bool {
     return inst.kind == MIR_INST_DELETE;
 }
 
 def as_inst_delete(inst: *Inst): *InstDelete {
     return inst.data as *InstDelete;
-}
-
-type InstDelete struct {
-    addr: Address
 }
 
 def create_inst_nop(): Inst {
@@ -803,8 +873,8 @@ def inst_to_string(inst: *Inst): string {
         let s = std.format_str(
             "let %.*s: %s",
             decl.name.len,
-            decl.name.data
-
+            decl.name.data,
+            ty_s
         );
 
         if free_ty_s {
@@ -860,12 +930,6 @@ def inst_to_string(inst: *Inst): string {
         return s;
     }
 
-    if is_inst_label(inst) {
-        let label = as_inst_label(inst);
-        let name = label_name(&label.value);
-        return std.format_str("%.*s:", name.len, name.data);
-    }
-
     if is_inst_delete(inst) {
         let del = as_inst_delete(inst);
         let a_s = addr_to_string(&del.addr);
@@ -890,9 +954,111 @@ def free_inst(inst: *Inst): void {
 }
 
 type BlockMap struct {
-
+    mappings: map.Map, // map.Map<Name(Ref), i32>
+    decls: vec.Vec,    // vec.Vec<Inst>
+    blocks: vec.Vec    // vec.Vec<BasicBlock>
 }
 
-def create_block_map(): BlockMap {
-    return BlockMap {};
+def create_block_map(func_name: Name): BlockMap {
+    let bm = BlockMap {
+        mappings: map.create(),
+        decls: vec.create(sizeof Inst),
+        blocks: vec.create(sizeof BasicBlock)
+    };
+
+    let name = make_copied_name(func_name.len, func_name.data);
+    let bb = create_bb(create_label(name));
+
+    push_block(&bm, &bb);
+
+    return bm;
+}
+
+def push_block(bm: *BlockMap, bb: *BasicBlock): void {
+    let idx = bm.blocks.len;
+    vec.push(&bm.blocks, bb as *void);
+
+    let name = label_name(&bb.label);
+    let key = map.create_key(name.len, name.data);
+    map.insert(&bm.mappings, key, std.int_to_ptr(idx));
+}
+
+def free_block_map(bm: *BlockMap): void {
+    map.free_m(&bm.mappings);
+
+    let i = 0;
+    while i < bm.blocks.len {
+        free_bb(vec.get_ptr(&bm.blocks, i) as *BasicBlock);
+        i = i + 1;
+    }
+
+    vec.free_v(&bm.blocks);
+
+    i = 0;
+    while i < bm.decls.len {
+        free_inst(vec.get_ptr(&bm.decls, i) as *Inst);
+        i = i + 1;
+    }
+
+    vec.free_v(&bm.decls);
+}
+
+def bm_get_bb_ptr(bm: *BlockMap, idx: i32): *BasicBlock {
+    return vec.get_ptr(&bm.blocks, idx) as *BasicBlock;
+}
+
+def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {
+    let last_bb = bm_get_bb_ptr(bm, bm.blocks.len - 1);
+    bb_push_instr(last_bb, inst);
+}
+
+def bm_push_instr(bm: *BlockMap, inst: *Inst): void {
+    if is_inst_decl(inst) {
+        vec.push(&bm.decls, inst as *void);
+        return;
+    }
+
+    if is_inst_label(inst) {
+        // Terminate last block with goto
+        let target = clone_label(&as_inst_label(inst).value);
+        let goto = new_inst_jmp(inst.meta, target);
+        bm_push_instr_to_last_bb(bm, &goto);
+    }
+}
+
+// dump BlockMap to stdout for debug purposes
+def bm_dump(bm: *BlockMap): void {
+    let first_bb = vec.get_ptr(&bm.blocks, 0) as *BasicBlock;
+    let name = label_name(&first_bb.label);
+    io.printf("%.*s:\n", name.len, name.data);
+
+    let i = 0;
+    while i < bm.decls.len {
+        let decl = vec.get_ptr(&bm.decls, i) as *Inst;
+        let s = inst_to_string(decl);
+        io.printf("  %s\n", s);
+        delete s;
+        i =  i + 1;
+    }
+
+    let iter = map.iter(&bm.mappings);
+    let item = map.iter_next(&iter);
+    while item != null {
+        if item.key.value != name.data {
+            io.printf("%.*s:\n", item.key.len, item.key.value);
+        }
+        let idx = std.ptr_to_int(item.value);
+        let bb = bm_get_bb_ptr(bm, idx);
+
+        i = 0;
+        while i < bb_num_instr(bb) {
+            let inst = bb_get_instr(bb, i);
+            let s = inst_to_string(inst);
+            io.printf("  %s\n", s);
+            delete s;
+            i = i + 1;
+        }
+
+        item = map.iter_next(&iter);
+    }
 }

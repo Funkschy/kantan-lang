@@ -41,7 +41,7 @@ type Parser struct {
     errors: vec.Vec // vector of ParseErrors
 }
 
-def create(source: source.SourceFile): Parser {
+def create(source: *source.SourceFile): Parser {
     return Parser {
         in_panic_mode: false,
         lexer: lexer.create(source),
@@ -222,9 +222,8 @@ def peek(p: *Parser): lexer.Token {
 }
 
 def parse(p: *Parser): *mod.Module {
-    let path = lexer.get_path(&p.lexer);
-    let is_std_lib = lexer.is_std_lib(&p.lexer);
-    let curr_mod = new mod.create(path, is_std_lib);
+    let src = lexer.source_file(&p.lexer);
+    let curr_mod = new mod.create(src);
 
     while peek(p).ty != TOKEN_EOF {
         let s = statement(p);
@@ -962,7 +961,7 @@ def sync(p: *Parser): string {
 def inner_sync(p: *Parser): string {
     let previous = lexer.empty_token();
     if !advance(p, &previous) {
-        return source.code(&p.lexer.source) + lexer.end_pos(&p.lexer);
+        return source.code(p.lexer.source) + lexer.end_pos(&p.lexer);
     }
 
     let peeked = peek(p);

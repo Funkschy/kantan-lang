@@ -126,6 +126,12 @@ def find_line(file: *SourceFile, target: span.Span): LineSpan {
     return LineSpan { pos: pos, span: line_span };
 }
 
+def span_to_pos(file: *SourceFile, s: span.Span): SourcePos {
+    let pos = SourcePos{ lnr: 0, col: 0 };
+    line_info(file, s, null, null, &pos.lnr, &pos.col);
+    return pos;
+}
+
 // This is used to convert Spans into SourcePos' quickly
 type SourceMap struct {
     line_starts: ptrvec.Vec // ptrvec.Vec<string>

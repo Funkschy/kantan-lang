@@ -9,9 +9,11 @@ import "ast";
 import "map";
 import "std";
 import "dbg";
+import "span";
 import "path";
 import "scope";
 import "ident";
+import "source";
 import "ptrvec";
 
 // TODO(#62): implement mir compiler
@@ -45,7 +47,7 @@ type MirCompiler struct {
     mod: *mod.Module,
     data: *CompilationData,
     names: nt.NameTable,
-    functions: map.Map, // map.Map<mir.Name, mir.Func>
+    functions: map.Map, // map.Map<mir.Name, *mir.Func>
     globals: map.Map, // map.Map<mir.Name, mir.GlobalConst>
     current_func: *mir.Func
 }
@@ -71,6 +73,10 @@ def free_mirc(c: *MirCompiler): void {
         // this map owns its names, so this is basically just a transmute
         let name = mir.make_owned_name(item.key.len, item.key.value);
         mir.free_name(&name);
+        let f = item.value as *mir.Func;
+        mir.free_func(f);
+        delete f;
+
         item = map.iter_next(&f_iter);
     }
 }
@@ -98,25 +104,30 @@ def add_function(c: *MirCompiler, f: *mir.Func, n: mir.Name): void {
     map.insert(&c.functions, key, f as *void);
 }
 
+def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
+    let pos = source.span_to_pos(c.mod.source, s);
+    return mir.create_meta(pos);
+}
+
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_func_decl_stmt(s) {
         let decl_stmt = ast.as_func_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
         let name = mangle_func_name(c, &decl.name, decl.func_ty);
-        io.printf("name: %.*s\n", name.len, name.data);
-
-        let mir_func = mir.create_func(decl.func_ty);
+        let name_ref = mir.ref_name(name.len, name.data);
+        let mir_func = new mir.create_func(decl.func_ty, name_ref);
 
         if decl_stmt.block != null {
             let prev_func = c.current_func;
 
-            c.current_func = &mir_func;
+            c.current_func = mir_func;
             compile_stmt(c, decl_stmt.block as *ast.Stmt);
             c.current_func = prev_func;
         }
 
-        add_function(c, &mir_func, name);
+        add_function(c, mir_func, name);
+        mir.bm_dump(&mir_func.blocks);
         return;
     }
 
@@ -154,7 +165,17 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
         bind_ident(c, &let_stmt.ident);
         mir.free_expr(&mir_expr);
-        // TODO: push decl and assign instructions here
+
+        // TODO: implement logic for global variables
+        if c.current_func != null {
+            let meta = get_meta(c, s.span);
+            let decl = mir.new_inst_decl(
+                meta, name_from_ident(&let_stmt.ident), let_stmt.value.ty
+            );
+            mir.func_push_instr(c.current_func, &decl);
+        }
+
+        // TODO: push assign instruction here
         return;
     }
 
@@ -164,6 +185,10 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         mir.free_addr(&a);
         return;
     }
+}
+
+def dump_function(f: *mir.Func): void {
+
 }
 
 def bind_ident(c: *MirCompiler, i: *ident.Ident): void {
@@ -188,7 +213,7 @@ def compile_expression(c: *MirCompiler, e: *ast.Expr): mir.Expression {
 def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
-        let name = ident_to_mir_name(ident);
+        let name = name_from_ident(ident);
         let mangled = mir.empty_name();
         if nt.lookup(&c.names, name, &mangled) {
             io.printf(
@@ -291,7 +316,7 @@ def mangle_struct_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Na
 def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): mir.Name {
     let name_len = 0;
     let name_data = "";
-    let p = declared_in.path;
+    let p = mod.get_path(declared_in);
 
     // TODO(#72): this name mangling algorithm assumes the existence of a global
     //  file path root. This does not necessarily exist in windows
@@ -299,7 +324,7 @@ def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): 
     let file_ending_len = 0;
     mod.kantan_file_ending(&file_ending_len);
 
-    if !declared_in.is_std_lib {
+    if !mod.is_std_lib(declared_in) {
         let mod_len = p.len - c.data.proj_root.len - file_ending_len;
         let mod_name = p.inner + c.data.proj_root.len;
 
@@ -331,12 +356,11 @@ def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): 
         name_data = std.format_str(
             "std.%.*s.%.*s", file_name_len, file_name, ident.len(name), ident.start(name)
         );
-        io.printf("%d\n", name_len);
     }
 
     return mir.make_owned_name(name_len, name_data);
 }
 
-def ident_to_mir_name(i: *ident.Ident): mir.Name {
+def name_from_ident(i: *ident.Ident): mir.Name {
     return mir.ref_name(ident.len(i), ident.start(i));
 }

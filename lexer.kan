@@ -60,12 +60,12 @@ def token_to_string(token: *Token, dest: *string): bool {
 type Lexer struct {
     has_peek: bool,
     peek: Token,
-    source: source.SourceFile,
+    source: *source.SourceFile,
     start: string,
     current: string
 }
 
-def create(src: source.SourceFile): Lexer {
+def create(src: *source.SourceFile): Lexer {
     let span = span.create(src.code, src.code);
     let init_peek = Token { ty: TOKEN_UNKNOWN_ERR, span: span };
 
@@ -125,12 +125,8 @@ def current(l: *Lexer): i32 {
     return c;
 }
 
-def get_path(l: *Lexer): path.Path {
-    return l.source.file.path.inner;
-}
-
-def is_std_lib(l: *Lexer): bool {
-    return l.source.is_std_lib;
+def source_file(l: *Lexer): *source.SourceFile {
+    return l.source;
 }
 
 def is_num(c: i32): bool {

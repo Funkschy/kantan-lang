@@ -8,14 +8,14 @@ import "ty";
 import "span";
 import "ident";
 import "scope";
+import "source";
 
 #define KANTAN_FILE_ENDING ".kan"
 
 type Module struct {
-    is_std_lib: bool,
     idx: i32, // index in modmap used for faster access
+    source: *source.SourceFile,
     statements: ptrvec.Vec,
-    path: path.Path,
      // the following vecs just contain indices into the statements ptrvec
     imports: vec.Vec,
     functions: vec.Vec,
@@ -23,17 +23,24 @@ type Module struct {
     ty: *ty.Type // the Type containing the bindings
 }
 
-def create(p: path.Path, is_std_lib: bool): Module {
+def create(src: *source.SourceFile): Module {
     return Module {
-        is_std_lib: is_std_lib,
         idx: -1,
+        source: src,
         statements: ptrvec.create(),
-        path: p,
         imports: vec.create(sizeof i32),
         functions: vec.create(sizeof i32),
         structs: vec.create(sizeof i32),
         ty: null
     };
+}
+
+def get_path(m: *Module): path.Path {
+    return m.source.file.path.inner;
+}
+
+def is_std_lib(m: *Module): bool {
+    return m.source.is_std_lib;
 }
 
 def kantan_file_ending(len: *i32): string {
@@ -153,7 +160,8 @@ def add_mod(mm: *Map, mod: *Module): void {
 
     // add one, to be able to tell null apart from 0
     let idx = std.int_to_ptr(idx + 1);
-    let key = map.create_key(mod.path.len, mod.path.inner);
+    let p = get_path(mod);
+    let key = map.create_key(p.len, p.inner);
     map.insert(&mm.mod_paths, key, idx);
 }
 
@@ -199,7 +207,8 @@ def get_abs_import_path(
 ): i32 {
     let len = ident.len(&imp.mod);
     let imp_path = path.create(ident.start(&imp.mod), len);
-    let dir = path.parent(&current.path);
+    let current_path = get_path(current);
+    let dir = path.parent(&current_path);
 
     return path.merge_abs_rel_suffix(&dir, &imp_path, kantan_file_ending(null), dest);
 }
@@ -232,7 +241,8 @@ def try_get_mod_from_import(
     let error = get_abs_import_path(mod, imp, &abs);
 
     if error != 0 {
-        let p = path.parent(&mod.path);
+        let mod_path = get_path(mod);
+        let p = path.parent(&mod_path);
         let mod_s = path.to_string(&p);
         let imp_s = ident.to_string(&imp.mod);
 
