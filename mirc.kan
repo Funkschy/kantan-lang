@@ -166,7 +166,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         bind_ident(c, &let_stmt.ident);
         mir.free_expr(&mir_expr);
 
-        // TODO: implement logic for global variables
+        // TODO(#73): implement logic for global variables
         if c.current_func != null {
             let meta = get_meta(c, s.span);
             let decl = mir.new_inst_decl(
@@ -175,7 +175,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             mir.func_push_instr(c.current_func, &decl);
         }
 
-        // TODO: push assign instruction here
+        // TODO(#74): push assign instruction here
         return;
     }
 
