@@ -83,6 +83,21 @@ void assert_fmt(bool condition, char const *fmt, ...) {
 #endif
 }
 
+char const *const l_format_str(int32_t *len, char const *fmt, ...) {
+    char *s = NULL;
+    va_list args;
+    va_start(args, fmt);
+    int32_t size = vformat_str(&s, fmt, args);
+    va_end(args);
+
+    if (size < 0) {
+        return NULL;
+    }
+
+    *len = size;
+    return s;
+}
+
 char const *const format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;

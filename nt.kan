@@ -14,53 +14,33 @@ import "dbg";
 import "std";
 
 type NameScope struct {
-    // maps from a source name to a index into mangled_names
-    bindings: map.Map, // map.Map<mir.Name(borrowed), i32>
-    mangled_names: vec.Vec // vec.Vec<mir.Name(owned)>
+    // maps from a source name to a index into mangled_names of the NameTable
+    bindings: map.Map // map.Map<mir.Name(borrowed), i32>
 }
 
 def create_scope(): NameScope {
     return NameScope{
-        bindings: map.create(),
-        mangled_names: vec.create(sizeof mir.Name)
+        bindings: map.create()
     };
 }
 
 def free_s(ns: *NameScope): void {
-    let i = 0;
-    while i < ns.mangled_names.len {
-        let name = vec.get_ptr(&ns.mangled_names, i) as *mir.Name;
-
-        dbg.assert(name != null, "name was null");
-        dbg.assert(name.owned, "mangled names should be owned");
-
-        mir.free_name(name);
-        i = i + 1;
-    }
-
     map.free_m(&ns.bindings);
-    vec.free_v(&ns.mangled_names);
 }
 
-def bind_in(ns: *NameScope, original: mir.Name, mangled: mir.Name): void {
-    dbg.assert(!original.owned, "original should not be owned");
-    dbg.assert(mangled.owned, "mangled should be owned");
-
+def bind_in(ns: *NameScope, original: mir.RefName, idx: i32): void {
     let key = map.create_key(original.len, original.data);
-    let idx = ns.mangled_names.len;
-    vec.push(&ns.mangled_names, &mangled as *void);
     map.insert(&ns.bindings, key, std.int_to_ptr(idx));
 }
 
-def get_in(ns: *NameScope, name: mir.Name, out: *mir.Name): bool {
+def get_in(ns: *NameScope, name: mir.RefName, out: *i32): bool {
     let key = map.create_key(name.len, name.data);
     let index = map.get(&ns.bindings, key);
     if index == null {
         return false;
     }
 
-    let found = vec.get_ptr(&ns.mangled_names, std.ptr_to_int(index)) as *mir.Name;
-    *out = *found;
+    *out = std.ptr_to_int(index);
     return true;
 }
 
@@ -69,25 +49,28 @@ def get_in(ns: *NameScope, name: mir.Name, out: *mir.Name): bool {
 
 // A NameTable for human readable names
 // Binds the original name of a variable to a new one, to allow scopes.
-// {
-//     let x = 5;
-//     {
-//         let x = "test";
-//     }
-// }
+// 1 {
+// 2     let x = 5;
+// 3     {
+// 4         let x = "test";
+// 5     }
+// 6     let x = "";
+// 7 }
 //
-// In the outer scope, lookup(nt, "x") will return x.
+// In the outer scope, lookup(nt, "x") will return x before line 6 (x_1 after).
 // In the inner scope, is will return `x_1`
 type NameTable struct {
     scopes: vec.Vec, // vec.Vec<NameScope>
     // this counts how many versions of each name are in scope right now
-    in_scope: map.Map // map.Map<mir.Name(borrowed), i32>
+    in_scope: map.Map, // map.Map<mir.RefName, i32>
+    mangled_names: vec.Vec // vec.Vec<mir.OwnedName>
 }
 
 def create(): NameTable {
     return NameTable {
         scopes: vec.create(sizeof NameScope),
-        in_scope: map.create()
+        in_scope: map.create(),
+        mangled_names: vec.create(sizeof mir.OwnedName)
     };
 }
 
@@ -95,6 +78,17 @@ def free_nt(nt: *NameTable): void {
     dbg.assert_fmt(nt.scopes.len == 0, "%d open scopes left", nt.scopes.len);
 
     vec.free_v(&nt.scopes);
+
+    let i = 0;
+    while i < nt.mangled_names.len {
+        let name = vec.get_ptr(&nt.mangled_names, i) as *mir.OwnedName;
+        dbg.assert(name != null, "name was null");
+
+        mir.free_name(name);
+        i = i + 1;
+    }
+
+    vec.free_v(&nt.mangled_names);
     map.free_m(&nt.in_scope);
 }
 
@@ -106,8 +100,7 @@ def scope_at(nt: *NameTable, i: i32): *NameScope {
     return vec.get_ptr(&nt.scopes, i) as *NameScope;
 }
 
-def bind(nt: *NameTable, name: mir.Name): void {
-    dbg.assert(!name.owned, "only name refs should be bound");
+def bind(nt: *NameTable, name: mir.RefName): mir.RefName {
     let value = num_in_scope(nt, name);
 
     let new_name = name.data;
@@ -127,7 +120,12 @@ def bind(nt: *NameTable, name: mir.Name): void {
     let top = top(nt);
     dbg.assert(top != null, "top was null");
 
-    bind_in(top, name, mangled);
+    let idx = nt.mangled_names.len;
+
+    vec.push(&nt.mangled_names, &mangled as *void);
+    bind_in(top, name, idx);
+
+    return mir.make_ref_name(mangled.len, mangled.data);
 }
 
 def open_scope(nt: *NameTable): void {
@@ -135,12 +133,12 @@ def open_scope(nt: *NameTable): void {
     push_scope(nt, &scope);
 }
 
-def num_in_scope(nt: *NameTable, name: mir.Name): i32 {
+def num_in_scope(nt: *NameTable, name: mir.RefName): i32 {
     let key = map.create_key(name.len, name.data);
     return std.ptr_to_int(map.get(&nt.in_scope, key));
 }
 
-def set_in_scope(nt: *NameTable, name: mir.Name, count: i32): void {
+def set_in_scope(nt: *NameTable, name: mir.RefName, count: i32): void {
     let key = map.create_key(name.len, name.data);
     let item = map.get_item(&nt.in_scope, key);
     let count = std.int_to_ptr(count);
@@ -176,15 +174,15 @@ def push_scope(s: *NameTable, scope: *NameScope): void {
     vec.push(&s.scopes, scope as *void);
 }
 
-def lookup(nt: *NameTable, name: mir.Name, out: *mir.Name): bool {
-    dbg.assert(!name.owned, "name should not be owned");
-
+def lookup(nt: *NameTable, name: mir.RefName, out: *mir.RefName): bool {
     let i = nt.scopes.len - 1;
     while i >= 0 {
         let scope = scope_at(nt, i);
-        let mangled = mir.empty_name();
-        if get_in(scope, name, &mangled) {
-            *out = mangled;
+        let idx = 0;
+        if get_in(scope, name, &idx) {
+            let mangled = vec.get_ptr(&nt.mangled_names, idx) as *mir.OwnedName;
+
+            *out = mir.ref_name(*mangled);
             return true;
         }
         i = i - 1;

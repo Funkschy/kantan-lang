@@ -47,8 +47,8 @@ type MirCompiler struct {
     mod: *mod.Module,
     data: *CompilationData,
     names: nt.NameTable,
-    functions: map.Map, // map.Map<mir.Name, *mir.Func>
-    globals: map.Map, // map.Map<mir.Name, mir.GlobalConst>
+    functions: map.Map, // map.Map<mir.RefName, *mir.Func>
+    globals: map.Map, // map.Map<mir.RefName, *mir.GlobalConst>
     current_func: *mir.Func
 }
 
@@ -65,20 +65,6 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
 
 def free_mirc(c: *MirCompiler): void {
     nt.free_nt(&c.names);
-
-    // free function names
-    let f_iter = map.iter(&c.functions);
-    let item = map.iter_next(&f_iter);
-    while item != null {
-        // this map owns its names, so this is basically just a transmute
-        let name = mir.make_owned_name(item.key.len, item.key.value);
-        mir.free_name(&name);
-        let f = item.value as *mir.Func;
-        mir.free_func(f);
-        delete f;
-
-        item = map.iter_next(&f_iter);
-    }
 }
 
 def compile(c: *MirCompiler): mir.Module {
@@ -98,8 +84,7 @@ def compile(c: *MirCompiler): mir.Module {
     return mir.create_mod(c.globals, c.functions);
 }
 
-def add_function(c: *MirCompiler, f: *mir.Func, n: mir.Name): void {
-    dbg.assert(n.owned, "Function name should be owned");
+def add_function(c: *MirCompiler, f: *mir.Func, n: mir.RefName): void {
     let key = map.create_key(n.len, n.data);
     map.insert(&c.functions, key, f as *void);
 }
@@ -115,8 +100,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let decl = &decl_stmt.decl;
 
         let name = mangle_func_name(c, &decl.name, decl.func_ty);
-        let name_ref = mir.ref_name(name.len, name.data);
-        let mir_func = new mir.create_func(decl.func_ty, name_ref);
+        let mir_func = new mir.create_func(decl.func_ty, name);
 
         if decl_stmt.block != null {
             let prev_func = c.current_func;
@@ -126,8 +110,8 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             c.current_func = prev_func;
         }
 
-        add_function(c, mir_func, name);
-        mir.bm_dump(&mir_func.blocks);
+        add_function(c, mir_func, mir.ref_name(name));
+        dump_function(mir_func);
         return;
     }
 
@@ -153,6 +137,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
     if ast.is_let_stmt(s) {
         let let_stmt = ast.as_let_stmt(s);
+        let ty = let_stmt.value.ty;
 
         let a = mir.create_addr_empty();
         let mir_expr = mir.empty_expr();
@@ -163,48 +148,78 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             mir_expr = compile_expression(c, let_stmt.value);
         }
 
-        bind_ident(c, &let_stmt.ident);
-        mir.free_expr(&mir_expr);
+        let name = bind_ident(c, &let_stmt.ident);
 
         // TODO(#73): implement logic for global variables
         if c.current_func != null {
-            let meta = get_meta(c, s.span);
-            let decl = mir.new_inst_decl(
-                meta, name_from_ident(&let_stmt.ident), let_stmt.value.ty
-            );
-            mir.func_push_instr(c.current_func, &decl);
+            let meta = get_meta(c, let_stmt.ident.span);
+            let decl = mir.new_inst_decl(meta, name, ty);
+            push_instr(c, &decl);
+        } else {
+            mir.free_expr(&mir_expr);
+            return;
         }
 
         // TODO(#74): push assign instruction here
+        let meta = get_meta(c, let_stmt.ident.span);
+        let target = mir.new_addr_name(name, ty);
+        push_assign(c, target, mir_expr, meta);
+
         return;
     }
 
     if ast.is_expr_stmt(s) {
         let e = ast.as_expr_stmt(s);
-        let a = add_expr_instruction(c, e.expr);
+        let a = push_expr_instruction(c, e.expr);
         mir.free_addr(&a);
         return;
     }
 }
 
-def dump_function(f: *mir.Func): void {
-
+def push_instr(c: *MirCompiler, instr: *mir.Inst): void {
+    mir.func_push_instr(c.current_func, instr);
 }
 
-def bind_ident(c: *MirCompiler, i: *ident.Ident): void {
-    nt.bind(&c.names, mir.ref_name(ident.len(i), ident.start(i)));
+def bind_ident(c: *MirCompiler, i: *ident.Ident): mir.RefName {
+    return nt.bind(&c.names, mir.make_ref_name(ident.len(i), ident.start(i)));
 }
 
-def bind_s(c: *MirCompiler, len: i32, s: string): void {
-    nt.bind(&c.names, mir.ref_name(len, s));
+def bind_s(c: *MirCompiler, len: i32, s: string): mir.RefName {
+    return nt.bind(&c.names, mir.make_ref_name(len, s));
 }
 
 def mod_at(c: *MirCompiler, i: i32): *mod.Module {
     return mod.get_mod(c.data.mods, i);
 }
 
+def push_assign(
+    c: *MirCompiler,
+    target: mir.Address,
+    value: mir.Expression,
+    meta: mir.MetaData
+): void {
+    let assign = mir.new_inst_assign(meta, target, value, target.ty);
+    push_instr(c, &assign);
+}
+
 def compile_expression(c: *MirCompiler, e: *ast.Expr): mir.Expression {
-    return mir.Expression { kind: 0, data: null };
+    return mir.empty_expr();
+}
+
+// creates one or multiple instructions for the given expression and returns
+// the address of the result
+def push_expr_instruction(c: *MirCompiler, e: *ast.Expr): mir.Address {
+    let a = mir.create_addr_empty();
+    if address_expression(c, e, &a) {
+        return a;
+    }
+
+    let mir_expr = compile_expression(c, e);
+    if mir.is_expr_copy(&mir_expr) {
+        return mir.as_expr_copy(&mir_expr).addr;
+    }
+
+    return mir.create_addr_null(null);
 }
 
 // checks if the supplied expression is an "address expression", so either
@@ -228,22 +243,6 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     return rvalue_expr(c, e, out);
 }
 
-// creates one or multiple instructions for the given expression and returns
-// the address of the result
-def add_expr_instruction(c: *MirCompiler, e: *ast.Expr): mir.Address {
-    let a = mir.create_addr_empty();
-    if address_expression(c, e, &a) {
-        return a;
-    }
-
-    let mir_expr = compile_expression(c, e);
-    if mir.is_expr_copy(&mir_expr) {
-        return mir.as_expr_copy(&mir_expr).addr;
-    }
-
-    return mir.create_addr_null(null);
-}
-
 // Checks if the expression (e) is a rvalue. If it is, the out_address is filled
 // with the correct mir.Address for this value
 // (e.g. AddressConst for an int literal)
@@ -265,7 +264,7 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
 
     if ast.is_string_expr(e) {
         let name = string_lit(c, e);
-        *out = mir.new_address_global(name, e.ty);
+        *out = mir.new_addr_global(name, e.ty);
         return true;
     }
 
@@ -277,15 +276,24 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     return false;
 }
 
-def string_lit(c: *MirCompiler, e: *ast.Expr): mir.Name {
-    return add_global(c, mir.create_global_data(e.span, e.ty));
+def string_lit(c: *MirCompiler, e: *ast.Expr): mir.RefName {
+    return add_global(c, get_meta(c, e.span), e.ty);
 }
 
-def add_global(c: *MirCompiler, data: mir.GlobalData): mir.Name {
-    return mir.ref_name(0, null);
+def add_global(c: *MirCompiler, meta: mir.MetaData, ty: *ty.Type): mir.RefName {
+    let idx = c.globals.len;
+    let s_len = 0;
+    let s = std.l_format_str(&s_len, "_g%d", idx);
+    let name = s_mangle_name(c, s_len, s, c.mod);
+
+    let key = map.create_key(name.len, name.data);
+    map.insert(&c.globals, key, (new mir.create_const(name, meta, ty)) as *void);
+
+    delete s;
+    return mir.make_ref_name(name.len, name.data);
 }
 
-def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name {
+def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.OwnedName {
     dbg.assert(t != null, "type was null");
     dbg.assert(ty.is_func(t), "type was not a function");
 
@@ -303,7 +311,7 @@ def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name
     return mangle_name(c, name, declared_in);
 }
 
-def mangle_struct_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Name {
+def mangle_struct_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.OwnedName {
     dbg.assert(t != null, "type was null");
     dbg.assert(ty.is_struct(t), "type was not a struct");
 
@@ -313,7 +321,11 @@ def mangle_struct_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.Na
     return mangle_name(c, name, declared_in);
 }
 
-def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): mir.Name {
+def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): mir.OwnedName {
+    return s_mangle_name(c, ident.len(name), ident.start(name), declared_in);
+}
+
+def s_mangle_name(c: *MirCompiler, len: i32, s: string, declared_in: *mod.Module): mir.OwnedName {
     let name_len = 0;
     let name_data = "";
     let p = mod.get_path(declared_in);
@@ -329,7 +341,7 @@ def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): 
         let mod_name = p.inner + c.data.proj_root.len;
 
         // +1 for '.'
-        name_len = mod_len + ident.len(name) + 1;
+        name_len = mod_len + len + 1;
         name_data = std.malloc(name_len + 1) as string;
 
         let i = 0;
@@ -345,22 +357,26 @@ def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): 
         *(name_data + mod_len) = '.';
 
         let dest = name_data + mod_len + 1;
-        let src = ident.start(name);
-        std.memcpy(dest as *void, src as *void, ident.len(name));
+        std.memcpy(dest as *void, s as *void, len);
         *(name_data + name_len) = '\0';
     } else {
         let file_name_len = p.len - file_ending_len;
         let file_name = p.inner;
 
-        name_len = 4 + file_name_len + 1 + ident.len(name);
+        name_len = 4 + file_name_len + 1 + len;
         name_data = std.format_str(
-            "std.%.*s.%.*s", file_name_len, file_name, ident.len(name), ident.start(name)
+            "std.%.*s.%.*s", file_name_len, file_name, len, s
         );
     }
 
     return mir.make_owned_name(name_len, name_data);
 }
 
-def name_from_ident(i: *ident.Ident): mir.Name {
-    return mir.ref_name(ident.len(i), ident.start(i));
+def name_from_ident(i: *ident.Ident): mir.RefName {
+    return mir.make_ref_name(ident.len(i), ident.start(i));
 }
+
+def dump_function(f: *mir.Func): void {
+    mir.bm_dump(&f.blocks);
+}
+
