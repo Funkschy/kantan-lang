@@ -252,6 +252,10 @@ type CheckResult struct {
     globals: scope.Scope
 }
 
+def empty_result(): CheckResult {
+    return create_result(false, ptrvec.create(), null, scope.create());
+}
+
 def create_result(
     had_errors: bool,
     types: ptrvec.Vec,
@@ -1391,7 +1395,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         if !ty.is_sized(value.ty) {
-            push_not_assignable_error(tc, value);
+            push_type_not_assignable_error(tc, value);
             return null;
         }
 
@@ -1719,6 +1723,12 @@ def check_expr_scope_expect(
         if left == null {
             return null;
         }
+
+        if !ast.is_assignable(left) {
+            push_expr_not_assignable_error(tc, left);
+            return null;
+        }
+
         let right = check_expr_expect(tc, a_e.right, left.ty);
         if right == null {
             return null;
@@ -1730,7 +1740,7 @@ def check_expr_scope_expect(
         }
 
         if !ty.is_sized(right.ty) {
-            push_not_assignable_error(tc, right);
+            push_type_not_assignable_error(tc, right);
             return null;
         }
 
@@ -2279,24 +2289,26 @@ def push_invalid_cast_error(
     push_mk_err(tc, text, span);
 }
 
-def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
+def push_expr_type_error(tc: *TypeChecker, kind: i32, e: *ast.Expr): void {
     let ty_s = "";
     let free_ty_s = ty.to_string(e.ty, &ty_s);
-    let text = std.err2str(ERROR_INVALID_TYPE_IN_CONDITION, ty_s);
+    let text = std.err2str(kind, ty_s);
     if free_ty_s {
         delete ty_s;
     }
     push_mk_err(tc, text, e.span);
 }
 
-def push_not_assignable_error(tc: *TypeChecker, e: *ast.Expr): void {
-    let ty_s = "";
-    let free_ty_s = ty.to_string(e.ty, &ty_s);
-    let text = std.err2str(ERROR_TYPE_NOT_ASSIGNABLE, ty_s);
-    if free_ty_s {
-        delete ty_s;
-    }
-    push_mk_err(tc, text, e.span);
+def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
+    push_expr_type_error(tc, ERROR_INVALID_TYPE_IN_CONDITION, e);
+}
+
+def push_type_not_assignable_error(tc: *TypeChecker, e: *ast.Expr): void {
+    push_expr_type_error(tc, ERROR_TYPE_NOT_ASSIGNABLE, e);
+}
+
+def push_expr_not_assignable_error(tc: *TypeChecker, e: *ast.Expr): void {
+    push_expr_type_error(tc, ERROR_EXPR_NOT_ASSIGNABLE, e);
 }
 
 def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr): void {

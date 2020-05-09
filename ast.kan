@@ -694,6 +694,22 @@ def as_unary_expr(e: *Expr): *UnaryExpr {
     return e as *UnaryExpr;
 }
 
+def unary_is_ref(u: *UnaryExpr): bool {
+    return u.kind == UNARY_REF;
+}
+
+def unary_is_deref(u: *UnaryExpr): bool {
+    return u.kind == UNARY_DEREF;
+}
+
+def unary_is_neg_bool(u: *UnaryExpr): bool {
+    return u.kind == UNARY_NEG_BOOL;
+}
+
+def unary_is_neg_num(u: *UnaryExpr): bool {
+    return u.kind == UNARY_NEG_NUM;
+}
+
 /////////// base expr ///////////
 
 type Expr struct {
@@ -704,6 +720,11 @@ type Expr struct {
 
 def create_expr(tag: i32, span: span.Span): Expr {
     return Expr { tag: tag, ty: null, span: span };
+}
+
+def is_assignable(e: *Expr): bool {
+    return is_access_expr(e)
+        || is_ident_expr(e);
 }
 
 def expr_free(e: *Expr): void {

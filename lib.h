@@ -198,6 +198,7 @@ static char const *const error_texts[] = {
     "%s is currently not allowed, this may change in a future Kantan release",
     "Variable was declared with type '%s', but initialized with type '%s'",
     "The type '%s' cannot be assigned to a variable",
+    "Expression is not assignable",
     "Invalid expression"
 };
 
