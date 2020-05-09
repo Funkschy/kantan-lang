@@ -85,19 +85,21 @@ def main(argc: i32, argv: *string): i32 {
         i = i + 1;
     }
 
-    // TODO(#5): only type check, if no parse errors where found?
-    //  this does not seem to be a problem right now
-    let tc = tychk.create(&mm);
-    let tychk_res = tychk.check(&tc);
+    let tychk_res = tychk.empty_result();
 
-    if tychk_res.had_errors {
-        let num_errs = tychk.num_errs(&tc);
-        num_total_errs = num_total_errs + num_errs;
-        io.printf("%d type errors found\n", num_errs);
-        print_type_errors(&tc, &file_map, &cwd);
+    if num_total_errs == 0 {
+        let tc = tychk.create(&mm);
+         tychk_res = tychk.check(&tc);
+
+        if tychk_res.had_errors {
+            let num_errs = tychk.num_errs(&tc);
+            num_total_errs = num_total_errs + num_errs;
+            io.printf("%d type errors found\n", num_errs);
+            print_type_errors(&tc, &file_map, &cwd);
+        }
+
+        tychk.free_tc(&tc);
     }
-
-    tychk.free_tc(&tc);
 
     if num_total_errs == 0 {
         mirc.compile_all(
