@@ -723,8 +723,14 @@ def create_expr(tag: i32, span: span.Span): Expr {
 }
 
 def is_assignable(e: *Expr): bool {
-    return is_access_expr(e)
+    let assignable = is_access_expr(e)
         || is_ident_expr(e);
+
+    if is_unary_expr(e) {
+        assignable = unary_is_deref(as_unary_expr(e));
+    }
+
+    return assignable;
 }
 
 def expr_free(e: *Expr): void {
