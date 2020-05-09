@@ -377,6 +377,10 @@ def is_decl(t: *Type): bool {
     return std.flag_get(&t.flags, FLAG_TY_DECL);
 }
 
+def is_sized(t: *Type): bool {
+    return !std.flag_get(&t.flags, FLAG_UNSIZED);
+}
+
 // if the type is not unsized and the with is unknown it wasn't
 // constructed correctly
 def is_initialized(t: *Type): bool {

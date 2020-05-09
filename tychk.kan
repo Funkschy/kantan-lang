@@ -1390,6 +1390,11 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             }
         }
 
+        if !ty.is_sized(value.ty) {
+            push_not_assignable_error(tc, value);
+            return null;
+        }
+
         l_s.value = value;
         bind(tc, &l_s.ident, l_s.value.ty);
         return s;
@@ -1438,6 +1443,11 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let expr = check_expr(tc, e_s.expr);
 
         if expr == null {
+            return null;
+        }
+
+        if !ty.is_sized(expr.ty) && !ast.is_call_expr(expr) {
+            push_invalid_expr_error(tc, expr);
             return null;
         }
 
@@ -1716,6 +1726,11 @@ def check_expr_scope_expect(
 
         if !ty.equals(left.ty, right.ty) {
             push_bin_invalid_types_error(tc, left.ty, right.ty, e.span);
+            return null;
+        }
+
+        if !ty.is_sized(right.ty) {
+            push_not_assignable_error(tc, right);
             return null;
         }
 
@@ -2150,6 +2165,11 @@ def push_wrong_num_args_error(tc: *TypeChecker, expected: i32, actual: i32, span
     push_mk_err(tc, text, span);
 }
 
+def push_invalid_expr_error(tc: *TypeChecker, e: *ast.Expr): void {
+    let text = std.err2str(ERROR_INVALID_EXPRESSION);
+    push_mk_err(tc, text, e.span);
+}
+
 def push_bin_invalid_types_error(
     tc: *TypeChecker,
     first: *ty.Type,
@@ -2263,6 +2283,16 @@ def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
     let ty_s = "";
     let free_ty_s = ty.to_string(e.ty, &ty_s);
     let text = std.err2str(ERROR_INVALID_TYPE_IN_CONDITION, ty_s);
+    if free_ty_s {
+        delete ty_s;
+    }
+    push_mk_err(tc, text, e.span);
+}
+
+def push_not_assignable_error(tc: *TypeChecker, e: *ast.Expr): void {
+    let ty_s = "";
+    let free_ty_s = ty.to_string(e.ty, &ty_s);
+    let text = std.err2str(ERROR_TYPE_NOT_ASSIGNABLE, ty_s);
     if free_ty_s {
         delete ty_s;
     }
