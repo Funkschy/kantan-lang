@@ -145,7 +145,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         if address_expression(c, let_stmt.value, &a) {
             mir_expr = mir.new_copy_expr(a);
         } else {
-            mir_expr = compile_expression(c, let_stmt.value);
+            mir_expr = complex_expr(c, let_stmt.value, true);
         }
 
         let name = bind_ident(c, &let_stmt.ident);
@@ -153,8 +153,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         // TODO(#73): implement logic for global variables
         if c.current_func != null {
             let meta = get_meta(c, let_stmt.ident.span);
-            let decl = mir.new_inst_decl(meta, name, ty);
-            push_instr(c, &decl);
+            push_decl(c, name, ty, meta);
         } else {
             mir.free_expr(&mir_expr);
             return;
@@ -162,7 +161,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
         // TODO(#74): push assign instruction here
         let meta = get_meta(c, let_stmt.ident.span);
-        let target = mir.new_addr_name(name, ty);
+        let target = mir.make_addr_name(name, ty);
         push_assign(c, target, mir_expr, meta);
 
         return;
@@ -170,14 +169,23 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
     if ast.is_expr_stmt(s) {
         let e = ast.as_expr_stmt(s);
-        let a = push_expr_instruction(c, e.expr);
-        mir.free_addr(&a);
+        expr_instruction(c, e.expr, false);
         return;
     }
 }
 
+def push_decl(c: *MirCompiler, n: mir.RefName, ty: *ty.Type, m: mir.MetaData): void {
+    let decl = mir.new_inst_decl(m, n, ty);
+    push_instr(c, &decl);
+}
+
 def push_instr(c: *MirCompiler, instr: *mir.Inst): void {
     mir.func_push_instr(c.current_func, instr);
+}
+
+def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {
+    let name = bind_s(c, 2, "_t");
+    return mir.make_addr_name(name, ty);
 }
 
 def bind_ident(c: *MirCompiler, i: *ident.Ident): mir.RefName {
@@ -196,30 +204,144 @@ def push_assign(
     c: *MirCompiler,
     target: mir.Address,
     value: mir.Expression,
-    meta: mir.MetaData
+    m: mir.MetaData
 ): void {
-    let assign = mir.new_inst_assign(meta, target, value, target.ty);
+    let assign = mir.new_inst_assign(m, target, value, target.ty);
     push_instr(c, &assign);
 }
 
-def compile_expression(c: *MirCompiler, e: *ast.Expr): mir.Expression {
+def push_temp_assign(
+    c: *MirCompiler,
+    value: mir.Expression,
+    ty: *ty.Type,
+    meta: mir.MetaData,
+    out_name: *mir.Address // has to be freed if wanted
+): void {
+    let target = temp_addr(c, ty);
+    let assign = mir.new_inst_assign(meta, target, value, target.ty);
+    push_instr(c, &assign);
+
+    if out_name != null {
+        *out_name = mir.clone_addr_name(&target);
+    }
+}
+
+def compile_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    let a = mir.create_addr_empty();
+    if address_expression(c, e, &a) {
+        return mir.new_copy_expr(a);
+    }
+
+    return complex_expr(c, e, rhs);
+}
+
+def assign_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    let assign = ast.as_assign_expr(e);
+    let target = expr_instruction(c, assign.left, rhs);
+    let value = compile_expr(c, assign.right, true);
+
+    let meta = get_meta(c, e.span);
+    push_assign(c, target, value, meta);
+    return mir.new_copy_expr(target);
+}
+
+def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    let unary = ast.as_unary_expr(e);
+    let value_addr = expr_instruction(c, unary.right, rhs);
+    let meta = get_meta(c, e.span);
+
+    if ast.unary_is_deref(unary) {
+        // Expressions on the right side of an assignment have to be derefed twice
+        if rhs {
+            let value = mir.new_unary_expr_deref(value_addr);
+            push_temp_assign(c, value, e.ty, meta, &value_addr);
+        }
+
+        return mir.new_unary_expr_deref(value_addr);
+    }
+
+    dbg.assert(rhs, "These unary types should not appear on the left side of =");
+
+    if ast.unary_is_ref(unary) {
+        let ref_name = mir.as_addr_name(&value_addr).value;
+        let ref = mir.make_addr_ref(ref_name, e.ty);
+        return mir.new_copy_expr(ref);
+    }
+
+
+    if ast.unary_is_neg_bool(unary) {
+
+    }
+
+    if ast.unary_is_neg_num(unary) {
+
+    }
+
+    return mir.empty_expr();
+}
+
+def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    // EXPR_ACCESS
+    if ast.is_access_expr(e) {
+    }
+
+    // EXPR_BINARY
+    if ast.is_binary_expr(e) {
+    }
+
+    // EXPR_ASSIGN
+    if ast.is_assign_expr(e) {
+        return assign_expr(c, e, rhs);
+    }
+
+    // EXPR_UNARY
+    if ast.is_unary_expr(e) {
+        return unary_expr(c, e, rhs);
+    }
+
+    // EXPR_NEW
+    if ast.is_new_expr(e) {
+    }
+
+    // EXPR_SIZEOF
+    if ast.is_sizeof_expr(e) {
+    }
+
+    // EXPR_AS
+    if ast.is_as_expr(e) {
+    }
+
+    // EXPR_CALL
+    if ast.is_call_expr(e) {
+    }
+
+    // EXPR_INIT
+    if ast.is_init_expr(e) {
+    }
+
+    // dbg.assert_fmt(false, "expr kind %d not handled", e.tag);
     return mir.empty_expr();
 }
 
 // creates one or multiple instructions for the given expression and returns
 // the address of the result
-def push_expr_instruction(c: *MirCompiler, e: *ast.Expr): mir.Address {
+def expr_instruction(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Address {
     let a = mir.create_addr_empty();
     if address_expression(c, e, &a) {
         return a;
     }
 
-    let mir_expr = compile_expression(c, e);
+    let mir_expr = complex_expr(c, e, rhs);
     if mir.is_expr_copy(&mir_expr) {
-        return mir.as_expr_copy(&mir_expr).addr;
+        a = mir.as_expr_copy(&mir_expr).addr;
+        mir.free_expr(&mir_expr);
+        return a;
     }
 
-    return mir.create_addr_null(null);
+    let meta = get_meta(c, e.span);
+    push_temp_assign(c, mir_expr, e.ty, meta, &a);
+    push_decl(c, mir.as_addr_name(&a).value, e.ty, meta);
+    return a;
 }
 
 // checks if the supplied expression is an "address expression", so either
@@ -235,9 +357,10 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
                 "demangled %.*s to %.*s\n",
                 mangled.len, mangled.data, name.len, name.data
             );
-            *out = mir.new_addr_name(mangled, e.ty);
+            *out = mir.make_addr_name(mangled, e.ty);
             return true;
         }
+        dbg.assert_fmt(false, "undefined: %.*s", name.len, name.data);
     }
 
     return rvalue_expr(c, e, out);
@@ -248,12 +371,12 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
 // (e.g. AddressConst for an int literal)
 def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     if ast.is_int_expr(e) {
-        *out = mir.new_addr_const(e.ty, e.span);
+        *out = mir.make_addr_const(e.ty, e.span);
         return true;
     }
 
     if ast.is_float_expr(e) {
-        *out = mir.new_addr_const(e.ty, e.span);
+        *out = mir.make_addr_const(e.ty, e.span);
         return true;
     }
 
@@ -264,12 +387,12 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
 
     if ast.is_string_expr(e) {
         let name = string_lit(c, e);
-        *out = mir.new_addr_global(name, e.ty);
+        *out = mir.make_addr_global(name, e.ty);
         return true;
     }
 
     if ast.is_char_expr(e) {
-        *out = mir.new_addr_const(e.ty, e.span);
+        *out = mir.make_addr_const(e.ty, e.span);
         return true;
     }
 

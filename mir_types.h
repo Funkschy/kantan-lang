@@ -11,9 +11,8 @@
 #define MIR_ADDR_NULL           2
 #define MIR_ADDR_NAME           3
 #define MIR_ADDR_CONST          4
-#define MIR_ADDR_TEMP           5
-#define MIR_ADDR_GLOBAL         6
-#define MIR_ADDR_REF            7
+#define MIR_ADDR_GLOBAL         5
+#define MIR_ADDR_REF            6
 
 #define MIR_EXPR_BINARY         1
 #define MIR_EXPR_UNARY          2

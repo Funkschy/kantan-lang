@@ -225,13 +225,23 @@ type AddressName struct {
     value: RefName // name table owns name
 }
 
-def new_addr_name(value: RefName, ty: *ty.Type): Address {
-    let n = (new AddressName { value: value }) as *void;
-    return create_addr(MIR_ADDR_NAME, ty, n);
+def make_addr_name(value: RefName, ty: *ty.Type): Address {
+    let hi = std.int_to_ptr(value.len);
+    let lo = value.data as *void;
+    return create_addr(MIR_ADDR_NAME, ty, hi, lo);
 }
 
-def as_addr_name(a: *Address): *AddressName {
-    return a.data as *AddressName;
+def clone_addr_name(a: *Address): Address {
+    dbg.assert_fmt(is_addr_name(a), "addr should be name, but was %d", a.kind);
+    let name = as_addr_name(a);
+    return make_addr_name(name.value, a.ty);
+}
+
+def as_addr_name(a: *Address): AddressName {
+    let len = std.ptr_to_int(a.data_hi);
+    let data = a.data_lo as string;
+    let name = make_ref_name(len, data);
+    return AddressName { value: name };
 }
 
 def is_addr_name(a: *Address): bool {
@@ -242,45 +252,34 @@ type AddressConst struct {
     span: span.Span
 }
 
-def new_addr_const(ty: *ty.Type, s: span.Span): Address {
-    let cnst = (new AddressConst { span: s }) as *void;
-    return create_addr(MIR_ADDR_CONST, ty, cnst);
+def make_addr_const(ty: *ty.Type, s: span.Span): Address {
+    return create_addr(MIR_ADDR_CONST, ty, s.start as *void, s.end as *void);
 }
 
-def as_addr_const(a: *Address): *AddressConst {
-    return a.data as *AddressConst;
+def as_addr_const(a: *Address): AddressConst {
+    let s = span.create(a.data_hi as string, a.data_lo as string);
+    return AddressConst { span: s };
 }
 
 def is_addr_const(a: *Address): bool {
     return a.kind == MIR_ADDR_CONST;
 }
 
-type AddressTemp struct {
-    value: i32
-}
-
-def as_addr_temp(a: *Address): *AddressTemp {
-    return a.data as *AddressTemp;
-}
-
-def is_addr_temp(a: *Address): bool {
-    return a.kind == MIR_ADDR_TEMP;
-}
-
 type AddressGlobal struct {
     name: RefName
 }
 
-def new_addr_global(name: RefName, ty: *ty.Type): Address {
-    return Address {
-        kind: MIR_ADDR_GLOBAL,
-        ty: ty,
-        data: (new AddressGlobal { name: name }) as *void
-    };
+def make_addr_global(name: RefName, ty: *ty.Type): Address {
+    let hi = std.int_to_ptr(name.len);
+    let lo = name.data as *void;
+    return create_addr(MIR_ADDR_GLOBAL, ty, hi, lo);
 }
 
-def as_addr_global(a: *Address): *AddressGlobal {
-    return a.data as *AddressGlobal;
+def as_addr_global(a: *Address): AddressGlobal {
+    let len = std.ptr_to_int(a.data_hi);
+    let data = a.data_lo as string;
+    let name = make_ref_name(len, data);
+    return AddressGlobal { name: name };
 }
 
 def is_addr_global(a: *Address): bool {
@@ -291,12 +290,17 @@ type AddressRef struct {
     name: RefName
 }
 
-def new_addr_ref(name: RefName, ty: *ty.Type): Address {
-    return create_addr(MIR_ADDR_REF, ty, (new AddressRef { name: name }) as *void);
+def make_addr_ref(name: RefName, ty: *ty.Type): Address {
+    let hi = std.int_to_ptr(name.len);
+    let lo = name.data as *void;
+    return create_addr(MIR_ADDR_REF, ty, hi, lo);
 }
 
-def as_addr_ref(a: *Address): *AddressRef {
-    return a.data as *AddressRef;
+def as_addr_ref(a: *Address): AddressRef {
+    let len = std.ptr_to_int(a.data_hi);
+    let data = a.data_lo as string;
+    let name = make_ref_name(len, data);
+    return AddressRef { name: name };
 }
 
 def is_addr_ref(a: *Address): bool {
@@ -304,7 +308,7 @@ def is_addr_ref(a: *Address): bool {
 }
 
 def create_addr_empty(): Address {
-    return create_addr(MIR_ADDR_EMPTY, null, null);
+    return create_addr(MIR_ADDR_EMPTY, null, null, null);
 }
 
 def is_addr_empty(a: *Address): bool {
@@ -312,7 +316,7 @@ def is_addr_empty(a: *Address): bool {
 }
 
 def create_addr_null(ty: *ty.Type): Address {
-    return create_addr(MIR_ADDR_NULL, ty, null);
+    return create_addr(MIR_ADDR_NULL, ty, null, null);
 }
 
 def is_addr_null(a: *Address): bool {
@@ -322,19 +326,17 @@ def is_addr_null(a: *Address): bool {
 type Address struct {
     kind: i32,
     ty: *ty.Type,
-    data: *void
+    // this is basically a poor mans union, since the current compiler
+    // implementation does not support unions
+    // TODO: replace this with real unions
+    data_hi: *void,
+    data_lo: *void
 }
 
-def create_addr(kind: i32, ty: *ty.Type, data: *void): Address {
+def create_addr(kind: i32, ty: *ty.Type, data_hi: *void, data_lo: *void): Address {
     return Address {
-        kind: kind, ty: ty, data: data
+        kind: kind, ty: ty, data_hi: data_hi, data_lo: data_lo
     };
-}
-
-def free_addr(a: *Address): void {
-    if a.data != null {
-        delete a.data;
-    }
 }
 
 def addr_to_string(a: *Address): string {
@@ -346,11 +348,6 @@ def addr_to_string(a: *Address): string {
     if is_addr_const(a) {
         let const = as_addr_const(a);
         return std.format_str("const %.*s", span.len(const.span), const.span.start);
-    }
-
-    if is_addr_temp(a) {
-        let tmp = as_addr_temp(a);
-        return std.format_str("_t%d", tmp.value);
     }
 
     if is_addr_global(a) {
@@ -395,6 +392,11 @@ def is_expr_binary(e: *Expression): bool {
 type ExprUnary struct {
     kind: i32,
     addr: Address
+}
+
+def new_unary_expr_deref(addr: Address): Expression {
+    let unary = (new ExprUnary { kind: MIR_UNARY_DEREF, addr: addr }) as *void;
+    return create_expr(MIR_EXPR_UNARY, unary);
 }
 
 def unary_kind_to_static_string(kind: i32): string {
@@ -563,42 +565,12 @@ def empty_expr(): Expression {
 }
 
 def free_expr(e: *Expression): void {
-    if is_expr_binary(e) {
-        let b_expr = as_expr_binary(e);
-        free_addr(&b_expr.left);
-        free_addr(&b_expr.right);
-    } else if is_expr_unary(e) {
-        let u_expr = as_expr_unary(e);
-        free_addr(&u_expr.addr);
-    } else if is_expr_copy(e) {
-        let c_expr = as_expr_copy(e);
-        free_addr(&c_expr.addr);
-    } else if is_expr_call(e) {
+    if is_expr_call(e) {
         let c_expr = as_expr_call(e);
-        let i = 0;
-        while i < c_expr.args.len {
-            free_addr(call_arg_at(c_expr, i));
-            i = i + 1;
-        }
-    } else if is_expr_struct_gep(e) {
-        let gep_expr = as_expr_struct_gep(e);
-        free_addr(&gep_expr.addr);
+        vec.free_v(&c_expr.args);
     } else if is_expr_struct_init(e) {
         let i_expr = as_expr_struct_init(e);
-        let i = 0;
-        while i < i_expr.args.len {
-            free_addr(init_arg_at(i_expr, i));
-            i = i + 1;
-        }
-    } else if is_expr_new(e) {
-        let new_expr = as_expr_new(e);
-        free_addr(&new_expr.addr);
-    } else if is_expr_sizeof(e) {
-        let so_expr = as_expr_sizeof(e);
-        free_addr(&so_expr.addr);
-    } else if is_expr_bitcast(e) {
-        let bc_expr = as_expr_bitcast(e);
-        free_addr(&bc_expr.addr);
+        vec.free_v(&i_expr.args);
     }
 
     if e.data != null {
@@ -987,22 +959,14 @@ def inst_to_string(inst: *Inst): string {
 def free_inst(inst: *Inst): void {
     if is_inst_assign(inst) {
         let assign = as_inst_assign(inst);
-        free_addr(&assign.dest);
         free_expr(&assign.value);
     } if is_inst_jmp(inst) {
         let jmp = as_inst_jmp(inst);
         free_label(&jmp.target);
     } if is_inst_jmpif(inst) {
         let jmpif = as_inst_jmpif(inst);
-        free_addr(&jmpif.condition);
         free_label(&jmpif.if_target);
         free_label(&jmpif.else_target);
-    } if is_inst_return(inst) {
-        let ret = as_inst_return(inst);
-        free_addr(&ret.value);
-    } if is_inst_delete(inst) {
-        let del = as_inst_delete(inst);
-        free_addr(&del.addr);
     }
 
     if inst.data != null {
