@@ -110,7 +110,6 @@ def bind(nt: *NameTable, name: mir.RefName): mir.RefName {
     if value == 0 {
         // the mangled name should be owned, so just copy it here
         new_name = std.strndup(new_name, new_name_len);
-        set_in_scope(nt, name, 1);
     } else {
         new_name = std.format_str("%.*s_%d", new_name_len, new_name, value);
         new_name_len = new_name_len + 1 + std.int_num_digits(value);
@@ -123,6 +122,7 @@ def bind(nt: *NameTable, name: mir.RefName): mir.RefName {
     let idx = nt.mangled_names.len;
 
     vec.push(&nt.mangled_names, &mangled as *void);
+    set_in_scope(nt, name, value + 1);
     bind_in(top, name, idx);
 
     return mir.make_ref_name(mangled.len, mangled.data);
