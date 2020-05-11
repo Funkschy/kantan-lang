@@ -307,6 +307,24 @@ def is_addr_ref(a: *Address): bool {
     return a.kind == MIR_ADDR_REF;
 }
 
+type AddressArg struct {
+    idx: i32
+}
+
+def make_addr_arg(idx: i32, ty: *ty.Type): Address {
+    let hi = std.int_to_ptr(idx);
+    return create_addr(MIR_ADDR_ARG, ty, hi, null);
+}
+
+def as_addr_arg(a: *Address): AddressArg {
+    let idx = std.ptr_to_int(a.data_hi);
+    return AddressArg { idx: idx };
+}
+
+def is_addr_arg(a: *Address): bool {
+    return a.kind == MIR_ADDR_ARG;
+}
+
 def create_addr_empty(): Address {
     return create_addr(MIR_ADDR_EMPTY, null, null, null);
 }
@@ -358,6 +376,11 @@ def addr_to_string(a: *Address): string {
     if is_addr_ref(a) {
         let ref = as_addr_ref(a);
         return std.format_str("&%.*s", ref.name.len, ref.name.data);
+    }
+
+    if is_addr_arg(a) {
+        let arg = as_addr_arg(a);
+        return std.format_str("getarg(%d)", arg.idx);
     }
 
     if is_addr_empty(a) {
@@ -498,18 +521,6 @@ def as_expr_sizeof(e: *Expression): *ExprSizeOf {
 
 def is_expr_sizeof(e: *Expression): bool {
     return e.kind == MIR_EXPR_SIZEOF;
-}
-
-type ExprGetParam struct {
-    idx: i32
-}
-
-def as_expr_getparam(e: *Expression): *ExprGetParam {
-    return e.data as *ExprGetParam;
-}
-
-def is_expr_getparam(e: *Expression): bool {
-    return e.kind == MIR_EXPR_GETPARAM;
 }
 
 type ExprBitCast struct {
@@ -698,11 +709,6 @@ def expr_to_string(e: *Expression): string {
 
         delete addr_s;
         return s;
-    }
-
-    if is_expr_getparam(e) {
-        let gp = as_expr_getparam(e);
-        return std.format_str("getparam(%d)", gp.idx);
     }
 
     if is_expr_bitcast(e) {

@@ -1,5 +1,5 @@
-let c = ' ';
 def main(): void {
+    let c = ' ';
     let s = "test";
     c = *s;
     c = **&s;

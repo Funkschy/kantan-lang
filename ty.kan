@@ -284,6 +284,19 @@ def func_is_initalized(t: *Func): bool {
     return true;
 }
 
+// returns: idx of param with name or -1
+def find_param_idx(t: *Func, name: *ident.Ident): i32 {
+    let i = 0;
+    while i < t.params.len {
+        let p = param_at(t, i);
+        if ident.eq_value(&p.name, name) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
 def param_at(t: *Func, i: i32): *Param {
     return vec.get_ptr(&t.params, i) as *Param;
 }

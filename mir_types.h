@@ -13,6 +13,7 @@
 #define MIR_ADDR_CONST          4
 #define MIR_ADDR_GLOBAL         5
 #define MIR_ADDR_REF            6
+#define MIR_ADDR_ARG            7
 
 #define MIR_EXPR_BINARY         1
 #define MIR_EXPR_UNARY          2
@@ -22,8 +23,7 @@
 #define MIR_EXPR_STRUCTINIT     6
 #define MIR_EXPR_NEW            7
 #define MIR_EXPR_SIZEOF         8
-#define MIR_EXPR_GETPARAM       9
-#define MIR_EXPR_BITCAST        10
+#define MIR_EXPR_BITCAST        9
 
 #define MIR_BIN_ADD_SCALAR      1
 #define MIR_BIN_SUB_SCALAR      2

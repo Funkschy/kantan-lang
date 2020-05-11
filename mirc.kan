@@ -169,7 +169,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
     if ast.is_expr_stmt(s) {
         let e = ast.as_expr_stmt(s);
-        expr_instruction(c, e.expr, false);
+        expr_instruction(c, e.expr, true);
         return;
     }
 }
@@ -360,6 +360,16 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
             *out = mir.make_addr_name(mangled, e.ty);
             return true;
         }
+
+        if c.current_func != null {
+            let f = ty.as_func(c.current_func.ty);
+            let p_idx = ty.find_param_idx(f, ident);
+            if p_idx >= 0 {
+                *out = mir.make_addr_arg(p_idx, e.ty);
+                return true;
+            }
+        }
+
         dbg.assert_fmt(false, "undefined: %.*s", name.len, name.data);
     }
 

@@ -32,6 +32,17 @@ def char_at(i: *Ident, pos: i32): char {
     return *(i.span.start + pos);
 }
 
+def eq_value(first: *Ident, second: *Ident): bool {
+    let first_len = len(first);
+    if first_len != len(second) {
+        return false;
+    }
+
+    return std.memcmp(
+        start(first) as *void, start(second) as *void, first_len
+    ) == 0;
+}
+
 // -1 if not found
 def index_of(id: *Ident, ident_len: i32, c: char): i32 {
     let i = 0;
