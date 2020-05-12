@@ -346,7 +346,7 @@ type Address struct {
     ty: *ty.Type,
     // this is basically a poor mans union, since the current compiler
     // implementation does not support unions
-    // TODO: replace this with real unions
+    // TODO(#75): replace this with real unions
     data_hi: *void,
     data_lo: *void
 }
@@ -357,41 +357,57 @@ def create_addr(kind: i32, ty: *ty.Type, data_hi: *void, data_lo: *void): Addres
     };
 }
 
-def addr_to_string(a: *Address): string {
+def addr_to_name(a: *Address): OwnedName {
     if is_addr_name(a) {
         let name = as_addr_name(a);
-        return std.strndup(name.value.data, name.value.len);
+        return make_copied_name(name.value.len, name.value.data);
     }
 
     if is_addr_const(a) {
         let const = as_addr_const(a);
-        return std.format_str("const %.*s", span.len(const.span), const.span.start);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "const %.*s", span.len(const.span), const.span.start
+        );
+        return make_owned_name(len, s);
     }
 
     if is_addr_global(a) {
         let global = as_addr_global(a);
-        return std.format_str("global %.*s", global.name.len, global.name.data);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "global %.*s", global.name.len, global.name.data
+        );
+        return make_owned_name(len, s);
     }
 
     if is_addr_ref(a) {
         let ref = as_addr_ref(a);
-        return std.format_str("&%.*s", ref.name.len, ref.name.data);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "&%.*s", ref.name.len, ref.name.data
+        );
+        return make_owned_name(len, s);
     }
 
     if is_addr_arg(a) {
         let arg = as_addr_arg(a);
-        return std.format_str("getarg(%d)", arg.idx);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "getarg(%d)", arg.idx
+        );
+        return make_owned_name(len, s);
     }
 
     if is_addr_empty(a) {
-        return std.strdup("_");
+        return make_copied_name(1, "_");
     }
 
     if is_addr_null(a) {
-        return std.strdup("null");
+        return make_copied_name(4, "null");
     }
 
-    return null;
+    return make_owned_name(0, null);
 }
 
 type ExprBinary struct {
@@ -457,9 +473,14 @@ def is_expr_copy(e: *Expression): bool {
 }
 
 type ExprCall struct {
-    name: RefName,
+    callee: Address,
     args: vec.Vec, // Vec<Address>
     varargs: bool
+}
+
+def new_call_expr(callee: Address, args: vec.Vec, varargs: bool): Expression {
+    let call = (new ExprCall { callee: callee, args: args, varargs: varargs });
+    return create_expr(MIR_EXPR_CALL, call as *void);
 }
 
 def call_arg_at(call: *ExprCall, idx: i32): *Address {
@@ -594,41 +615,46 @@ def free_expr(e: *Expression): void {
     }
 }
 
-def expr_to_string(e: *Expression): string {
+def expr_to_name(e: *Expression): OwnedName {
     if is_expr_binary(e) {
         let bin = as_expr_binary(e);
 
-        let left = addr_to_string(&bin.left);
-        let right = addr_to_string(&bin.right);
+        let left = addr_to_name(&bin.left);
+        let right = addr_to_name(&bin.right);
         let op = binary_kind_to_static_string(bin.kind);
 
-        let s = std.format_str("(%s)%s(%s)", left, op, right);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "(%.*s)%s(%.*s)", left.len, left.data, op, right.len, right.data
+        );
 
-        delete left;
-        delete right;
-        return s;
+        free_name(&left);
+        free_name(&right);
+        return make_owned_name(len, s);
     }
 
     if is_expr_unary(e) {
         let unary = as_expr_unary(e);
 
-        let addr = addr_to_string(&unary.addr);
+        let addr = addr_to_name(&unary.addr);
         let op = unary_kind_to_static_string(unary.kind);
 
-        let s = std.format_str("%s%s", op, addr);
+        let len = 0;
+        let s = std.l_format_str(&len, "%s%.*s", op, addr.len, addr.data);
 
-        delete addr;
-        return s;
+        free_name(&addr);
+        return make_owned_name(len, s);
     }
 
     if is_expr_copy(e) {
         let copy = as_expr_copy(e);
 
-        let addr = addr_to_string(&copy.addr);
-        let s = std.format_str("copy %s", addr);
+        let addr = addr_to_name(&copy.addr);
+        let len = 0;
+        let s = std.l_format_str(&len, "copy %.*s", addr.len, addr.data);
 
-        delete addr;
-        return s;
+        free_name(&addr);
+        return make_owned_name(len, s);
     }
 
     if is_expr_call(e) {
@@ -639,33 +665,39 @@ def expr_to_string(e: *Expression): string {
         let i = 0;
         while i < call.args.len {
             let arg = call_arg_at(call, i);
-            let arg_s = addr_to_string(arg);
+            let arg_n = addr_to_name(arg);
 
-            str.append(&buf, arg_s);
+            str.append(&buf, arg_n.len, arg_n.data);
             if i < call.args.len - 1 {
-                str.append(&buf, ", ");
+                str.append(&buf, 2, ", ");
             }
 
-            delete arg_s;
+            free_name(&arg_n);
             i = i + 1;
         }
 
-        let name = call.name;
-        let s = std.format_str("%.*s(%s)", name.len, name.data, buf.content);
+        let name = addr_to_name(&call.callee);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "%.*s(%s)", name.len, name.data, buf.content
+        );
+        free_name(&name);
 
         str.free_buf(&buf);
-
-        return s;
+        return make_owned_name(len, s);
     }
 
     if is_expr_struct_gep(e) {
         let gep = as_expr_struct_gep(e);
-        let addr_s = addr_to_string(&gep.addr);
+        let addr_n = addr_to_name(&gep.addr);
 
-        let s = std.format_str("gep(%s, %d)", addr_s, gep.idx);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "gep(%.*s, %d)", addr_n.len, addr_n.data, gep.idx
+        );
 
-        delete addr_s;
-        return s;
+        free_name(&addr_n);
+        return make_owned_name(len, s);
     }
 
     if is_expr_struct_init(e) {
@@ -676,63 +708,69 @@ def expr_to_string(e: *Expression): string {
         let i = 0;
         while i < init.args.len {
             let arg = init_arg_at(init, i);
-            let arg_s = addr_to_string(arg);
+            let arg_n = addr_to_name(arg);
 
-            str.append(&buf, arg_s);
+            str.append(&buf, arg_n.len, arg_n.data);
             if i < init.args.len - 1 {
-                str.append(&buf, ", ");
+                str.append(&buf, 2, ", ");
             }
 
-            delete arg_s;
+            free_name(&arg_n);
             i = i + 1;
         }
 
         let name = init.name;
-        let s = std.format_str("%.*s{%s}", name.len, name.data, buf.content);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "%.*s{%s}", name.len, name.data, buf.content
+        );
 
         str.free_buf(&buf);
-
-        return s;
-        return s;
+        return make_owned_name(len, s);
     }
 
     if is_expr_new(e) {
         let n = as_expr_new(e);
-        let addr_s = addr_to_string(&n.addr);
+        let addr_n = addr_to_name(&n.addr);
 
-        let s = std.format_str("new %s", addr_s);
+        let len = 0;
+        let s = std.l_format_str(&len, "new %.*s", addr_n.len, addr_n.data);
 
-        delete addr_s;
-        return s;
+        free_name(&addr_n);
+        return make_owned_name(len, s);
     }
 
     if is_expr_sizeof(e) {
         let so = as_expr_sizeof(e);
-        let addr_s = addr_to_string(&so.addr);
+        let addr_n = addr_to_name(&so.addr);
 
-        let s = std.format_str("sizeof(%s)", addr_s);
+        let len = 0;
+        let s = std.l_format_str(&len, "sizeof(%.*s)", addr_n.len, addr_n.data);
 
-        delete addr_s;
-        return s;
+        free_name(&addr_n);
+        return make_owned_name(len, s);
     }
 
     if is_expr_bitcast(e) {
         let cast = as_expr_bitcast(e);
-        let addr_s = addr_to_string(&cast.addr);
+        let addr_n = addr_to_name(&cast.addr);
         let ty_s: string = null;
         let free_ty_s = ty.to_string(cast.into, &ty_s);
 
-        let s = std.format_str("(%s as %s)", addr_s, ty_s);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "(%.*s as %s)", addr_n.len, addr_n.data, ty_s
+        );
 
-        delete addr_s;
+        free_name(&addr_n);
         if free_ty_s {
             delete ty_s;
         }
 
-        return s;
+        return make_owned_name(len, s);
     }
 
-    return null;
+    return make_owned_name(0, null);
 }
 
 type InstDecl struct {
@@ -884,13 +922,15 @@ type Inst struct {
     data: *void
 }
 
-def inst_to_string(inst: *Inst): string {
+def inst_to_name(inst: *Inst): OwnedName {
     if is_inst_decl(inst) {
         let decl = as_inst_decl(inst);
         let ty_s: string = null;
         let free_ty_s = ty.to_string(decl.ty, &ty_s);
 
-        let s = std.format_str(
+        let len = 0;
+        let s = std.l_format_str(
+            &len,
             "let %.*s: %s",
             decl.name.len,
             decl.name.data,
@@ -901,70 +941,85 @@ def inst_to_string(inst: *Inst): string {
             delete ty_s;
         }
 
-        return s;
+        return make_owned_name(len, s);
     }
 
     if is_inst_assign(inst) {
         let assign = as_inst_assign(inst);
-        let a_s = addr_to_string(&assign.dest);
-        let e_s = expr_to_string(&assign.value);
+        let a_n = addr_to_name(&assign.dest);
+        let e_n = expr_to_name(&assign.value);
 
-        let s = std.format_str("%s = %s", a_s, e_s);
+        let len = 0;
+        let s = std.l_format_str(
+            &len,
+            "%.*s = %.*s", a_n.len, a_n.data, e_n.len, e_n.data
+        );
 
-        delete a_s;
-        delete e_s;
+        free_name(&a_n);
+        free_name(&e_n);
 
-        return s;
+        return make_owned_name(len, s);
     }
 
     if is_inst_jmp(inst) {
         let jmp = as_inst_jmp(inst);
         let label = label_name(&jmp.target);
 
-        // just copy the data, since this function is for debug only
-        return std.strndup(label.data, label.len);
+        return make_copied_name(label.len, label.data);
     }
 
     if is_inst_jmpif(inst) {
         let jmpif = as_inst_jmpif(inst);
         let if_label = label_name(&jmpif.if_target);
         let else_label = label_name(&jmpif.else_target);
-        let condition = addr_to_string(&jmpif.condition);
+        let condition = addr_to_name(&jmpif.condition);
 
-        let s = std.format_str("jmp %s;%.*s;%.*s", condition, if_label, else_label);
-        delete condition;
+        let len = 0;
+        let s = std.l_format_str(
+            &len,
+            "jmp %.*s;%.*s;%.*s",
+            condition.len,
+            condition.data,
+            if_label.len,
+            if_label.data,
+            else_label.len,
+            else_label.data
+        );
 
-        return s;
+        free_name(&condition);
+        return make_owned_name(len, s);
     }
 
     if is_inst_return(inst) {
         let ret = as_inst_return(inst);
         if is_addr_empty(&ret.value) {
-            return std.strdup("return");
+            return make_copied_name(6, "return");
         }
 
-        let a_s = addr_to_string(&ret.value);
-        let s = std.format_str("return %s", a_s);
+        let a_n = addr_to_name(&ret.value);
+        let len = 0;
+        let s = std.l_format_str(&len, "return %.*s", a_n.len, a_n.data);
 
-        delete a_s;
-        return s;
+        free_name(&a_n);
+        return make_owned_name(len, s);
     }
 
     if is_inst_delete(inst) {
         let del = as_inst_delete(inst);
-        let a_s = addr_to_string(&del.addr);
+        let a_n = addr_to_name(&del.addr);
 
-        let s = std.format_str("delete %s", a_s);
+        let len = 0;
+        let s = std.l_format_str(&len, "delete %.*s", a_n.len, a_n.data);
 
-        delete a_s;
-        return s;
+        free_name(&a_n);
+        return make_owned_name(len, s);
     }
 
     if is_inst_nop(inst) {
-        return std.strdup("nop");
+        return make_copied_name(3, "nop");
     }
 
-    return null;
+    return make_owned_name(0, null);
 }
 
 def free_inst(inst: *Inst): void {
@@ -1070,9 +1125,9 @@ def bm_dump(bm: *BlockMap): void {
     let i = 0;
     while i < bm.decls.len {
         let decl = vec.get_ptr(&bm.decls, i) as *Inst;
-        let s = inst_to_string(decl);
-        io.printf("  %s\n", s);
-        delete s;
+        let n = inst_to_name(decl);
+        io.printf("  %.*s\n", n.len, n.data);
+        free_name(&n);
         i =  i + 1;
     }
 
@@ -1088,9 +1143,9 @@ def bm_dump(bm: *BlockMap): void {
         i = 0;
         while i < bb_num_instr(bb) {
             let inst = bb_get_instr(bb, i);
-            let s = inst_to_string(inst);
-            io.printf("  %s\n", s);
-            delete s;
+            let n = inst_to_name(inst);
+            io.printf("  %.*s\n", n.len, n.data);
+            free_name(&n);
             i = i + 1;
         }
 

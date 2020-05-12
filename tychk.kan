@@ -1910,6 +1910,8 @@ def check_expr_scope_expect(
             return null;
         }
 
+        // TODO(#76): check names of fields and reorder if necessary
+
         let struct_ty = ty.as_struct(left.ty);
         let inits = &i_e.inits;
 

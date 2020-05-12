@@ -256,8 +256,8 @@ def init_func(t: *Type, name: ident.Ident, declared_in: i32, is_extern: bool): v
     let f = new Func {
         // the way that tychk currently works, is that this is set lazy, while
         // checking the parameters types
-        is_varargs: false,
         is_extern: is_extern,
+        is_varargs: false,
         declared_in: declared_in,
         ret: null,
         params: vec.create(sizeof Param),
