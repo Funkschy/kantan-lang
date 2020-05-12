@@ -24,8 +24,7 @@ def free_buf(buf: *StrBuf): void {
     delete buf.content;
 }
 
-def append(buf: *StrBuf, s: string): void {
-    let len = std.strlen(s);
+def append(buf: *StrBuf, len: i32, s: string): void {
     if len + buf.len > buf.cap {
         let new_cap = len + buf.cap + 1 + GROW_AMOUNT;
         buf.content = std.realloc(buf.content as *void, new_cap) as string;
