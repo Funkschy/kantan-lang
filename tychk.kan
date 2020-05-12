@@ -1940,7 +1940,7 @@ def check_binary_expr(
             return null
 
     dbg.assert_fmt(
-        kind >= BINARY_ADD && kind <= BINARY_NE,
+        kind >= BINARY_ADD && kind <= BINARY_LOG_OR,
         "Invalid binary expression: %d\n", kind
     );
 
@@ -1995,17 +1995,19 @@ def check_binary_expr(
         RET_INVALID_TYS();
     }
 
-    let ptr_ty = first;
-    let int_ty = second;
+    if kind == BINARY_ADD {
+        // both ptr + int and int + ptr are ok
+        if ty.is_ptr_type(first) && ty.is_integer(second) {
+            return first;
+        }
 
-    if ty.is_ptr_type(second) && ty.is_integer(first) {
-        ptr_ty = second;
-        int_ty = first;
-    }
-
-    if ty.is_ptr_type(ptr_ty) && ty.is_integer(int_ty) {
-        if kind == BINARY_ADD || kind == BINARY_SUB {
-            return ptr_ty;
+        if ty.is_ptr_type(second) && ty.is_integer(first) {
+            return second;
+        }
+    } else if kind == BINARY_SUB {
+        // only ptr - int is allowed, not the other way
+        if ty.is_ptr_type(first) && ty.is_integer(second) {
+            return first;
         }
     }
 

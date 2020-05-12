@@ -400,6 +400,11 @@ type ExprBinary struct {
     right: Address
 }
 
+def new_binary_expr(kind: i32, left: Address, right: Address): Expression {
+    let binary = (new ExprBinary { kind: kind, left: left, right: right }) as *void;
+    return create_expr(MIR_EXPR_BINARY, binary);
+}
+
 def binary_kind_to_static_string(kind: i32): string {
     return mir_binary2str(kind);
 }
@@ -597,7 +602,7 @@ def expr_to_string(e: *Expression): string {
         let right = addr_to_string(&bin.right);
         let op = binary_kind_to_static_string(bin.kind);
 
-        let s = std.format_str("%s%s%s", left, op, right);
+        let s = std.format_str("(%s)%s(%s)", left, op, right);
 
         delete left;
         delete right;

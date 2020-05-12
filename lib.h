@@ -73,19 +73,19 @@ static size_t const len_token_strings = sizeof(token_strings) / sizeof(char *);
 // BINARY types
 static char const *const binary_type_ops[] = {
     "error",
-    "+",
-    "-",
-    "*",
-    "/",
-    "%",
-    "<",
-    "<=",
-    ">",
-    ">=",
-    "&&",
-    "||",
-    "==",
-    "!="
+    "+",  // BINARY_ADD
+    "-",  // BINARY_SUB
+    "*",  // BINARY_MUL
+    "/",  // BINARY_DIV
+    "%",  // BINARY_MOD
+    "<",  // BINARY_ST
+    "<=", // BINARY_SE
+    ">",  // BINARY_GT
+    ">=", // BINARY_GE
+    "==", // BINARY_EQ
+    "!=", // BINARY_NE
+    "&&", // BINARY_LOG_AND
+    "||"  // BINARY_LOG_OR
 };
 
 static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *);
@@ -207,21 +207,21 @@ static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
 // MIR binary kinds
 static char const *const mir_binary_kind_strings[] = {
     NULL,
-    "+", // MIR_BIN_ADD_SCALAR
-    "-", // MIR_BIN_SUB_SCALAR
-    "+", // MIR_BIN_ADD
-    "-", // MIR_BIN_SUB
-    "*", // MIR_BIN_MUL
-    "/", // MIR_BIN_DIV
-    "%", // MIR_BIN_MOD
-    "<", // MIR_BIN_ST
+    "+",  // MIR_BIN_ADD
+    "-",  // MIR_BIN_SUB
+    "*",  // MIR_BIN_MUL
+    "/",  // MIR_BIN_DIV
+    "%",  // MIR_BIN_MOD
+    "<",  // MIR_BIN_ST
     "<=", // MIR_BIN_SE
-    ">", // MIR_BIN_GT
+    ">",  // MIR_BIN_GT
     ">=", // MIR_BIN_GE
     "==", // MIR_BIN_EQ
     "!=", // MIR_BIN_NE
     "&&", // MIR_BIN_BOOL_AND
     "||", // MIR_BIN_BOOL_OR
+    "s+",  // MIR_BIN_ADD_SCALAR
+    "s-",  // MIR_BIN_SUB_SCALAR
 };
 
 static size_t const len_mir_binary_kind_strings = sizeof(mir_binary_kind_strings) / sizeof(char *);

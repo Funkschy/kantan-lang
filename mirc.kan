@@ -280,6 +280,16 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     return mir.empty_expr();
 }
 
+def binary_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
+    let binary = ast.as_binary_expr(e);
+
+    let left = expr_instruction(c, binary.left, true);
+    let right = expr_instruction(c, binary.right, true);
+
+    let kind = mir_binary_kind_from_expr(binary);
+    return mir.new_binary_expr(kind, left, right);
+}
+
 def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_ACCESS
     if ast.is_access_expr(e) {
@@ -287,6 +297,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     // EXPR_BINARY
     if ast.is_binary_expr(e) {
+        return binary_expr(c, e);
     }
 
     // EXPR_ASSIGN
@@ -513,3 +524,46 @@ def dump_function(f: *mir.Func): void {
     mir.bm_dump(&f.blocks);
 }
 
+#include "mir_types.h"
+#include "expr_types.h"
+
+def mir_binary_kind_from_expr(binary: *ast.BinaryExpr): i32 {
+    let k = binary.kind;
+    let left = binary.left;
+    let right = binary.right;
+
+    // the binary kinds for ast and mir only differ for the scalar addition
+    // and subtraction...
+    if k == BINARY_ADD {
+        // the following combinations are possible:
+        // left | right
+        //  num |  num
+        //  int |  ptr
+        //  ptr |  int
+        if ty.is_num(left.ty) && ty.is_num(right.ty) {
+            return MIR_BIN_ADD;
+        }
+
+        return MIR_BIN_ADD_SCALAR;
+    } else if k == BINARY_SUB {
+        // the following combinations are possible:
+        // left | right
+        //  num |  num
+        //  int |  ptr
+        //  ptr |  int
+        //  ptr |  ptr   <- this is not allowed for addtion
+
+        if ty.is_num(left.ty) && ty.is_num(right.ty) {
+            return MIR_BIN_SUB;
+        }
+
+        if ty.is_ptr_type(left.ty) && ty.is_ptr_type(right.ty) {
+            return MIR_BIN_SUB;
+        }
+
+        return MIR_BIN_SUB_SCALAR;
+    }
+
+    // ...everything else is identical
+    return k;
+}
