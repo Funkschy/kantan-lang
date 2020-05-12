@@ -244,6 +244,7 @@ def create_param(name: ident.Ident, ty: *Type): Param {
 
 type Func struct {
     is_extern: bool,
+    is_varargs: bool,
     declared_in: i32, // mod index
     ret: *Type,
     params: vec.Vec, // <Param>
@@ -253,6 +254,9 @@ type Func struct {
 // this function is used to initialize placeholder functions of tychk
 def init_func(t: *Type, name: ident.Ident, declared_in: i32, is_extern: bool): void {
     let f = new Func {
+        // the way that tychk currently works, is that this is set lazy, while
+        // checking the parameters types
+        is_varargs: false,
         is_extern: is_extern,
         declared_in: declared_in,
         ret: null,

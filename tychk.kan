@@ -696,6 +696,8 @@ def fill_func_def(
             } else {
                 error = true;
             }
+        } else {
+            f_ty.is_varargs = true;
         }
 
         i = i + 1;
@@ -1843,29 +1845,50 @@ def check_expr_scope_expect(
         let actual_num_args = ast.num_args(&c_e.args);
         if expected_num_args != actual_num_args {
             if actual_num_args < expected_num_args {
-                push_wrong_num_args_error(tc, expected_num_args, actual_num_args, callee.span);
+                push_wrong_num_args_error(
+                    tc, expected_num_args, actual_num_args, callee.span
+                );
                 return null;
             }
-            // else if !func.is_varargs
-            // TODO(#53): handle varargs
+
+            if actual_num_args > expected_num_args && !func.is_varargs {
+                push_wrong_num_args_error(
+                    tc, expected_num_args, actual_num_args, callee.span
+                );
+                return null;
+
+            }
         }
 
         let i = 0;
-        while i < expected_num_args {
-            let param = ty.param_at(func, i);
+        while i < actual_num_args {
             let arg = ast.get_arg_at(&c_e.args, i);
 
-            let checked_arg = check_expr_expect(tc, arg, param.ty);
-            if checked_arg == null {
-                return null;
+            if !func.is_varargs {
+                let param = ty.param_at(func, i);
+
+                let checked_arg = check_expr_expect(tc, arg, param.ty);
+                if checked_arg == null {
+                    return null;
+                }
+
+                if !ty.equals(param.ty, checked_arg.ty) {
+                    push_wrong_arg_type_error(
+                        tc, param.ty, checked_arg.ty, checked_arg.span
+                    );
+                    return null;
+                }
+
+                ast.set_arg_at(&c_e.args, i, checked_arg);
+            } else {
+                let checked_arg = check_expr(tc, arg);
+                if checked_arg == null {
+                    return null;
+                }
+                ast.set_arg_at(&c_e.args, i, checked_arg);
+
             }
 
-            if !ty.equals(param.ty, checked_arg.ty) {
-                push_wrong_arg_type_error(tc, param.ty, checked_arg.ty, checked_arg.span);
-                return null;
-            }
-
-            ast.set_arg_at(&c_e.args, i, checked_arg);
             i = i + 1;
         }
 
@@ -1978,6 +2001,10 @@ def check_binary_expr(
 
         if ty.is_num(first) {
             // everything except || and && is fine
+            return first;
+        }
+
+        if ty.is_char(first) {
             return first;
         }
 
