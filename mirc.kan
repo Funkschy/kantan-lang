@@ -3,6 +3,7 @@
 import "io";
 import "ty";
 import "nt";
+import "vec";
 import "mod";
 import "mir";
 import "ast";
@@ -84,9 +85,14 @@ def compile(c: *MirCompiler): mir.Module {
     return mir.create_mod(c.globals, c.functions);
 }
 
-def add_function(c: *MirCompiler, f: *mir.Func, n: mir.RefName): void {
-    let key = map.create_key(n.len, n.data);
+def add_function(c: *MirCompiler, f: *mir.Func): void {
+    let key = map.create_key(f.name.len, f.name.data);
     map.insert(&c.functions, key, f as *void);
+}
+
+def lookup_function(c: *MirCompiler, mangled_name: mir.RefName): *mir.Func {
+    let key = map.create_key(mangled_name.len, mangled_name.data);
+    return map.get(&c.functions, key) as *mir.Func;
 }
 
 def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
@@ -94,13 +100,32 @@ def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
     return mir.create_meta(pos);
 }
 
+def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
+    dbg.assert(ty.is_func(t), "non function type passed to lookup");
+
+    // TODO: this creates a lot of unnecessary malloc calls
+    //  maybe cache the mangled func names
+    //  i decided against saving them in a global map to make multithreading
+    //  easier in the futures
+    let name = mangle_func_name(c, t);
+    let mir_func = lookup_function(c, mir.ref_name(name));
+
+    if mir_func == null {
+        mir_func = new mir.create_func(t, name);
+        add_function(c, mir_func);
+    } else {
+        mir.free_name(&name);
+    }
+
+    return mir_func;
+}
+
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_func_decl_stmt(s) {
         let decl_stmt = ast.as_func_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
-        let name = mangle_func_name(c, &decl.name, decl.func_ty);
-        let mir_func = new mir.create_func(decl.func_ty, name);
+        let mir_func = lookup_or_declare_function(c, decl.func_ty);
 
         if decl_stmt.block != null {
             let prev_func = c.current_func;
@@ -110,7 +135,6 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             c.current_func = prev_func;
         }
 
-        add_function(c, mir_func, mir.ref_name(name));
         dump_function(mir_func);
         return;
     }
@@ -290,6 +314,30 @@ def binary_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
     return mir.new_binary_expr(kind, left, right);
 }
 
+def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    // The left side may be an arbitrary expression, so we need to be careful
+    // here. Example:
+    // f()()
+    // _t0 = f()
+    // _t1 = _t0()
+
+    let call = ast.as_call_expr(e);
+    let func_addr = expr_instruction(c, call.callee, rhs);
+    let varargs = ty.as_func(call.callee.ty).is_varargs;
+
+    let i = 0;
+    let n = ast.num_args(&call.args);
+    let args = vec.with_cap(sizeof mir.Address, n);
+    while i < n {
+        let arg = ast.get_arg_at(&call.args, i);
+        let arg_addr = expr_instruction(c, arg, true);
+        vec.push(&args, &arg_addr as *void);
+        i = i + 1;
+    }
+
+    return mir.new_call_expr(func_addr, args, varargs);
+}
+
 def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_ACCESS
     if ast.is_access_expr(e) {
@@ -324,6 +372,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     // EXPR_CALL
     if ast.is_call_expr(e) {
+        return call_expr(c, e, rhs);
     }
 
     // EXPR_INIT
@@ -350,6 +399,17 @@ def expr_instruction(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Address {
     }
 
     let meta = get_meta(c, e.span);
+
+    // the result of a void function should be assigned to an empty address
+    if mir.is_expr_call(&mir_expr) {
+        let f_ty = ty.as_func(mir.as_expr_call(&mir_expr).callee.ty);
+        if ty.is_void(f_ty.ret) {
+            // assign result to empty address (a is always empty here)
+            push_assign(c, a, mir_expr, meta);
+            return a;
+        }
+    }
+
     push_temp_assign(c, mir_expr, e.ty, meta, &a);
     push_decl(c, mir.as_addr_name(&a).value, e.ty, meta);
     return a;
@@ -359,15 +419,20 @@ def expr_instruction(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Address {
 // a name, or an rvalue. If it is, returns true and fills the out parameter
 // with the correct address
 def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
+    if ty.is_func(e.ty) {
+        // currently all functions are static, this has to change, when we introduce
+        // function pointers
+
+        let mir_func = lookup_or_declare_function(c, e.ty);
+        *out = mir.make_addr_name(mir.ref_name(mir_func.name), e.ty);
+        return true;
+    }
+
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
         let name = name_from_ident(ident);
         let mangled = mir.empty_name();
         if nt.lookup(&c.names, name, &mangled) {
-            io.printf(
-                "demangled %.*s to %.*s\n",
-                mangled.len, mangled.data, name.len, name.data
-            );
             *out = mir.make_addr_name(mangled, e.ty);
             return true;
         }
@@ -437,19 +502,19 @@ def add_global(c: *MirCompiler, meta: mir.MetaData, ty: *ty.Type): mir.RefName {
     return mir.make_ref_name(name.len, name.data);
 }
 
-def mangle_func_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.OwnedName {
+def mangle_func_name(c: *MirCompiler, t: *ty.Type): mir.OwnedName {
     dbg.assert(t != null, "type was null");
     dbg.assert(ty.is_func(t), "type was not a function");
 
     let f_ty = ty.as_func(t);
+    let name = &f_ty.name;
     let declared_in = mod_at(c, f_ty.declared_in);
 
     if f_ty.is_extern {
         // function names must be owned, so just copy data here
         // there aren't many extern functions anyway
         let len = ident.len(name);
-        let data = std.strndup(ident.start(name), len);
-        return mir.make_owned_name(len, data);
+        return mir.make_copied_name(len, ident.start(name));
     }
 
     return mangle_name(c, name, declared_in);
