@@ -103,7 +103,7 @@ def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
 def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     dbg.assert(ty.is_func(t), "non function type passed to lookup");
 
-    // TODO: this creates a lot of unnecessary malloc calls
+    // TODO(#77): this creates a lot of unnecessary malloc calls
     //  maybe cache the mangled func names
     //  i decided against saving them in a global map to make multithreading
     //  easier in the futures
