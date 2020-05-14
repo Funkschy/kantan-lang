@@ -183,7 +183,6 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             return;
         }
 
-        // TODO(#74): push assign instruction here
         let meta = get_meta(c, let_stmt.ident.span);
         let target = mir.make_addr_name(name, ty);
         push_assign(c, target, mir_expr, meta);
