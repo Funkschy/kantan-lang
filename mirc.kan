@@ -121,6 +121,9 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 }
 
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
+    if ast.is_struct_decl_stmt(s) {
+    }
+
     if ast.is_func_decl_stmt(s) {
         let decl_stmt = ast.as_func_decl_stmt(s);
         let decl = &decl_stmt.decl;
@@ -136,26 +139,6 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         }
 
         dump_function(mir_func);
-        return;
-    }
-
-    if ast.is_block_stmt(s) {
-        dbg.assert(c.current_func != null, "current_func was null");
-
-        let block_stmt = ast.as_block_stmt(s);
-        bind_s(c, 5, "block");
-
-        nt.open_scope(&c.names);
-
-        let i = 0;
-        while i < block_stmt.stmts.len {
-            let s = ast.stmt_at(block_stmt, i);
-            compile_stmt(c, s);
-            i = i + 1;
-        }
-
-        nt.close_scope(&c.names);
-
         return;
     }
 
@@ -190,10 +173,42 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         return;
     }
 
+    if ast.is_block_stmt(s) {
+        dbg.assert(c.current_func != null, "current_func was null");
+
+        let block_stmt = ast.as_block_stmt(s);
+        bind_s(c, 5, "block");
+
+        nt.open_scope(&c.names);
+
+        let i = 0;
+        while i < block_stmt.stmts.len {
+            let s = ast.stmt_at(block_stmt, i);
+            compile_stmt(c, s);
+            i = i + 1;
+        }
+
+        nt.close_scope(&c.names);
+
+        return;
+    }
+
     if ast.is_expr_stmt(s) {
         let e = ast.as_expr_stmt(s);
         expr_instruction(c, e.expr, true);
         return;
+    }
+
+    if ast.is_delete_stmt(s) {
+    }
+
+    if ast.is_if_stmt(s) {
+    }
+
+    if ast.is_while_stmt(s) {
+    }
+
+    if ast.is_return_stmt(s) {
     }
 }
 
