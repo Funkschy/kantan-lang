@@ -213,6 +213,17 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     }
 
     if ast.is_return_stmt(s) {
+        let ret = ast.as_return_stmt(s);
+        let meta = get_meta(c, s.span);
+
+        if ret.expr == null {
+            push_instr(c, mir.new_inst_return(meta));
+            return;
+        }
+
+        let value = expr_instruction(c, ret.expr, true);
+        push_instr(c, mir.new_inst_return_value(value, meta));
+        return;
     }
 }
 

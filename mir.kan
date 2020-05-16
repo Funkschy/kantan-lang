@@ -853,6 +853,18 @@ type InstReturn struct {
     value: Address // MIR_ADDR_EMPTY if empty return: 'return;'
 }
 
+def new_inst_return(meta: MetaData): Inst {
+    return new_inst_return_value(create_addr_empty(), meta);
+}
+
+def new_inst_return_value(value: Address, meta: MetaData): Inst {
+    return Inst {
+        kind: MIR_INST_RETURN,
+        meta: meta,
+        data: (new InstReturn { value: value }) as *void
+    };
+}
+
 def is_inst_return(inst: *Inst): bool {
     return inst.kind == MIR_INST_RETURN;
 }
