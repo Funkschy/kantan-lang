@@ -15,8 +15,8 @@ extern def mir_binary2str(kind: i32): string;
 extern def mir_unary2str(kind: i32): string;
 
 type Module struct {
-    globals: map.Map, // map.Map<RefName, GlobalConst>
-    functions: map.Map // map.Map<RefName, Func>
+    globals: map.Map, // map.Map<RefName, *GlobalConst>
+    functions: map.Map // map.Map<RefName, *Func>
 }
 
 def create_mod(globals: map.Map, funcs: map.Map): Module {
@@ -51,6 +51,49 @@ def free_mod(m: *Module): void {
 
     map.free_m(&m.functions);
     map.free_m(&m.globals);
+}
+
+def dump_module(m: *Module): void {
+    let g_iter = map.iter(&m.globals);
+    let item = map.iter_next(&g_iter);
+    while item != null {
+        let g = item.value as *GlobalConst;
+
+        let ty_s: string = null;
+        let free = ty.to_string(g.ty, &ty_s);
+
+        let quote = "";
+        let quote_len = 0;
+
+        if ty.is_string(g.ty) {
+            let c = '"';
+            quote = &c as string;
+            quote_len = 1;
+        }
+
+        io.printf(
+            "%.*s: %s = %.*s%.*s%.*s\n",
+            g.name.len, g.name.data,
+            ty_s,
+            quote_len, quote,
+            span.len(g.value), g.value.start,
+            quote_len, quote
+        );
+
+        if free {
+            delete ty_s;
+        }
+
+        item = map.iter_next(&g_iter);
+    }
+
+    let f_iter = map.iter(&m.functions);
+    let item = map.iter_next(&f_iter);
+    while item != null {
+        let f = item.value as *Func;
+        bm_dump(&f.blocks);
+        item = map.iter_next(&f_iter);
+    }
 }
 
 type Func struct {
@@ -89,14 +132,21 @@ def create_meta(pos: source.SourcePos): MetaData {
 type GlobalConst struct {
     name: OwnedName,
     meta: MetaData,
-    ty: *ty.Type
+    ty: *ty.Type,
+    value: span.Span
 }
 
-def create_const(name: OwnedName, meta: MetaData, ty: *ty.Type): GlobalConst {
+def create_const(
+    name: OwnedName,
+    meta: MetaData,
+    ty: *ty.Type,
+    value: span.Span
+): GlobalConst {
     return GlobalConst {
         name: name,
         meta: meta,
-        ty: ty
+        ty: ty,
+        value: value
     };
 }
 

@@ -36,6 +36,8 @@ def compile_all(data: CompilationData, types: ptrvec.Vec): void {
         let mirc = create_mirc(m, &data);
         let mir_mod = compile(&mirc);
 
+        mir.dump_module(&mir_mod);
+
         free_mirc(&mirc);
         mir.free_mod(&mir_mod);
 
@@ -138,7 +140,6 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             c.current_func = prev_func;
         }
 
-        dump_function(mir_func);
         return;
     }
 
@@ -518,17 +519,20 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
 }
 
 def string_lit(c: *MirCompiler, e: *ast.Expr): mir.RefName {
-    return add_global(c, get_meta(c, e.span), e.ty);
+    return add_global(c, e.span, e.ty);
 }
 
-def add_global(c: *MirCompiler, meta: mir.MetaData, ty: *ty.Type): mir.RefName {
+def add_global(c: *MirCompiler, span: span.Span, ty: *ty.Type): mir.RefName {
+    let meta = get_meta(c, span);
+
     let idx = c.globals.len;
     let s_len = 0;
     let s = std.l_format_str(&s_len, "_g%d", idx);
     let name = s_mangle_name(c, s_len, s, c.mod);
 
     let key = map.create_key(name.len, name.data);
-    map.insert(&c.globals, key, (new mir.create_const(name, meta, ty)) as *void);
+    let const = new mir.create_const(name, meta, ty, span);
+    map.insert(&c.globals, key, const as *void);
 
     delete s;
     return mir.make_ref_name(name.len, name.data);
@@ -615,10 +619,6 @@ def s_mangle_name(c: *MirCompiler, len: i32, s: string, declared_in: *mod.Module
 
 def name_from_ident(i: *ident.Ident): mir.RefName {
     return mir.make_ref_name(ident.len(i), ident.start(i));
-}
-
-def dump_function(f: *mir.Func): void {
-    mir.bm_dump(&f.blocks);
 }
 
 #include "mir_types.h"
