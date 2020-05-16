@@ -199,7 +199,9 @@ static char const *const error_texts[] = {
     "Variable was declared with type '%s', but initialized with type '%s'",
     "The type '%s' cannot be assigned to a variable",
     "Expression is not assignable",
-    "Invalid expression"
+    "Invalid expression",
+    "Fields may not be unsized",
+    "Function parameters may not be unsized"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

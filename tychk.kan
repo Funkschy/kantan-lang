@@ -691,6 +691,13 @@ def fill_func_def(
                     push_tmp_ty(tc, p_ty);
                 }
 
+                if p_ty != null {
+                    if !ty.is_sized(p_ty) {
+                        push_unsized_param_error(tc, p_ty, tyid.ident_span(&p.ty));
+                        error = true;
+                    }
+                }
+
                 let f_param = ty.create_param(p.name, p_ty);
                 vec.push(&params, &f_param as *void);
             } else {
@@ -775,6 +782,11 @@ def fill_struct_fields(
                         push_tmp_ty(tc, field_ty);
                     }
 
+                    if !ty.is_sized(field_ty) {
+                        push_unsized_field_error(tc, field_ty, f.ty.ident.span);
+                        error = true;
+                    }
+
                     ty.push_field(s_ty, f.ident, field_ty);
                 } else if is_struct {
                     // a struct that has not been initialized
@@ -802,18 +814,16 @@ def fill_struct_fields(
         i = i + 1;
     }
 
-    let s = ident.to_string(&s_decl.name);
-
     if !error && !waiting {
         ty.fill_width_align(t);
+
+        let s = ident.to_string(&s_decl.name);
         io.printf("DBG: %s has a width of %d, align of %d\n", s, t.width, t.align);
         delete s;
 
         update_all_waiting(tc, tc.ctx.mod, t, &s_ty.name);
         return;
     }
-
-    delete s;
 }
 
 def wait_for_type(
@@ -2165,7 +2175,7 @@ def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
     push_mk_err(tc, text, span);
 }
 
-def push_simple_error(tc: *TypeChecker, code: i32, i: *ident.Ident): void {
+def push_ident_error(tc: *TypeChecker, code: i32, i: *ident.Ident): void {
     let len = ident.len(i);
     let text = std.err2str(code, len, ident.start(i));
 
@@ -2173,15 +2183,15 @@ def push_simple_error(tc: *TypeChecker, code: i32, i: *ident.Ident): void {
 }
 
 def push_incomplete_ty_error(tc: *TypeChecker, name: *ident.Ident): void {
-    push_simple_error(tc, ERROR_INCOMPLETE_TYPE, name);
+    push_ident_error(tc, ERROR_INCOMPLETE_TYPE, name);
 }
 
 def push_duplicate_def_error(tc: *TypeChecker, name: *ident.Ident): void {
-    push_simple_error(tc, ERROR_DUPLICATE_DEFINTION, name);
+    push_ident_error(tc, ERROR_DUPLICATE_DEFINTION, name);
 }
 
 def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident): void {
-    push_simple_error(tc, ERROR_NOT_DEFINED, name);
+    push_ident_error(tc, ERROR_NOT_DEFINED, name);
 }
 
 def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr): void {
@@ -2320,14 +2330,26 @@ def push_invalid_cast_error(
     push_mk_err(tc, text, span);
 }
 
-def push_expr_type_error(tc: *TypeChecker, kind: i32, e: *ast.Expr): void {
+def push_simple_error(tc: *TypeChecker, kind: i32, t: *ty.Type, s: span.Span): void {
     let ty_s = "";
-    let free_ty_s = ty.to_string(e.ty, &ty_s);
+    let free_ty_s = ty.to_string(t, &ty_s);
     let text = std.err2str(kind, ty_s);
     if free_ty_s {
         delete ty_s;
     }
-    push_mk_err(tc, text, e.span);
+    push_mk_err(tc, text, s);
+}
+
+def push_expr_type_error(tc: *TypeChecker, kind: i32, e: *ast.Expr): void {
+    push_simple_error(tc, kind, e.ty, e.span);
+}
+
+def push_unsized_field_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+    push_simple_error(tc, ERROR_UNSIZED_STRUCT_FIELD, t, s);
+}
+
+def push_unsized_param_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+    push_simple_error(tc, ERROR_UNSIZED_PARAMETER, t, s);
 }
 
 def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {

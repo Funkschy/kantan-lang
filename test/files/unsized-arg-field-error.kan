@@ -1,0 +1,8 @@
+type Test struct {
+    i: i32,
+    v: void
+}
+
+def f(test: void): Test {
+    return Test { i: 0, v: test };
+}
