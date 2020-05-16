@@ -200,6 +200,10 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     }
 
     if ast.is_delete_stmt(s) {
+        let target = expr_instruction(c, ast.as_delete_stmt(s).expr, false);
+        let meta = get_meta(c, s.span);
+        push_instr(c, mir.new_inst_delete(target, meta));
+        return;
     }
 
     if ast.is_if_stmt(s) {
@@ -213,12 +217,15 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 }
 
 def push_decl(c: *MirCompiler, n: mir.RefName, ty: *ty.Type, m: mir.MetaData): void {
-    let decl = mir.new_inst_decl(m, n, ty);
-    push_instr(c, &decl);
+    push_instr(c, mir.new_inst_decl(m, n, ty));
 }
 
-def push_instr(c: *MirCompiler, instr: *mir.Inst): void {
+def push_instr_p(c: *MirCompiler, instr: *mir.Inst): void {
     mir.func_push_instr(c.current_func, instr);
+}
+
+def push_instr(c: *MirCompiler, instr: mir.Inst): void {
+    mir.func_push_instr(c.current_func, &instr);
 }
 
 def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {
@@ -245,7 +252,7 @@ def push_assign(
     m: mir.MetaData
 ): void {
     let assign = mir.new_inst_assign(m, target, value, target.ty);
-    push_instr(c, &assign);
+    push_instr_p(c, &assign);
 }
 
 def push_temp_assign(
@@ -257,7 +264,7 @@ def push_temp_assign(
 ): void {
     let target = temp_addr(c, ty);
     let assign = mir.new_inst_assign(meta, target, value, target.ty);
-    push_instr(c, &assign);
+    push_instr_p(c, &assign);
 
     if out_name != null {
         *out_name = mir.clone_addr_name(&target);

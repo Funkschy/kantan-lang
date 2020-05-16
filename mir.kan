@@ -877,6 +877,14 @@ type InstDelete struct {
     addr: Address
 }
 
+def new_inst_delete(target: Address, meta: MetaData): Inst {
+    return Inst {
+        kind: MIR_INST_DELETE,
+        meta: meta,
+        data: (new InstDelete { addr: target }) as *void
+    };
+}
+
 def is_inst_delete(inst: *Inst): bool {
     return inst.kind == MIR_INST_DELETE;
 }
