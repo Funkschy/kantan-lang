@@ -47,6 +47,7 @@ def compile_all(data: CompilationData, types: ptrvec.Vec): void {
 
 // Compiles a single *mod.Module to a mir.Module
 type MirCompiler struct {
+    label_count: i32,
     mod: *mod.Module,
     data: *CompilationData,
     names: nt.NameTable,
@@ -57,6 +58,7 @@ type MirCompiler struct {
 
 def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
     return MirCompiler {
+        label_count: 0,
         mod: m,
         data: data,
         names: nt.create(),
@@ -203,11 +205,14 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_delete_stmt(s) {
         let target = expr_instruction(c, ast.as_delete_stmt(s).expr, false);
         let meta = get_meta(c, s.span);
-        push_instr(c, mir.new_inst_delete(target, meta));
+        push_instr(c, mir.new_inst_delete(meta, target));
         return;
     }
 
     if ast.is_if_stmt(s) {
+        let end_label = label(c);
+        push_if_stmt(c, s, end_label);
+        return;
     }
 
     if ast.is_while_stmt(s) {
@@ -223,7 +228,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         }
 
         let value = expr_instruction(c, ret.expr, true);
-        push_instr(c, mir.new_inst_return_value(value, meta));
+        push_instr(c, mir.new_inst_return_value(meta, value));
         return;
     }
 }
@@ -238,23 +243,6 @@ def push_instr_p(c: *MirCompiler, instr: *mir.Inst): void {
 
 def push_instr(c: *MirCompiler, instr: mir.Inst): void {
     mir.func_push_instr(c.current_func, &instr);
-}
-
-def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {
-    let name = bind_s(c, 2, "_t");
-    return mir.make_addr_name(name, ty);
-}
-
-def bind_ident(c: *MirCompiler, i: *ident.Ident): mir.RefName {
-    return nt.bind(&c.names, mir.make_ref_name(ident.len(i), ident.start(i)));
-}
-
-def bind_s(c: *MirCompiler, len: i32, s: string): mir.RefName {
-    return nt.bind(&c.names, mir.make_ref_name(len, s));
-}
-
-def mod_at(c: *MirCompiler, i: i32): *mod.Module {
-    return mod.get_mod(c.data.mods, i);
 }
 
 def push_assign(
@@ -281,6 +269,49 @@ def push_temp_assign(
     if out_name != null {
         *out_name = mir.clone_addr_name(&target);
     }
+}
+
+def push_if_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: mir.Label): void {
+    let if_stmt = ast.as_if_stmt(s);
+    let condition = expr_instruction(c, if_stmt.condition, true);
+
+    let then_label = label(c);
+    let cond_jmp = mir.new_inst_jmpif(
+        get_meta(c, s.span),
+        condition,
+        mir.clone_label(&then_label),
+        mir.clone_label(&end_label)
+    );
+    push_instr(c, cond_jmp);
+
+    let then_meta = get_meta(c, if_stmt.block.s.span);
+    push_instr(c, mir.new_inst_label(then_meta, then_label));
+
+    compile_stmt(c, if_stmt.block as *ast.Stmt);
+
+    let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), mir.clone_label(&end_label));
+    push_instr(c, end_jmp);
+
+    // TODO: wrong meta
+    let end_meta = get_meta(c, if_stmt.block.s.span);
+    push_instr(c, mir.new_inst_label(end_meta, end_label));
+}
+
+def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {
+    let name = bind_s(c, 2, "_t");
+    return mir.make_addr_name(name, ty);
+}
+
+def bind_ident(c: *MirCompiler, i: *ident.Ident): mir.RefName {
+    return nt.bind(&c.names, mir.make_ref_name(ident.len(i), ident.start(i)));
+}
+
+def bind_s(c: *MirCompiler, len: i32, s: string): mir.RefName {
+    return nt.bind(&c.names, mir.make_ref_name(len, s));
+}
+
+def mod_at(c: *MirCompiler, i: i32): *mod.Module {
+    return mod.get_mod(c.data.mods, i);
 }
 
 def compile_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
@@ -538,6 +569,17 @@ def add_global(c: *MirCompiler, span: span.Span, ty: *ty.Type): mir.RefName {
     return mir.make_ref_name(name.len, name.data);
 }
 
+def label(c: *MirCompiler): mir.Label {
+    let l = 0;
+    let s = std.l_format_str(&l, "L_%d", c.label_count);
+    c.label_count = c.label_count + 1;
+
+    let mangled = s_mangle_name(c, l, s, c.mod);
+    delete s;
+
+    return mir.create_label(mangled);
+}
+
 def mangle_func_name(c: *MirCompiler, t: *ty.Type): mir.OwnedName {
     dbg.assert(t != null, "type was null");
     dbg.assert(ty.is_func(t), "type was not a function");
@@ -556,11 +598,12 @@ def mangle_func_name(c: *MirCompiler, t: *ty.Type): mir.OwnedName {
     return mangle_name(c, name, declared_in);
 }
 
-def mangle_struct_name(c: *MirCompiler, name: *ident.Ident, t: *ty.Type): mir.OwnedName {
+def mangle_struct_name(c: *MirCompiler, t: *ty.Type): mir.OwnedName {
     dbg.assert(t != null, "type was null");
     dbg.assert(ty.is_struct(t), "type was not a struct");
 
     let s_ty = ty.as_struct(t);
+    let name = &s_ty.name;
     let declared_in = mod_at(c, s_ty.declared_in);
 
     return mangle_name(c, name, declared_in);

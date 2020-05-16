@@ -891,6 +891,22 @@ type InstJmpIf struct {
     else_target: Label
 }
 
+def new_inst_jmpif(
+    meta: MetaData,
+    condition: Address,
+    if_target: Label,
+    else_target: Label
+): Inst {
+    return Inst {
+        kind: MIR_INST_JMPIF,
+        meta: meta,
+        data: (new InstJmpIf {
+            condition: condition, if_target: if_target, else_target: else_target
+        }) as *void
+    };
+}
+
+
 def is_inst_jmpif(inst: *Inst): bool {
     return inst.kind == MIR_INST_JMPIF;
 }
@@ -904,10 +920,10 @@ type InstReturn struct {
 }
 
 def new_inst_return(meta: MetaData): Inst {
-    return new_inst_return_value(create_addr_empty(), meta);
+    return new_inst_return_value(meta, create_addr_empty());
 }
 
-def new_inst_return_value(value: Address, meta: MetaData): Inst {
+def new_inst_return_value(meta: MetaData, value: Address): Inst {
     return Inst {
         kind: MIR_INST_RETURN,
         meta: meta,
@@ -927,6 +943,14 @@ type InstLabel struct {
     value: Label
 }
 
+def new_inst_label(meta: MetaData, value: Label): Inst {
+    return Inst {
+        kind: MIR_INST_LABEL,
+        meta: meta,
+        data: (new InstLabel { value: value }) as *void
+    };
+}
+
 def is_inst_label(inst: *Inst): bool {
     return inst.kind == MIR_INST_LABEL;
 }
@@ -939,7 +963,7 @@ type InstDelete struct {
     addr: Address
 }
 
-def new_inst_delete(target: Address, meta: MetaData): Inst {
+def new_inst_delete(meta: MetaData, target: Address): Inst {
     return Inst {
         kind: MIR_INST_DELETE,
         meta: meta,
@@ -992,6 +1016,10 @@ type Inst struct {
     data: *void
 }
 
+def inst_changes_ip(inst: *Inst): bool {
+    return is_inst_jmp(inst) || is_inst_jmpif(inst) || is_inst_return(inst);
+}
+
 def inst_to_name(inst: *Inst): OwnedName {
     if is_inst_decl(inst) {
         let decl = as_inst_decl(inst);
@@ -1035,7 +1063,12 @@ def inst_to_name(inst: *Inst): OwnedName {
         let jmp = as_inst_jmp(inst);
         let label = label_name(&jmp.target);
 
-        return make_copied_name(label.len, label.data);
+        let len = 0;
+        let s = std.l_format_str(
+            &len, "jmp %.*s", label.len, label.data
+        );
+
+        return make_owned_name(len, s);
     }
 
     if is_inst_jmpif(inst) {
@@ -1047,7 +1080,7 @@ def inst_to_name(inst: *Inst): OwnedName {
         let len = 0;
         let s = std.l_format_str(
             &len,
-            "jmp %.*s;%.*s;%.*s",
+            "jmpif %.*s;%.*s;%.*s",
             condition.len,
             condition.data,
             if_label.len,
@@ -1103,6 +1136,9 @@ def free_inst(inst: *Inst): void {
         let jmpif = as_inst_jmpif(inst);
         free_label(&jmpif.if_target);
         free_label(&jmpif.else_target);
+    } if is_inst_label(inst) {
+        let label = as_inst_label(inst);
+        free_label(&label.value);
     }
 
     if inst.data != null {
@@ -1126,12 +1162,12 @@ def create_block_map(func_name: RefName): BlockMap {
     let name = make_copied_name(func_name.len, func_name.data);
     let bb = create_bb(create_label(name));
 
-    push_block(&bm, &bb);
+    bm_push_block(&bm, &bb);
 
     return bm;
 }
 
-def push_block(bm: *BlockMap, bb: *BasicBlock): void {
+def bm_push_block(bm: *BlockMap, bb: *BasicBlock): void {
     let idx = bm.blocks.len;
     vec.push(&bm.blocks, bb as *void);
 
@@ -1164,22 +1200,67 @@ def bm_get_bb_ptr(bm: *BlockMap, idx: i32): *BasicBlock {
     return vec.get_ptr(&bm.blocks, idx) as *BasicBlock;
 }
 
+def bm_last_bb_ptr(bm: *BlockMap): *BasicBlock {
+    return bm_get_bb_ptr(bm, bm.blocks.len - 1);
+}
+
 def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {
-    let last_bb = bm_get_bb_ptr(bm, bm.blocks.len - 1);
+    let last_bb = bm_last_bb_ptr(bm);
     bb_push_instr(last_bb, inst);
 }
 
+def bm_push_new_block(bm: *BlockMap): void {
+    let label_len = 0;
+    // TODO: this id is not unique across modules
+    let label = std.l_format_str(&label_len, ".block%d", bm.blocks.len);
+    let new_bb = create_bb(create_label(make_owned_name(label_len, label)));
+    bm_push_block(bm, &new_bb);
+}
+
+def bm_push_new_labeled_block(bm: *BlockMap, label: Label): void {
+    let new_bb = create_bb(label);
+    bm_push_block(bm, &new_bb);
+}
+
 def bm_push_instr(bm: *BlockMap, inst: *Inst): void {
+    // the last blocks was already closed, so we need to open a new one
+    // this is just a debug assert
+    // if !is_inst_nop(&bm_last_bb_ptr(bm).terminator) {
+    //     dbg.assert_fmt(
+    //         is_inst_label(inst),
+    //         "The first instruction after a terminator should be a label: %d",
+    //         inst.kind
+    //     );
+    // }
+
     if is_inst_decl(inst) {
         vec.push(&bm.decls, inst as *void);
         return;
     }
 
     if is_inst_label(inst) {
-        // Terminate last block with goto
-        let target = clone_label(&as_inst_label(inst).value);
-        let goto = new_inst_jmp(inst.meta, target);
-        bm_push_instr_to_last_bb(bm, &goto);
+        if is_inst_nop(&bm_last_bb_ptr(bm).terminator) {
+            // Terminate last block with goto
+            let target = clone_label(&as_inst_label(inst).value);
+            let goto = new_inst_jmp(inst.meta, target);
+            let last_bb = bm_last_bb_ptr(bm);
+            last_bb.terminator = goto;
+        }
+
+        bm_push_new_labeled_block(bm, as_inst_label(inst).value);
+        // the instruction iteself is now useless, since we moved the value out
+        delete inst.data;
+        return;
+    }
+
+    if inst_changes_ip(inst) {
+        let last_bb = bm_last_bb_ptr(bm);
+        // don't overwrite terminators
+        if is_inst_nop(&last_bb.terminator) {
+            last_bb.terminator = *inst;
+        } else {
+            free_inst(inst);
+        }
         return;
     }
 
@@ -1201,24 +1282,28 @@ def bm_dump(bm: *BlockMap): void {
         i =  i + 1;
     }
 
-    let iter = map.iter(&bm.mappings);
-    let item = map.iter_next(&iter);
-    while item != null {
-        if item.key.value != name.data {
-            io.printf("%.*s:\n", item.key.len, item.key.value);
-        }
-        let idx = std.ptr_to_int(item.value);
-        let bb = bm_get_bb_ptr(bm, idx);
+    i = 0;
+    while i < bm.blocks.len {
+        let bb = vec.get_ptr(&bm.blocks, i) as *BasicBlock;
 
-        i = 0;
-        while i < bb_num_instr(bb) {
-            let inst = bb_get_instr(bb, i);
+        let bb_name = label_name(&bb.label);
+        if bb_name.data != name.data {
+            io.printf("label: %.*s:\n", bb_name.len, bb_name.data);
+        }
+
+        let j = 0;
+        while j < bb_num_instr(bb) {
+            let inst = bb_get_instr(bb, j);
             let n = inst_to_name(inst);
             io.printf("  %.*s\n", n.len, n.data);
             free_name(&n);
-            i = i + 1;
+            j = j + 1;
         }
 
-        item = map.iter_next(&iter);
+        let n = inst_to_name(&bb.terminator);
+        io.printf("  term: %.*s\n", n.len, n.data);
+        free_name(&n);
+
+        i = i + 1;
     }
 }
