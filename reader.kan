@@ -85,8 +85,6 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
     let len = num_builtin_files();
     let file_names = get_builtin_files();
 
-    // TODO: this can leak memory, if stdlib is not present
-
     // TODO(#26): users should be able to change this using env vars
     let std_dir = std.format_str("%s/.kantan/std", m.home_dir);
 
@@ -98,6 +96,7 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
 
         let res = 0;
         if (res = add_file(m, rel_path, full_file_name, true)) != 0 {
+            delete full_file_name;
             delete std_dir;
             return FileAddResult { file_name: file_name, err_code: res };
         }
