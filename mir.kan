@@ -588,7 +588,12 @@ def is_expr_new(e: *Expression): bool {
 }
 
 type ExprSizeOf struct {
-    addr: Address
+    ty: *ty.Type
+}
+
+def new_expr_sizeof(t: *ty.Type): Expression {
+    let so = (new ExprSizeOf { ty: t }) as *void;
+    return create_expr(MIR_EXPR_SIZEOF, so);
 }
 
 def as_expr_sizeof(e: *Expression): *ExprSizeOf {
@@ -792,12 +797,15 @@ def expr_to_name(e: *Expression): OwnedName {
 
     if is_expr_sizeof(e) {
         let so = as_expr_sizeof(e);
-        let addr_n = addr_to_name(&so.addr);
+        let ty_s: string = null;
+        let free_ty_s = ty.to_string(so.ty, &ty_s);
 
         let len = 0;
-        let s = std.l_format_str(&len, "sizeof(%.*s)", addr_n.len, addr_n.data);
+        let s = std.l_format_str(&len, "sizeof(%s)", ty_s);
 
-        free_name(&addr_n);
+        if free_ty_s {
+            delete ty_s;
+        }
         return make_owned_name(len, s);
     }
 

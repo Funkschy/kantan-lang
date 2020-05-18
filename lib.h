@@ -200,8 +200,9 @@ static char const *const error_texts[] = {
     "The type '%s' cannot be assigned to a variable",
     "Expression is not assignable",
     "Invalid expression",
-    "Fields may not be unsized",
-    "Function parameters may not be unsized"
+    "Cannot use unsized type '%s' inside a struct",
+    "Cannot use unsized type '%s' as a function parameter",
+    "Cannot take the size of an unsized type '%s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

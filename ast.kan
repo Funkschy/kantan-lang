@@ -576,13 +576,15 @@ def as_null_expr(e: *Expr): *NullExpr {
 
 type SizeOfExpr struct {
     e: Expr,
-    ty: tyid.Type
+    ty: tyid.Type,
+    actual_ty: *ty.Type // filled by tychk
 }
 
 def new_sizeof_expr(span: span.Span, ty: tyid.Type): *Expr {
     return (new SizeOfExpr {
         e: create_expr(EXPR_SIZEOF, span),
-        ty: ty
+        ty: ty,
+        actual_ty: null
     }) as *Expr;
 }
 

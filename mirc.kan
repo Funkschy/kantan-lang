@@ -451,6 +451,14 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     // EXPR_SIZEOF
     if ast.is_sizeof_expr(e) {
+        let so = ast.as_sizeof_expr(e);
+        // TODO: in theory, this should return a AddressConst with e.ty.width as
+        //  its value. But currently i don't really trust the width calculation
+        //  algorithm, so we still use ExprSizeOf, even though it should be
+        //  unnecessary (when this todo is removed, the entire mir.ExprSizeOf should
+        //  be removed as well)
+        //  PS: remember that sizeof(void) := 1
+        return mir.new_expr_sizeof(so.actual_ty);
     }
 
     // EXPR_AS

@@ -1802,11 +1802,18 @@ def check_expr_scope_expect(
     if ast.is_sizeof_expr(e) {
         let s_e = ast.as_sizeof_expr(e);
 
-        let ty = lookup_tyid(tc, &s_e.ty);
-        if ty == null {
+        let actual_ty = lookup_tyid(tc, &s_e.ty);
+        if actual_ty == null {
             return null;
         }
 
+        // sizeof(void) is defined as 1
+        if !ty.is_sized(actual_ty) && !ty.is_void(actual_ty) {
+            push_unsized_sizeof_error(tc, actual_ty, e.span);
+            return null;
+        }
+
+        s_e.actual_ty = actual_ty;
         e.ty = get_global_instance(tc, "i32", 3);
         return e;
     }
@@ -2350,6 +2357,10 @@ def push_unsized_field_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void 
 
 def push_unsized_param_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
     push_simple_error(tc, ERROR_UNSIZED_PARAMETER, t, s);
+}
+
+def push_unsized_sizeof_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+    push_simple_error(tc, ERROR_UNSIZED_SIZEOF, t, s);
 }
 
 def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {

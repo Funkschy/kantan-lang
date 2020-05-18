@@ -12,7 +12,7 @@ class Test(Code):
             return self.create_error(msg)
 
         error = output.errors[0]
-        expected_rsn = "Fields may not be unsized"
+        expected_rsn = "Cannot use unsized type 'void' inside a struct"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)
@@ -26,7 +26,7 @@ class Test(Code):
             return self.create_error('wrong column')
 
         error = output.errors[1]
-        expected_rsn = "Function parameters may not be unsized"
+        expected_rsn = "Cannot use unsized type 'void' as a function parameter"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)
