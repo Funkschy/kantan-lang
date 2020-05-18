@@ -138,6 +138,21 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             let prev_func = c.current_func;
 
             c.current_func = mir_func;
+
+            // Declare arguments
+            let i = 0;
+            let f_ty = ty.as_func(decl.func_ty);
+            let n = f_ty.params.len;
+            while i < n {
+                let p = ty.param_at(f_ty, i);
+                let meta = get_meta(c, p.name.span);
+
+                let name = bind_ident(c, &p.name);
+                push_decl(c, name, p.ty, meta);
+                i = i + 1;
+            }
+
+            // compile function code
             compile_stmt(c, decl_stmt.block as *ast.Stmt);
             c.current_func = prev_func;
         }
@@ -452,7 +467,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_SIZEOF
     if ast.is_sizeof_expr(e) {
         let so = ast.as_sizeof_expr(e);
-        // TODO(#78): in theory, this should return a AddressConst with e.ty.width as
+        // TODO: in theory, this should return a AddressConst with e.ty.width as
         //  its value. But currently i don't really trust the width calculation
         //  algorithm, so we still use ExprSizeOf, even though it should be
         //  unnecessary (when this todo is removed, the entire mir.ExprSizeOf should
@@ -463,6 +478,10 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     // EXPR_AS
     if ast.is_as_expr(e) {
+        let e_as = ast.as_as_expr(e);
+        let addr = expr_instruction(c, e_as.expr, rhs);
+
+        return mir.new_expr_bitcast(addr, e.ty);
     }
 
     // EXPR_CALL

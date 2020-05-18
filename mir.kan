@@ -609,6 +609,11 @@ type ExprBitCast struct {
     into: *ty.Type
 }
 
+def new_expr_bitcast(addr: Address, into: *ty.Type): Expression {
+    let cast = (new ExprBitCast { addr: addr, into: into }) as *void;
+    return create_expr(MIR_EXPR_BITCAST, cast);
+}
+
 def as_expr_bitcast(e: *Expression): *ExprBitCast {
     return e.data as *ExprBitCast;
 }
