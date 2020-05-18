@@ -138,6 +138,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             let prev_func = c.current_func;
 
             c.current_func = mir_func;
+            nt.open_scope(&c.names);
 
             // Declare arguments
             let i = 0;
@@ -149,12 +150,19 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
                 let name = bind_ident(c, &p.name);
                 push_decl(c, name, p.ty, meta);
+
+                let value = mir.new_copy_expr(mir.make_addr_arg(i, p.ty));
+                let meta = get_meta(c, p.name.span);
+                let target = mir.make_addr_name(name, p.ty);
+                push_assign(c, target, value, meta);
+
                 i = i + 1;
             }
 
             // compile function code
             compile_stmt(c, decl_stmt.block as *ast.Stmt);
             c.current_func = prev_func;
+            nt.close_scope(&c.names);
         }
 
         return;
@@ -213,7 +221,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
     if ast.is_expr_stmt(s) {
         let e = ast.as_expr_stmt(s);
-        expr_instruction(c, e.expr, true);
+        expr_instruction(c, e.expr, false);
         return;
     }
 
@@ -378,6 +386,7 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     if ast.unary_is_deref(unary) {
         // Expressions on the right side of an assignment have to be derefed twice
+        // since a deref is just load instruction
         if rhs {
             let value = mir.new_unary_expr_deref(value_addr);
             push_temp_assign(c, value, e.ty, meta, &value_addr);
@@ -386,14 +395,11 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         return mir.new_unary_expr_deref(value_addr);
     }
 
-    dbg.assert(rhs, "These unary types should not appear on the left side of =");
-
     if ast.unary_is_ref(unary) {
         let ref_name = mir.as_addr_name(&value_addr).value;
         let ref = mir.make_addr_ref(ref_name, e.ty);
         return mir.new_copy_expr(ref);
     }
-
 
     if ast.unary_is_neg_bool(unary) {
 
@@ -549,15 +555,6 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         if nt.lookup(&c.names, name, &mangled) {
             *out = mir.make_addr_name(mangled, e.ty);
             return true;
-        }
-
-        if c.current_func != null {
-            let f = ty.as_func(c.current_func.ty);
-            let p_idx = ty.find_param_idx(f, ident);
-            if p_idx >= 0 {
-                *out = mir.make_addr_arg(p_idx, e.ty);
-                return true;
-            }
         }
 
         dbg.assert_fmt(false, "undefined: %.*s", name.len, name.data);
