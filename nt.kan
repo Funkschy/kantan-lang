@@ -30,7 +30,8 @@ def free_s(ns: *NameScope): void {
 
 def bind_in(ns: *NameScope, original: mir.RefName, idx: i32): void {
     let key = map.create_key(original.len, original.data);
-    map.insert(&ns.bindings, key, std.int_to_ptr(idx));
+    // differentiate index 0 from null
+    map.insert(&ns.bindings, key, std.int_to_ptr(idx + 1));
 }
 
 def get_in(ns: *NameScope, name: mir.RefName, out: *i32): bool {
@@ -40,7 +41,8 @@ def get_in(ns: *NameScope, name: mir.RefName, out: *i32): bool {
         return false;
     }
 
-    *out = std.ptr_to_int(index);
+    // differentiate index 0 from null
+    *out = std.ptr_to_int(index) - 1;
     return true;
 }
 
