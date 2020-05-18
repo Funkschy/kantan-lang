@@ -1219,7 +1219,7 @@ def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {
 
 def bm_push_new_block(bm: *BlockMap): void {
     let label_len = 0;
-    // TODO: this id is not unique across modules
+    // TODO(#79): this id is not unique across modules
     let label = std.l_format_str(&label_len, ".block%d", bm.blocks.len);
     let new_bb = create_bb(create_label(make_owned_name(label_len, label)));
     bm_push_block(bm, &new_bb);
