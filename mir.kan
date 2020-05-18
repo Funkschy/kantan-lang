@@ -637,7 +637,7 @@ def is_expr_bitcast(e: *Expression): bool {
 // x = new 5:
 //  New(Address),
 // x = sizeof(ty):
-//  SizeOf(Address),
+//  SizeOf(*ty.Type),
 // x = param #y:
 //  GetParam(i32),
 // Cast the value at the address to the supplied type
