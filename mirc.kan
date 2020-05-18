@@ -211,7 +211,10 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
     if ast.is_if_stmt(s) {
         let end_label = label(c);
-        push_if_stmt(c, s, end_label);
+        push_if_stmt(c, s, &end_label);
+        // TODO: wrong meta
+        let end_meta = get_meta(c, ast.as_if_stmt(s).block.s.span);
+        push_instr(c, mir.new_inst_label(end_meta, end_label));
         return;
     }
 
@@ -271,16 +274,28 @@ def push_temp_assign(
     }
 }
 
-def push_if_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: mir.Label): void {
+def push_if_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label): void {
     let if_stmt = ast.as_if_stmt(s);
     let condition = expr_instruction(c, if_stmt.condition, true);
+    let has_else = if_stmt.else_stmt != null;
+    let has_else_if = false;
+    if has_else {
+        has_else_if = ast.is_if_stmt(if_stmt.else_stmt);
+    }
+
+    let else_label = mir.create_label(mir.make_owned_name(0, null));
+    if has_else {
+        else_label = label(c);
+    } else {
+        else_label = mir.clone_label(end_label);
+    }
 
     let then_label = label(c);
     let cond_jmp = mir.new_inst_jmpif(
         get_meta(c, s.span),
         condition,
         mir.clone_label(&then_label),
-        mir.clone_label(&end_label)
+        mir.clone_label(&else_label)
     );
     push_instr(c, cond_jmp);
 
@@ -288,13 +303,21 @@ def push_if_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: mir.Label): void {
     push_instr(c, mir.new_inst_label(then_meta, then_label));
 
     compile_stmt(c, if_stmt.block as *ast.Stmt);
-
-    let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), mir.clone_label(&end_label));
+    let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), mir.clone_label(end_label));
     push_instr(c, end_jmp);
 
-    // TODO: wrong meta
-    let end_meta = get_meta(c, if_stmt.block.s.span);
-    push_instr(c, mir.new_inst_label(end_meta, end_label));
+    if has_else {
+        let else_meta = get_meta(c, if_stmt.else_stmt.span);
+        push_instr(c, mir.new_inst_label(else_meta, else_label));
+
+        if has_else_if {
+            push_if_stmt(c, if_stmt.else_stmt, end_label);
+        } else {
+            compile_stmt(c, if_stmt.else_stmt);
+        }
+    } else {
+        mir.free_label(&else_label);
+    }
 }
 
 def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {
