@@ -509,6 +509,8 @@ def fill_width_align(t: *Type): bool {
         width = 4;
     } else if is_bool(t) {
         width = 1;
+    } else if is_char(t) {
+        width = 1;
     } else if is_struct(t) {
         let s_ty = as_struct(t);
 
