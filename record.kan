@@ -21,6 +21,7 @@ def create_field(ident: ident.Ident, ty: tyid.Type): Field {
     return Field { ident: ident, ty: ty };
 }
 
+// TODO(#82): replace with vmap.Map
 type Fields struct {
     field_map: map.Map, // from ident to index into fields
     fields: vec.Vec // actual fields

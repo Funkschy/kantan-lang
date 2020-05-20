@@ -138,6 +138,7 @@ def free_m(mod: *Module): void {
 }
 
 type Map struct {
+    // TODO(#80): replace with vmap.Map
     mods: ptrvec.Vec,
     mod_paths: map.Map // full mod path -> index in mods
 }

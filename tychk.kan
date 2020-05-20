@@ -153,6 +153,7 @@ def add_request(wrm: *WaitingRequestMap, request: WaitingRequest): void {
         let v = vec.create(sizeof WaitingRequest);
         vec.push(&wrm.requests, &v as *void);
 
+        // TODO(#83): replace with vmap.Map
         // push its idx into the map
         request_idx = std.int_to_ptr(idx);
         // add one, to be able to tell null apart from 0
