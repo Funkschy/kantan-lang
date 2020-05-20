@@ -1663,6 +1663,10 @@ def check_expr_scope_expect(
 
         a_e.left = left;
 
+        // TODO(#86): add a special message for pointers to pointers
+        //  "Type 'pointer' cannot be accessed with '.' operator" does not
+        //  make sense, when the actual pointer to a struct can be accessed with '.'
+
         // Type cannot be accessed with '.'
         if !ty.is_scoped(a_e.left.ty) || ty.is_struct_decl(a_e.left.ty) {
             // struct types are the types of the definition and not an actual

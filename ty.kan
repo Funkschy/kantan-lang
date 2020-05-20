@@ -40,7 +40,7 @@ def is_error(t: *Type): bool {
 
 /////////// void type ///////////
 
-// TODO: remove void type. Replace it with byte type and empty return types
+// TODO(#84): remove void type. Replace it with byte type and empty return types
 
 def new_void(): *Type {
     let t = new_type(TY_VOID, null);
@@ -223,7 +223,7 @@ def field_at(t: *Struct, i: i32): *StructField {
 
 // get the index of the field with name 'name'
 // returns -1 if the field does not exist
-// TODO: Struct should have a vmap for its fields
+// TODO(#85): Struct should have a vmap for its fields
 def field_idx(t: *Struct, name: ident.Ident): i32 {
     let i = 0;
     while i < t.fields.len {
