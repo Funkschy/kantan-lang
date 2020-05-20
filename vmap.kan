@@ -1,0 +1,59 @@
+import "std";
+import "map";
+import "vec";
+import "ident";
+
+type Map struct {
+    mappings: map.Map, // map.Map<Key, i32 (index into values)>
+    values: vec.Vec
+}
+
+def create_key(len: i32, value: string): map.Key {
+    return map.create_key(len, value);
+}
+
+def key_from_ident(i: *ident.Ident): map.Key {
+    return map.key_from_ident(i);
+}
+
+def create(elem_size: i32): Map {
+    return Map {
+        mappings: map.create(),
+        values: vec.create(elem_size)
+    };
+}
+
+def len(m: *Map): i32 {
+    return m.values.len;
+}
+
+def free_m(m: *Map): void {
+    map.free_m(&m.mappings);
+    vec.free_v(&m.values);
+}
+
+// inserts value into map at key
+def insert(m: *Map, key: map.Key, value: *void): void {
+    let idx = m.values.len + 1;
+    map.insert(&m.mappings, key, std.int_to_ptr(idx));
+
+    vec.push(&m.values, value);
+}
+
+def get_ptr(m: *Map, key: map.Key): *void {
+    let idx_p = map.get(&m.mappings, key);
+    if idx_p == null {
+        return null;
+    }
+
+    let idx = std.ptr_to_int(idx_p) - 1;
+    return vec.get_ptr(&m.values, idx);
+}
+
+def get_ptr_idx(m: *Map, idx: i32): *void {
+    return vec.get_ptr(&m.values, idx);
+}
+
+def dump(m: *Map): void {
+    map.dump(&m.mappings);
+}

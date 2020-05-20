@@ -8,6 +8,7 @@ import "vec";
 import "str";
 import "map";
 import "dbg";
+import "vmap";
 import "span";
 import "source";
 
@@ -1160,16 +1161,14 @@ def free_inst(inst: *Inst): void {
 }
 
 type BlockMap struct {
-    mappings: map.Map, // map.Map<RefName, i32>
-    decls: vec.Vec,    // vec.Vec<Inst>
-    blocks: vec.Vec    // vec.Vec<BasicBlock>
+    blocks: vmap.Map, // vmap.Map<RefName, BasicBlock>
+    decls: vec.Vec    // vec.Vec<Inst>
 }
 
 def create_block_map(func_name: RefName): BlockMap {
     let bm = BlockMap {
-        mappings: map.create(),
-        decls: vec.create(sizeof Inst),
-        blocks: vec.create(sizeof BasicBlock)
+        blocks: vmap.create(sizeof BasicBlock),
+        decls: vec.create(sizeof Inst)
     };
 
     let name = make_copied_name(func_name.len, func_name.data);
@@ -1181,24 +1180,19 @@ def create_block_map(func_name: RefName): BlockMap {
 }
 
 def bm_push_block(bm: *BlockMap, bb: *BasicBlock): void {
-    let idx = bm.blocks.len;
-    vec.push(&bm.blocks, bb as *void);
-
     let name = label_name(&bb.label);
     let key = map.create_key(name.len, name.data);
-    map.insert(&bm.mappings, key, std.int_to_ptr(idx));
+    vmap.insert(&bm.blocks, key, bb as *void);
 }
 
 def free_block_map(bm: *BlockMap): void {
-    map.free_m(&bm.mappings);
-
     let i = 0;
-    while i < bm.blocks.len {
-        free_bb(vec.get_ptr(&bm.blocks, i) as *BasicBlock);
+    while i < vmap.len(&bm.blocks) {
+        free_bb(vmap.get_ptr_idx(&bm.blocks, i) as *BasicBlock);
         i = i + 1;
     }
 
-    vec.free_v(&bm.blocks);
+    vmap.free_m(&bm.blocks);
 
     i = 0;
     while i < bm.decls.len {
@@ -1210,11 +1204,11 @@ def free_block_map(bm: *BlockMap): void {
 }
 
 def bm_get_bb_ptr(bm: *BlockMap, idx: i32): *BasicBlock {
-    return vec.get_ptr(&bm.blocks, idx) as *BasicBlock;
+    return vmap.get_ptr_idx(&bm.blocks, idx) as *BasicBlock;
 }
 
 def bm_last_bb_ptr(bm: *BlockMap): *BasicBlock {
-    return bm_get_bb_ptr(bm, bm.blocks.len - 1);
+    return bm_get_bb_ptr(bm, vmap.len(&bm.blocks) - 1);
 }
 
 def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {
@@ -1225,7 +1219,7 @@ def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {
 def bm_push_new_block(bm: *BlockMap): void {
     let label_len = 0;
     // TODO(#79): this id is not unique across modules
-    let label = std.l_format_str(&label_len, ".block%d", bm.blocks.len);
+    let label = std.l_format_str(&label_len, ".block%d", vmap.len(&bm.blocks));
     let new_bb = create_bb(create_label(make_owned_name(label_len, label)));
     bm_push_block(bm, &new_bb);
 }
@@ -1282,7 +1276,7 @@ def bm_push_instr(bm: *BlockMap, inst: *Inst): void {
 
 // dump BlockMap to stdout for debug purposes
 def bm_dump(bm: *BlockMap): void {
-    let first_bb = vec.get_ptr(&bm.blocks, 0) as *BasicBlock;
+    let first_bb = vmap.get_ptr_idx(&bm.blocks, 0) as *BasicBlock;
     let name = label_name(&first_bb.label);
     io.printf("%.*s:\n", name.len, name.data);
 
@@ -1296,8 +1290,8 @@ def bm_dump(bm: *BlockMap): void {
     }
 
     i = 0;
-    while i < bm.blocks.len {
-        let bb = vec.get_ptr(&bm.blocks, i) as *BasicBlock;
+    while i < vmap.len(&bm.blocks) {
+        let bb = vmap.get_ptr_idx(&bm.blocks, i) as *BasicBlock;
 
         let bb_name = label_name(&bb.label);
         if bb_name.data != name.data {

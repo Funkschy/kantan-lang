@@ -8,6 +8,7 @@ K_FILES = ast.kan \
 		  lexer.kan \
 		  main.kan \
 		  map.kan \
+		  vmap.kan \
 		  mod.kan \
 		  num.kan \
 		  param.kan \
