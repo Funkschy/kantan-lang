@@ -40,6 +40,8 @@ def is_error(t: *Type): bool {
 
 /////////// void type ///////////
 
+// TODO: remove void type. Replace it with byte type and empty return types
+
 def new_void(): *Type {
     let t = new_type(TY_VOID, null);
     std.flag_set(&t.flags, FLAG_UNSIZED);
@@ -217,6 +219,22 @@ def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
 
 def field_at(t: *Struct, i: i32): *StructField {
     return vec.get_ptr(&t.fields, i) as *StructField;
+}
+
+// get the index of the field with name 'name'
+// returns -1 if the field does not exist
+// TODO: Struct should have a vmap for its fields
+def field_idx(t: *Struct, name: ident.Ident): i32 {
+    let i = 0;
+    while i < t.fields.len {
+        let f = field_at(t, i);
+        if ident.eq_value(&name, &f.name) {
+            return i;
+        }
+        i = i + 1;
+    }
+
+    return -1;
 }
 
 def update_field_ty(t: *Struct, field: *StructField): void {
