@@ -1231,14 +1231,6 @@ def bm_push_new_labeled_block(bm: *BlockMap, label: Label): void {
 
 def bm_push_instr(bm: *BlockMap, inst: *Inst): void {
     // the last blocks was already closed, so we need to open a new one
-    // this is just a debug assert
-    // if !is_inst_nop(&bm_last_bb_ptr(bm).terminator) {
-    //     dbg.assert_fmt(
-    //         is_inst_label(inst),
-    //         "The first instruction after a terminator should be a label: %d",
-    //         inst.kind
-    //     );
-    // }
 
     if is_inst_decl(inst) {
         vec.push(&bm.decls, inst as *void);
