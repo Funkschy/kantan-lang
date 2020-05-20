@@ -345,9 +345,14 @@ def stmt_free(s: *Stmt): void {
 
 /////////// access expr ///////////
 
+// first.second.third
+// might contain pointers
 type AccessExpr struct {
     e: Expr,
+    // left could be another AccessExpr
     left: *Expr,
+    // the only valid type for right is IdentExpr, however the parser does not
+    // guarantee this, so it has to be checked by tychk
     right: *Expr
 }
 
