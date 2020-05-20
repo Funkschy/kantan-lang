@@ -151,7 +151,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
                 let name = bind_ident(c, &p.name);
                 push_decl(c, name, p.ty, meta);
 
-                let value = mir.new_copy_expr(mir.make_addr_arg(i, p.ty));
+                let value = mir.new_expr_copy(mir.make_addr_arg(i, p.ty));
                 let meta = get_meta(c, p.name.span);
                 let target = mir.make_addr_name(name, p.ty);
                 push_assign(c, target, value, meta);
@@ -176,7 +176,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let mir_expr = mir.empty_expr();
 
         if address_expression(c, let_stmt.value, &a) {
-            mir_expr = mir.new_copy_expr(a);
+            mir_expr = mir.new_expr_copy(a);
         } else {
             mir_expr = complex_expr(c, let_stmt.value, true);
         }
@@ -363,7 +363,7 @@ def mod_at(c: *MirCompiler, i: i32): *mod.Module {
 def compile_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let a = mir.create_addr_empty();
     if address_expression(c, e, &a) {
-        return mir.new_copy_expr(a);
+        return mir.new_expr_copy(a);
     }
 
     return complex_expr(c, e, rhs);
@@ -376,7 +376,7 @@ def assign_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     let meta = get_meta(c, e.span);
     push_assign(c, target, value, meta);
-    return mir.new_copy_expr(target);
+    return mir.new_expr_copy(target);
 }
 
 def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
@@ -388,17 +388,17 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         // Expressions on the right side of an assignment have to be derefed twice
         // since a deref is just load instruction
         if rhs {
-            let value = mir.new_unary_expr_deref(value_addr);
+            let value = mir.new_expr_unary_deref(value_addr);
             push_temp_assign(c, value, e.ty, meta, &value_addr);
         }
 
-        return mir.new_unary_expr_deref(value_addr);
+        return mir.new_expr_unary_deref(value_addr);
     }
 
     if ast.unary_is_ref(unary) {
         let ref_name = mir.as_addr_name(&value_addr).value;
         let ref = mir.make_addr_ref(ref_name, e.ty);
-        return mir.new_copy_expr(ref);
+        return mir.new_expr_copy(ref);
     }
 
     if ast.unary_is_neg_bool(unary) {
@@ -419,7 +419,7 @@ def binary_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
     let right = expr_instruction(c, binary.right, true);
 
     let kind = mir_binary_kind_from_expr(binary);
-    return mir.new_binary_expr(kind, left, right);
+    return mir.new_expr_binary(kind, left, right);
 }
 
 def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
@@ -443,12 +443,56 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         i = i + 1;
     }
 
-    return mir.new_call_expr(func_addr, args, varargs);
+    return mir.new_expr_call(func_addr, args, varargs);
+}
+
+def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    let access = ast.as_access_expr(e);
+    dbg.assert(
+        ast.is_ident_expr(access.right),
+        "Expected right side of access expression to be an IdentExpr"
+    );
+    let ident = ast.as_ident_expr(access.right).ident;
+
+    // the only other option currently is a module, which we can't really compile
+    if !ty.is_struct(access.left.ty) && !ty.is_ptr_type(access.left.ty) {
+        return compile_expr(c, access.right, rhs);
+    }
+
+    let left_meta = get_meta(c, access.left.span);
+    let left_addr = expr_instruction(c, access.left, rhs);
+    let left_ty = left_addr.ty;
+
+    if ty.is_ptr_type(left_ty) {
+        dbg.assert(ty.is_ptr(left_ty), "strings are not accessible with '.'");
+
+        push_temp_assign(
+            c,
+            mir.new_expr_copy(left_addr),
+            left_ty,
+            left_meta,
+            &left_addr
+        );
+
+        left_ty = ty.as_ptr(left_ty).inner;
+    }
+
+    dbg.assert_fmt(
+        ty.is_struct(left_ty),
+        "Expected struct, but got %s",
+        ty.to_static_string(left_ty)
+    );
+
+    let struct_ty = ty.as_struct(left_ty);
+    let field_idx = ty.field_idx(struct_ty, ident);
+
+    return mir.new_expr_gep(left_addr, field_idx);
 }
 
 def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_ACCESS
     if ast.is_access_expr(e) {
+        return access_expr(c, e, rhs);
     }
 
     // EXPR_BINARY

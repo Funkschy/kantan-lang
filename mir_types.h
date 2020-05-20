@@ -19,7 +19,7 @@
 #define MIR_EXPR_UNARY          2
 #define MIR_EXPR_COPY           3
 #define MIR_EXPR_CALL           4
-#define MIR_EXPR_STRUCTGEP      5
+#define MIR_EXPR_GEP            5
 #define MIR_EXPR_STRUCTINIT     6
 #define MIR_EXPR_NEW            7
 #define MIR_EXPR_SIZEOF         8

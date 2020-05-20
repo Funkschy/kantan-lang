@@ -467,7 +467,7 @@ type ExprBinary struct {
     right: Address
 }
 
-def new_binary_expr(kind: i32, left: Address, right: Address): Expression {
+def new_expr_binary(kind: i32, left: Address, right: Address): Expression {
     let binary = (new ExprBinary { kind: kind, left: left, right: right }) as *void;
     return create_expr(MIR_EXPR_BINARY, binary);
 }
@@ -489,7 +489,7 @@ type ExprUnary struct {
     addr: Address
 }
 
-def new_unary_expr_deref(addr: Address): Expression {
+def new_expr_unary_deref(addr: Address): Expression {
     let unary = (new ExprUnary { kind: MIR_UNARY_DEREF, addr: addr }) as *void;
     return create_expr(MIR_EXPR_UNARY, unary);
 }
@@ -510,7 +510,7 @@ type ExprCopy struct {
     addr: Address
 }
 
-def new_copy_expr(addr: Address): Expression {
+def new_expr_copy(addr: Address): Expression {
     let cpy = (new ExprCopy { addr: addr }) as *void;
     return create_expr(MIR_EXPR_COPY, cpy);
 }
@@ -529,7 +529,7 @@ type ExprCall struct {
     varargs: bool
 }
 
-def new_call_expr(callee: Address, args: vec.Vec, varargs: bool): Expression {
+def new_expr_call(callee: Address, args: vec.Vec, varargs: bool): Expression {
     let call = (new ExprCall { callee: callee, args: args, varargs: varargs });
     return create_expr(MIR_EXPR_CALL, call as *void);
 }
@@ -546,17 +546,22 @@ def is_expr_call(e: *Expression): bool {
     return e.kind == MIR_EXPR_CALL;
 }
 
-type ExprStructGep struct {
+type ExprGep struct {
     addr: Address,
     idx: i32
 }
 
-def as_expr_struct_gep(e: *Expression): *ExprStructGep {
-    return e.data as *ExprStructGep;
+def new_expr_gep(addr: Address, idx: i32): Expression {
+    let gep = (new ExprGep { addr: addr, idx: idx }) as *void;
+    return create_expr(MIR_EXPR_GEP, gep);
 }
 
-def is_expr_struct_gep(e: *Expression): bool {
-    return e.kind == MIR_EXPR_STRUCTGEP;
+def as_expr_gep(e: *Expression): *ExprGep {
+    return e.data as *ExprGep;
+}
+
+def is_expr_gep(e: *Expression): bool {
+    return e.kind == MIR_EXPR_GEP;
 }
 
 type ExprStructInit struct {
@@ -753,8 +758,8 @@ def expr_to_name(e: *Expression): OwnedName {
         return make_owned_name(len, s);
     }
 
-    if is_expr_struct_gep(e) {
-        let gep = as_expr_struct_gep(e);
+    if is_expr_gep(e) {
+        let gep = as_expr_gep(e);
         let addr_n = addr_to_name(&gep.addr);
 
         let len = 0;
@@ -1066,11 +1071,18 @@ def inst_to_name(inst: *Inst): OwnedName {
         let a_n = addr_to_name(&assign.dest);
         let e_n = expr_to_name(&assign.value);
 
+        let ty_s: string = null;
+        let free_ty_s = ty.to_string(assign.dest.ty, &ty_s);
+
         let len = 0;
         let s = std.l_format_str(
             &len,
-            "%.*s = %.*s", a_n.len, a_n.data, e_n.len, e_n.data
+            "%.*s: %s = %.*s", a_n.len, a_n.data, ty_s, e_n.len, e_n.data
         );
+
+        if free_ty_s {
+            delete ty_s;
+        }
 
         free_name(&a_n);
         free_name(&e_n);
