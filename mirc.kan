@@ -468,6 +468,9 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     // EXPR_NEW
     if ast.is_new_expr(e) {
+        let new_e = ast.as_new_expr(e);
+        let addr = expr_instruction(c, new_e.expr, true);
+        return mir.new_expr_new(addr);
     }
 
     // EXPR_SIZEOF

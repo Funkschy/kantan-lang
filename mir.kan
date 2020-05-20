@@ -580,6 +580,11 @@ type ExprNew struct {
     addr: Address
 }
 
+def new_expr_new(addr: Address): Expression {
+    let new_e = (new ExprNew { addr: addr }) as *void;
+    return create_expr(MIR_EXPR_NEW, new_e);
+}
+
 def as_expr_new(e: *Expression): *ExprNew {
     return e.data as *ExprNew;
 }
