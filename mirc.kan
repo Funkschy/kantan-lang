@@ -52,6 +52,7 @@ type MirCompiler struct {
     data: *CompilationData,
     names: nt.NameTable,
     functions: map.Map, // map.Map<mir.RefName, *mir.Func>
+    structs: map.Map, // map.Map<mir.RefName, *mir.Struct>
     globals: map.Map, // map.Map<mir.RefName, *mir.GlobalConst>
     current_func: *mir.Func
 }
@@ -63,6 +64,7 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
         data: data,
         names: nt.create(),
         functions: map.create(),
+        structs: map.create(),
         globals: map.create(),
         current_func: null
     };
@@ -86,12 +88,22 @@ def compile(c: *MirCompiler): mir.Module {
 
     nt.close_scope(&c.names);
 
-    return mir.create_mod(c.globals, c.functions);
+    return mir.create_mod(c.globals, c.functions, c.structs);
 }
 
 def add_function(c: *MirCompiler, f: *mir.Func): void {
     let key = map.create_key(f.name.len, f.name.data);
     map.insert(&c.functions, key, f as *void);
+}
+
+def add_struct(c: *MirCompiler, s: *mir.Struct): void {
+    let key = map.create_key(s.name.len, s.name.data);
+    map.insert(&c.structs, key, s as *void);
+}
+
+def lookup_struct(c: *MirCompiler, mangled_name: mir.RefName): *mir.Struct {
+    let key = map.create_key(mangled_name.len, mangled_name.data);
+    return map.get(&c.structs, key) as *mir.Struct;
 }
 
 def lookup_function(c: *MirCompiler, mangled_name: mir.RefName): *mir.Func {
@@ -102,6 +114,23 @@ def lookup_function(c: *MirCompiler, mangled_name: mir.RefName): *mir.Func {
 def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
     let pos = source.span_to_pos(c.mod.source, s);
     return mir.create_meta(pos);
+}
+
+def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
+    dbg.assert(ty.is_struct(t), "non struct type passed to lookup");
+
+    // TODO: too many mallocs. See #77
+    let name = mangle_struct_name(c, t);
+    let mir_struct = lookup_struct(c, mir.ref_name(name));
+
+    if mir_struct == null {
+        mir_struct = new mir.create_struct(t, name);
+        add_struct(c, mir_struct);
+    } else {
+        mir.free_name(&name);
+    }
+
+    return mir_struct;
 }
 
 def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
@@ -126,6 +155,11 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_struct_decl_stmt(s) {
+        let decl_stmt = ast.as_struct_decl_stmt(s);
+        let decl = &decl_stmt.decl;
+
+        lookup_or_declare_struct(c, decl.struct_ty);
+        return;
     }
 
     if ast.is_func_decl_stmt(s) {
@@ -525,6 +559,25 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     return mir.new_expr_gep(left_addr, field_idx);
 }
 
+def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    let struct_init = ast.as_init_expr(e);
+
+    let mir_struct = lookup_or_declare_struct(c, e.ty);
+
+    let i = 0;
+    let n = ast.num_inits(&struct_init.inits);
+    let inits = vec.with_cap(sizeof mir.Address, n);
+
+    while i < n {
+        let init = ast.init_expr_at(&struct_init.inits, i);
+        let init_addr = expr_instruction(c, init, true);
+        vec.push(&inits, &init_addr as *void);
+        i = i + 1;
+    }
+
+    return mir.new_expr_struct_init(mir.ref_name(mir_struct.name), inits);
+}
+
 def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_ACCESS
     if ast.is_access_expr(e) {
@@ -580,6 +633,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     // EXPR_INIT
     if ast.is_init_expr(e) {
+        return init_expr(c, e, rhs);
     }
 
     // dbg.assert_fmt(false, "expr kind %d not handled", e.tag);

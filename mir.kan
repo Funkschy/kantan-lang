@@ -17,13 +17,15 @@ extern def mir_unary2str(kind: i32): string;
 
 type Module struct {
     globals: map.Map, // map.Map<RefName, *GlobalConst>
-    functions: map.Map // map.Map<RefName, *Func>
+    functions: map.Map, // map.Map<RefName, *Func>
+    structs: map.Map // map.Map<RefName, *Struct>
 }
 
-def create_mod(globals: map.Map, funcs: map.Map): Module {
+def create_mod(globals: map.Map, funcs: map.Map, structs: map.Map): Module {
     return Module {
         globals: globals,
-        functions: funcs
+        functions: funcs,
+        structs: structs
     };
 }
 
@@ -39,6 +41,17 @@ def free_mod(m: *Module): void {
         item = map.iter_next(&f_iter);
     }
 
+    // free struct names
+    let s_iter = map.iter(&m.structs);
+    let item = map.iter_next(&s_iter);
+    while item != null {
+        let s = item.value as *Struct;
+        free_struct(s);
+        delete s;
+
+        item = map.iter_next(&s_iter);
+    }
+
     // free globals
     let g_iter = map.iter(&m.globals);
     let item = map.iter_next(&g_iter);
@@ -51,6 +64,7 @@ def free_mod(m: *Module): void {
     }
 
     map.free_m(&m.functions);
+    map.free_m(&m.structs);
     map.free_m(&m.globals);
 }
 
@@ -120,6 +134,24 @@ def free_func(f: *Func): void {
 
 def func_push_instr(f: *Func, inst: *Inst): void {
     bm_push_instr(&f.blocks, inst);
+}
+
+type Struct struct {
+    name: OwnedName,
+    ty: *ty.Type
+}
+
+def create_struct(t: *ty.Type, mangled_name: OwnedName): Struct {
+    dbg.assert(ty.is_struct(t), "struct type was not struct");
+
+    return Struct {
+        name: mangled_name,
+        ty: t
+    };
+}
+
+def free_struct(f: *Struct): void {
+    free_name(&f.name);
 }
 
 type MetaData struct {
@@ -567,6 +599,11 @@ def is_expr_gep(e: *Expression): bool {
 type ExprStructInit struct {
     name: RefName,
     args: vec.Vec // Vec<Address>
+}
+
+def new_expr_struct_init(name: RefName, args: vec.Vec): Expression {
+    let init = (new ExprStructInit { name: name, args: args }) as *void;
+    return create_expr(MIR_EXPR_STRUCTINIT, init);
 }
 
 def init_arg_at(init: *ExprStructInit, idx: i32): *Address {
