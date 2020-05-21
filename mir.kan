@@ -10,6 +10,7 @@ import "map";
 import "dbg";
 import "vmap";
 import "span";
+import "ident";
 import "source";
 
 extern def mir_binary2str(kind: i32): string;
