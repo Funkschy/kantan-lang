@@ -235,13 +235,19 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_if_stmt(s) {
         let end_label = label(c);
         push_if_stmt(c, s, &end_label);
-        // TODO: wrong meta
+        // TODO: wrong meta for if-stmt-endlabel
         let end_meta = get_meta(c, ast.as_if_stmt(s).block.s.span);
         push_instr(c, mir.new_inst_label(end_meta, end_label));
         return;
     }
 
     if ast.is_while_stmt(s) {
+        let end_label = label(c);
+        push_while_stmt(c, s, &end_label);
+        // TODO: wrong meta for while-stmt-endlabel
+        let end_meta = get_meta(c, ast.as_while_stmt(s).block.s.span);
+        push_instr(c, mir.new_inst_label(end_meta, end_label));
+        return;
     }
 
     if ast.is_return_stmt(s) {
@@ -341,6 +347,35 @@ def push_if_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label): void {
     } else {
         mir.free_label(&else_label);
     }
+}
+
+def push_while_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label): void {
+    let while_stmt = ast.as_while_stmt(s);
+
+    let condition_label = label(c);
+    let condition_meta = get_meta(c, while_stmt.condition.span);
+    let condition_label_clone = mir.clone_label(&condition_label);
+    push_instr(c, mir.new_inst_label(condition_meta, condition_label_clone));
+
+    let condition = expr_instruction(c, while_stmt.condition, true);
+
+    let then_label = label(c);
+    let cond_jmp = mir.new_inst_jmpif(
+        get_meta(c, s.span),
+        condition,
+        mir.clone_label(&then_label),
+        mir.clone_label(end_label)
+    );
+    push_instr(c, cond_jmp);
+
+    let then_meta = get_meta(c, while_stmt.block.s.span);
+    push_instr(c, mir.new_inst_label(then_meta, then_label));
+
+    compile_stmt(c, while_stmt.block as *ast.Stmt);
+    push_instr(c, mir.new_inst_jmp(condition_meta, condition_label));
+
+    let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), mir.clone_label(end_label));
+    push_instr(c, end_jmp);
 }
 
 def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {
