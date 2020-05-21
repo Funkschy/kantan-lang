@@ -1071,8 +1071,11 @@ def inst_to_name(inst: *Inst): OwnedName {
         let a_n = addr_to_name(&assign.dest);
         let e_n = expr_to_name(&assign.value);
 
-        let ty_s: string = null;
-        let free_ty_s = ty.to_string(assign.dest.ty, &ty_s);
+        let ty_s: string = "void";
+        let free_ty_s = false;
+        if !is_addr_empty(&assign.dest) {
+            free_ty_s = ty.to_string(assign.dest.ty, &ty_s);
+        }
 
         let len = 0;
         let s = std.l_format_str(
