@@ -45,5 +45,5 @@
 #define MIR_BIN_SUB_SCALAR      15
 
 #define MIR_UNARY_BOOL_NEG      1
-#define MIR_UNARY_INT_NEG       2
+#define MIR_UNARY_NUM_NEG       2
 #define MIR_UNARY_DEREF         3

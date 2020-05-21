@@ -526,6 +526,16 @@ def new_expr_unary_deref(addr: Address): Expression {
     return create_expr(MIR_EXPR_UNARY, unary);
 }
 
+def new_expr_unary_num_neg(addr: Address): Expression {
+    let unary = (new ExprUnary { kind: MIR_UNARY_NUM_NEG, addr: addr }) as *void;
+    return create_expr(MIR_EXPR_UNARY, unary);
+}
+
+def new_expr_unary_bool_neg(addr: Address): Expression {
+    let unary = (new ExprUnary { kind: MIR_UNARY_BOOL_NEG, addr: addr }) as *void;
+    return create_expr(MIR_EXPR_UNARY, unary);
+}
+
 def unary_kind_to_static_string(kind: i32): string {
     return mir_unary2str(kind);
 }
@@ -748,7 +758,7 @@ def expr_to_name(e: *Expression): OwnedName {
         let op = unary_kind_to_static_string(unary.kind);
 
         let len = 0;
-        let s = std.l_format_str(&len, "%s%.*s", op, addr.len, addr.data);
+        let s = std.l_format_str(&len, "%s(%.*s)", op, addr.len, addr.data);
 
         free_name(&addr);
         return make_owned_name(len, s);

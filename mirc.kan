@@ -471,11 +471,11 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     }
 
     if ast.unary_is_neg_bool(unary) {
-
+        return mir.new_expr_unary_bool_neg(value_addr);
     }
 
     if ast.unary_is_neg_num(unary) {
-
+        return mir.new_expr_unary_num_neg(value_addr);
     }
 
     return mir.empty_expr();
