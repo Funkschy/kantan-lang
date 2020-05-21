@@ -74,8 +74,14 @@ def dump_module(m: *Module): void {
     let item = map.iter_next(&s_iter);
     while item != null {
         let s = item.value as *Struct;
+
+        let s_extern = "";
+        if s.is_extern {
+            s_extern = "extern ";
+        }
+
         let s_ty = ty.as_struct(s.ty);
-        io.printf("%.*s { ", ident.len(&s_ty.name), ident.start(&s_ty.name));
+        io.printf("%s%.*s { ", s_extern, ident.len(&s_ty.name), ident.start(&s_ty.name));
 
         let i = 0;
         while i < ty.num_fields(s_ty) {
@@ -142,7 +148,11 @@ def dump_module(m: *Module): void {
     let item = map.iter_next(&f_iter);
     while item != null {
         let f = item.value as *Func;
-        bm_dump(&f.blocks);
+        if f.is_extern {
+            io.printf("extern def %.*s\n", f.name.len, f.name.data);
+        } else {
+            bm_dump(&f.blocks);
+        }
         item = map.iter_next(&f_iter);
     }
 }
@@ -150,16 +160,23 @@ def dump_module(m: *Module): void {
 type Func struct {
     name: OwnedName,
     blocks: BlockMap,
-    ty: *ty.Type
+    ty: *ty.Type,
+    is_extern: bool
 }
 
-def create_func(t: *ty.Type, mangled_name: OwnedName): Func {
+def create_func(t: *ty.Type, mangled_name: OwnedName, is_extern: bool): Func {
     dbg.assert(ty.is_func(t), "func type was not func");
+
+    let blocks = empty_block_map();
+    if !is_extern {
+        blocks = create_block_map(ref_name(mangled_name));
+    }
 
     return Func {
         name: mangled_name,
-        blocks: create_block_map(ref_name(mangled_name)),
-        ty: t
+        blocks: blocks,
+        ty: t,
+        is_extern: is_extern
     };
 }
 
@@ -174,15 +191,17 @@ def func_push_instr(f: *Func, inst: *Inst): void {
 
 type Struct struct {
     name: OwnedName,
-    ty: *ty.Type
+    ty: *ty.Type,
+    is_extern: bool
 }
 
-def create_struct(t: *ty.Type, mangled_name: OwnedName): Struct {
+def create_struct(t: *ty.Type, mangled_name: OwnedName, is_extern: bool): Struct {
     dbg.assert(ty.is_struct(t), "struct type was not struct");
 
     return Struct {
         name: mangled_name,
-        ty: t
+        ty: t,
+        is_extern: is_extern
     };
 }
 
@@ -1266,6 +1285,13 @@ def free_inst(inst: *Inst): void {
 type BlockMap struct {
     blocks: vmap.Map, // vmap.Map<RefName, BasicBlock>
     decls: vec.Vec    // vec.Vec<Inst>
+}
+
+def empty_block_map(): BlockMap {
+    return BlockMap {
+        blocks: vmap.create(sizeof BasicBlock),
+        decls: vec.create(sizeof Inst)
+    };
 }
 
 def create_block_map(func_name: RefName): BlockMap {

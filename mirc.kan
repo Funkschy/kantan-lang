@@ -125,7 +125,8 @@ def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
     let mir_struct = lookup_struct(c, mir.ref_name(name));
 
     if mir_struct == null {
-        mir_struct = new mir.create_struct(t, name);
+        let is_extern = ty.as_struct(t).declared_in != c.mod.idx;
+        mir_struct = new mir.create_struct(t, name, is_extern);
         add_struct(c, mir_struct);
     } else {
         mir.free_name(&name);
@@ -145,7 +146,8 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     let mir_func = lookup_function(c, mir.ref_name(name));
 
     if mir_func == null {
-        mir_func = new mir.create_func(t, name);
+        let is_extern = ty.as_func(t).declared_in != c.mod.idx;
+        mir_func = new mir.create_func(t, name, is_extern);
         add_function(c, mir_func);
     } else {
         mir.free_name(&name);
