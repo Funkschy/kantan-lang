@@ -69,6 +69,41 @@ def free_mod(m: *Module): void {
 }
 
 def dump_module(m: *Module): void {
+    let s_iter = map.iter(&m.structs);
+    let item = map.iter_next(&s_iter);
+    while item != null {
+        let s = item.value as *Struct;
+        let s_ty = ty.as_struct(s.ty);
+        io.printf("%.*s { ", ident.len(&s_ty.name), ident.start(&s_ty.name));
+
+        let i = 0;
+        while i < ty.num_fields(s_ty) {
+            if i > 0 {
+                io.printf(", ");
+            }
+
+            let field = ty.field_at(s_ty, i);
+
+            let ty_s = "";
+            let free_ty_s = ty.to_string(field.ty, &ty_s);
+            io.printf(
+                "%.*s: %s",
+                ident.len(&field.name),
+                ident.start(&field.name),
+                ty_s
+            );
+
+            if free_ty_s {
+                delete ty_s;
+            }
+
+            i = i + 1;
+        }
+
+        io.printf(" }\n");
+        item = map.iter_next(&s_iter);
+    }
+
     let g_iter = map.iter(&m.globals);
     let item = map.iter_next(&g_iter);
     while item != null {

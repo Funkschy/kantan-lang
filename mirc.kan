@@ -37,6 +37,7 @@ def compile_all(data: CompilationData, types: ptrvec.Vec): void {
         let mir_mod = compile(&mirc);
 
         mir.dump_module(&mir_mod);
+        io.printf("\n");
 
         free_mirc(&mirc);
         mir.free_mod(&mir_mod);
