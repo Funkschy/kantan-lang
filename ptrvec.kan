@@ -83,7 +83,6 @@ def set(v: *Vec, i: i32, elem: *void): void {
 }
 
 def resize_s(v: *Vec, size: i32): void {
-    size = size * sizeof **void;
     if size <= v.cap {
         return;
     }

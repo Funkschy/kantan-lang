@@ -46,6 +46,7 @@ START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))
 KANTAN_RUST = kantan
 KANTAN_KANTAN = valgrind --leak-check=full $(START_FOLDER)/compiler
+KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
 
 $(BIN_NAME) : $(K_FILES) $(C_FILES)
 	mkdir $(BUILD_FOLDER) ;
