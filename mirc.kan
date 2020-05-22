@@ -123,7 +123,8 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     let mir_func = lookup_function(c, mir.ref_name(name));
 
     if mir_func == null {
-        let is_extern = ty.as_func(t).declared_in != c.mod.idx;
+        let f_ty = ty.as_func(t);
+        let is_extern = f_ty.declared_in != c.mod.idx || f_ty.is_extern;
         mir_func = new mir.create_func(t, name, is_extern);
         add_function(c, mir_func);
     } else {
