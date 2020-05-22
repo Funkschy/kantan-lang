@@ -2,6 +2,7 @@ import "io";
 import "mod";
 import "mir";
 import "mirc";
+import "llvm";
 import "ptrvec";
 
 def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
@@ -16,6 +17,9 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
 
         mir.dump_module(&mir_mod);
         io.printf("\n");
+
+        // let ctx = llvm.context_create();
+        // llvm.context_dispose(ctx);
 
         mirc.free_compiler(&mir_compiler);
         mir.free_mod(&mir_mod);

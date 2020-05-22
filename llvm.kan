@@ -1,0 +1,12 @@
+type LLVMContext struct {}
+
+extern def LLVMContextCreate(): *LLVMContext;
+extern def LLVMContextDispose(ctx: *LLVMContext): void;
+
+def context_create(): *LLVMContext {
+    return LLVMContextCreate();
+}
+
+def context_dispose(ctx: *LLVMContext): void {
+    LLVMContextDispose(ctx);
+}
