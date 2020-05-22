@@ -1,0 +1,25 @@
+import "io";
+import "mod";
+import "mir";
+import "mirc";
+import "ptrvec";
+
+def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
+    // TODO(#64): the mir compilation can be done in parallel
+    let i = 0;
+    let n = mod.num_mods(data.mods);
+    while i < n {
+        let m = mod.get_mod(data.mods, i);
+
+        let mir_compiler = mirc.create_mirc(m, &data);
+        let mir_mod = mirc.compile(&mir_compiler);
+
+        mir.dump_module(&mir_mod);
+        io.printf("\n");
+
+        mirc.free_compiler(&mir_compiler);
+        mir.free_mod(&mir_mod);
+
+        i = i + 1;
+    }
+}

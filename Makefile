@@ -2,14 +2,18 @@ SHELL := /bin/bash
 
 BIN_NAME = compiler
 K_FILES = ast.kan \
+		  dbg.kan \
 		  file.kan \
 		  func.kan \
 		  ident.kan \
 		  lexer.kan \
+		  llvm.kan \
 		  main.kan \
 		  map.kan \
-		  vmap.kan \
+		  mir.kan \
+		  mirc.kan \
 		  mod.kan \
+		  nt.kan \
 		  num.kan \
 		  param.kan \
 		  parser.kan \
@@ -22,15 +26,13 @@ K_FILES = ast.kan \
 		  source.kan \
 		  span.kan \
 		  std.kan \
+		  str.kan \
+		  transform.kan \
 		  ty.kan \
 		  tychk.kan \
 		  tyid.kan \
 		  vec.kan \
-		  dbg.kan \
-		  str.kan \
-		  mir.kan \
-		  mirc.kan \
-		  nt.kan
+		  vmap.kan
 C_FILES = lib.c \
 		  modsort.c \
 		  lib.h \

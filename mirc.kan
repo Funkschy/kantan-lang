@@ -15,35 +15,12 @@ import "path";
 import "scope";
 import "ident";
 import "source";
-import "ptrvec";
-
-// TODO(#62): implement mir compiler
 
 // Data which is shared between all the MirCompiler instances
 type CompilationData struct {
     mods: *mod.Map,
     proj_root: path.Path,
     global_types: map.Map // map.Map<ident.Ident, *ty.Type>
-}
-
-def compile_all(data: CompilationData, types: ptrvec.Vec): void {
-    // TODO(#64): the mir compilation can be done in parallel
-    let i = 0;
-    let n = mod.num_mods(data.mods);
-    while i < n {
-        let m = mod.get_mod(data.mods, i);
-
-        let mirc = create_mirc(m, &data);
-        let mir_mod = compile(&mirc);
-
-        mir.dump_module(&mir_mod);
-        io.printf("\n");
-
-        free_mirc(&mirc);
-        mir.free_mod(&mir_mod);
-
-        i = i + 1;
-    }
 }
 
 // Compiles a single *mod.Module to a mir.Module
@@ -71,7 +48,7 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
     };
 }
 
-def free_mirc(c: *MirCompiler): void {
+def free_compiler(c: *MirCompiler): void {
     nt.free_nt(&c.names);
 }
 

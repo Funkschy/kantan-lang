@@ -18,8 +18,8 @@ import "ptrvec";
 import "tychk";
 import "path";
 
-import "mir";
 import "mirc";
+import "transform";
 
 def main(argc: i32, argv: *string): i32 {
     if argc <= 1 {
@@ -102,7 +102,7 @@ def main(argc: i32, argv: *string): i32 {
     }
 
     if num_total_errs == 0 {
-        mirc.compile_all(
+        transform.compile_all(
             mirc.CompilationData {
                 mods: tychk_res.mods,
                 proj_root: file_map.proj_root.inner,
