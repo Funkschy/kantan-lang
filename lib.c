@@ -278,6 +278,18 @@ int32_t char_to_int(char c) {
     return (int32_t) c;
 }
 
+char int_to_char(int32_t i) {
+    return (char) i;
+}
+
+int32_t bool_to_int(bool b) {
+    return (int32_t) b;
+}
+
+char int_to_bool(int32_t i) {
+    return (bool) i;
+}
+
 int32_t ptr_to_int(void* ptr) {
     return (int32_t)((size_t) ptr);
 }
