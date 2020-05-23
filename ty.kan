@@ -598,6 +598,11 @@ def fill_width_align(t: *Type): bool {
 
 // returns true if the string needs to be freed
 def to_string(t: *Type, out: *string): bool {
+    return to_string_mangled(t, false, out);
+}
+
+// returns true if the string needs to be freed
+def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
     if t == null {
         *out = null;
         return false;
@@ -607,21 +612,30 @@ def to_string(t: *Type, out: *string): bool {
         let f_ty = as_func(t);
         let s_ret = "";
         let free_ret = to_string(f_ty.ret, &s_ret);
-        let name = ident.to_string(&f_ty.name);
+        let name = f_ty.mangled_name.data;
+        if !use_mangled {
+            name = ident.to_string(&f_ty.name);
+        }
         // TODO(#44): format parameters
         let s = std.format_str("%s (...) -> %s", name, s_ret);
         if free_ret {
             delete s_ret;
         }
-        delete name;
+        if !use_mangled {
+            delete name;
+        }
         *out = s;
         return true;
     }
 
     if is_struct(t) {
         let s_ty = as_struct(t);
-        let name = ident.to_string(&s_ty.name);
-        *out = name;
+        if use_mangled {
+            *out = s_ty.mangled_name.data;
+            return false;
+        }
+
+        *out = ident.to_string(&s_ty.name);
         return true;
     }
 
@@ -631,7 +645,7 @@ def to_string(t: *Type, out: *string): bool {
         std.memset(asterisks as *void, std.char_to_int('*'), p_ty.count);
 
         let s_inner = "";
-        let free_inner = to_string(p_ty.inner, &s_inner);
+        let free_inner = to_string_mangled(p_ty.inner, use_mangled, &s_inner);
         let s = std.format_str("%.*s%s", p_ty.count, asterisks, s_inner);
         if free_inner {
             delete s_inner;

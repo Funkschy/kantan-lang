@@ -98,7 +98,7 @@ def dump_module(m: *Module): void {
             let field = ty.field_at(s_ty, i);
 
             let ty_s = "";
-            let free_ty_s = ty.to_string(field.ty, &ty_s);
+            let free_ty_s = ty.to_string_mangled(field.ty, true, &ty_s);
             io.printf(
                 "%.*s: %s",
                 ident.len(&field.name),
@@ -123,7 +123,7 @@ def dump_module(m: *Module): void {
         let g = item.value as *GlobalConst;
 
         let ty_s: string = null;
-        let free = ty.to_string(g.ty, &ty_s);
+        let free_ty_s = ty.to_string_mangled(g.ty, true, &ty_s);
 
         let quote = "";
         let quote_len = 0;
@@ -143,7 +143,7 @@ def dump_module(m: *Module): void {
             quote_len, quote
         );
 
-        if free {
+        if free_ty_s {
             delete ty_s;
         }
 
@@ -882,7 +882,7 @@ def expr_to_name(e: *Expression): name.Owned {
     if is_expr_sizeof(e) {
         let so = as_expr_sizeof(e);
         let ty_s: string = null;
-        let free_ty_s = ty.to_string(so.ty, &ty_s);
+        let free_ty_s = ty.to_string_mangled(so.ty, true, &ty_s);
 
         let len = 0;
         let s = std.l_format_str(&len, "sizeof(%s)", ty_s);
@@ -897,7 +897,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let cast = as_expr_bitcast(e);
         let addr_n = addr_to_name(&cast.addr);
         let ty_s: string = null;
-        let free_ty_s = ty.to_string(cast.into, &ty_s);
+        let free_ty_s = ty.to_string_mangled(cast.into, true, &ty_s);
 
         let len = 0;
         let s = std.l_format_str(
@@ -1116,7 +1116,7 @@ def inst_to_name(inst: *Inst): name.Owned {
     if is_inst_decl(inst) {
         let decl = as_inst_decl(inst);
         let ty_s: string = null;
-        let free_ty_s = ty.to_string(decl.ty, &ty_s);
+        let free_ty_s = ty.to_string_mangled(decl.ty, true, &ty_s);
 
         let len = 0;
         let s = std.l_format_str(
@@ -1142,7 +1142,7 @@ def inst_to_name(inst: *Inst): name.Owned {
         let ty_s: string = "void";
         let free_ty_s = false;
         if !is_addr_empty(&assign.dest) {
-            free_ty_s = ty.to_string(assign.dest.ty, &ty_s);
+            free_ty_s = ty.to_string_mangled(assign.dest.ty, true, &ty_s);
         }
 
         let len = 0;
