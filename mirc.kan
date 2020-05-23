@@ -11,6 +11,7 @@ import "map";
 import "std";
 import "dbg";
 import "span";
+import "name";
 import "path";
 import "scope";
 import "ident";
@@ -29,9 +30,9 @@ type MirCompiler struct {
     mod: *mod.Module,
     data: *CompilationData,
     names: nt.NameTable,
-    functions: map.Map, // map.Map<mir.RefName, *mir.Func>
-    structs: map.Map, // map.Map<mir.RefName, *mir.Struct>
-    globals: map.Map, // map.Map<mir.RefName, *mir.GlobalConst>
+    functions: map.Map, // map.Map<name.Ref, *mir.Func>
+    structs: map.Map, // map.Map<name.Ref, *mir.Struct>
+    globals: map.Map, // map.Map<name.Ref, *mir.GlobalConst>
     current_func: *mir.Func
 }
 
@@ -66,8 +67,7 @@ def compile(c: *MirCompiler): mir.Module {
 
     nt.close_scope(&c.names);
 
-    let name = mangle_mod_name(c);
-    return mir.create_mod(name, c.globals, c.functions, c.structs, c.mod);
+    return mir.create_mod(c.globals, c.functions, c.structs, c.mod);
 }
 
 def add_function(c: *MirCompiler, f: *mir.Func): void {
@@ -80,12 +80,12 @@ def add_struct(c: *MirCompiler, s: *mir.Struct): void {
     map.insert(&c.structs, key, s as *void);
 }
 
-def lookup_struct(c: *MirCompiler, mangled_name: mir.RefName): *mir.Struct {
+def lookup_struct(c: *MirCompiler, mangled_name: name.Ref): *mir.Struct {
     let key = map.create_key(mangled_name.len, mangled_name.data);
     return map.get(&c.structs, key) as *mir.Struct;
 }
 
-def lookup_function(c: *MirCompiler, mangled_name: mir.RefName): *mir.Func {
+def lookup_function(c: *MirCompiler, mangled_name: name.Ref): *mir.Func {
     let key = map.create_key(mangled_name.len, mangled_name.data);
     return map.get(&c.functions, key) as *mir.Func;
 }
@@ -98,13 +98,11 @@ def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
 def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
     dbg.assert(ty.is_struct(t), "non struct type passed to lookup");
 
-    // TODO: too many mallocs. See #77
-    let name = mangle_struct_name(c, t);
-    let mir_struct = lookup_struct(c, mir.ref_name(name));
+    let s_ty = ty.as_struct(t);
+    let mangled_name = name.ref(s_ty.mangled_name);
+    let mir_struct = lookup_struct(c, mangled_name);
 
     if mir_struct == null {
-        let s_ty = ty.as_struct(t);
-
         let i = 0;
         while i < ty.num_fields(s_ty) {
             let field = ty.field_at(s_ty, i);
@@ -115,10 +113,8 @@ def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
         }
 
         let is_extern = s_ty.declared_in != c.mod.idx;
-        mir_struct = new mir.create_struct(t, name, is_extern);
+        mir_struct = new mir.create_struct(t, mangled_name, is_extern);
         add_struct(c, mir_struct);
-    } else {
-        mir.free_name(&name);
     }
 
     return mir_struct;
@@ -127,20 +123,14 @@ def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
 def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     dbg.assert(ty.is_func(t), "non function type passed to lookup");
 
-    // TODO(#77): this creates a lot of unnecessary malloc calls
-    //  maybe cache the mangled func names
-    //  i decided against saving them in a global map to make multithreading
-    //  easier in the futures
-    let name = mangle_func_name(c, t);
-    let mir_func = lookup_function(c, mir.ref_name(name));
+    let f_ty = ty.as_func(t);
+    let mangled_name = name.ref(f_ty.mangled_name);
+    let mir_func = lookup_function(c, mangled_name);
 
     if mir_func == null {
-        let f_ty = ty.as_func(t);
         let is_extern = f_ty.declared_in != c.mod.idx || f_ty.is_extern;
-        mir_func = new mir.create_func(t, name, is_extern);
+        mir_func = new mir.create_func(t, mangled_name, is_extern);
         add_function(c, mir_func);
-    } else {
-        mir.free_name(&name);
     }
 
     return mir_func;
@@ -292,7 +282,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     }
 }
 
-def push_decl(c: *MirCompiler, n: mir.RefName, ty: *ty.Type, m: mir.MetaData): void {
+def push_decl(c: *MirCompiler, n: name.Ref, ty: *ty.Type, m: mir.MetaData): void {
     push_instr(c, mir.new_inst_decl(m, n, ty));
 }
 
@@ -339,7 +329,7 @@ def push_if_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label): void {
         has_else_if = ast.is_if_stmt(if_stmt.else_stmt);
     }
 
-    let else_label = mir.create_label(mir.make_owned_name(0, null));
+    let else_label = mir.create_label(name.make_owned(0, null));
     if has_else {
         else_label = label(c);
     } else {
@@ -410,12 +400,12 @@ def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {
     return mir.make_addr_name(name, ty);
 }
 
-def bind_ident(c: *MirCompiler, i: *ident.Ident): mir.RefName {
-    return nt.bind(&c.names, mir.make_ref_name(ident.len(i), ident.start(i)));
+def bind_ident(c: *MirCompiler, i: *ident.Ident): name.Ref {
+    return nt.bind(&c.names, name.make_ref(ident.len(i), ident.start(i)));
 }
 
-def bind_s(c: *MirCompiler, len: i32, s: string): mir.RefName {
-    return nt.bind(&c.names, mir.make_ref_name(len, s));
+def bind_s(c: *MirCompiler, len: i32, s: string): name.Ref {
+    return nt.bind(&c.names, name.make_ref(len, s));
 }
 
 def mod_at(c: *MirCompiler, i: i32): *mod.Module {
@@ -568,7 +558,7 @@ def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         i = i + 1;
     }
 
-    return mir.new_expr_struct_init(mir.ref_name(mir_struct.name), inits);
+    return mir.new_expr_struct_init(mir_struct.name, inits);
 }
 
 def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
@@ -674,20 +664,20 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         // function pointers
 
         let mir_func = lookup_or_declare_function(c, e.ty);
-        *out = mir.make_addr_name(mir.ref_name(mir_func.name), e.ty);
+        *out = mir.make_addr_name(mir_func.name, e.ty);
         return true;
     }
 
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
-        let name = name_from_ident(ident);
-        let mangled = mir.empty_name();
-        if nt.lookup(&c.names, name, &mangled) {
+        let ref_name = name_from_ident(ident);
+        let mangled = name.empty();
+        if nt.lookup(&c.names, ref_name, &mangled) {
             *out = mir.make_addr_name(mangled, e.ty);
             return true;
         }
 
-        dbg.assert_fmt(false, "undefined: %.*s", name.len, name.data);
+        dbg.assert_fmt(false, "undefined: %.*s", ref_name.len, ref_name.data);
     }
 
     return rvalue_expr(c, e, out);
@@ -726,126 +716,49 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     return false;
 }
 
-def string_lit(c: *MirCompiler, e: *ast.Expr): mir.RefName {
+def string_lit(c: *MirCompiler, e: *ast.Expr): name.Ref {
     return add_global(c, e.span, e.ty);
 }
 
-def add_global(c: *MirCompiler, span: span.Span, ty: *ty.Type): mir.RefName {
+def add_global(c: *MirCompiler, span: span.Span, ty: *ty.Type): name.Ref {
     let meta = get_meta(c, span);
 
     let idx = c.globals.len;
     let s_len = 0;
     let s = std.l_format_str(&s_len, "_g%d", idx);
-    let name = s_mangle_name(c, s_len, s, c.mod);
+    let mangled_name = s_mangle(c, s_len, s);
 
-    let key = map.create_key(name.len, name.data);
-    let const = new mir.create_const(name, meta, ty, span);
+    let key = map.create_key(mangled_name.len, mangled_name.data);
+    let const = new mir.create_const(mangled_name, meta, ty, span);
     map.insert(&c.globals, key, const as *void);
 
     delete s;
-    return mir.make_ref_name(name.len, name.data);
+    return name.make_ref(mangled_name.len, mangled_name.data);
 }
 
 def label(c: *MirCompiler): mir.Label {
-    let l = 0;
-    let s = std.l_format_str(&l, "L_%d", c.label_count);
+    let s_len = 0;
+    let s = std.l_format_str(&s_len, "L_%d", c.label_count);
     c.label_count = c.label_count + 1;
 
-    let mangled = s_mangle_name(c, l, s, c.mod);
+    let mangled_name = s_mangle(c, s_len, s);
     delete s;
 
-    return mir.create_label(mangled);
+    return mir.create_label(mangled_name);
 }
 
-def mangle_func_name(c: *MirCompiler, t: *ty.Type): mir.OwnedName {
-    dbg.assert(t != null, "type was null");
-    dbg.assert(ty.is_func(t), "type was not a function");
-
-    let f_ty = ty.as_func(t);
-    let name = &f_ty.name;
-    let declared_in = mod_at(c, f_ty.declared_in);
-
-    if f_ty.is_extern {
-        // function names must be owned, so just copy data here
-        // there aren't many extern functions anyway
-        let len = ident.len(name);
-        return mir.make_copied_name(len, ident.start(name));
-    }
-
-    return mangle_name(c, name, declared_in);
+def s_mangle(c: *MirCompiler, len: i32, s: string): name.Owned {
+    return name.s_mangle(
+        c.data.proj_root,
+        len,
+        s,
+        mod.get_path(c.mod),
+        mod.is_std_lib(c.mod)
+    );
 }
 
-def mangle_struct_name(c: *MirCompiler, t: *ty.Type): mir.OwnedName {
-    dbg.assert(t != null, "type was null");
-    dbg.assert(ty.is_struct(t), "type was not a struct");
-
-    let s_ty = ty.as_struct(t);
-    let name = &s_ty.name;
-    let declared_in = mod_at(c, s_ty.declared_in);
-
-    return mangle_name(c, name, declared_in);
-}
-
-def mangle_mod_name(c: *MirCompiler): mir.OwnedName {
-    let name = s_mangle_name(c, 0, null, c.mod);
-    name.len = name.len - 1;
-    *(name.data + name.len) = '\0';
-    return name;
-}
-
-def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): mir.OwnedName {
-    return s_mangle_name(c, ident.len(name), ident.start(name), declared_in);
-}
-
-def s_mangle_name(c: *MirCompiler, len: i32, s: string, declared_in: *mod.Module): mir.OwnedName {
-    let name_len = 0;
-    let name_data = "";
-    let p = mod.get_path(declared_in);
-
-    // TODO(#72): this name mangling algorithm assumes the existence of a global
-    //  file path root. This does not necessarily exist in windows
-
-    let file_ending_len = 0;
-    mod.kantan_file_ending(&file_ending_len);
-
-    if !mod.is_std_lib(declared_in) {
-        let mod_len = p.len - c.data.proj_root.len - file_ending_len;
-        let mod_name = p.inner + c.data.proj_root.len;
-
-        // +1 for '.'
-        name_len = mod_len + len + 1;
-        name_data = std.malloc(name_len + 1) as string;
-
-        let i = 0;
-        let sep = path.sys_separator();
-        while i < mod_len {
-            let c = *(mod_name + i);
-            if c == sep {
-                c = '.';
-            }
-            *(name_data + i) = c;
-            i = i + 1;
-        }
-        *(name_data + mod_len) = '.';
-
-        let dest = name_data + mod_len + 1;
-        std.memcpy(dest as *void, s as *void, len);
-        *(name_data + name_len) = '\0';
-    } else {
-        let file_name_len = p.len - file_ending_len;
-        let file_name = p.inner;
-
-        name_len = 4 + file_name_len + 1 + len;
-        name_data = std.format_str(
-            "std.%.*s.%.*s", file_name_len, file_name, len, s
-        );
-    }
-
-    return mir.make_owned_name(name_len, name_data);
-}
-
-def name_from_ident(i: *ident.Ident): mir.RefName {
-    return mir.make_ref_name(ident.len(i), ident.start(i));
+def name_from_ident(i: *ident.Ident): name.Ref {
+    return name.make_ref(ident.len(i), ident.start(i));
 }
 
 #include "mir_types.h"

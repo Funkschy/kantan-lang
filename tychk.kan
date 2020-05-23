@@ -15,6 +15,7 @@ import "func";
 import "ty";
 import "tyid";
 import "param";
+import "name";
 import "dbg";
 
 import "std";
@@ -274,7 +275,7 @@ def create_result(
 def free_result(r: *CheckResult): void {
     let i = 0;
     while i < r.types.len {
-        ty.type_free(ptrvec.get(&r.types, i) as *ty.Type);
+        ty.free_ty(ptrvec.get(&r.types, i) as *ty.Type);
         i = i + 1;
     }
 
@@ -1121,7 +1122,8 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let definition = ty.new_type(TY_STRUCT, null);
     push_tmp_ty(tc, definition);
 
-    ty.init_struct(definition, sd.name, tc.ctx.mod.idx);
+    let owned_name = mangle_struct_name(tc, &sd.name);
+    ty.init_struct(definition, sd.name, owned_name, tc.ctx.mod.idx);
     return definition;
 }
 
@@ -1148,7 +1150,8 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let definition = ty.new_type(TY_FUNC, null);
     push_tmp_ty(tc, definition);
 
-    ty.init_func(definition, fd.name, tc.ctx.mod.idx, fd.is_extern);
+    let mangled_name = mangle_func_name(tc, &fd.name, fd.is_extern);
+    ty.init_func(definition, fd.name, mangled_name, tc.ctx.mod.idx, fd.is_extern);
     return definition;
 }
 
@@ -2155,6 +2158,32 @@ def check_unary_expr(
     }
 
     return null;
+}
+
+def mangle_func_name(tc: *TypeChecker, i: *ident.Ident, is_extern: bool): name.Owned {
+    dbg.assert(i != null, "ident was null");
+
+    if is_extern {
+        // the names must be owned, so just copy data here
+        // there aren't many extern functions anyway
+        let len = ident.len(i);
+        return name.make_copied(len, ident.start(i));
+    }
+
+    let declared_in = tc.ctx.mod;
+    let declared_in_path = declared_in.source.file.path.inner;
+    return name.mangle_ident(
+        tc.mods.proj_root, i, mod.get_path(declared_in), mod.is_std_lib(declared_in)
+    );
+}
+
+def mangle_struct_name(tc: *TypeChecker, i: *ident.Ident): name.Owned {
+    dbg.assert(i != null, "ident was null");
+
+    let declared_in = tc.ctx.mod;
+    return name.mangle_ident(
+        tc.mods.proj_root, i, mod.get_path(declared_in), mod.is_std_lib(declared_in)
+    );
 }
 
 def free_tc(tc: *TypeChecker): void {

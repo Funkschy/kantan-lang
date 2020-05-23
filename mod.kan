@@ -6,14 +6,14 @@ import "map";
 import "std";
 import "ty";
 import "span";
+import "name";
 import "ident";
 import "scope";
 import "source";
 
-#define KANTAN_FILE_ENDING ".kan"
-
 type Module struct {
     idx: i32, // index in modmap used for faster access
+    name: name.Owned, // injected after parsing
     source: *source.SourceFile,
     statements: ptrvec.Vec,
      // the following vecs just contain indices into the statements ptrvec
@@ -26,6 +26,7 @@ type Module struct {
 def create(src: *source.SourceFile): Module {
     return Module {
         idx: -1,
+        name: name.make_owned(0, null),
         source: src,
         statements: ptrvec.create(),
         imports: vec.create(sizeof i32),
@@ -35,19 +36,21 @@ def create(src: *source.SourceFile): Module {
     };
 }
 
+def mangle_mod_name(m: *Module, proj_root: path.Path): name.Owned {
+    let mangled = name.s_mangle(
+        proj_root, 0, null, m.source.file.path.inner, is_std_lib(m)
+    );
+    mangled.len = mangled.len - 1;
+    *(mangled.data + mangled.len) = '\0';
+    return mangled;
+}
+
 def get_path(m: *Module): path.Path {
     return m.source.file.path.inner;
 }
 
 def is_std_lib(m: *Module): bool {
     return m.source.is_std_lib;
-}
-
-def kantan_file_ending(len: *i32): string {
-    if len != null {
-        *len = std.strlen(KANTAN_FILE_ENDING);
-    }
-    return KANTAN_FILE_ENDING;
 }
 
 def s_lookup(m: *Module, key_len: i32, key: string): *ty.Type {
@@ -134,17 +137,21 @@ def free_m(mod: *Module): void {
     vec.free_v(&mod.imports);
     vec.free_v(&mod.functions);
     vec.free_v(&mod.structs);
-    ty.type_free(mod.ty);
+    ty.free_ty(mod.ty);
+
+    name.free_owned(&mod.name);
 }
 
 type Map struct {
+    proj_root: path.Path,
     // TODO(#80): replace with vmap.Map
     mods: ptrvec.Vec,
     mod_paths: map.Map // full mod path -> index in mods
 }
 
-def map_with_cap(size: i32): Map {
+def map_with_cap(proj_root: path.Path, size: i32): Map {
     return Map {
+        proj_root: proj_root,
         mods: ptrvec.with_cap(size),
         mod_paths: map.with_cap(size)
     };
@@ -211,7 +218,9 @@ def get_abs_import_path(
     let current_path = get_path(current);
     let dir = path.parent(&current_path);
 
-    return path.merge_abs_rel_suffix(&dir, &imp_path, kantan_file_ending(null), dest);
+    return path.merge_abs_rel_suffix(
+        &dir, &imp_path, source.kantan_file_ending(null), dest
+    );
 }
 
 // on error, this will return null and fill (if not null) the
@@ -226,7 +235,7 @@ def try_get_mod_from_import(
 
     let plen = ident.len(&imp.mod);
     let file_ending_len = 0;
-    let file_ending = kantan_file_ending(&file_ending_len);
+    let file_ending = source.kantan_file_ending(&file_ending_len);
     let path_str = std.format_str("%.*s%s", plen, ident.start(&imp.mod), file_ending);
     let p = path.create(path_str, plen + file_ending_len);
 

@@ -1,10 +1,12 @@
 import "io";
 import "ty";
+import "dbg";
 import "mod";
 import "mir";
 import "map";
 import "std";
 import "llvm";
+import "ident";
 import "ptrvec";
 
 type ModuleCompiler struct {
@@ -20,7 +22,7 @@ def create_compiler(irmod: *mir.Module): ModuleCompiler {
     // since this can run in parallel, but llvm.Context is not threadsafe,
     // we need a separate context per module
     let ctx = llvm.context_create();
-    let llmod = llvm.module_create_with_name_in_context(irmod.name.data, ctx);
+    let llmod = llvm.module_create_with_name_in_context(irmod.actual.name.data, ctx);
     let path = mod.get_path(irmod.actual);
     llvm.set_source_file_name(llmod, path.inner, path.len);
 

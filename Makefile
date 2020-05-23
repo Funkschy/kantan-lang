@@ -14,6 +14,7 @@ K_FILES = ast.kan \
 		  mir.kan \
 		  mirc.kan \
 		  mod.kan \
+		  name.kan \
 		  nt.kan \
 		  num.kan \
 		  param.kan \

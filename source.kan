@@ -8,6 +8,15 @@ import "ptrvec";
 
 import "dbg";
 
+#define KANTAN_FILE_ENDING ".kan"
+
+def kantan_file_ending(len: *i32): string {
+    if len != null {
+        *len = std.strlen(KANTAN_FILE_ENDING);
+    }
+    return KANTAN_FILE_ENDING;
+}
+
 type LineSpan struct {
     pos: SourcePos,
     span: span.Span

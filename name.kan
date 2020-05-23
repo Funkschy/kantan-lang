@@ -1,0 +1,114 @@
+import "dbg";
+import "std";
+import "path";
+import "ident";
+import "source";
+
+type Owned struct {
+    data: string,
+    len: i32
+}
+
+def free_owned(n: *Owned): void {
+    delete n.data;
+}
+
+def make_owned(len: i32, data: string): Owned {
+    if data != null {
+        dbg.assert(*(data + len) == '\0', "owned names should be null terminated");
+    }
+    return Owned { data: data, len: len };
+}
+
+// like make_owned, but copies the data automatically
+def make_copied(len: i32, data: string): Owned {
+    return make_owned(len, std.strndup(data, len));
+}
+
+type Ref struct {
+    len: i32,
+    data: string
+}
+
+def make_ref(len: i32, data: string): Ref {
+    return Ref { len: len, data: data };
+}
+
+def ref(owned: Owned): Ref {
+    return make_ref(owned.len, owned.data);
+}
+
+def empty(): Ref {
+    return make_ref(0, null);
+}
+
+def mangle_ident(
+    proj_root: path.Path,
+    name: *ident.Ident,
+    declared_in: path.Path,
+    is_std_lib: bool
+): Owned {
+    return s_mangle(
+        proj_root,
+        ident.len(name),
+        ident.start(name),
+        declared_in,
+        is_std_lib
+    );
+}
+
+// TODO: this should take a *mod.Module,
+//  but can't, because the old compiler can't handle the circular reference
+//  from mod to name to mod
+def s_mangle(
+    proj_root: path.Path,
+    len: i32,
+    s: string,
+    declared_in: path.Path,
+    is_std_lib: bool
+): Owned {
+    let name_len = 0;
+    let name_data = "";
+
+    // TODO(#72): this name mangling algorithm assumes the existence of a global
+    //  file path root. This does not necessarily exist in windows
+
+    let file_ending_len = 0;
+    source.kantan_file_ending(&file_ending_len);
+
+    if !is_std_lib {
+        let mod_len = declared_in.len - proj_root.len - file_ending_len;
+        let mod_name = declared_in.inner + proj_root.len;
+
+        // +1 for '.'
+        name_len = mod_len + len + 1;
+        name_data = std.malloc(name_len + 1) as string;
+
+        let i = 0;
+        let sep = path.sys_separator();
+        while i < mod_len {
+            let c = *(mod_name + i);
+            if c == sep {
+                c = '.';
+            }
+            *(name_data + i) = c;
+            i = i + 1;
+        }
+        *(name_data + mod_len) = '.';
+
+        let dest = name_data + mod_len + 1;
+        std.memcpy(dest as *void, s as *void, len);
+        *(name_data + name_len) = '\0';
+    } else {
+        let file_name_len = declared_in.len - file_ending_len;
+        let file_name = declared_in.inner;
+
+        name_len = 4 + file_name_len + 1 + len;
+        name_data = std.format_str(
+            "std.%.*s.%.*s", file_name_len, file_name, len, s
+        );
+    }
+
+    return make_owned(name_len, name_data);
+}
+

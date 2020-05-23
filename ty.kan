@@ -7,6 +7,7 @@ import "std";
 import "ident";
 import "span";
 import "scope";
+import "name";
 
 extern def type2str(kind: i32): string;
 
@@ -184,15 +185,22 @@ type StructField struct {
 
 type Struct struct {
     name: ident.Ident,
+    mangled_name: name.Owned,
     scope: scope.Scope,
     declared_in: i32, // mod index
     fields: vec.Vec // <StructField>
 }
 
 // this function is used to initialize placeholder structs of tychk
-def init_struct(t: *Type, name: ident.Ident, declared_in: i32): void {
+def init_struct(
+    t: *Type,
+    name: ident.Ident,
+    mangled_name: name.Owned,
+    declared_in: i32
+): void {
     let s = new Struct {
         name: name,
+        mangled_name: mangled_name,
         scope: scope.create(),
         declared_in: declared_in,
         fields: vec.create(sizeof StructField)
@@ -266,20 +274,28 @@ type Func struct {
     declared_in: i32, // mod index
     ret: *Type,
     params: vec.Vec, // <Param>
-    name: ident.Ident
+    name: ident.Ident,
+    mangled_name: name.Owned
 }
 
 // this function is used to initialize placeholder functions of tychk
-def init_func(t: *Type, name: ident.Ident, declared_in: i32, is_extern: bool): void {
+def init_func(
+    t: *Type,
+    name: ident.Ident,
+    mangled_name: name.Owned,
+    declared_in: i32,
+    is_extern: bool
+): void {
     let f = new Func {
-        // the way that tychk currently works, is that this is set lazy, while
-        // checking the parameters types
         is_extern: is_extern,
+        // the way that tychk currently works, is that this is set lazily, while
+        // checking the parameters types
         is_varargs: false,
         declared_in: declared_in,
         ret: null,
         params: vec.create(sizeof Param),
-        name: name
+        name: name,
+        mangled_name: mangled_name
     };
     std.flag_set(&t.flags, FLAG_UNSIZED);
 
@@ -430,13 +446,14 @@ def is_scoped(t: *Type): bool {
     return std.flag_get(&t.flags, FLAG_SCOPED);
 }
 
-def type_free(t: *Type): void {
+def free_ty(t: *Type): void {
     if t == null {
         return;
     }
 
     if is_func(t) {
         let f_ty = as_func(t);
+        name.free_owned(&f_ty.mangled_name);
         // the inner types are garbage collected by tychk
         vec.free_v(&f_ty.params);
         delete t.data;
@@ -444,6 +461,7 @@ def type_free(t: *Type): void {
 
     if is_struct(t) {
         let s_ty = as_struct(t);
+        name.free_owned(&s_ty.mangled_name);
         // the inner types are garbage collected by tychk
         vec.free_v(&s_ty.fields);
         scope.free_s(&s_ty.scope);

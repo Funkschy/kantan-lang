@@ -11,6 +11,7 @@ import "dbg";
 import "mod";
 import "vmap";
 import "span";
+import "name";
 import "ident";
 import "source";
 
@@ -18,22 +19,19 @@ extern def mir_binary2str(kind: i32): string;
 extern def mir_unary2str(kind: i32): string;
 
 type Module struct {
-    name: OwnedName,
-    globals: map.Map, // map.Map<RefName, *GlobalConst>
-    functions: map.Map, // map.Map<RefName, *Func>
-    structs: map.Map, // map.Map<RefName, *Struct>
+    globals: map.Map, // map.Map<name.Ref, *GlobalConst>
+    functions: map.Map, // map.Map<name.Ref, *Func>
+    structs: map.Map, // map.Map<name.Ref, *Struct>
     actual: *mod.Module
 }
 
 def create_mod(
-    name: OwnedName,
     globals: map.Map,
     funcs: map.Map,
     structs: map.Map,
     actual: *mod.Module
 ): Module {
     return Module {
-        name: name,
         globals: globals,
         functions: funcs,
         structs: structs,
@@ -57,10 +55,7 @@ def free_mod(m: *Module): void {
     let s_iter = map.iter(&m.structs);
     let item = map.iter_next(&s_iter);
     while item != null {
-        let s = item.value as *Struct;
-        free_struct(s);
-        delete s;
-
+        delete item.value;
         item = map.iter_next(&s_iter);
     }
 
@@ -78,8 +73,6 @@ def free_mod(m: *Module): void {
     map.free_m(&m.functions);
     map.free_m(&m.structs);
     map.free_m(&m.globals);
-
-    free_name(&m.name);
 }
 
 def dump_module(m: *Module): void {
@@ -171,18 +164,18 @@ def dump_module(m: *Module): void {
 }
 
 type Func struct {
-    name: OwnedName,
+    name: name.Ref,
     blocks: BlockMap,
     ty: *ty.Type,
     is_extern: bool
 }
 
-def create_func(t: *ty.Type, mangled_name: OwnedName, is_extern: bool): Func {
+def create_func(t: *ty.Type, mangled_name: name.Ref, is_extern: bool): Func {
     dbg.assert(ty.is_func(t), "func type was not func");
 
     let blocks = empty_block_map();
     if !is_extern {
-        blocks = create_block_map(ref_name(mangled_name));
+        blocks = create_block_map(mangled_name);
     }
 
     return Func {
@@ -194,7 +187,6 @@ def create_func(t: *ty.Type, mangled_name: OwnedName, is_extern: bool): Func {
 }
 
 def free_func(f: *Func): void {
-    free_name(&f.name);
     free_block_map(&f.blocks);
 }
 
@@ -203,12 +195,12 @@ def func_push_instr(f: *Func, inst: *Inst): void {
 }
 
 type Struct struct {
-    name: OwnedName,
+    name: name.Ref,
     ty: *ty.Type,
     is_extern: bool
 }
 
-def create_struct(t: *ty.Type, mangled_name: OwnedName, is_extern: bool): Struct {
+def create_struct(t: *ty.Type, mangled_name: name.Ref, is_extern: bool): Struct {
     dbg.assert(ty.is_struct(t), "struct type was not struct");
 
     return Struct {
@@ -216,10 +208,6 @@ def create_struct(t: *ty.Type, mangled_name: OwnedName, is_extern: bool): Struct
         ty: t,
         is_extern: is_extern
     };
-}
-
-def free_struct(f: *Struct): void {
-    free_name(&f.name);
 }
 
 type MetaData struct {
@@ -231,14 +219,14 @@ def create_meta(pos: source.SourcePos): MetaData {
 }
 
 type GlobalConst struct {
-    name: OwnedName,
+    name: name.Owned,
     meta: MetaData,
     ty: *ty.Type,
     value: span.Span
 }
 
 def create_const(
-    name: OwnedName,
+    name: name.Owned,
     meta: MetaData,
     ty: *ty.Type,
     value: span.Span
@@ -252,11 +240,11 @@ def create_const(
 }
 
 def free_global_const(gc: *GlobalConst): void {
-    free_name(&gc.name);
+    name.free_owned(&gc.name);
 }
 
-def const_name(c: *GlobalConst): RefName {
-    return ref_name(c.name);
+def const_name(c: *GlobalConst): name.Ref {
+    return name.ref(c.name);
 }
 
 type InstBlock struct {
@@ -317,69 +305,31 @@ def free_bb(bb: *BasicBlock): void {
     free_inst(&bb.terminator);
 }
 
-type OwnedName struct {
-    len: i32,
-    data: string
-}
-
-def free_name(n: *OwnedName): void {
-    delete n.data;
-}
-
-type RefName struct {
-    len: i32,
-    data: string
-}
-
-def make_owned_name(len: i32, data: string): OwnedName {
-    if data != null {
-        dbg.assert(*(data + len) == '\0', "owned names should be null terminated");
-    }
-    return OwnedName { len: len, data: data };
-}
-
-// like make_owned_name, but copies the data automatically
-def make_copied_name(len: i32, data: string): OwnedName {
-    return make_owned_name(len, std.strndup(data, len));
-}
-
-def make_ref_name(len: i32, data: string): RefName {
-    return RefName { len: len, data: data };
-}
-
-def ref_name(owned: OwnedName): RefName {
-    return make_ref_name(owned.len, owned.data);
-}
-
-def empty_name(): RefName {
-    return make_ref_name(0, null);
-}
-
 type Label struct {
-    name: OwnedName
+    name: name.Owned
 }
 
-def create_label(n: OwnedName): Label {
+def create_label(n: name.Owned): Label {
     return Label { name: n };
 }
 
 def clone_label(l: *Label): Label {
-    return create_label(make_copied_name(l.name.len, l.name.data));
+    return create_label(name.make_copied(l.name.len, l.name.data));
 }
 
 def free_label(l: *Label): void {
-    free_name(&l.name);
+    name.free_owned(&l.name);
 }
 
-def label_name(l: *Label): RefName {
-    return ref_name(l.name);
+def label_name(l: *Label): name.Ref {
+    return name.ref(l.name);
 }
 
 type AddressName struct {
-    value: RefName // name table owns name
+    value: name.Ref // name table owns name
 }
 
-def make_addr_name(value: RefName, ty: *ty.Type): Address {
+def make_addr_name(value: name.Ref, ty: *ty.Type): Address {
     let hi = std.int_to_ptr(value.len);
     let lo = value.data as *void;
     return create_addr(MIR_ADDR_NAME, ty, hi, lo);
@@ -394,7 +344,7 @@ def clone_addr_name(a: *Address): Address {
 def as_addr_name(a: *Address): AddressName {
     let len = std.ptr_to_int(a.data_hi);
     let data = a.data_lo as string;
-    let name = make_ref_name(len, data);
+    let name = name.make_ref(len, data);
     return AddressName { value: name };
 }
 
@@ -420,10 +370,10 @@ def is_addr_const(a: *Address): bool {
 }
 
 type AddressGlobal struct {
-    name: RefName
+    name: name.Ref
 }
 
-def make_addr_global(name: RefName, ty: *ty.Type): Address {
+def make_addr_global(name: name.Ref, ty: *ty.Type): Address {
     let hi = std.int_to_ptr(name.len);
     let lo = name.data as *void;
     return create_addr(MIR_ADDR_GLOBAL, ty, hi, lo);
@@ -432,7 +382,7 @@ def make_addr_global(name: RefName, ty: *ty.Type): Address {
 def as_addr_global(a: *Address): AddressGlobal {
     let len = std.ptr_to_int(a.data_hi);
     let data = a.data_lo as string;
-    let name = make_ref_name(len, data);
+    let name = name.make_ref(len, data);
     return AddressGlobal { name: name };
 }
 
@@ -441,10 +391,10 @@ def is_addr_global(a: *Address): bool {
 }
 
 type AddressRef struct {
-    name: RefName
+    name: name.Ref
 }
 
-def make_addr_ref(name: RefName, ty: *ty.Type): Address {
+def make_addr_ref(name: name.Ref, ty: *ty.Type): Address {
     let hi = std.int_to_ptr(name.len);
     let lo = name.data as *void;
     return create_addr(MIR_ADDR_REF, ty, hi, lo);
@@ -453,7 +403,7 @@ def make_addr_ref(name: RefName, ty: *ty.Type): Address {
 def as_addr_ref(a: *Address): AddressRef {
     let len = std.ptr_to_int(a.data_hi);
     let data = a.data_lo as string;
-    let name = make_ref_name(len, data);
+    let name = name.make_ref(len, data);
     return AddressRef { name: name };
 }
 
@@ -511,10 +461,10 @@ def create_addr(kind: i32, ty: *ty.Type, data_hi: *void, data_lo: *void): Addres
     };
 }
 
-def addr_to_name(a: *Address): OwnedName {
+def addr_to_name(a: *Address): name.Owned {
     if is_addr_name(a) {
-        let name = as_addr_name(a);
-        return make_copied_name(name.value.len, name.value.data);
+        let n= as_addr_name(a);
+        return name.make_copied(n.value.len, n.value.data);
     }
 
     if is_addr_const(a) {
@@ -523,7 +473,7 @@ def addr_to_name(a: *Address): OwnedName {
         let s = std.l_format_str(
             &len, "const %.*s", span.len(const.span), const.span.start
         );
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_addr_global(a) {
@@ -532,7 +482,7 @@ def addr_to_name(a: *Address): OwnedName {
         let s = std.l_format_str(
             &len, "global %.*s", global.name.len, global.name.data
         );
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_addr_ref(a) {
@@ -541,7 +491,7 @@ def addr_to_name(a: *Address): OwnedName {
         let s = std.l_format_str(
             &len, "&%.*s", ref.name.len, ref.name.data
         );
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_addr_arg(a) {
@@ -550,18 +500,18 @@ def addr_to_name(a: *Address): OwnedName {
         let s = std.l_format_str(
             &len, "getarg(%d)", arg.idx
         );
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_addr_empty(a) {
-        return make_copied_name(1, "_");
+        return name.make_copied(1, "_");
     }
 
     if is_addr_null(a) {
-        return make_copied_name(4, "null");
+        return name.make_copied(4, "null");
     }
 
-    return make_owned_name(0, null);
+    return name.make_owned(0, null);
 }
 
 type ExprBinary struct {
@@ -678,11 +628,11 @@ def is_expr_gep(e: *Expression): bool {
 }
 
 type ExprStructInit struct {
-    name: RefName,
+    name: name.Ref,
     args: vec.Vec // Vec<Address>
 }
 
-def new_expr_struct_init(name: RefName, args: vec.Vec): Expression {
+def new_expr_struct_init(name: name.Ref, args: vec.Vec): Expression {
     let init = (new ExprStructInit { name: name, args: args }) as *void;
     return create_expr(MIR_EXPR_STRUCTINIT, init);
 }
@@ -761,12 +711,12 @@ def is_expr_bitcast(e: *Expression): bool {
 // x = y:
 //  Copy(Address),
 // x = call f (y, z):
-//  Call(RefName, Vec<Address>, varargs: bool)
+//  Call(name.Ref, Vec<Address>, varargs: bool)
 // Gets a pointer to the Xth element of a struct or array
 // x = base + offset:
 //  StructGep(Address, i32)
 // x = test { 41, "test" }:
-//  StructInit(RefName, Vec<Address>),
+//  StructInit(name.Ref, Vec<Address>),
 // allocates the value of its address on the heap
 // x = new 5:
 //  New(Address),
@@ -804,7 +754,7 @@ def free_expr(e: *Expression): void {
     }
 }
 
-def expr_to_name(e: *Expression): OwnedName {
+def expr_to_name(e: *Expression): name.Owned {
     if is_expr_binary(e) {
         let bin = as_expr_binary(e);
 
@@ -817,9 +767,9 @@ def expr_to_name(e: *Expression): OwnedName {
             &len, "(%.*s)%s(%.*s)", left.len, left.data, op, right.len, right.data
         );
 
-        free_name(&left);
-        free_name(&right);
-        return make_owned_name(len, s);
+        name.free_owned(&left);
+        name.free_owned(&right);
+        return name.make_owned(len, s);
     }
 
     if is_expr_unary(e) {
@@ -831,8 +781,8 @@ def expr_to_name(e: *Expression): OwnedName {
         let len = 0;
         let s = std.l_format_str(&len, "%s(%.*s)", op, addr.len, addr.data);
 
-        free_name(&addr);
-        return make_owned_name(len, s);
+        name.free_owned(&addr);
+        return name.make_owned(len, s);
     }
 
     if is_expr_copy(e) {
@@ -842,8 +792,8 @@ def expr_to_name(e: *Expression): OwnedName {
         let len = 0;
         let s = std.l_format_str(&len, "copy %.*s", addr.len, addr.data);
 
-        free_name(&addr);
-        return make_owned_name(len, s);
+        name.free_owned(&addr);
+        return name.make_owned(len, s);
     }
 
     if is_expr_call(e) {
@@ -861,19 +811,19 @@ def expr_to_name(e: *Expression): OwnedName {
                 str.append(&buf, 2, ", ");
             }
 
-            free_name(&arg_n);
+            name.free_owned(&arg_n);
             i = i + 1;
         }
 
-        let name = addr_to_name(&call.callee);
+        let n = addr_to_name(&call.callee);
         let len = 0;
         let s = std.l_format_str(
-            &len, "%.*s(%s)", name.len, name.data, buf.content
+            &len, "%.*s(%s)", n.len, n.data, buf.content
         );
-        free_name(&name);
+        name.free_owned(&n);
 
         str.free_buf(&buf);
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_expr_gep(e) {
@@ -885,8 +835,8 @@ def expr_to_name(e: *Expression): OwnedName {
             &len, "gep(%.*s, %d)", addr_n.len, addr_n.data, gep.idx
         );
 
-        free_name(&addr_n);
-        return make_owned_name(len, s);
+        name.free_owned(&addr_n);
+        return name.make_owned(len, s);
     }
 
     if is_expr_struct_init(e) {
@@ -904,18 +854,18 @@ def expr_to_name(e: *Expression): OwnedName {
                 str.append(&buf, 2, ", ");
             }
 
-            free_name(&arg_n);
+            name.free_owned(&arg_n);
             i = i + 1;
         }
 
-        let name = init.name;
+        let n= init.name;
         let len = 0;
         let s = std.l_format_str(
-            &len, "%.*s{%s}", name.len, name.data, buf.content
+            &len, "%.*s{%s}", n.len, n.data, buf.content
         );
 
         str.free_buf(&buf);
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_expr_new(e) {
@@ -925,8 +875,8 @@ def expr_to_name(e: *Expression): OwnedName {
         let len = 0;
         let s = std.l_format_str(&len, "new %.*s", addr_n.len, addr_n.data);
 
-        free_name(&addr_n);
-        return make_owned_name(len, s);
+        name.free_owned(&addr_n);
+        return name.make_owned(len, s);
     }
 
     if is_expr_sizeof(e) {
@@ -940,7 +890,7 @@ def expr_to_name(e: *Expression): OwnedName {
         if free_ty_s {
             delete ty_s;
         }
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_expr_bitcast(e) {
@@ -954,23 +904,23 @@ def expr_to_name(e: *Expression): OwnedName {
             &len, "(%.*s as %s)", addr_n.len, addr_n.data, ty_s
         );
 
-        free_name(&addr_n);
+        name.free_owned(&addr_n);
         if free_ty_s {
             delete ty_s;
         }
 
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
-    return make_owned_name(0, null);
+    return name.make_owned(0, null);
 }
 
 type InstDecl struct {
-    name: RefName, // The nametable owns the actual name
+    name: name.Ref, // The nametable owns the actual name
     ty: *ty.Type
 }
 
-def new_inst_decl(meta: MetaData, name: RefName, ty: *ty.Type): Inst {
+def new_inst_decl(meta: MetaData, name: name.Ref, ty: *ty.Type): Inst {
     return Inst {
         kind: MIR_INST_DECL,
         meta: meta,
@@ -1137,7 +1087,7 @@ def is_inst_nop(inst: *Inst): bool {
 //
 // can be one of the following
 // let x: i32:
-//  Decl(RefName, Type),
+//  Decl(name.Ref, Type),
 // x = <expr>:
 //  Assignment(Address, Expr),
 // goto l:
@@ -1162,7 +1112,7 @@ def inst_changes_ip(inst: *Inst): bool {
     return is_inst_jmp(inst) || is_inst_jmpif(inst) || is_inst_return(inst);
 }
 
-def inst_to_name(inst: *Inst): OwnedName {
+def inst_to_name(inst: *Inst): name.Owned {
     if is_inst_decl(inst) {
         let decl = as_inst_decl(inst);
         let ty_s: string = null;
@@ -1181,7 +1131,7 @@ def inst_to_name(inst: *Inst): OwnedName {
             delete ty_s;
         }
 
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_inst_assign(inst) {
@@ -1205,10 +1155,10 @@ def inst_to_name(inst: *Inst): OwnedName {
             delete ty_s;
         }
 
-        free_name(&a_n);
-        free_name(&e_n);
+        name.free_owned(&a_n);
+        name.free_owned(&e_n);
 
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_inst_jmp(inst) {
@@ -1220,7 +1170,7 @@ def inst_to_name(inst: *Inst): OwnedName {
             &len, "jmp %.*s", label.len, label.data
         );
 
-        return make_owned_name(len, s);
+        return name.make_owned(len, s);
     }
 
     if is_inst_jmpif(inst) {
@@ -1241,22 +1191,22 @@ def inst_to_name(inst: *Inst): OwnedName {
             else_label.data
         );
 
-        free_name(&condition);
-        return make_owned_name(len, s);
+        name.free_owned(&condition);
+        return name.make_owned(len, s);
     }
 
     if is_inst_return(inst) {
         let ret = as_inst_return(inst);
         if is_addr_empty(&ret.value) {
-            return make_copied_name(6, "return");
+            return name.make_copied(6, "return");
         }
 
         let a_n = addr_to_name(&ret.value);
         let len = 0;
         let s = std.l_format_str(&len, "return %.*s", a_n.len, a_n.data);
 
-        free_name(&a_n);
-        return make_owned_name(len, s);
+        name.free_owned(&a_n);
+        return name.make_owned(len, s);
     }
 
     if is_inst_delete(inst) {
@@ -1266,15 +1216,15 @@ def inst_to_name(inst: *Inst): OwnedName {
         let len = 0;
         let s = std.l_format_str(&len, "delete %.*s", a_n.len, a_n.data);
 
-        free_name(&a_n);
-        return make_owned_name(len, s);
+        name.free_owned(&a_n);
+        return name.make_owned(len, s);
     }
 
     if is_inst_nop(inst) {
-        return make_copied_name(3, "nop");
+        return name.make_copied(3, "nop");
     }
 
-    return make_owned_name(0, null);
+    return name.make_owned(0, null);
 }
 
 def free_inst(inst: *Inst): void {
@@ -1299,7 +1249,7 @@ def free_inst(inst: *Inst): void {
 }
 
 type BlockMap struct {
-    blocks: vmap.Map, // vmap.Map<RefName, BasicBlock>
+    blocks: vmap.Map, // vmap.Map<name.Ref, BasicBlock>
     decls: vec.Vec    // vec.Vec<Inst>
 }
 
@@ -1310,13 +1260,13 @@ def empty_block_map(): BlockMap {
     };
 }
 
-def create_block_map(func_name: RefName): BlockMap {
+def create_block_map(func_name: name.Ref): BlockMap {
     let bm = BlockMap {
         blocks: vmap.create(sizeof BasicBlock),
         decls: vec.create(sizeof Inst)
     };
 
-    let name = make_copied_name(func_name.len, func_name.data);
+    let name = name.make_copied(func_name.len, func_name.data);
     let bb = create_bb(create_label(name));
 
     bm_push_block(&bm, &bb);
@@ -1365,7 +1315,7 @@ def bm_push_new_block(bm: *BlockMap): void {
     let label_len = 0;
     // TODO(#79): this id is not unique across modules
     let label = std.l_format_str(&label_len, ".block%d", vmap.len(&bm.blocks));
-    let new_bb = create_bb(create_label(make_owned_name(label_len, label)));
+    let new_bb = create_bb(create_label(name.make_owned(label_len, label)));
     bm_push_block(bm, &new_bb);
 }
 
@@ -1414,15 +1364,15 @@ def bm_push_instr(bm: *BlockMap, inst: *Inst): void {
 // dump BlockMap to stdout for debug purposes
 def bm_dump(bm: *BlockMap): void {
     let first_bb = vmap.get_ptr_idx(&bm.blocks, 0) as *BasicBlock;
-    let name = label_name(&first_bb.label);
-    io.printf("%.*s:\n", name.len, name.data);
+    let n = label_name(&first_bb.label);
+    io.printf("%.*s:\n", n.len, n.data);
 
     let i = 0;
     while i < bm.decls.len {
         let decl = vec.get_ptr(&bm.decls, i) as *Inst;
         let n = inst_to_name(decl);
         io.printf("  %.*s\n", n.len, n.data);
-        free_name(&n);
+        name.free_owned(&n);
         i =  i + 1;
     }
 
@@ -1431,7 +1381,7 @@ def bm_dump(bm: *BlockMap): void {
         let bb = vmap.get_ptr_idx(&bm.blocks, i) as *BasicBlock;
 
         let bb_name = label_name(&bb.label);
-        if bb_name.data != name.data {
+        if bb_name.data != n.data {
             io.printf("label: %.*s:\n", bb_name.len, bb_name.data);
         }
 
@@ -1440,13 +1390,13 @@ def bm_dump(bm: *BlockMap): void {
             let inst = bb_get_instr(bb, j);
             let n = inst_to_name(inst);
             io.printf("  %.*s\n", n.len, n.data);
-            free_name(&n);
+            name.free_owned(&n);
             j = j + 1;
         }
 
         let n = inst_to_name(&bb.terminator);
         io.printf("  term: %.*s\n", n.len, n.data);
-        free_name(&n);
+        name.free_owned(&n);
 
         i = i + 1;
     }

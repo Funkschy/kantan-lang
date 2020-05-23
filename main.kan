@@ -61,13 +61,15 @@ def main(argc: i32, argv: *string): i32 {
         return -3;
     }
 
-    let mm = mod.map_with_cap(reader.num_files(&file_map));
+    let project_root = file_map.proj_root.inner;
+    let mm = mod.map_with_cap(project_root, reader.num_files(&file_map));
 
     let i = 0;
     while i < reader.num_files(&file_map) {
         let src = reader.get_ptr_by_idx(&file_map, i);
         let p = parser.create(src);
         let curr_mod = parser.parse(&p);
+        curr_mod.name = mod.mangle_mod_name(curr_mod, project_root);
 
         let num_errs = parser.num_errs(&p);
         num_total_errs = num_total_errs + num_errs;
@@ -109,7 +111,7 @@ def main(argc: i32, argv: *string): i32 {
         transform.compile_all(
             mirc.CompilationData {
                 mods: tychk_res.mods,
-                proj_root: file_map.proj_root.inner,
+                proj_root: project_root,
                 global_types: tychk_res.globals.bindings
             },
             tychk_res.types
