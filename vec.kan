@@ -31,6 +31,16 @@ def init_zero(v: *Vec): void {
     std.memset(v.elements, 0, v.elem_size * v.cap);
 }
 
+def set(v: *Vec, i: i32, elem: *void): void {
+    if i >= 0 && i < v.cap {
+        std.memcpy(v.elements + i * v.elem_size, elem, v.elem_size);
+        // assume all values in between to be initialized
+        if i >= v.len {
+            v.len = i + 1;
+        }
+    }
+}
+
 def get(v: *Vec, i: i32, ptr: *void): bool {
     if i >= 0 && i < v.len {
         std.memcpy(ptr, v.elements + i * v.elem_size, v.elem_size);
