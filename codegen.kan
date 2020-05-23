@@ -1,17 +1,22 @@
 import "io";
+import "ty";
 import "mod";
 import "mir";
 import "map";
+import "std";
 import "llvm";
+import "ptrvec";
 
 type ModuleCompiler struct {
     ctx: *llvm.Context,
     irmod: *mir.Module,
     llmod: *llvm.Module,
-    builder: *llvm.Builder
+    builder: *llvm.Builder,
+    structs: map.Map, // map.Map<mir.RefName, *llvm.Type>
+    allocated_strings: ptrvec.Vec // ptrvec.Vec<string>
 }
 
-def compile_mir_mod(irmod: *mir.Module): void {
+def create_compiler(irmod: *mir.Module): ModuleCompiler {
     // since this can run in parallel, but llvm.Context is not threadsafe,
     // we need a separate context per module
     let ctx = llvm.context_create();
@@ -21,19 +26,45 @@ def compile_mir_mod(irmod: *mir.Module): void {
 
     let builder = llvm.create_builder_in_context(ctx);
 
-    let compiler = ModuleCompiler {
-        ctx: ctx, irmod: irmod, llmod: llmod, builder: builder
+    return ModuleCompiler {
+        ctx: ctx,
+        irmod: irmod,
+        llmod: llmod,
+        builder: builder,
+        structs: map.create(),
+        allocated_strings: ptrvec.create()
     };
+}
+
+def free_compiler(c: *ModuleCompiler): void {
+    llvm.dispose_builder(c.builder);
+    llvm.dispose_module(c.llmod);
+    llvm.context_dispose(c.ctx);
+
+    let i = 0;
+    while i < c.allocated_strings.len {
+        delete ptrvec.get(&c.allocated_strings, i);
+        i = i + 1;
+    }
+
+    map.free_m(&c.structs);
+    ptrvec.free_v(&c.allocated_strings);
+}
+
+def compile_mir_mod(irmod: *mir.Module): void {
+    let compiler = create_compiler(irmod);
 
     add_forward_declarations(&compiler);
 
     io.printf("--- llvm ---\n");
-    llvm.dump_module(llmod);
+    llvm.dump_module(compiler.llmod);
     io.printf("\n");
 
-    llvm.dispose_builder(builder);
-    llvm.dispose_module(llmod);
-    llvm.context_dispose(ctx);
+    free_compiler(&compiler);
+}
+
+def push_allocated_string(c: *ModuleCompiler, s: string): void {
+    ptrvec.push_ptr(&c.allocated_strings, s as *void);
 }
 
 def add_forward_declarations(c: *ModuleCompiler): void {
@@ -42,8 +73,16 @@ def add_forward_declarations(c: *ModuleCompiler): void {
     let item = map.iter_next(&s_iter);
     while item != null {
         let s = item.value as *mir.Struct;
-        llvm.struct_create_named(c.ctx, s.name.data);
+        lookup_or_declare_struct(c, s.ty);
         item = map.iter_next(&s_iter);
+    }
+
+    // add globals
+    let g_iter = map.iter(&c.irmod.globals);
+    let item = map.iter_next(&g_iter);
+    while item != null {
+        let gc = item.value as *mir.GlobalConst;
+        item = map.iter_next(&g_iter);
     }
 
     // add function declarations
@@ -54,11 +93,33 @@ def add_forward_declarations(c: *ModuleCompiler): void {
         item = map.iter_next(&f_iter);
     }
 
-    // add globals
-    let g_iter = map.iter(&c.irmod.globals);
-    let item = map.iter_next(&g_iter);
-    while item != null {
-        let gc = item.value as *mir.GlobalConst;
-        item = map.iter_next(&g_iter);
+}
+
+def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+    dbg.assert(ty.is_struct(t), "non struct type passed");
+    let s = ty.as_struct(t);
+
+    let key = map.key_from_ident(&s.name);
+    let struct_decl = map.get(&c.structs, key) as *llvm.Type;
+
+    if struct_decl == null {
+        let name = std.strndup(ident.start(&s.name), ident.len(&s.name));
+        push_allocated_string(c, name);
+        struct_decl = llvm.struct_create_named(c.ctx, name);
+        map.insert(&c.structs, key, struct_decl as *void);
     }
+
+    return struct_decl;
+}
+
+def convert_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+    if ty.is_i32(t) {
+        return llvm.int32_type_in_context(c.ctx);
+    }
+
+    if ty.is_struct(t) {
+        return lookup_or_declare_struct(c, t);
+    }
+
+    return null;
 }

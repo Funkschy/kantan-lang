@@ -15,7 +15,7 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         let mir_compiler = mirc.create_mirc(m, &data);
         let mir_mod = mirc.compile(&mir_compiler);
 
-        io.printf("--- mir ---\n");
+        io.printf("--- mir %s ---\n", mir_mod.name.data);
         mir.dump_module(&mir_mod);
         io.printf("\n");
 

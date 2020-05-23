@@ -103,7 +103,18 @@ def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
     let mir_struct = lookup_struct(c, mir.ref_name(name));
 
     if mir_struct == null {
-        let is_extern = ty.as_struct(t).declared_in != c.mod.idx;
+        let s_ty = ty.as_struct(t);
+
+        let i = 0;
+        while i < ty.num_fields(s_ty) {
+            let field = ty.field_at(s_ty, i);
+            if ty.is_struct(field.ty) {
+                lookup_or_declare_struct(c, field.ty);
+            }
+            i = i + 1;
+        }
+
+        let is_extern = s_ty.declared_in != c.mod.idx;
         mir_struct = new mir.create_struct(t, name, is_extern);
         add_struct(c, mir_struct);
     } else {

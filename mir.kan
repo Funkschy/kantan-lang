@@ -94,7 +94,7 @@ def dump_module(m: *Module): void {
         }
 
         let s_ty = ty.as_struct(s.ty);
-        io.printf("%s%.*s { ", s_extern, ident.len(&s_ty.name), ident.start(&s_ty.name));
+        io.printf("%s%.*s { ", s_extern, s.name.len, s.name.data);
 
         let i = 0;
         while i < ty.num_fields(s_ty) {
