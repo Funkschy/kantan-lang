@@ -3,7 +3,8 @@ import requests
 import re
 
 links = [
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/core.rs'
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/core.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/linker.rs'
 ]
 
 
@@ -63,6 +64,7 @@ whitelist = set([
     'LLVMFloatTypeInContext',
     'LLVMFloatTypeInContext',
     'LLVMFunctionType',
+    'LLVMGetNamedFunction',
     'LLVMGetParam',
     'LLVMInt1TypeInContext',
     'LLVMInt32TypeInContext',
@@ -83,6 +85,8 @@ whitelist = set([
     'LLVMTypeOf',
     'LLVMVerifyModule',
     'LLVMVoidTypeInContext',
+
+    'LLVMLinkModules2'
 ])
 
 
@@ -188,9 +192,12 @@ def parse_decl(content):
 
 def parse_block(content):
     start = content.find('extern "C" {')
-    docstart = content[:start].rfind('//')
 
-    doc = content[docstart+3:start-1]
+    if content[start-2:start] == '\n\n':
+        doc = ''
+    else:
+        docstart = content[:start].rfind('//')
+        doc = content[docstart+3:start-1]
 
     content = content[start:]
     content = consume(content, 'extern "C" {')
@@ -292,7 +299,9 @@ def transform_doc(doc):
 
 
 def generate_kantan(block):
-    code = f'// {block["doc"]}\n'
+    code = ''
+    if block['doc'] != '':
+        code = f'// {block["doc"]}\n'
 
     skipped = []
 
@@ -362,7 +371,12 @@ def generate_kantan(block):
         if decl['return'] == '':
             code += f'    {c_name}({args});'
         else:
-            code += f'    return {c_name}({args});'
+            (_, _, c_to_kantan, _) = map_typename(decl['return'])
+            if c_to_kantan is not None:
+                code += f'    return {c_to_kantan}({c_name}({args}));'
+            else:
+                code += f'    return {c_name}({args});'
+
         code += '\n}\n'
 
     print(code)
@@ -383,7 +397,7 @@ def translate(content):
     skipped = []
 
     for b in blocks:
-        if 'doc' in b:
+        if 'decls' in b:
             skipped += generate_kantan(b)
             print()
             function_count += len(b['decls'])

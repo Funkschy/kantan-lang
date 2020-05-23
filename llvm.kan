@@ -60,6 +60,8 @@ extern def LLVMDumpModule(m: *Module): void;
 
 extern def LLVMAddFunction(m: *Module, name: string, function_ty: *Type): *Value;
 
+extern def LLVMGetNamedFunction(m: *Module, name: string): *Value;
+
 
 def module_create_with_name_in_context(module_id: string, c: *Context): *Module {
     return LLVMModuleCreateWithNameInContext(module_id, c);
@@ -80,6 +82,10 @@ def dump_module(m: *Module): void {
 
 def add_function(m: *Module, name: string, function_ty: *Type): *Value {
     return LLVMAddFunction(m, name, function_ty);
+}
+
+def get_named_function(m: *Module, name: string): *Value {
+    return LLVMGetNamedFunction(m, name);
 }
 
 
@@ -458,4 +464,17 @@ def build_f_cmp(arg1: *Builder, op: i32, lhs: *Value, rhs: *Value, name: string)
 
 def build_call(arg1: *Builder, fn: *Value, args: **Value, num_args: i32, name: string): *Value {
     return LLVMBuildCall(arg1, fn, args, num_args, name);
+}
+
+
+// Linker
+
+extern def LLVMLinkModules2(dest: *Module, src: *Module): i32;
+
+// Link the source module into the destination module.
+//
+// Destroys the source module, returns true on error. Use the diagnostic
+// handler to get any diagnostic message.
+def link_modules2(dest: *Module, src: *Module): bool {
+    return std.int_to_bool(LLVMLinkModules2(dest, src));
 }
