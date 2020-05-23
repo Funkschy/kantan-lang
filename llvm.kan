@@ -54,6 +54,8 @@ extern def LLVMModuleCreateWithNameInContext(module_id: string, c: *Context): *M
 
 extern def LLVMDisposeModule(m: *Module): void;
 
+extern def LLVMSetSourceFileName(m: *Module, name: string, len: *void): void;
+
 extern def LLVMDumpModule(m: *Module): void;
 
 extern def LLVMAddFunction(m: *Module, name: string, function_ty: *Type): *Value;
@@ -65,6 +67,11 @@ def module_create_with_name_in_context(module_id: string, c: *Context): *Module 
 
 def dispose_module(m: *Module): void {
     LLVMDisposeModule(m);
+}
+
+// Set the original source file name of a module to a string Name with length Len.
+def set_source_file_name(m: *Module, name: string, len: i32): void {
+    LLVMSetSourceFileName(m, name, std.int_to_ptr(len));
 }
 
 def dump_module(m: *Module): void {

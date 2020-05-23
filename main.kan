@@ -20,10 +20,12 @@ import "path";
 
 import "mirc";
 import "transform";
+import "llvm"; // needed for shutdown
 
 def main(argc: i32, argv: *string): i32 {
     if argc <= 1 {
         io.printf("ERROR: no input files\n");
+        llvm.shutdown();
         return - 1;
     }
 
@@ -43,6 +45,7 @@ def main(argc: i32, argv: *string): i32 {
 
         path.free_pb(&cwd_buf);
         reader.free_fm(&file_map);
+        llvm.shutdown();
         return -2;
     }
 
@@ -54,6 +57,7 @@ def main(argc: i32, argv: *string): i32 {
 
         path.free_pb(&cwd_buf);
         reader.free_fm(&file_map);
+        llvm.shutdown();
         return -3;
     }
 
@@ -121,9 +125,11 @@ def main(argc: i32, argv: *string): i32 {
 
     if num_total_errs > 0 {
         io.printf("%d compile errors found\n", num_total_errs);
+        llvm.shutdown();
         return 1;
     }
 
+    llvm.shutdown();
     return 0;
 }
 

@@ -74,6 +74,7 @@ whitelist = set([
     'LLVMSetGlobalConstant',
     'LLVMSetInitializer',
     'LLVMSetLinkage',
+    'LLVMSetSourceFileName',
     'LLVMSetUnnamedAddress',
     'LLVMShutdown',
     'LLVMSizeOf',

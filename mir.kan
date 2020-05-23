@@ -8,6 +8,7 @@ import "vec";
 import "str";
 import "map";
 import "dbg";
+import "mod";
 import "vmap";
 import "span";
 import "ident";
@@ -17,16 +18,26 @@ extern def mir_binary2str(kind: i32): string;
 extern def mir_unary2str(kind: i32): string;
 
 type Module struct {
+    name: OwnedName,
     globals: map.Map, // map.Map<RefName, *GlobalConst>
     functions: map.Map, // map.Map<RefName, *Func>
-    structs: map.Map // map.Map<RefName, *Struct>
+    structs: map.Map, // map.Map<RefName, *Struct>
+    actual: *mod.Module
 }
 
-def create_mod(globals: map.Map, funcs: map.Map, structs: map.Map): Module {
+def create_mod(
+    name: OwnedName,
+    globals: map.Map,
+    funcs: map.Map,
+    structs: map.Map,
+    actual: *mod.Module
+): Module {
     return Module {
+        name: name,
         globals: globals,
         functions: funcs,
-        structs: structs
+        structs: structs,
+        actual: actual
     };
 }
 
@@ -67,6 +78,8 @@ def free_mod(m: *Module): void {
     map.free_m(&m.functions);
     map.free_m(&m.structs);
     map.free_m(&m.globals);
+
+    free_name(&m.name);
 }
 
 def dump_module(m: *Module): void {
@@ -319,6 +332,9 @@ type RefName struct {
 }
 
 def make_owned_name(len: i32, data: string): OwnedName {
+    if data != null {
+        dbg.assert(*(data + len) == '\0', "owned names should be null terminated");
+    }
     return OwnedName { len: len, data: data };
 }
 

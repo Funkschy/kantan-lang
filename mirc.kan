@@ -66,7 +66,8 @@ def compile(c: *MirCompiler): mir.Module {
 
     nt.close_scope(&c.names);
 
-    return mir.create_mod(c.globals, c.functions, c.structs);
+    let name = mangle_mod_name(c);
+    return mir.create_mod(name, c.globals, c.functions, c.structs, c.mod);
 }
 
 def add_function(c: *MirCompiler, f: *mir.Func): void {
@@ -772,6 +773,13 @@ def mangle_struct_name(c: *MirCompiler, t: *ty.Type): mir.OwnedName {
     let declared_in = mod_at(c, s_ty.declared_in);
 
     return mangle_name(c, name, declared_in);
+}
+
+def mangle_mod_name(c: *MirCompiler): mir.OwnedName {
+    let name = s_mangle_name(c, 0, null, c.mod);
+    name.len = name.len - 1;
+    *(name.data + name.len) = '\0';
+    return name;
 }
 
 def mangle_name(c: *MirCompiler, name: *ident.Ident, declared_in: *mod.Module): mir.OwnedName {

@@ -1,0 +1,64 @@
+import "io";
+import "mod";
+import "mir";
+import "map";
+import "llvm";
+
+type ModuleCompiler struct {
+    ctx: *llvm.Context,
+    irmod: *mir.Module,
+    llmod: *llvm.Module,
+    builder: *llvm.Builder
+}
+
+def compile_mir_mod(irmod: *mir.Module): void {
+    // since this can run in parallel, but llvm.Context is not threadsafe,
+    // we need a separate context per module
+    let ctx = llvm.context_create();
+    let llmod = llvm.module_create_with_name_in_context(irmod.name.data, ctx);
+    let path = mod.get_path(irmod.actual);
+    llvm.set_source_file_name(llmod, path.inner, path.len);
+
+    let builder = llvm.create_builder_in_context(ctx);
+
+    let compiler = ModuleCompiler {
+        ctx: ctx, irmod: irmod, llmod: llmod, builder: builder
+    };
+
+    add_forward_declarations(&compiler);
+
+    io.printf("--- llvm ---\n");
+    llvm.dump_module(llmod);
+    io.printf("\n");
+
+    llvm.dispose_builder(builder);
+    llvm.dispose_module(llmod);
+    llvm.context_dispose(ctx);
+}
+
+def add_forward_declarations(c: *ModuleCompiler): void {
+    // add struct declarations
+    let s_iter = map.iter(&c.irmod.structs);
+    let item = map.iter_next(&s_iter);
+    while item != null {
+        let s = item.value as *mir.Struct;
+        llvm.struct_create_named(c.ctx, s.name.data);
+        item = map.iter_next(&s_iter);
+    }
+
+    // add function declarations
+    let f_iter = map.iter(&c.irmod.functions);
+    let item = map.iter_next(&f_iter);
+    while item != null {
+        let f = item.value as *mir.Func;
+        item = map.iter_next(&f_iter);
+    }
+
+    // add globals
+    let g_iter = map.iter(&c.irmod.globals);
+    let item = map.iter_next(&g_iter);
+    while item != null {
+        let gc = item.value as *mir.GlobalConst;
+        item = map.iter_next(&g_iter);
+    }
+}

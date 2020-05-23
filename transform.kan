@@ -2,12 +2,10 @@ import "io";
 import "mod";
 import "mir";
 import "mirc";
-import "llvm";
 import "ptrvec";
+import "codegen";
 
 def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
-    let ctx = llvm.context_create();
-
     // TODO(#64): the mir compilation can be done in parallel
     let i = 0;
     let n = mod.num_mods(data.mods);
@@ -17,15 +15,15 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         let mir_compiler = mirc.create_mirc(m, &data);
         let mir_mod = mirc.compile(&mir_compiler);
 
+        io.printf("--- mir ---\n");
         mir.dump_module(&mir_mod);
         io.printf("\n");
+
+        codegen.compile_mir_mod(&mir_mod);
 
         mirc.free_compiler(&mir_compiler);
         mir.free_mod(&mir_mod);
 
         i = i + 1;
     }
-
-    llvm.context_dispose(ctx);
-    llvm.shutdown();
 }
