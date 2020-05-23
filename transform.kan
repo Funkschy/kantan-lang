@@ -1,14 +1,20 @@
+#include "std.h"
+
 import "io";
 import "mod";
 import "mir";
+import "vec";
 import "mirc";
+import "llvm";
 import "ptrvec";
 import "codegen";
 
 def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
+    let n = mod.num_mods(data.mods);
+    let llvm_contexts = vec.with_cap(sizeof codegen.ModuleContext, n);
+
     // TODO(#64): the mir compilation can be done in parallel
     let i = 0;
-    let n = mod.num_mods(data.mods);
     while i < n {
         let m = mod.get_mod(data.mods, i);
 
@@ -19,11 +25,49 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         mir.dump_module(&mir_mod);
         io.printf("\n");
 
-        codegen.compile_mir_mod(&mir_mod);
+        let llvm_context = codegen.compile_mir_mod(&mir_mod);
+        vec.set(&llvm_contexts, i, &llvm_context as *void);
+
+        io.printf("--- llvm ---\n");
+        llvm.dump_module(llvm_context.llmod);
+        io.printf("\n");
 
         mirc.free_compiler(&mir_compiler);
         mir.free_mod(&mir_mod);
 
         i = i + 1;
     }
+
+    // Link different modules together
+    let base_ctx = llvm.context_create();
+    let base_mod = llvm.module_create_with_name_in_context("base", base_ctx);
+
+    let error = false;
+
+    i = 0;
+    while i < n {
+        let mod_ctx = vec.get_ptr(&llvm_contexts, i) as *codegen.ModuleContext;
+        error = error || llvm.link_modules2(base_mod, mod_ctx.llmod);
+        i = i + 1;
+    }
+
+    if error {
+        io.printf("Could not link modules\n");
+    }
+
+    io.printf("--- final module ---\n");
+    llvm.dump_module(base_mod);
+
+    // free the linked module
+    llvm.dispose_module(base_mod);
+    llvm.context_dispose(base_ctx);
+
+    // free all of the temporary contexts
+    i = 0;
+    while i < n {
+        let mod_ctx = vec.get_ptr(&llvm_contexts, i) as *codegen.ModuleContext;
+        llvm.context_dispose(mod_ctx.ctx);
+        i = i + 1;
+    }
+    vec.free_v(&llvm_contexts);
 }
