@@ -236,7 +236,8 @@ def translate_addr(
     a: *mir.Address
 ): *llvm.Value {
     if mir.is_addr_name(a) {
-
+        let addr_name = mir.as_addr_name(a);
+        return variable_by_name(curr_func, addr_name.value);
     }
 
     if mir.is_addr_const(a) {
@@ -293,7 +294,8 @@ def compile_functions(c: *ModuleCompiler): void {
 type FunctionData struct {
     llfunc: *llvm.Value,
     irfunc: *mir.Func,
-    blocks: map.Map // map.Map<RefName, *llvm.BasicBlock>
+    blocks: map.Map, // map.Map<RefName, *llvm.BasicBlock>
+    locals: map.Map // map.Map<Refname, *llvm.Value>
 }
 
 def create_function_data(
@@ -323,19 +325,25 @@ def create_function_data(
         i = i + 1;
     }
 
+    let num_locals = irfunc.blocks.decls.len;
+    let locals = map.with_cap(num_locals);
+
     // compile variable declarations for the entire function
     llvm.position_builder_at_end(c.builder, entry_block);
     i = 0;
-    while i < irfunc.blocks.decls.len {
+    while i < num_locals {
         let inst_decl = mir.bm_decl_at(&irfunc.blocks, i);
         dbg.assert(mir.is_inst_decl(&inst_decl), "expected a declaration");
 
         let decl = mir.as_inst_decl(&inst_decl);
         let ty = translate_type(c, decl.ty);
+
         // taking the name.data should be safe, since this is name.Ref, points
         // to the same string as the corresponding name.Owned inside the
         // NameTable, which has to be null terminated, since it's a name.Owned
-        llvm.build_alloca(c.builder, ty, decl.name.data);
+        let value_ptr = llvm.build_alloca(c.builder, ty, decl.name.data);
+        let key = map.create_key(decl.name.len, decl.name.data);
+        map.insert(&locals, key, value_ptr as *void);
 
         i = i + 1;
     }
@@ -343,18 +351,31 @@ def create_function_data(
     return FunctionData {
         llfunc: llfunc,
         irfunc: irfunc,
-        blocks: blocks
+        blocks: blocks,
+        locals: locals
     };
 }
 
 def free_function_data(f: *FunctionData): void {
     map.free_m(&f.blocks);
+    map.free_m(&f.locals);
 }
 
 def bb_by_label(f: *FunctionData, label: *mir.Label): *llvm.BasicBlock {
     let bb_name = mir.label_name(label);
     let key = map.create_key(bb_name.len, bb_name.data);
     return map.get(&f.blocks, key) as *llvm.BasicBlock;
+}
+
+def variable_by_name(f: *FunctionData, var_name: name.Ref): *llvm.Value {
+    let key = map.create_key(var_name.len, var_name.data);
+    let value = map.get(&f.locals, key) as *llvm.Value;
+    return value;
+}
+
+def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvm.Value): void {
+    let key = map.create_key(var_name.len, var_name.data);
+    map.insert(&f.locals, key, value as *void);
 }
 
 def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
@@ -398,6 +419,38 @@ def compile_bb(c: *ModuleCompiler, func: *FunctionData, bb: *mir.BasicBlock): vo
 }
 
 def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void {
+    if mir.is_inst_assign(inst) {
+        let assign = mir.as_inst_assign(inst);
+
+        let value = compile_expr(c, func, &assign.value);
+        dbg.assert(value != null, "value was null");
+
+        if mir.is_addr_empty(&assign.dest) {
+            // Only void calls generate empty addresses. The typechecker does
+            // not allow them to be assigned or used in any way, but the mir
+            // generates assign instructions for every expression, so we return
+            // here, to make sure that no actual assign is generated for the
+            // result of a void function call
+            return;
+        }
+
+        let storage = translate_addr(c, func, &assign.dest);
+
+        // this is only a temporary variable, that does not need stack space
+        if storage == null {
+            dbg.assert(
+                mir.is_addr_name(&assign.dest), "names are the only nullable address"
+            );
+            let addr_name = mir.as_addr_name(&assign.dest);
+            add_variable(func, addr_name.value, value);
+            return;
+        }
+
+        // this is a declared variable
+        llvm.build_store(c.builder, value, storage);
+        return;
+    }
+
     if mir.is_inst_jmp(inst) {
         let jmp = mir.as_inst_jmp(inst);
         let target_bb = bb_by_label(func, &jmp.target);
@@ -429,4 +482,13 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
     }
 
     // insert abort at end
+}
+
+def compile_expr(c: *ModuleCompiler, func: *FunctionData, e: *mir.Expression): *llvm.Value {
+    if mir.is_expr_copy(e) {
+        let copy = mir.as_expr_copy(e);
+        return translate_addr(c, func, &copy.addr);
+    }
+
+    return null;
 }
