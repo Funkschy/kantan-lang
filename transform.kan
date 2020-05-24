@@ -1,5 +1,7 @@
 #include "std.h"
 
+#define USE_LLVM 1
+
 import "io";
 import "mod";
 import "mir";
@@ -11,7 +13,9 @@ import "codegen";
 
 def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
     let n = mod.num_mods(data.mods);
+#if USE_LLVM
     let llvm_contexts = vec.with_cap(sizeof codegen.ModuleContext, n);
+#endif
 
     // TODO(#64): the mir compilation can be done in parallel
     let i = 0;
@@ -25,12 +29,14 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         mir.dump_module(&mir_mod);
         io.printf("\n");
 
+#if USE_LLVM
         let llvm_context = codegen.compile_mir_mod(&mir_mod);
         vec.set(&llvm_contexts, i, &llvm_context as *void);
 
         io.printf("--- llvm ---\n");
         llvm.dump_module(llvm_context.llmod);
         io.printf("\n");
+#endif
 
         mirc.free_compiler(&mir_compiler);
         mir.free_mod(&mir_mod);
@@ -38,6 +44,7 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         i = i + 1;
     }
 
+#if USE_LLVM
     // Link different modules together
     let base_ctx = llvm.context_create();
     let base_mod = llvm.module_create_with_name_in_context("base", base_ctx);
@@ -70,4 +77,5 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         i = i + 1;
     }
     vec.free_v(&llvm_contexts);
+#endif
 }
