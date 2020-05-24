@@ -8,6 +8,7 @@ import "mir";
 import "map";
 import "std";
 import "llvm";
+import "name";
 import "ident";
 import "ptrvec";
 

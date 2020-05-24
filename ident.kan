@@ -33,12 +33,12 @@ def char_at(i: *Ident, pos: i32): char {
 }
 
 def eq_lit(id: *Ident, lit: string): bool {
-    let len = ident.len(id);
+    let len = len(id);
     if len != std.strlen(lit) {
         return false;
     }
 
-    return std.strncmp(ident.start(id), lit, len) == 0;
+    return std.strncmp(start(id), lit, len) == 0;
 }
 
 def eq_value(first: *Ident, second: *Ident): bool {
