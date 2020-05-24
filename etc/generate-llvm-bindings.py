@@ -47,6 +47,7 @@ whitelist = set([
     'LLVMBuildStore',
     'LLVMBuildStructGEP',
     'LLVMBuildSub',
+    'LLVMConstInt',
     'LLVMConstIntOfString',
     'LLVMConstNull',
     'LLVMConstRealOfString',
@@ -235,6 +236,7 @@ typemap = {
     '**::libc::c_char': ('*string', '*string', None, None),
 
     '::libc::size_t': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
+    '::libc::c_ulonglong': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
     '*mut ::libc::size_t': ('*i32', '*i32', None, None),
     '::libc::c_uint': ('i32', 'i32', None, None),
     '*mut ::libc::c_uint': ('*i32', '*i32', None, None),
