@@ -660,12 +660,27 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     }
 
     if ast.is_ident_expr(e) {
-        let ident = &ast.as_ident_expr(e).ident;
-        let ref_name = name_from_ident(ident);
+        let id = &ast.as_ident_expr(e).ident;
+        let ref_name = name_from_ident(id);
         let mangled = name.empty();
         if nt.lookup(&c.names, ref_name, &mangled) {
             *out = mir.make_addr_name(mangled, e.ty);
             return true;
+        }
+
+        // replace boolean literals with constant values
+        if ty.is_bool(e.ty) {
+            if ident.eq_lit(id, "true") {
+                let lit = "1";
+                *out = mir.make_addr_const_strings(e.ty, lit, lit + 1);
+                return true;
+            }
+
+            if ident.eq_lit(id, "false") {
+                let lit = "0";
+                *out = mir.make_addr_const_strings(e.ty, lit, lit + 1);
+                return true;
+            }
         }
 
         dbg.assert_fmt(false, "undefined: %.*s", ref_name.len, ref_name.data);

@@ -353,20 +353,29 @@ def is_addr_name(a: *Address): bool {
 }
 
 type AddressConst struct {
-    span: span.Span
+    start: string,
+    end: string
 }
 
 def make_addr_const(ty: *ty.Type, s: span.Span): Address {
-    return create_addr(MIR_ADDR_CONST, ty, s.start as *void, s.end as *void);
+    return make_addr_const_strings(ty, s.start, s.end);
+}
+
+def make_addr_const_strings(ty: *ty.Type, start: string, end: string): Address {
+    dbg.assert(start < end, "start was larger than end");
+    return create_addr(MIR_ADDR_CONST, ty, start as *void, end as *void);
 }
 
 def as_addr_const(a: *Address): AddressConst {
-    let s = span.create(a.data_hi as string, a.data_lo as string);
-    return AddressConst { span: s };
+    return AddressConst { start: a.data_hi as string, end: a.data_lo as string };
 }
 
 def is_addr_const(a: *Address): bool {
     return a.kind == MIR_ADDR_CONST;
+}
+
+def const_len(c: *AddressConst): i32 {
+    return c.end - c.start;
 }
 
 type AddressGlobal struct {
@@ -471,7 +480,7 @@ def addr_to_name(a: *Address): name.Owned {
         let const = as_addr_const(a);
         let len = 0;
         let s = std.l_format_str(
-            &len, "const %.*s", span.len(const.span), const.span.start
+            &len, "const %.*s", const_len(&const), const.start
         );
         return name.make_owned(len, s);
     }
@@ -1298,12 +1307,20 @@ def free_block_map(bm: *BlockMap): void {
     vec.free_v(&bm.decls);
 }
 
+def bm_num_blocks(bm: *BlockMap): i32 {
+    return vmap.len(&bm.blocks);
+}
+
 def bm_get_bb_ptr(bm: *BlockMap, idx: i32): *BasicBlock {
     return vmap.get_ptr_idx(&bm.blocks, idx) as *BasicBlock;
 }
 
 def bm_last_bb_ptr(bm: *BlockMap): *BasicBlock {
     return bm_get_bb_ptr(bm, vmap.len(&bm.blocks) - 1);
+}
+
+def bm_decl_at(bm: *BlockMap, idx: i32): Inst {
+    return *(vec.get_ptr(&bm.decls, idx) as *Inst);
 }
 
 def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {

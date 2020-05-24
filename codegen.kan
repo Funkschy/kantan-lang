@@ -124,20 +124,19 @@ def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         while i < num_params {
             let param = ty.param_at(f_ty, i);
 
-            let param_ty = convert_type(c, param.ty);
+            let param_ty = translate_type(c, param.ty);
             ptrvec.push_ptr(&params, param_ty as *void);
 
             i = i + 1;
         }
 
-        let ret_ty = convert_type(c, f_ty.ret);
+        let ret_ty = translate_type(c, f_ty.ret);
 
         let param_types = params.elements as **llvm.Type;
         func_decl = llvm.function_type(ret_ty, param_types, num_params, false);
         ptrvec.free_v(&params);
 
         let name = f_ty.mangled_name.data;
-        io.printf("declaring %s\n", name);
         llvm.add_function(c.context.llmod, name, func_decl);
         map.insert(&c.functions, key, func_decl as *void);
     }
@@ -164,7 +163,7 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         while i < num_fields {
             let field = ty.field_at(s_ty, i);
 
-            let field_ty = convert_type(c, field.ty);
+            let field_ty = translate_type(c, field.ty);
             ptrvec.push_ptr(&fields, field_ty as *void);
 
             i = i + 1;
@@ -178,7 +177,7 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     return struct_decl;
 }
 
-def convert_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     if ty.is_i32(t) {
         return llvm.int32_type_in_context(c.context.ctx);
     }
@@ -214,7 +213,7 @@ def convert_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
             // llvm does not have a void pointer type
             t = llvm.int8_type_in_context(c.context.ctx);
         } else {
-            t = convert_type(c, p_ty.inner);
+            t = translate_type(c, p_ty.inner);
         }
 
         let i = 0;
@@ -230,6 +229,56 @@ def convert_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     return null;
 }
 
+def translate_addr(
+    c: *ModuleCompiler,
+    curr_func: *FunctionData,
+    a: *mir.Address
+): *llvm.Value {
+    if mir.is_addr_name(a) {
+
+    }
+
+    if mir.is_addr_const(a) {
+        let constant = mir.as_addr_const(a);
+        return translate_literal(c, constant.start, constant.end, a.ty);
+    }
+
+    return null;
+}
+
+def translate_literal(
+    c: *ModuleCompiler,
+    start: string,
+    end: string,
+    t: *ty.Type
+): *llvm.Value {
+    let llvm_ty = translate_type(c, t);
+
+    if ty.is_char(t) {
+        let int_value = std.char_to_int(*start);
+        return llvm.const_int(llvm_ty, int_value, false);
+    }
+
+    if ty.is_bool(t) {
+        let int_value = std.char_to_int(*start) - std.char_to_int('0');
+        return llvm.const_int(llvm_ty, int_value, false);
+    }
+
+    let copy = std.strndup(start, end - start);
+    let llvm_lit: *llvm.Value = null;
+
+    if ty.is_i32(t) {
+        llvm_lit = llvm.const_int_of_string(llvm_ty, copy, 10);
+    }
+
+    if ty.is_f32(t) {
+        llvm_lit = llvm.const_real_of_string(llvm_ty, copy);
+    }
+
+    delete copy;
+    return llvm_lit;
+}
+
 def compile_functions(c: *ModuleCompiler): void {
     let f_iter = map.iter(&c.irmod.functions);
     let item = map.iter_next(&f_iter);
@@ -238,6 +287,73 @@ def compile_functions(c: *ModuleCompiler): void {
         compile_function(c, f);
         item = map.iter_next(&f_iter);
     }
+}
+
+type FunctionData struct {
+    llfunc: *llvm.Value,
+    irfunc: *mir.Func,
+    blocks: map.Map // map.Map<RefName, *llvm.BasicBlock>
+}
+
+def create_function_data(
+    c: *ModuleCompiler,
+    llfunc: *llvm.Value,
+    irfunc: *mir.Func
+): FunctionData {
+    let num_blocks = mir.bm_num_blocks(&irfunc.blocks);
+    let blocks = map.with_cap(num_blocks);
+
+    let entry_block: *llvm.BasicBlock = null;
+
+    let i = 0;
+    while i < num_blocks {
+        let mir_bb = mir.bm_get_bb_ptr(&irfunc.blocks, i);
+        let bb_name = name.ref(mir_bb.label.name);
+        let llvm_bb = llvm.append_basic_block_in_context(
+            c.context.ctx, llfunc, bb_name.data
+        );
+
+        if entry_block == null {
+            entry_block = llvm_bb;
+        }
+
+        let key = map.create_key(bb_name.len, bb_name.data);
+        map.insert(&blocks, key, llvm_bb as *void);
+        i = i + 1;
+    }
+
+    // compile variable declarations for the entire function
+    llvm.position_builder_at_end(c.builder, entry_block);
+    i = 0;
+    while i < irfunc.blocks.decls.len {
+        let inst_decl = mir.bm_decl_at(&irfunc.blocks, i);
+        dbg.assert(mir.is_inst_decl(&inst_decl), "expected a declaration");
+
+        let decl = mir.as_inst_decl(&inst_decl);
+        let ty = translate_type(c, decl.ty);
+        // taking the name.data should be safe, since this is name.Ref, points
+        // to the same string as the corresponding name.Owned inside the
+        // NameTable, which has to be null terminated, since it's a name.Owned
+        llvm.build_alloca(c.builder, ty, decl.name.data);
+
+        i = i + 1;
+    }
+
+    return FunctionData {
+        llfunc: llfunc,
+        irfunc: irfunc,
+        blocks: blocks
+    };
+}
+
+def free_function_data(f: *FunctionData): void {
+    map.free_m(&f.blocks);
+}
+
+def bb_by_label(f: *FunctionData, label: *mir.Label): *llvm.BasicBlock {
+    let bb_name = mir.label_name(label);
+    let key = map.create_key(bb_name.len, bb_name.data);
+    return map.get(&f.blocks, key) as *llvm.BasicBlock;
 }
 
 def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
@@ -253,5 +369,63 @@ def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
     let llvm_func = llvm.get_named_function(c.context.llmod, func.name.data);
     dbg.assert_fmt(llvm_func!= null, "function not found %s", func.name.data);
 
-    llvm.append_basic_block_in_context(c.context.ctx, llvm_func, "entry");
+    let func_data = create_function_data(c, llvm_func, func);
+
+    let i = 0;
+    while i < func_data.blocks.len {
+        let bb = mir.bm_get_bb_ptr(&func.blocks, i);
+        compile_bb(c, &func_data, bb);
+        i = i + 1;
+    }
+
+    free_function_data(&func_data);
+}
+
+def compile_bb(c: *ModuleCompiler, func: *FunctionData, bb: *mir.BasicBlock): void {
+    let llvm_bb = bb_by_label(func, &bb.label);
+    llvm.position_builder_at_end(c.builder, llvm_bb);
+
+    let i = 0;
+    let n = mir.bb_num_instr(bb);
+    while i < n {
+        let inst = mir.bb_get_instr(bb, i);
+        compile_inst(c, func, inst);
+        i = i + 1;
+    }
+
+    compile_inst(c, func, &bb.terminator);
+}
+
+def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void {
+    if mir.is_inst_jmp(inst) {
+        let jmp = mir.as_inst_jmp(inst);
+        let target_bb = bb_by_label(func, &jmp.target);
+        llvm.build_br(c.builder, target_bb);
+        return;
+    }
+
+    if mir.is_inst_jmpif(inst) {
+        let jmp = mir.as_inst_jmpif(inst);
+
+        let if_target_bb = bb_by_label(func, &jmp.if_target);
+        let else_target_bb = bb_by_label(func, &jmp.else_target);
+        let condition = translate_addr(c, func, &jmp.condition);
+
+        llvm.build_cond_br(c.builder, condition, if_target_bb, else_target_bb);
+        return;
+    }
+
+    if mir.is_inst_return(inst) {
+        let ret = mir.as_inst_return(inst);
+        if mir.is_addr_empty(&ret.value) {
+            llvm.build_ret_void(c.builder);
+            return;
+        }
+
+        let value = translate_addr(c, func, &ret.value);
+        llvm.build_ret(c.builder, value);
+        return;
+    }
+
+    // insert abort at end
 }
