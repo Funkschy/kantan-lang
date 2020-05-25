@@ -484,3 +484,15 @@ extern def LLVMLinkModules2(dest: *Module, src: *Module): i32;
 def link_modules2(dest: *Module, src: *Module): bool {
     return std.int_to_bool(LLVMLinkModules2(dest, src));
 }
+
+// Analysis
+
+extern def LLVMVerifyModule(m: *Module, action: i32, out_message: *string): i32;
+
+// Verify that a module is valid, taking the specified action if not.
+//
+// Optionally returns a human-readable description of any invalid constructs,
+// which must be disposed with `LLVMDisposeMessage`.
+def verify_module(m: *Module, action: i32, out_message: *string): bool {
+    return std.int_to_bool(LLVMVerifyModule(m, action, out_message));
+}

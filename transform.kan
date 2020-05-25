@@ -36,6 +36,8 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         io.printf("--- llvm ---\n");
         llvm.dump_module(llvm_context.llmod);
         io.printf("\n");
+
+        llvm.verify_module(llvm_context.llmod, 0, null);
 #endif
 
         mirc.free_compiler(&mir_compiler);

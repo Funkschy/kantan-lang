@@ -4,7 +4,8 @@ import re
 
 links = [
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/core.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/linker.rs'
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/linker.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/analysis.rs'
 ]
 
 
@@ -226,6 +227,7 @@ typemap = {
     'LLVMOpcode': ('i32', 'i32', None, None), # enum
     'LLVMUnnamedAddr': ('i32', 'i32', None, None), # enum
     'LLVMTypeKind': ('i32', 'i32', None, None), # enum
+    'LLVMVerifierFailureAction': ('i32', 'i32', None, None), # enum
 
     'u8': ('char', 'i32', 'std.char_to_int', 'std.int_to_char'),
     '*mut ::libc::c_char': ('string', 'string', None, None),
