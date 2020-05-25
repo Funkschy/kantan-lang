@@ -67,6 +67,7 @@ whitelist = set([
     'LLVMFloatTypeInContext',
     'LLVMFunctionType',
     'LLVMGetNamedFunction',
+    'LLVMGetNamedGlobal',
     'LLVMGetParam',
     'LLVMInt1TypeInContext',
     'LLVMInt32TypeInContext',
@@ -85,9 +86,12 @@ whitelist = set([
     'LLVMStructCreateNamed',
     'LLVMStructSetBody',
     'LLVMTypeOf',
-    'LLVMVerifyModule',
     'LLVMVoidTypeInContext',
 
+    # analysis
+    'LLVMVerifyModule',
+
+    # linker
     'LLVMLinkModules2'
 ])
 

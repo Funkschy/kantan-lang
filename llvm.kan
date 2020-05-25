@@ -185,6 +185,8 @@ extern def LLVMSetUnnamedAddress(global: *Value, unnamed_addr: i32): void;
 
 extern def LLVMAddGlobal(m: *Module, ty: *Type, name: string): *Value;
 
+extern def LLVMGetNamedGlobal(m: *Module, name: string): *Value;
+
 extern def LLVMSetInitializer(global_var: *Value, constant_val: *Value): void;
 
 extern def LLVMSetGlobalConstant(global_var: *Value, is_constant: i32): void;
@@ -230,6 +232,10 @@ def set_unnamed_address(global: *Value, unnamed_addr: i32): void {
 
 def add_global(m: *Module, ty: *Type, name: string): *Value {
     return LLVMAddGlobal(m, ty, name);
+}
+
+def get_named_global(m: *Module, name: string): *Value {
+    return LLVMGetNamedGlobal(m, name);
 }
 
 def set_initializer(global_var: *Value, constant_val: *Value): void {
