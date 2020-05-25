@@ -169,6 +169,18 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
             // compile function code
             compile_stmt(c, decl_stmt.block as *ast.Stmt);
+            let last_bb = mir.bm_last_bb_ptr(&mir_func.blocks);
+            if mir.is_inst_nop(&last_bb.terminator) {
+                dbg.assert(
+                    ty.is_void(mir.func_ret_ty(mir_func)),
+                    "nop terminator in non void function"
+                );
+
+                let block_end = decl_stmt.s.span.end;
+                let meta = get_meta(c, span.create(block_end, block_end));
+                last_bb.terminator = mir.new_inst_return(meta);
+            }
+
             c.current_func = prev_func;
             nt.close_scope(&c.names);
         }

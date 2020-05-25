@@ -190,6 +190,10 @@ def free_func(f: *Func): void {
     free_block_map(&f.blocks);
 }
 
+def func_ret_ty(f: *Func): *ty.Type {
+    return ty.as_func(f.ty).ret;
+}
+
 def func_push_instr(f: *Func, inst: *Inst): void {
     bm_push_instr(&f.blocks, inst);
 }
