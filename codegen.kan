@@ -96,6 +96,7 @@ def add_forward_declarations(c: *ModuleCompiler): void {
     let item = map.iter_next(&g_iter);
     while item != null {
         let gc = item.value as *mir.GlobalConst;
+        add_global_const(c, gc);
         item = map.iter_next(&g_iter);
     }
 
@@ -107,7 +108,29 @@ def add_forward_declarations(c: *ModuleCompiler): void {
         lookup_or_declare_function(c, f.ty);
         item = map.iter_next(&f_iter);
     }
+}
 
+def add_global_const(c: *ModuleCompiler, gc: *mir.GlobalConst): void {
+    dbg.assert(ty.is_string(gc.ty), "we currently only support string literals");
+    let len = gc.value.len + 1; // 1 for null terminator
+    let ty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
+
+    let global_storage = llvm.add_global(c.context.llmod, ty, gc.name.data);
+    llvm.set_global_constant(global_storage, true);
+    let private_linkage = 15;
+    llvm.set_linkage(global_storage, private_linkage);
+    // Address of the string is globally insignificant
+    let global_unnamed_address = 2;
+    llvm.set_unnamed_address(global_storage, global_unnamed_address);
+
+    let null_terminate = true;
+    let const_string = llvm.const_string_in_context(
+        c.context.ctx,
+        gc.value.data,
+        gc.value.len,
+        !null_terminate
+    );
+    llvm.set_initializer(global_storage, const_string);
 }
 
 def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
@@ -263,6 +286,15 @@ def translate_addr_load(
     if mir.is_addr_const(a) {
         let constant = mir.as_addr_const(a);
         return translate_literal(c, constant.start, constant.end, a.ty);
+    }
+
+    if mir.is_addr_global(a) {
+        let name = mir.as_addr_global(a).name;
+        let global = llvm.get_named_global(c.context.llmod, name.data);
+
+        let gep = llvm.build_gep(c.builder, global, null, 0, "");
+        let ty = translate_type(c, a.ty);
+        return llvm.build_pointer_cast(c.builder, gep, ty, "");
     }
 
     return null;
@@ -518,6 +550,10 @@ def compile_expr(
         return compile_unary(c, func, e);
     }
 
+    if mir.is_expr_call(e) {
+        return compile_call(c, func, e);
+    }
+
     return null;
 }
 
@@ -544,4 +580,43 @@ def compile_unary(
 
     dbg.assert_fmt(false, "Invalid unary kind: %d", unary.kind);
     return null;
+}
+
+def compile_call(
+    c: *ModuleCompiler,
+    func: *FunctionData,
+    e: *mir.Expression
+): *llvm.Value {
+    let call = mir.as_expr_call(e);
+    // TODO: we need to change this, when introducing function pointers
+    dbg.assert(mir.is_addr_name(&call.callee), "callee should be name");
+    let callee_name = mir.as_addr_name(&call.callee).value;
+    let llvm_func = llvm.get_named_function(c.context.llmod, callee_name.data);
+    dbg.assert(llvm_func != null, "llvm function not found");
+
+    let num_args = call.args.len;
+    let args = ptrvec.with_cap(num_args);
+    let i = 0;
+    while i < num_args {
+        let arg = mir.call_arg_at(call, i);
+        let value = translate_addr(c, func, arg);
+
+        if call.varargs {
+            // If a float is passed as an argument to a variadic function,
+            // it has to be promoted to a double implicitly
+            if ty.is_f32(arg.ty) {
+                // convert f32 to f64
+                let f64_ty = llvm.double_type_in_context(c.context.ctx);
+                value = llvm.build_fp_ext(c.builder, value, f64_ty, "");
+            }
+        }
+
+        ptrvec.push_ptr(&args, value as *void);
+        i = i + 1;
+    }
+
+    let arg_values = args.elements as **llvm.Value;
+    let call = llvm.build_call(c.builder, llvm_func, arg_values, args.len, "");
+    ptrvec.free_v(&args);
+    return call;
 }

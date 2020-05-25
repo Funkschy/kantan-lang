@@ -139,7 +139,7 @@ def dump_module(m: *Module): void {
             g.name.len, g.name.data,
             ty_s,
             quote_len, quote,
-            span.len(g.value), g.value.start,
+            g.value.len, g.value.data,
             quote_len, quote
         );
 
@@ -226,15 +226,45 @@ type GlobalConst struct {
     name: name.Owned,
     meta: MetaData,
     ty: *ty.Type,
-    value: span.Span
+    value: name.Owned // not really a name...
 }
 
 def create_const(
     name: name.Owned,
     meta: MetaData,
     ty: *ty.Type,
-    value: span.Span
+    s: span.Span
 ): GlobalConst {
+    let value = name.make_copied(span.len(s), s.start);
+    let actual_len = value.len;
+
+    let i = 0;
+    while i < span.len(s) {
+        let c = *(s.start + i);
+        let inc = 1;
+
+        if c == '\\' {
+            // \x are 2 chars, but we replace it with 1 escpaped byte
+            actual_len = actual_len - 1;
+            let next = *(s.start + i + 1);
+            if next == '0' {
+                c = '\0';
+            } else if next == 'n' {
+                c = '\n';
+            } else if next == '\\' {
+                c = '\\';
+            }
+
+            // skip next
+            inc = 2;
+        }
+
+        *(value.data + i) = c;
+        i = i + inc;
+    }
+
+    value.len = actual_len;
+
     return GlobalConst {
         name: name,
         meta: meta,
@@ -245,6 +275,7 @@ def create_const(
 
 def free_global_const(gc: *GlobalConst): void {
     name.free_owned(&gc.name);
+    name.free_owned(&gc.value);
 }
 
 def const_name(c: *GlobalConst): name.Ref {
