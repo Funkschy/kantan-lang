@@ -233,11 +233,31 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 def translate_addr(
     c: *ModuleCompiler,
     curr_func: *FunctionData,
-    a: *mir.Address
+    a: *mir.Address,
+): *llvm.Value {
+    return translate_addr_load(c, curr_func, a, true);
+}
+
+def translate_addr_load(
+    c: *ModuleCompiler,
+    curr_func: *FunctionData,
+    a: *mir.Address,
+    load: bool
 ): *llvm.Value {
     if mir.is_addr_name(a) {
         let addr_name = mir.as_addr_name(a);
-        return variable_by_name(curr_func, addr_name.value);
+        let variable = variable_by_name(curr_func, addr_name.value);
+
+        if load {
+            return llvm.build_load(c.builder, variable, "");
+        }
+
+        return variable;
+    }
+
+    if mir.is_addr_ref(a) {
+        let ref = mir.as_addr_ref(a);
+        return variable_by_name(curr_func, ref.name);
     }
 
     if mir.is_addr_const(a) {
@@ -434,7 +454,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
             return;
         }
 
-        let storage = translate_addr(c, func, &assign.dest);
+        let storage = translate_addr_load(c, func, &assign.dest, false);
 
         // this is only a temporary variable, that does not need stack space
         if storage == null {
@@ -484,11 +504,44 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
     // insert abort at end
 }
 
-def compile_expr(c: *ModuleCompiler, func: *FunctionData, e: *mir.Expression): *llvm.Value {
+def compile_expr(
+    c: *ModuleCompiler,
+    func: *FunctionData,
+    e: *mir.Expression
+): *llvm.Value {
     if mir.is_expr_copy(e) {
         let copy = mir.as_expr_copy(e);
         return translate_addr(c, func, &copy.addr);
     }
 
+    if mir.is_expr_unary(e) {
+        return compile_unary(c, func, e);
+    }
+
+    return null;
+}
+
+def compile_unary(
+    c: *ModuleCompiler,
+    func: *FunctionData,
+    e: *mir.Expression
+): *llvm.Value {
+    let unary = mir.as_expr_unary(e);
+    let value = translate_addr(c, func, &unary.addr);
+
+    if mir.is_unary_deref(unary) {
+        // was already loaded
+        return value;
+    }
+
+    if mir.is_unary_num_neg(unary) {
+        return llvm.build_neg(c.builder, value, "");
+    }
+
+    if mir.is_unary_bool_neg(unary) {
+        return llvm.build_not(c.builder, value, "");
+    }
+
+    dbg.assert_fmt(false, "Invalid unary kind: %d", unary.kind);
     return null;
 }
