@@ -574,7 +574,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let field_idx = ty.field_idx(struct_ty, ident);
     dbg.assert(field_idx >= 0, "no field with this name");
 
-    return mir.new_expr_gep(left_addr, field_idx);
+    return mir.new_expr_gep(left_addr, field_idx, rhs);
 }
 
 def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {

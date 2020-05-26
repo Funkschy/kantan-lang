@@ -299,6 +299,15 @@ def translate_addr_load(
         return llvm.build_pointer_cast(c.builder, gep, ty, "");
     }
 
+    if mir.is_addr_arg(a) {
+        let get_arg = mir.as_addr_arg(a);
+        return llvm.get_param(curr_func.llfunc, get_arg.idx);
+    }
+
+    if mir.is_addr_null(a) {
+        return llvm.const_null(translate_type(c, a.ty));
+    }
+
     return null;
 }
 
@@ -558,6 +567,17 @@ def compile_expr(
 
     if mir.is_expr_call(e) {
         return compile_call(c, func, e);
+    }
+
+    if mir.is_expr_gep(e) {
+        let gep = mir.as_expr_gep(e);
+        let addr = translate_addr_load(c, func, &gep.addr, false);
+
+        let llgep = llvm.build_struct_gep(c.builder, addr, gep.idx, "");
+        if gep.rhs {
+            return llvm.build_load(c.builder, llgep, "");
+        }
+        return llgep;
     }
 
     return null;
