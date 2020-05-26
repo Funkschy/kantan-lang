@@ -577,6 +577,13 @@ def compile_expr(
         return llvm.build_load(c.builder, llgep, "");
     }
 
+    if mir.is_expr_bitcast(e) {
+        let cast = mir.as_expr_bitcast(e);
+        let addr = translate_addr(c, func, &cast.addr);
+        let into = translate_type(c, cast.into);
+        return llvm.build_bit_cast(c.builder, addr, into, "");
+    }
+
     return null;
 }
 
