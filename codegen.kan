@@ -574,10 +574,7 @@ def compile_expr(
         let addr = translate_addr_load(c, func, &gep.addr, false);
 
         let llgep = llvm.build_struct_gep(c.builder, addr, gep.idx, "");
-        if gep.rhs {
-            return llvm.build_load(c.builder, llgep, "");
-        }
-        return llgep;
+        return llvm.build_load(c.builder, llgep, "");
     }
 
     return null;

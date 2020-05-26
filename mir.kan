@@ -667,12 +667,11 @@ def is_expr_call(e: *Expression): bool {
 
 type ExprGep struct {
     addr: Address,
-    rhs: bool,
     idx: i32
 }
 
-def new_expr_gep(addr: Address, idx: i32, rhs: bool): Expression {
-    let gep = (new ExprGep { addr: addr, rhs: rhs, idx: idx }) as *void;
+def new_expr_gep(addr: Address, idx: i32): Expression {
+    let gep = (new ExprGep { addr: addr, idx: idx }) as *void;
     return create_expr(MIR_EXPR_GEP, gep);
 }
 
