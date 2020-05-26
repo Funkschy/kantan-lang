@@ -431,14 +431,14 @@ def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvm.Value): void
 }
 
 def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
-    if func.is_extern {
-        return;
-    }
-
     let llvm_func_ty = lookup_or_declare_function(c, func.ty);
     dbg.assert_fmt(
         llvm_func_ty != null, "function type not found %s", func.name.data
     );
+
+    if func.is_extern {
+        return;
+    }
 
     let llvm_func = llvm.get_named_function(c.context.llmod, func.name.data);
     dbg.assert_fmt(llvm_func!= null, "function not found %s", func.name.data);
