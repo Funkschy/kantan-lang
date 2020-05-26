@@ -1,0 +1,5 @@
+{
+   LLVM accesses uninitialized memory
+   Memcheck:Cond
+   fun:_ZN12_GLOBAL__N_117PeepholeOptimizer20runOnMachineFunctionERN4llvm15MachineFunctionE
+}
