@@ -5,7 +5,11 @@ import re
 links = [
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/core.rs',
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/linker.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/analysis.rs'
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/analysis.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/target.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/target_machine.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/bit_reader.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/bit_writer.rs'
 ]
 
 
@@ -56,8 +60,10 @@ whitelist = set([
     'LLVMContextCreate',
     'LLVMContextDispose',
     'LLVMCreateBuilderInContext',
+    'LLVMCreateMemoryBufferWithContentsOfFile'
     'LLVMCreateMessage',
     'LLVMDisposeBuilder',
+    'LLVMDisposeMemoryBuffer',
     'LLVMDisposeMessage',
     'LLVMDisposeMessage',
     'LLVMDisposeModule',
@@ -92,7 +98,26 @@ whitelist = set([
     'LLVMVerifyModule',
 
     # linker
-    'LLVMLinkModules2'
+    'LLVMLinkModules2',
+
+    # target
+    'LLVMInitializeX86AsmPrinter',
+    'LLVMInitializeX86Target',
+    'LLVMInitializeX86TargetInfo',
+    'LLVMInitializeX86TargetMC',
+
+    # target machine
+    'LLVMCreateTargetMachine',
+    'LLVMDisposeTargetMachine',
+    'LLVMGetTargetFromTriple',
+    'LLVMTargetMachineEmitToFile',
+    'LLVMTargetMachineEmitToMemoryBuffer',
+
+    # bit reader
+    'LLVMParseBitcodeInContext2',
+
+    # bit writer
+    'LLVMWriteBitcodeToMemoryBuffer',
 ])
 
 
@@ -232,6 +257,10 @@ typemap = {
     'LLVMUnnamedAddr': ('i32', 'i32', None, None), # enum
     'LLVMTypeKind': ('i32', 'i32', None, None), # enum
     'LLVMVerifierFailureAction': ('i32', 'i32', None, None), # enum
+    'LLVMCodeGenOptLevel': ('i32', 'i32', None, None), # enum
+    'LLVMRelocMode': ('i32', 'i32', None, None), # enum
+    'LLVMCodeModel': ('i32', 'i32', None, None), # enum
+    'LLVMCodeGenFileType': ('i32', 'i32', None, None), # enum
 
     'u8': ('char', 'i32', 'std.char_to_int', 'std.int_to_char'),
     '*mut ::libc::c_char': ('string', 'string', None, None),
@@ -256,6 +285,7 @@ typemap = {
     'LLVMAttributeIndex': ('i32', 'i32', None, None),
     'LLVMContextRef': ('*Context', '*Context', None, None),
     'LLVMModuleRef': ('*Module', '*Module', None, None),
+    '*mut LLVMModuleRef': ('**Module', '**Module', None, None),
     'LLVMTypeRef': ('*Type', '*Type', None, None),
     '*mut LLVMTypeRef': ('**Type', '**Type', None, None),
     'LLVMValueRef': ('*Value', '*Value', None, None),
@@ -274,7 +304,11 @@ typemap = {
     'LLVMComdatRef': ('*Comdat', '*Comdat', None, None),
     'LLVMModuleFlagEntry': ('*OpaqueModuleFlagEntry', '*OpaqueModuleFlagEntry', None, None),
     'LLVMJITEventListenerRef': ('*OpaqueJITEventListener', '*OpaqueJITEventListener', None, None),
-    'LLVMAttributeRef': ('*OpaqueAttributeRef', '*OpaqueAttributeRef', None, None)
+    'LLVMAttributeRef': ('*OpaqueAttributeRef', '*OpaqueAttributeRef', None, None),
+    'LLVMTargetMachineRef': ('*TargetMachine', '*TargetMachine', None, None),
+
+    'LLVMTargetRef': ('*Target', '*Target', None, None),
+    '*mut LLVMTargetRef': ('**Target', '**Target', None, None),
 }
 def map_typename(typename):
     typename = typename.strip()

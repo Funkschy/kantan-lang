@@ -11,22 +11,19 @@ type BasicBlock struct {}
 type Func struct {}
 type Type struct {}
 type Value struct {}
+type Target struct {}
+type TargetMachine struct {}
+type MemoryBuffer struct {}
 
 
 // Core
 extern def LLVMShutdown(): void;
-
-extern def LLVMCreateMessage(message: string): string;
 
 extern def LLVMDisposeMessage(message: string): void;
 
 
 def shutdown(): void {
     LLVMShutdown();
-}
-
-def create_message(message: string): string {
-    return LLVMCreateMessage(message);
 }
 
 def dispose_message(message: string): void {
@@ -478,8 +475,15 @@ def build_call(arg1: *Builder, fn: *Value, args: **Value, num_args: i32, name: s
     return LLVMBuildCall(arg1, fn, args, num_args, name);
 }
 
+// Core->Memory Buffers
+extern def LLVMDisposeMemoryBuffer(mem_buf: *MemoryBuffer): void;
 
-// Linker
+
+def dispose_memory_buffer(mem_buf: *MemoryBuffer): void {
+    LLVMDisposeMemoryBuffer(mem_buf);
+}
+
+// Linking
 
 extern def LLVMLinkModules2(dest: *Module, src: *Module): i32;
 
@@ -491,7 +495,8 @@ def link_modules2(dest: *Module, src: *Module): bool {
     return std.int_to_bool(LLVMLinkModules2(dest, src));
 }
 
-// Analysis
+
+// Verification
 
 extern def LLVMVerifyModule(m: *Module, action: i32, out_message: *string): i32;
 
@@ -501,4 +506,82 @@ extern def LLVMVerifyModule(m: *Module, action: i32, out_message: *string): i32;
 // which must be disposed with `LLVMDisposeMessage`.
 def verify_module(m: *Module, action: i32, out_message: *string): bool {
     return std.int_to_bool(LLVMVerifyModule(m, action, out_message));
+}
+
+
+extern def LLVMInitializeX86TargetInfo(): void;
+
+extern def LLVMInitializeX86Target(): void;
+
+extern def LLVMInitializeX86TargetMC(): void;
+
+extern def LLVMInitializeX86AsmPrinter(): void;
+
+
+def initialize_x86_target_info(): void {
+    LLVMInitializeX86TargetInfo();
+}
+
+def initialize_x86_target(): void {
+    LLVMInitializeX86Target();
+}
+
+def initialize_x86_target_mc(): void {
+    LLVMInitializeX86TargetMC();
+}
+
+def initialize_x86_asm_printer(): void {
+    LLVMInitializeX86AsmPrinter();
+}
+
+
+// Target
+
+extern def LLVMGetTargetFromTriple(triple: string, t: **Target, error_message: *string): i32;
+
+extern def LLVMCreateTargetMachine(t: *Target, triple: string, cpu: string, features: string, level: i32, reloc: i32, code_model: i32): *TargetMachine;
+
+extern def LLVMDisposeTargetMachine(t: *TargetMachine): void;
+
+extern def LLVMTargetMachineEmitToFile(t: *TargetMachine, m: *Module, filename: string, codegen: i32, error_message: *string): i32;
+
+extern def LLVMTargetMachineEmitToMemoryBuffer(t: *TargetMachine, m: *Module, codegen: i32, error_message: *string, out_mem_buf: **MemoryBuffer): i32;
+
+
+def get_target_from_triple(triple: string, t: **Target, error_message: *string): bool {
+    return std.int_to_bool(LLVMGetTargetFromTriple(triple, t, error_message));
+}
+
+def create_target_machine(t: *Target, triple: string, cpu: string, features: string, level: i32, reloc: i32, code_model: i32): *TargetMachine {
+    return LLVMCreateTargetMachine(t, triple, cpu, features, level, reloc, code_model);
+}
+
+def dispose_target_machine(t: *TargetMachine): void {
+    LLVMDisposeTargetMachine(t);
+}
+
+def target_machine_emit_to_file(t: *TargetMachine, m: *Module, filename: string, codegen: i32, error_message: *string): bool {
+    return std.int_to_bool(LLVMTargetMachineEmitToFile(t, m, filename, codegen, error_message));
+}
+
+def target_machine_emit_to_memory_buffer(t: *TargetMachine, m: *Module, codegen: i32, error_message: *string, out_mem_buf: **MemoryBuffer): bool {
+    return std.int_to_bool(LLVMTargetMachineEmitToMemoryBuffer(t, m, codegen, error_message, out_mem_buf));
+}
+
+// Bitreader
+
+extern def LLVMParseBitcodeInContext2(context_ref: *Context, mem_buf: *MemoryBuffer, out_module: **Module): i32;
+
+
+def parse_bitcode_in_context2(context_ref: *Context, mem_buf: *MemoryBuffer, out_module: **Module): bool {
+    return std.int_to_bool(LLVMParseBitcodeInContext2(context_ref, mem_buf, out_module));
+}
+
+// Bitwriter
+
+extern def LLVMWriteBitcodeToMemoryBuffer(m: *Module): *MemoryBuffer;
+
+// Writes a module to a new memory buffer.
+def write_bitcode_to_memory_buffer(m: *Module): *MemoryBuffer {
+    return LLVMWriteBitcodeToMemoryBuffer(m);
 }
