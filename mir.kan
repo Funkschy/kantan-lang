@@ -230,7 +230,7 @@ type GlobalConst struct {
 }
 
 def create_const(
-    name: name.Owned,
+    mangled_name: name.Owned,
     meta: MetaData,
     ty: *ty.Type,
     s: span.Span
@@ -266,7 +266,7 @@ def create_const(
     value.len = actual_len;
 
     return GlobalConst {
-        name: name,
+        name: mangled_name,
         meta: meta,
         ty: ty,
         value: value
