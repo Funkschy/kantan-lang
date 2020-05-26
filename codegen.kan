@@ -157,7 +157,9 @@ def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         let ret_ty = translate_type(c, f_ty.ret);
 
         let param_types = params.elements as **llvm.Type;
-        func_decl = llvm.function_type(ret_ty, param_types, num_params, false);
+        func_decl = llvm.function_type(
+            ret_ty, param_types, num_params, f_ty.is_varargs
+        );
         ptrvec.free_v(&params);
 
         let name = f_ty.mangled_name.data;
@@ -550,6 +552,10 @@ def compile_expr(
         return compile_unary(c, func, e);
     }
 
+    if mir.is_expr_binary(e) {
+        return compile_binary(c, func, e);
+    }
+
     if mir.is_expr_call(e) {
         return compile_call(c, func, e);
     }
@@ -579,6 +585,63 @@ def compile_unary(
     }
 
     dbg.assert_fmt(false, "Invalid unary kind: %d", unary.kind);
+    return null;
+}
+
+#include "mir_types.h"
+def compile_binary(
+    c: *ModuleCompiler,
+    func: *FunctionData,
+    e: *mir.Expression
+): *llvm.Value {
+    let binary = mir.as_expr_binary(e);
+    let left = translate_addr(c, func, &binary.left);
+    let right = translate_addr(c, func, &binary.right);
+
+    if binary.kind == MIR_BIN_ADD {
+        return llvm.build_add(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_SUB {
+        return llvm.build_sub(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_MUL {
+        return llvm.build_mul(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_DIV {
+        return llvm.build_s_div(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_MOD {
+        // TODO: this is actually a remainder operation, not modulo
+        return llvm.build_s_rem(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_ST {
+        // TODO: unsigned integer types
+        return llvm.build_i_cmp(c.builder, 40, left, right, "");
+    } else if binary.kind == MIR_BIN_SE {
+        return llvm.build_i_cmp(c.builder, 41, left, right, "");
+    } else if binary.kind == MIR_BIN_GT {
+        return llvm.build_i_cmp(c.builder, 38, left, right, "");
+    } else if binary.kind == MIR_BIN_GE {
+        return llvm.build_i_cmp(c.builder, 39, left, right, "");
+    } else if binary.kind == MIR_BIN_EQ {
+        return llvm.build_i_cmp(c.builder, 32, left, right, "");
+    } else if binary.kind == MIR_BIN_NE {
+        return llvm.build_i_cmp(c.builder, 33, left, right, "");
+    } else if binary.kind == MIR_BIN_BOOL_AND {
+        return llvm.build_and(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_BOOL_OR {
+        return llvm.build_or(c.builder, left, right, "");
+    } else {
+        let ptr = left;
+        let scalar = right;
+        if ty.is_ptr_type(binary.right.ty) {
+            ptr = right;
+            scalar = left;
+        }
+
+        // for ptr - scalar, just negate the scalar value
+        if binary.kind == MIR_BIN_SUB_SCALAR {
+            scalar = llvm.build_neg(c.builder, scalar, "");
+        }
+
+        return llvm.build_in_bounds_gep(c.builder, ptr, &scalar, 1, "");
+    }
+
     return null;
 }
 
