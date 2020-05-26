@@ -3,6 +3,7 @@
 #define USE_LLVM 1
 
 import "io";
+import "std";
 import "mod";
 import "mir";
 import "vec";
@@ -18,7 +19,7 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
 
 #if USE_LLVM
     let arch = target.arch_x86_64();
-    let vendor = target.vendor_pc();
+    let vendor = target.vendor_unknown();
     let os = target.os_linux();
     let env = target.env_gnu();
 
@@ -31,9 +32,9 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
     let tm = target.create_target_machine(&t);
     // llvm doesn't handle multithreading very gracefully (we basically
     // need to have everything in one context, but contexts aren't thread safe)
-    // But we want to create a single final module, so that we can to lto,
+    // But we want to create a single final module, so that we can do lto,
     // therefore, we simply export each modules bitcode into a buffer and then
-    // parse those buffers to a single module at the end
+    // parse those buffers into a single module at the end
     // (see https://lists.llvm.org/pipermail/llvm-dev/2015-June/086296.html)
     let bc_buffers = ptrvec.with_cap(n);
 #endif
@@ -97,7 +98,6 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
     }
 
     let out = path.create("out.o", 5);
-    llvm.verify_module(base_mod, 0, null);
     let error = target.emit_to_file(&tm, base_mod, out, false);
     if error != null {
         io.printf("%s\n", error);

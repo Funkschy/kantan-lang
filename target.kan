@@ -12,10 +12,10 @@ def arch_x86_64(): Arch {
     return Arch { value: ARCH_X86_64 };
 }
 
-#define VENDOR_PC 1
+#define VENDOR_UNKNOWN 1
 
-def vendor_pc(): Vendor {
-    return Vendor { value: VENDOR_PC };
+def vendor_unknown(): Vendor {
+    return Vendor { value: VENDOR_UNKNOWN };
 }
 
 #define OS_LINUX 1
@@ -58,8 +58,8 @@ type Vendor struct {
 }
 
 def vendor_to_name(a: Vendor): name.Ref {
-    if a.value == VENDOR_PC {
-        return name.make_ref(2, "pc");
+    if a.value == VENDOR_UNKNOWN {
+        return name.make_ref(7, "unknown");
     }
     return name.make_ref(0, null);
 }
