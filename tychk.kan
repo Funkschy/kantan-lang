@@ -1166,7 +1166,7 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
 
         tc.main_func = definition;
         name.free_owned(&ty.as_func(definition).mangled_name);
-        ty.as_func(definition).mangled_name = name.make_owned(4, "main");
+        ty.as_func(definition).mangled_name = name.make_copied(4, "main");
     }
 
     return definition;
