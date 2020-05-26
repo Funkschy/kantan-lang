@@ -238,8 +238,9 @@ type TypeChecker struct {
     decl_only_pass: bool, // the first pass ignores everything but declarations
     mods: *mod.Map,
     sorted_mods: *i32,
-    types: ptrvec.Vec,
     ctx: *Ctx,
+    main_func: *ty.Type,
+    types: ptrvec.Vec,
     globals: scope.Scope,
     errors: vec.Vec, // <TypeError>
     requests: vec.Vec, // Vec<WaitingRequestMap> indexed by mod idx
@@ -298,8 +299,9 @@ def create(mods: *mod.Map): TypeChecker {
         decl_only_pass: false,
         mods: mods,
         sorted_mods: sorted_mods(mods),
-        types: ptrvec.with_cap(256),
         ctx: null,
+        main_func: null,
+        types: ptrvec.with_cap(256),
         globals: scope.create(),
         errors: vec.create(sizeof TypeError),
         requests: vec.with_cap(sizeof WaitingRequestMap, num_mods),
@@ -1151,7 +1153,22 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     push_tmp_ty(tc, definition);
 
     let mangled_name = mangle_func_name(tc, &fd.name, fd.is_extern);
-    ty.init_func(definition, fd.name, mangled_name, tc.ctx.mod.idx, fd.is_extern);
+    let mod_idx = tc.ctx.mod.idx;
+    ty.init_func(definition, fd.name, mangled_name, mod_idx, fd.is_extern);
+
+    if ident.eq_lit(&fd.name, "main") {
+        if tc.main_func != null {
+            // TODO: custom error for duplicated main function
+            //  with reference to original
+            push_duplicate_def_error(tc, &fd.name);
+            return null;
+        }
+
+        tc.main_func = definition;
+        name.free_owned(&ty.as_func(definition).mangled_name);
+        ty.as_func(definition).mangled_name = name.make_owned(4, "main");
+    }
+
     return definition;
 }
 
