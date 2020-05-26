@@ -120,6 +120,14 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 
     if mir_func == null {
         let is_extern = f_ty.declared_in != c.mod.idx || f_ty.is_extern;
+        let is_main = std.strcmp(f_ty.mangled_name.data, "main") == 0;
+
+        // "patch" main return type to be i32
+        if is_main {
+            let key = map.create_key(3, "i32");
+            f_ty.ret = map.get(&c.data.global_types, key) as *ty.Type;
+        }
+
         mir_func = new mir.create_func(t, mangled_name, is_extern);
         add_function(c, mir_func);
     }
@@ -171,14 +179,24 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             compile_stmt(c, decl_stmt.block as *ast.Stmt);
             let last_bb = mir.bm_last_bb_ptr(&mir_func.blocks);
             if mir.is_inst_nop(&last_bb.terminator) {
+                let is_main = std.strcmp(mir_func.name.data, "main") == 0;
                 dbg.assert(
-                    ty.is_void(mir.func_ret_ty(mir_func)),
+                    is_main || ty.is_void(mir.func_ret_ty(mir_func)),
                     "nop terminator in non void function"
                 );
 
                 let block_end = decl_stmt.s.span.end;
                 let meta = get_meta(c, span.create(block_end, block_end));
-                last_bb.terminator = mir.new_inst_return(meta);
+
+                if is_main {
+                    let ret_lit = "0";
+                    let ret_val = mir.make_addr_const_strings(
+                        mir.func_ret_ty(mir_func), ret_lit, ret_lit + 1
+                    );
+                    last_bb.terminator = mir.new_inst_return_value(meta, ret_val);
+                } else {
+                    last_bb.terminator = mir.new_inst_return(meta);
+                }
             }
 
             c.current_func = prev_func;
@@ -275,6 +293,20 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let meta = get_meta(c, s.span);
 
         if ret.expr == null {
+            // we actually allow the main function to be declared as
+            // main(): void, which leads to undefined return codes, so we need
+            // to replace every return inside the main function with return 0;
+            let is_main = std.strcmp(c.current_func.name.data, "main") == 0;
+            if is_main {
+                let ret_ty = ty.as_func(c.current_func.ty).ret;
+                let ret_lit = "0";
+                let ret_val = mir.make_addr_const_strings(
+                    ret_ty, ret_lit, ret_lit + 1
+                );
+                push_instr(c, mir.new_inst_return_value(meta, ret_val));
+                return;
+            }
+
             push_instr(c, mir.new_inst_return(meta));
             return;
         }
