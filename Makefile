@@ -29,6 +29,7 @@ K_FILES = ast.kan \
 		  span.kan \
 		  std.kan \
 		  str.kan \
+		  target.kan \
 		  transform.kan \
 		  ty.kan \
 		  tychk.kan \

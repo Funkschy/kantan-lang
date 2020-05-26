@@ -7,14 +7,35 @@ import "mod";
 import "mir";
 import "vec";
 import "mirc";
+import "path";
 import "llvm";
+import "target";
 import "ptrvec";
 import "codegen";
 
 def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
     let n = mod.num_mods(data.mods);
+
 #if USE_LLVM
-    let llvm_contexts = vec.with_cap(sizeof codegen.ModuleContext, n);
+    let arch = target.arch_x86_64();
+    let vendor = target.vendor_pc();
+    let os = target.os_linux();
+    let env = target.env_gnu();
+
+    let t = target.create_and_register_target(arch, vendor, os, env);
+    if t.is_error {
+        io.printf("%s\n", t.triple_or_error);
+        return;
+    }
+
+    let tm = target.create_target_machine(&t);
+    // llvm doesn't handle multithreading very gracefully (we basically
+    // need to have everything in one context, but contexts aren't thread safe)
+    // But we want to create a single final module, so that we can to lto,
+    // therefore, we simply export each modules bitcode into a buffer and then
+    // parse those buffers to a single module at the end
+    // (see https://lists.llvm.org/pipermail/llvm-dev/2015-June/086296.html)
+    let bc_buffers = ptrvec.with_cap(n);
 #endif
 
     // TODO(#64): the mir compilation can be done in parallel
@@ -31,13 +52,21 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
 
 #if USE_LLVM
         let llvm_context = codegen.compile_mir_mod(&mir_mod);
-        vec.set(&llvm_contexts, i, &llvm_context as *void);
 
         io.printf("--- llvm ---\n");
         llvm.dump_module(llvm_context.llmod);
         io.printf("\n");
 
         llvm.verify_module(llvm_context.llmod, 0, null);
+
+        let buf = llvm.write_bitcode_to_memory_buffer(llvm_context.llmod);
+        if buf == null {
+            io.printf("Could not write bitcode to buffer");
+        }
+        ptrvec.set(&bc_buffers, i, buf as *void);
+
+        llvm.dispose_module(llvm_context.llmod);
+        llvm.context_dispose(llvm_context.ctx);
 #endif
 
         mirc.free_compiler(&mir_compiler);
@@ -47,37 +76,39 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
     }
 
 #if USE_LLVM
-    // Link different modules together
+    // the context for the final module
     let base_ctx = llvm.context_create();
     let base_mod = llvm.module_create_with_name_in_context("base", base_ctx);
 
-    let error = false;
-
-    i = 0;
+    let i = 0;
     while i < n {
-        let mod_ctx = vec.get_ptr(&llvm_contexts, i) as *codegen.ModuleContext;
-        error = error || llvm.link_modules2(base_mod, mod_ctx.llmod);
+        let buf = ptrvec.get(&bc_buffers, i) as *llvm.MemoryBuffer;
+
+        let mod: *llvm.Module = null;
+        if llvm.parse_bitcode_in_context2(base_ctx, buf, &mod) {
+            io.printf("Could not parse module\n");
+            std.abort();
+        }
+
+        llvm.link_modules2(base_mod, mod);
+
+        llvm.dispose_memory_buffer(buf);
         i = i + 1;
     }
 
-    if error {
-        io.printf("Could not link modules\n");
+    let out = path.create("out.o", 5);
+    llvm.verify_module(base_mod, 0, null);
+    let error = target.emit_to_file(&tm, base_mod, out, false);
+    if error != null {
+        io.printf("%s\n", error);
+        llvm.dispose_message(error);
     }
 
-    io.printf("--- final module ---\n");
-    llvm.dump_module(base_mod);
-
-    // free the linked module
     llvm.dispose_module(base_mod);
     llvm.context_dispose(base_ctx);
 
-    // free all of the temporary contexts
-    i = 0;
-    while i < n {
-        let mod_ctx = vec.get_ptr(&llvm_contexts, i) as *codegen.ModuleContext;
-        llvm.context_dispose(mod_ctx.ctx);
-        i = i + 1;
-    }
-    vec.free_v(&llvm_contexts);
+    ptrvec.free_v(&bc_buffers);
+    target.free_target_machine(&tm);
+    target.free_target(&t);
 #endif
 }
