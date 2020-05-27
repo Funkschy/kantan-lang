@@ -622,6 +622,8 @@ def compile_binary(
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
 
+    // TODO: f32 binary operation compilation
+
     if binary.kind == MIR_BIN_ADD {
         return llvm.build_add(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_SUB {

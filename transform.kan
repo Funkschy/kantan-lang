@@ -59,6 +59,7 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         io.printf("\n");
 
         llvm.verify_module(llvm_context.llmod, 0, null);
+        optimize_single(llvm_context.llmod);
 
         let buf = llvm.write_bitcode_to_memory_buffer(llvm_context.llmod);
         if buf == null {
@@ -97,6 +98,9 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
         i = i + 1;
     }
 
+    io.printf("--- final ---\n");
+    llvm.dump_module(base_mod);
+
     let out = path.create("out.o", 5);
     let error = target.emit_to_file(&tm, base_mod, out, false);
     if error != null {
@@ -111,4 +115,47 @@ def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
     target.free_target_machine(&tm);
     target.free_target(&t);
 #endif
+}
+
+def optimize_single(module: *llvm.Module): void {
+    let opt_level_none = 0;
+    let opt_level_less = 1;
+    let opt_level_default = 2;
+    let opt_level_aggressive = 1;
+
+    let opt_level = opt_level_none;
+
+    if opt_level == opt_level_none {
+        return;
+    }
+
+    // Per clang and rustc, we want to use both kinds.
+    let mpm = llvm.create_pass_manager();
+    let fpm = llvm.create_function_pass_manager_for_module(module);
+
+    let pm_builder = llvm.pass_manager_builder_create();
+    llvm.pass_manager_builder_set_opt_level(pm_builder, opt_level);
+
+    llvm.pass_manager_builder_populate_module_pass_manager(pm_builder, mpm);
+    llvm.pass_manager_builder_populate_function_pass_manager(pm_builder, fpm);
+    llvm.pass_manager_builder_dispose(pm_builder);
+
+    llvm.initialize_function_pass_manager(fpm);
+    llvm.add_promote_memory_to_register_pass(fpm);
+    llvm.add_dead_store_elimination_pass(fpm);
+
+    // Iterate over functions, running the FPM over each
+    let func = llvm.get_first_function(module);
+    while func != null {
+        llvm.run_function_pass_manager(fpm, func);
+        func = llvm.get_next_function(func);
+    }
+    llvm.finalize_function_pass_manager(fpm);
+
+    // Run the MPM over the module
+    llvm.run_pass_manager(mpm, module);
+
+    // Clean up managers
+    llvm.dispose_pass_manager(fpm);
+    llvm.dispose_pass_manager(mpm);
 }
