@@ -54,7 +54,7 @@ C_OBJ_FILES = $(C_SRC_FILES:.c=.c.o)
 LLVM_PATH = $(HOME)/Downloads/llvm/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04
 LLVM_CONFIG = $(LLVM_PATH)/bin/llvm-config
 
-LLVM_LIB_NAMES = core target analysis support x86codegen linker
+LLVM_LIB_NAMES = core target analysis support x86codegen linker passes
 CPP_LIBS = -lpthread -lncurses
 
 LLVM_C_FLAGS = $(shell $(LLVM_CONFIG) --cflags)

@@ -14,16 +14,24 @@ type Value struct {}
 type Target struct {}
 type TargetMachine struct {}
 type MemoryBuffer struct {}
+type PassManager struct {}
+type PassManagerBuilder struct {}
 
 
 // Core
 extern def LLVMShutdown(): void;
+
+extern def LLVMCreateMessage(message: string): string;
 
 extern def LLVMDisposeMessage(message: string): void;
 
 
 def shutdown(): void {
     LLVMShutdown();
+}
+
+def create_message(message: string): string {
+    return LLVMCreateMessage(message);
 }
 
 def dispose_message(message: string): void {
@@ -59,6 +67,10 @@ extern def LLVMAddFunction(m: *Module, name: string, function_ty: *Type): *Value
 
 extern def LLVMGetNamedFunction(m: *Module, name: string): *Value;
 
+extern def LLVMGetFirstFunction(m: *Module): *Value;
+
+extern def LLVMGetNextFunction(fn: *Value): *Value;
+
 
 def module_create_with_name_in_context(module_id: string, c: *Context): *Module {
     return LLVMModuleCreateWithNameInContext(module_id, c);
@@ -83,6 +95,14 @@ def add_function(m: *Module, name: string, function_ty: *Type): *Value {
 
 def get_named_function(m: *Module, name: string): *Value {
     return LLVMGetNamedFunction(m, name);
+}
+
+def get_first_function(m: *Module): *Value {
+    return LLVMGetFirstFunction(m);
+}
+
+def get_next_function(fn: *Value): *Value {
+    return LLVMGetNextFunction(fn);
 }
 
 
@@ -475,6 +495,7 @@ def build_call(arg1: *Builder, fn: *Value, args: **Value, num_args: i32, name: s
     return LLVMBuildCall(arg1, fn, args, num_args, name);
 }
 
+
 // Core->Memory Buffers
 extern def LLVMDisposeMemoryBuffer(mem_buf: *MemoryBuffer): void;
 
@@ -483,7 +504,54 @@ def dispose_memory_buffer(mem_buf: *MemoryBuffer): void {
     LLVMDisposeMemoryBuffer(mem_buf);
 }
 
-// Linking
+
+// Core->Pass managers
+extern def LLVMCreatePassManager(): *PassManager;
+
+extern def LLVMCreateFunctionPassManagerForModule(m: *Module): *PassManager;
+
+extern def LLVMRunPassManager(pm: *PassManager, m: *Module): i32;
+
+extern def LLVMInitializeFunctionPassManager(fpm: *PassManager): i32;
+
+extern def LLVMRunFunctionPassManager(fpm: *PassManager, f: *Value): i32;
+
+extern def LLVMFinalizeFunctionPassManager(fpm: *PassManager): i32;
+
+extern def LLVMDisposePassManager(pm: *PassManager): void;
+
+
+def create_pass_manager(): *PassManager {
+    return LLVMCreatePassManager();
+}
+
+def create_function_pass_manager_for_module(m: *Module): *PassManager {
+    return LLVMCreateFunctionPassManagerForModule(m);
+}
+
+def run_pass_manager(pm: *PassManager, m: *Module): bool {
+    return std.int_to_bool(LLVMRunPassManager(pm, m));
+}
+
+def initialize_function_pass_manager(fpm: *PassManager): bool {
+    return std.int_to_bool(LLVMInitializeFunctionPassManager(fpm));
+}
+
+def run_function_pass_manager(fpm: *PassManager, f: *Value): bool {
+    return std.int_to_bool(LLVMRunFunctionPassManager(fpm, f));
+}
+
+def finalize_function_pass_manager(fpm: *PassManager): bool {
+    return std.int_to_bool(LLVMFinalizeFunctionPassManager(fpm));
+}
+
+def dispose_pass_manager(pm: *PassManager): void {
+    LLVMDisposePassManager(pm);
+}
+
+
+// Core->Threading
+
 
 extern def LLVMLinkModules2(dest: *Module, src: *Module): i32;
 
@@ -495,8 +563,6 @@ def link_modules2(dest: *Module, src: *Module): bool {
     return std.int_to_bool(LLVMLinkModules2(dest, src));
 }
 
-
-// Verification
 
 extern def LLVMVerifyModule(m: *Module, action: i32, out_message: *string): i32;
 
@@ -535,8 +601,6 @@ def initialize_x86_asm_printer(): void {
 }
 
 
-// Target
-
 extern def LLVMGetTargetFromTriple(triple: string, t: **Target, error_message: *string): i32;
 
 extern def LLVMCreateTargetMachine(t: *Target, triple: string, cpu: string, features: string, level: i32, reloc: i32, code_model: i32): *TargetMachine;
@@ -568,7 +632,6 @@ def target_machine_emit_to_memory_buffer(t: *TargetMachine, m: *Module, codegen:
     return std.int_to_bool(LLVMTargetMachineEmitToMemoryBuffer(t, m, codegen, error_message, out_mem_buf));
 }
 
-// Bitreader
 
 extern def LLVMParseBitcodeInContext2(context_ref: *Context, mem_buf: *MemoryBuffer, out_module: **Module): i32;
 
@@ -577,11 +640,64 @@ def parse_bitcode_in_context2(context_ref: *Context, mem_buf: *MemoryBuffer, out
     return std.int_to_bool(LLVMParseBitcodeInContext2(context_ref, mem_buf, out_module));
 }
 
-// Bitwriter
 
 extern def LLVMWriteBitcodeToMemoryBuffer(m: *Module): *MemoryBuffer;
 
 // Writes a module to a new memory buffer.
 def write_bitcode_to_memory_buffer(m: *Module): *MemoryBuffer {
     return LLVMWriteBitcodeToMemoryBuffer(m);
+}
+
+
+extern def LLVMPassManagerBuilderCreate(): *PassManagerBuilder;
+
+extern def LLVMPassManagerBuilderDispose(pmb: *PassManagerBuilder): void;
+
+extern def LLVMPassManagerBuilderSetOptLevel(pmb: *PassManagerBuilder, opt_level: i32): void;
+
+extern def LLVMPassManagerBuilderUseInlinerWithThreshold(pmb: *PassManagerBuilder, threshold: i32): void;
+
+extern def LLVMPassManagerBuilderPopulateFunctionPassManager(pmb: *PassManagerBuilder, pm: *PassManager): void;
+
+extern def LLVMPassManagerBuilderPopulateModulePassManager(pmb: *PassManagerBuilder, pm: *PassManager): void;
+
+
+def pass_manager_builder_create(): *PassManagerBuilder {
+    return LLVMPassManagerBuilderCreate();
+}
+
+def pass_manager_builder_dispose(pmb: *PassManagerBuilder): void {
+    LLVMPassManagerBuilderDispose(pmb);
+}
+
+def pass_manager_builder_set_opt_level(pmb: *PassManagerBuilder, opt_level: i32): void {
+    LLVMPassManagerBuilderSetOptLevel(pmb, opt_level);
+}
+
+def pass_manager_builder_use_inliner_with_threshold(pmb: *PassManagerBuilder, threshold: i32): void {
+    LLVMPassManagerBuilderUseInlinerWithThreshold(pmb, threshold);
+}
+
+def pass_manager_builder_populate_function_pass_manager(pmb: *PassManagerBuilder, pm: *PassManager): void {
+    LLVMPassManagerBuilderPopulateFunctionPassManager(pmb, pm);
+}
+
+def pass_manager_builder_populate_module_pass_manager(pmb: *PassManagerBuilder, pm: *PassManager): void {
+    LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
+}
+
+
+extern def LLVMAddDeadStoreEliminationPass(pm: *PassManager): void;
+
+
+def add_dead_store_elimination_pass(pm: *PassManager): void {
+    LLVMAddDeadStoreEliminationPass(pm);
+}
+
+
+extern def LLVMAddPromoteMemoryToRegisterPass(pm: *PassManager): void;
+
+
+def add_promote_memory_to_register_pass(pm: *PassManager): void {
+    LLVMAddPromoteMemoryToRegisterPass(pm);
 }

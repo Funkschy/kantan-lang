@@ -9,7 +9,11 @@ links = [
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/target.rs',
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/target_machine.rs',
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/bit_reader.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/bit_writer.rs'
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/bit_writer.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/pass_manager.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/pass_manager_builder.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/scalar.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/util.rs',
 ]
 
 
@@ -60,7 +64,6 @@ whitelist = set([
     'LLVMContextCreate',
     'LLVMContextDispose',
     'LLVMCreateBuilderInContext',
-    'LLVMCreateMemoryBufferWithContentsOfFile'
     'LLVMCreateMessage',
     'LLVMDisposeBuilder',
     'LLVMDisposeMemoryBuffer',
@@ -93,6 +96,8 @@ whitelist = set([
     'LLVMStructSetBody',
     'LLVMTypeOf',
     'LLVMVoidTypeInContext',
+    'LLVMGetFirstFunction',
+    'LLVMGetNextFunction',
 
     # analysis
     'LLVMVerifyModule',
@@ -118,6 +123,23 @@ whitelist = set([
 
     # bit writer
     'LLVMWriteBitcodeToMemoryBuffer',
+
+    # passes
+    'LLVMAddDeadStoreEliminationPass',
+    'LLVMAddPromoteMemoryToRegisterPass',
+    'LLVMCreateFunctionPassManagerForModule',
+    'LLVMCreatePassManager',
+    'LLVMDisposePassManager',
+    'LLVMFinalizeFunctionPassManager',
+    'LLVMInitializeFunctionPassManager',
+    'LLVMPassManagerBuilderCreate',
+    'LLVMPassManagerBuilderDispose',
+    'LLVMPassManagerBuilderPopulateFunctionPassManager',
+    'LLVMPassManagerBuilderPopulateModulePassManager',
+    'LLVMPassManagerBuilderSetOptLevel',
+    'LLVMPassManagerBuilderUseInlinerWithThreshold',
+    'LLVMRunFunctionPassManager',
+    'LLVMRunPassManager',
 ])
 
 
@@ -309,6 +331,8 @@ typemap = {
 
     'LLVMTargetRef': ('*Target', '*Target', None, None),
     '*mut LLVMTargetRef': ('**Target', '**Target', None, None),
+
+    'LLVMPassManagerBuilderRef': ('*PassManagerBuilder', '*PassManagerBuilder', None, None),
 }
 def map_typename(typename):
     typename = typename.strip()
@@ -444,7 +468,7 @@ def translate(content):
             print()
             function_count += len(b['decls'])
 
-    print('Total:', function_count, 'functions')
+    # print('Total:', function_count, 'functions')
 
     for name in skipped:
         print(name, 'was skipped, because a type could not be mapped')
