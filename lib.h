@@ -171,7 +171,7 @@ static char const *const error_texts[] = {
     "Expected '%s', but got '%s'",
     "Unknown symbol: '%.*s'",
     "Char literal with length %1$d: '%.*s'",
-    "Could not parse statement: \n%.*s",
+    "Could not parse statement",
     "Illegal type identifier '%.*s': %s",
     // type errors
     "Duplicate definition of '%.*s'",
