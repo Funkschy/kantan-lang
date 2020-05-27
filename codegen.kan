@@ -619,10 +619,13 @@ def compile_binary(
     e: *mir.Expression
 ): *llvm.Value {
     let binary = mir.as_expr_binary(e);
+
+    if ty.is_f32(binary.left.ty) {
+        return compile_binary_float(c, func, binary);
+    }
+
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
-
-    // TODO: f32 binary operation compilation
 
     if binary.kind == MIR_BIN_ADD {
         return llvm.build_add(c.builder, left, right, "");
@@ -634,6 +637,7 @@ def compile_binary(
         return llvm.build_s_div(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_MOD {
         // TODO: this is actually a remainder operation, not modulo
+        //  same for floats
         return llvm.build_s_rem(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_ST {
         // TODO: unsigned integer types
@@ -666,6 +670,41 @@ def compile_binary(
         }
 
         return llvm.build_in_bounds_gep(c.builder, ptr, &scalar, 1, "");
+    }
+
+    return null;
+}
+
+def compile_binary_float(
+    c: *ModuleCompiler,
+    func: *FunctionData,
+    binary: *mir.ExprBinary
+): *llvm.Value {
+    let left = translate_addr(c, func, &binary.left);
+    let right = translate_addr(c, func, &binary.right);
+
+    if binary.kind == MIR_BIN_ADD {
+        return llvm.build_f_add(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_SUB {
+        return llvm.build_f_sub(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_MUL {
+        return llvm.build_f_mul(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_DIV {
+        return llvm.build_f_div(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_MOD {
+        return llvm.build_f_rem(c.builder, left, right, "");
+    } else if binary.kind == MIR_BIN_ST {
+        return llvm.build_f_cmp(c.builder, 4, left, right, "");
+    } else if binary.kind == MIR_BIN_SE {
+        return llvm.build_f_cmp(c.builder, 5, left, right, "");
+    } else if binary.kind == MIR_BIN_GT {
+        return llvm.build_f_cmp(c.builder, 2, left, right, "");
+    } else if binary.kind == MIR_BIN_GE {
+        return llvm.build_f_cmp(c.builder, 3, left, right, "");
+    } else if binary.kind == MIR_BIN_EQ {
+        return llvm.build_f_cmp(c.builder, 1, left, right, "");
+    } else if binary.kind == MIR_BIN_NE {
+        return llvm.build_f_cmp(c.builder, 6, left, right, "");
     }
 
     return null;
