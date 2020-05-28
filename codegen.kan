@@ -7,35 +7,35 @@ import "mod";
 import "mir";
 import "map";
 import "std";
-import "llvm";
+import "llvmc";
 import "name";
 import "ident";
 import "ptrvec";
 
 // stuff that outlives the ModuleCompiler
 type ModuleContext struct {
-    ctx: *llvm.Context,
-    llmod: *llvm.Module
+    ctx: *llvmc.Context,
+    llmod: *llvmc.Module
 }
 
 type ModuleCompiler struct {
     context: ModuleContext,
     irmod: *mir.Module,
-    builder: *llvm.Builder,
-    structs: map.Map, // map.Map<mir.RefName, *llvm.Type>
-    functions: map.Map, // map.Map<mir.RefName, *llvm.Type>
+    builder: *llvmc.Builder,
+    structs: map.Map, // map.Map<mir.RefName, *llvmc.Type>
+    functions: map.Map, // map.Map<mir.RefName, *llvmc.Type>
     allocated_strings: ptrvec.Vec // ptrvec.Vec<string>
 }
 
 def create_compiler(irmod: *mir.Module): ModuleCompiler {
-    // since this can run in parallel, but llvm.Context is not threadsafe,
+    // since this can run in parallel, but llvmc.Context is not threadsafe,
     // we need a separate context per module
-    let ctx = llvm.context_create();
-    let llmod = llvm.module_create_with_name_in_context(irmod.actual.name.data, ctx);
+    let ctx = llvmc.context_create();
+    let llmod = llvmc.module_create_with_name_in_context(irmod.actual.name.data, ctx);
     let path = mod.get_path(irmod.actual);
-    llvm.set_source_file_name(llmod, path.inner, path.len);
+    llvmc.set_source_file_name(llmod, path.inner, path.len);
 
-    let builder = llvm.create_builder_in_context(ctx);
+    let builder = llvmc.create_builder_in_context(ctx);
 
     return ModuleCompiler {
         context: ModuleContext { ctx: ctx, llmod: llmod },
@@ -48,7 +48,7 @@ def create_compiler(irmod: *mir.Module): ModuleCompiler {
 }
 
 def free_compiler(c: *ModuleCompiler): void {
-    llvm.dispose_builder(c.builder);
+    llvmc.dispose_builder(c.builder);
 
     let i = 0;
     while i < c.allocated_strings.len {
@@ -62,8 +62,8 @@ def free_compiler(c: *ModuleCompiler): void {
 }
 
 def free_context(ctx: *ModuleContext): void {
-    llvm.dispose_module(ctx.llmod);
-    llvm.context_dispose(ctx.ctx);
+    llvmc.dispose_module(ctx.llmod);
+    llvmc.context_dispose(ctx.ctx);
 }
 
 def compile_mir_mod(irmod: *mir.Module): ModuleContext {
@@ -113,32 +113,32 @@ def add_forward_declarations(c: *ModuleCompiler): void {
 def add_global_const(c: *ModuleCompiler, gc: *mir.GlobalConst): void {
     dbg.assert(ty.is_string(gc.ty), "we currently only support string literals");
     let len = gc.value.len + 1; // 1 for null terminator
-    let ty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
+    let ty = llvmc.array_type(llvmc.int8_type_in_context(c.context.ctx), len);
 
-    let global_storage = llvm.add_global(c.context.llmod, ty, gc.name.data);
-    llvm.set_global_constant(global_storage, true);
+    let global_storage = llvmc.add_global(c.context.llmod, ty, gc.name.data);
+    llvmc.set_global_constant(global_storage, true);
     let private_linkage = 15;
-    llvm.set_linkage(global_storage, private_linkage);
+    llvmc.set_linkage(global_storage, private_linkage);
     // Address of the string is globally insignificant
     let global_unnamed_address = 2;
-    llvm.set_unnamed_address(global_storage, global_unnamed_address);
+    llvmc.set_unnamed_address(global_storage, global_unnamed_address);
 
     let null_terminate = true;
-    let const_string = llvm.const_string_in_context(
+    let const_string = llvmc.const_string_in_context(
         c.context.ctx,
         gc.value.data,
         gc.value.len,
         !null_terminate
     );
-    llvm.set_initializer(global_storage, const_string);
+    llvmc.set_initializer(global_storage, const_string);
 }
 
-def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): *llvmc.Type {
     dbg.assert(ty.is_func(t), "non func type passed");
     let f_ty = ty.as_func(t);
 
     let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
-    let func_decl = map.get(&c.functions, key) as *llvm.Type;
+    let func_decl = map.get(&c.functions, key) as *llvmc.Type;
 
     if func_decl == null {
         let num_params = f_ty.params.len;
@@ -156,33 +156,33 @@ def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
         let ret_ty = translate_type(c, f_ty.ret);
 
-        let param_types = params.elements as **llvm.Type;
-        func_decl = llvm.function_type(
+        let param_types = params.elements as **llvmc.Type;
+        func_decl = llvmc.function_type(
             ret_ty, param_types, num_params, f_ty.is_varargs
         );
         ptrvec.free_v(&params);
 
         let name = f_ty.mangled_name.data;
-        llvm.add_function(c.context.llmod, name, func_decl);
+        llvmc.add_function(c.context.llmod, name, func_decl);
         map.insert(&c.functions, key, func_decl as *void);
     }
 
     return func_decl;
 }
 
-def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvmc.Type {
     dbg.assert(ty.is_struct(t), "non struct type passed");
     let s_ty = ty.as_struct(t);
 
     let key = map.create_key(s_ty.mangled_name.len, s_ty.mangled_name.data);
-    let struct_decl = map.get(&c.structs, key) as *llvm.Type;
+    let struct_decl = map.get(&c.structs, key) as *llvmc.Type;
 
     if struct_decl == null {
         let num_fields = ty.num_fields(s_ty);
         let fields = ptrvec.with_cap(num_fields);
 
         let name = s_ty.mangled_name.data;
-        struct_decl = llvm.struct_create_named(c.context.ctx, name);
+        struct_decl = llvmc.struct_create_named(c.context.ctx, name);
         map.insert(&c.structs, key, struct_decl as *void);
 
         let i = 0;
@@ -195,37 +195,37 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
             i = i + 1;
         }
 
-        let field_types = fields.elements as **llvm.Type;
-        llvm.struct_set_body(struct_decl, field_types, num_fields, false);
+        let field_types = fields.elements as **llvmc.Type;
+        llvmc.struct_set_body(struct_decl, field_types, num_fields, false);
         ptrvec.free_v(&fields);
     }
 
     return struct_decl;
 }
 
-def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvmc.Type {
     if ty.is_i32(t) {
-        return llvm.int32_type_in_context(c.context.ctx);
+        return llvmc.int32_type_in_context(c.context.ctx);
     }
 
     if ty.is_void(t) {
-        return llvm.void_type_in_context(c.context.ctx);
+        return llvmc.void_type_in_context(c.context.ctx);
     }
 
     if ty.is_f32(t) {
-        return llvm.float_type_in_context(c.context.ctx);
+        return llvmc.float_type_in_context(c.context.ctx);
     }
 
     if ty.is_bool(t) {
-        return llvm.int1_type_in_context(c.context.ctx);
+        return llvmc.int1_type_in_context(c.context.ctx);
     }
 
     if ty.is_char(t) {
-        return llvm.int8_type_in_context(c.context.ctx);
+        return llvmc.int8_type_in_context(c.context.ctx);
     }
 
     if ty.is_string(t) {
-        return llvm.pointer_type(llvm.int8_type_in_context(c.context.ctx), 0);
+        return llvmc.pointer_type(llvmc.int8_type_in_context(c.context.ctx), 0);
     }
 
     if ty.is_struct(t) {
@@ -234,17 +234,17 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     if ty.is_ptr(t) {
         let p_ty = ty.as_ptr(t);
-        let t: *llvm.Type = null;
+        let t: *llvmc.Type = null;
         if ty.is_void(p_ty.inner) {
             // llvm does not have a void pointer type
-            t = llvm.int8_type_in_context(c.context.ctx);
+            t = llvmc.int8_type_in_context(c.context.ctx);
         } else {
             t = translate_type(c, p_ty.inner);
         }
 
         let i = 0;
         while i < p_ty.count {
-            t = llvm.pointer_type(t, 0);
+            t = llvmc.pointer_type(t, 0);
             i = i + 1;
         }
 
@@ -259,7 +259,7 @@ def translate_addr(
     c: *ModuleCompiler,
     curr_func: *FunctionData,
     a: *mir.Address
-): *llvm.Value {
+): *llvmc.Value {
     return translate_addr_load(c, curr_func, a, true);
 }
 
@@ -268,7 +268,7 @@ def translate_addr_load(
     curr_func: *FunctionData,
     a: *mir.Address,
     load: bool
-): *llvm.Value {
+): *llvmc.Value {
     if mir.is_addr_name(a) {
         let addr_name = mir.as_addr_name(a);
         let variable = variable_by_name(curr_func, addr_name.value);
@@ -277,7 +277,7 @@ def translate_addr_load(
             dbg.assert_fmt(
                 variable != null, "variable %s was null", addr_name.value.data
             );
-            return llvm.build_load(c.builder, variable, "");
+            return llvmc.build_load(c.builder, variable, "");
         }
 
         return variable;
@@ -295,20 +295,20 @@ def translate_addr_load(
 
     if mir.is_addr_global(a) {
         let name = mir.as_addr_global(a).name;
-        let global = llvm.get_named_global(c.context.llmod, name.data);
+        let global = llvmc.get_named_global(c.context.llmod, name.data);
 
-        let gep = llvm.build_gep(c.builder, global, null, 0, "");
+        let gep = llvmc.build_gep(c.builder, global, null, 0, "");
         let ty = translate_type(c, a.ty);
-        return llvm.build_pointer_cast(c.builder, gep, ty, "");
+        return llvmc.build_pointer_cast(c.builder, gep, ty, "");
     }
 
     if mir.is_addr_arg(a) {
         let get_arg = mir.as_addr_arg(a);
-        return llvm.get_param(curr_func.llfunc, get_arg.idx);
+        return llvmc.get_param(curr_func.llfunc, get_arg.idx);
     }
 
     if mir.is_addr_null(a) {
-        return llvm.const_null(translate_type(c, a.ty));
+        return llvmc.const_null(translate_type(c, a.ty));
     }
 
     dbg.assert_fmt(false, "invalid address kind %d", a.kind);
@@ -320,28 +320,28 @@ def translate_literal(
     start: string,
     end: string,
     t: *ty.Type
-): *llvm.Value {
+): *llvmc.Value {
     let llvm_ty = translate_type(c, t);
 
     if ty.is_char(t) {
         let int_value = std.char_to_int(*start);
-        return llvm.const_int(llvm_ty, int_value, false);
+        return llvmc.const_int(llvm_ty, int_value, false);
     }
 
     if ty.is_bool(t) {
         let int_value = std.char_to_int(*start) - std.char_to_int('0');
-        return llvm.const_int(llvm_ty, int_value, false);
+        return llvmc.const_int(llvm_ty, int_value, false);
     }
 
     let copy = std.strndup(start, end - start);
-    let llvm_lit: *llvm.Value = null;
+    let llvm_lit: *llvmc.Value = null;
 
     if ty.is_i32(t) {
-        llvm_lit = llvm.const_int_of_string(llvm_ty, copy, 10);
+        llvm_lit = llvmc.const_int_of_string(llvm_ty, copy, 10);
     }
 
     if ty.is_f32(t) {
-        llvm_lit = llvm.const_real_of_string(llvm_ty, copy);
+        llvm_lit = llvmc.const_real_of_string(llvm_ty, copy);
     }
 
     delete copy;
@@ -359,27 +359,27 @@ def compile_functions(c: *ModuleCompiler): void {
 }
 
 type FunctionData struct {
-    llfunc: *llvm.Value,
+    llfunc: *llvmc.Value,
     irfunc: *mir.Func,
-    blocks: map.Map, // map.Map<RefName, *llvm.BasicBlock>
-    locals: map.Map // map.Map<Refname, *llvm.Value>
+    blocks: map.Map, // map.Map<RefName, *llvmc.BasicBlock>
+    locals: map.Map // map.Map<Refname, *llvmc.Value>
 }
 
 def create_function_data(
     c: *ModuleCompiler,
-    llfunc: *llvm.Value,
+    llfunc: *llvmc.Value,
     irfunc: *mir.Func
 ): FunctionData {
     let num_blocks = mir.bm_num_blocks(&irfunc.blocks);
     let blocks = map.with_cap(num_blocks);
 
-    let entry_block: *llvm.BasicBlock = null;
+    let entry_block: *llvmc.BasicBlock = null;
 
     let i = 0;
     while i < num_blocks {
         let mir_bb = mir.bm_get_bb_ptr(&irfunc.blocks, i);
         let bb_name = name.ref(mir_bb.label.name);
-        let llvm_bb = llvm.append_basic_block_in_context(
+        let llvm_bb = llvmc.append_basic_block_in_context(
             c.context.ctx, llfunc, bb_name.data
         );
 
@@ -396,7 +396,7 @@ def create_function_data(
     let locals = map.with_cap(num_locals);
 
     // compile variable declarations for the entire function
-    llvm.position_builder_at_end(c.builder, entry_block);
+    llvmc.position_builder_at_end(c.builder, entry_block);
     i = 0;
     while i < num_locals {
         let inst_decl = mir.bm_decl_at(&irfunc.blocks, i);
@@ -408,7 +408,7 @@ def create_function_data(
         // taking the name.data should be safe, since this is name.Ref, points
         // to the same string as the corresponding name.Owned inside the
         // NameTable, which has to be null terminated, since it's a name.Owned
-        let value_ptr = llvm.build_alloca(c.builder, ty, decl.name.data);
+        let value_ptr = llvmc.build_alloca(c.builder, ty, decl.name.data);
         let key = map.create_key(decl.name.len, decl.name.data);
         map.insert(&locals, key, value_ptr as *void);
 
@@ -428,19 +428,19 @@ def free_function_data(f: *FunctionData): void {
     map.free_m(&f.locals);
 }
 
-def bb_by_label(f: *FunctionData, label: *mir.Label): *llvm.BasicBlock {
+def bb_by_label(f: *FunctionData, label: *mir.Label): *llvmc.BasicBlock {
     let bb_name = mir.label_name(label);
     let key = map.create_key(bb_name.len, bb_name.data);
-    return map.get(&f.blocks, key) as *llvm.BasicBlock;
+    return map.get(&f.blocks, key) as *llvmc.BasicBlock;
 }
 
-def variable_by_name(f: *FunctionData, var_name: name.Ref): *llvm.Value {
+def variable_by_name(f: *FunctionData, var_name: name.Ref): *llvmc.Value {
     let key = map.create_key(var_name.len, var_name.data);
-    let value = map.get(&f.locals, key) as *llvm.Value;
+    let value = map.get(&f.locals, key) as *llvmc.Value;
     return value;
 }
 
-def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvm.Value): void {
+def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvmc.Value): void {
     let key = map.create_key(var_name.len, var_name.data);
     map.insert(&f.locals, key, value as *void);
 }
@@ -455,7 +455,7 @@ def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
         return;
     }
 
-    let llvm_func = llvm.get_named_function(c.context.llmod, func.name.data);
+    let llvm_func = llvmc.get_named_function(c.context.llmod, func.name.data);
     dbg.assert_fmt(llvm_func!= null, "function not found %s", func.name.data);
 
     let func_data = create_function_data(c, llvm_func, func);
@@ -472,7 +472,7 @@ def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
 
 def compile_bb(c: *ModuleCompiler, func: *FunctionData, bb: *mir.BasicBlock): void {
     let llvm_bb = bb_by_label(func, &bb.label);
-    llvm.position_builder_at_end(c.builder, llvm_bb);
+    llvmc.position_builder_at_end(c.builder, llvm_bb);
 
     let i = 0;
     let n = mir.bb_num_instr(bb);
@@ -519,14 +519,14 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         }
 
         // this is a declared variable
-        llvm.build_store(c.builder, value, storage);
+        llvmc.build_store(c.builder, value, storage);
         return;
     }
 
     if mir.is_inst_jmp(inst) {
         let jmp = mir.as_inst_jmp(inst);
         let target_bb = bb_by_label(func, &jmp.target);
-        llvm.build_br(c.builder, target_bb);
+        llvmc.build_br(c.builder, target_bb);
         return;
     }
 
@@ -537,26 +537,26 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let else_target_bb = bb_by_label(func, &jmp.else_target);
         let condition = translate_addr(c, func, &jmp.condition);
 
-        llvm.build_cond_br(c.builder, condition, if_target_bb, else_target_bb);
+        llvmc.build_cond_br(c.builder, condition, if_target_bb, else_target_bb);
         return;
     }
 
     if mir.is_inst_return(inst) {
         let ret = mir.as_inst_return(inst);
         if mir.is_addr_empty(&ret.value) {
-            llvm.build_ret_void(c.builder);
+            llvmc.build_ret_void(c.builder);
             return;
         }
 
         let value = translate_addr(c, func, &ret.value);
-        llvm.build_ret(c.builder, value);
+        llvmc.build_ret(c.builder, value);
         return;
     }
 
     if mir.is_inst_delete(inst) {
         let del = mir.as_inst_delete(inst);
         let addr = translate_addr(c, func, &del.addr);
-        llvm.build_free(c.builder, addr);
+        llvmc.build_free(c.builder, addr);
         return;
     }
 
@@ -570,17 +570,24 @@ def compile_struct_init_assign(
 ): void {
     let init = mir.as_expr_struct_init(&assign.value);
 
+    let dest_ty = translate_type(c, assign.dest.ty);
     let storage = translate_addr_load(c, func, &assign.dest, false);
     dbg.assert(storage != null, "null storage for struct init");
 
-    // TODO: memset struct storage to zero
+    // I don't really know, if we actually want to do this
+    //
+    // let zero = llvmc.const_int(llvmc.int8_type_in_context(c.context.ctx), 0, false);
+    // let len = llvmc.size_of(dest_ty);
+    // let align = llvmc.get_alignment(storage);
+    // llvmc.build_mem_set(c.builder, storage, zero, len, align);
+
     let i = 0;
     while i < init.args.len {
         let arg = mir.init_arg_at(init, i);
         let arg_addr = translate_addr(c, func, arg);
 
-        let field = llvm.build_struct_gep(c.builder, storage, i, "");
-        llvm.build_store(c.builder, arg_addr, field);
+        let field = llvmc.build_struct_gep(c.builder, storage, i, "");
+        llvmc.build_store(c.builder, arg_addr, field);
 
         i = i + 1;
     }
@@ -590,7 +597,7 @@ def compile_expr(
     c: *ModuleCompiler,
     func: *FunctionData,
     e: *mir.Expression
-): *llvm.Value {
+): *llvmc.Value {
     if mir.is_expr_copy(e) {
         let copy = mir.as_expr_copy(e);
         return translate_addr(c, func, &copy.addr);
@@ -611,14 +618,14 @@ def compile_expr(
     if mir.is_expr_gep(e) {
         let gep = mir.as_expr_gep(e);
         let addr = translate_addr_load(c, func, &gep.addr, false);
-        return llvm.build_struct_gep(c.builder, addr, gep.idx, "");
+        return llvmc.build_struct_gep(c.builder, addr, gep.idx, "");
     }
 
     if mir.is_expr_bitcast(e) {
         let cast = mir.as_expr_bitcast(e);
         let addr = translate_addr(c, func, &cast.addr);
         let into = translate_type(c, cast.into);
-        return llvm.build_bit_cast(c.builder, addr, into, "");
+        return llvmc.build_bit_cast(c.builder, addr, into, "");
     }
 
     if mir.is_expr_new(e) {
@@ -626,10 +633,10 @@ def compile_expr(
         let addr = translate_addr_load(c, func, &new_e.addr, false);
         let ty = translate_type(c, new_e.addr.ty);
 
-        let storage = llvm.build_malloc(c.builder, ty, "");
-        let align = llvm.get_alignment(addr);
-        let size = llvm.size_of(ty);
-        llvm.build_mem_cpy(c.builder, storage, align, addr, align, size);
+        let storage = llvmc.build_malloc(c.builder, ty, "");
+        let align = llvmc.get_alignment(addr);
+        let size = llvmc.size_of(ty);
+        llvmc.build_mem_cpy(c.builder, storage, align, addr, align, size);
 
         return storage;
     }
@@ -639,10 +646,10 @@ def compile_expr(
         let ty = translate_type(c, so.ty);
 
         // TODO: remove when u64 is supported
-        return llvm.build_int_cast(
+        return llvmc.build_int_cast(
             c.builder,
-            llvm.size_of(ty),
-            llvm.int32_type_in_context(c.context.ctx),
+            llvmc.size_of(ty),
+            llvmc.int32_type_in_context(c.context.ctx),
             ""
         );
     }
@@ -655,7 +662,7 @@ def compile_unary(
     c: *ModuleCompiler,
     func: *FunctionData,
     e: *mir.Expression
-): *llvm.Value {
+): *llvmc.Value {
     let unary = mir.as_expr_unary(e);
     let value = translate_addr(c, func, &unary.addr);
 
@@ -665,11 +672,11 @@ def compile_unary(
     }
 
     if mir.is_unary_num_neg(unary) {
-        return llvm.build_neg(c.builder, value, "");
+        return llvmc.build_neg(c.builder, value, "");
     }
 
     if mir.is_unary_bool_neg(unary) {
-        return llvm.build_not(c.builder, value, "");
+        return llvmc.build_not(c.builder, value, "");
     }
 
     dbg.assert_fmt(false, "Invalid unary kind: %d", unary.kind);
@@ -681,7 +688,7 @@ def compile_binary(
     c: *ModuleCompiler,
     func: *FunctionData,
     e: *mir.Expression
-): *llvm.Value {
+): *llvmc.Value {
     let binary = mir.as_expr_binary(e);
 
     if ty.is_f32(binary.left.ty) {
@@ -692,34 +699,47 @@ def compile_binary(
     let right = translate_addr(c, func, &binary.right);
 
     if binary.kind == MIR_BIN_ADD {
-        return llvm.build_add(c.builder, left, right, "");
+        return llvmc.build_add(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_SUB {
-        return llvm.build_sub(c.builder, left, right, "");
+        // pointer subtraction (both types have to be equal for MIR_BIN_SUB)
+        if ty.is_ptr_type(binary.left.ty) {
+            let int64_ty = llvmc.int64_type_in_context(c.context.ctx);
+            left = llvmc.build_ptr_to_int(c.builder, left, int64_ty, "");
+            right = llvmc.build_ptr_to_int(c.builder, right, int64_ty, "");
+
+            let sub = llvmc.build_sub(c.builder, left, right, "");
+            let int32_ty = llvmc.int32_type_in_context(c.context.ctx);
+            // we currently only support i32, so we need to cast the result
+            // this is safer than casting the pointers separately i think
+            return llvmc.build_int_cast(c.builder, sub, int32_ty, "");
+        }
+
+        return llvmc.build_sub(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_MUL {
-        return llvm.build_mul(c.builder, left, right, "");
+        return llvmc.build_mul(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_DIV {
-        return llvm.build_s_div(c.builder, left, right, "");
+        return llvmc.build_s_div(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_MOD {
         // TODO: this is actually a remainder operation, not modulo
         //  same for floats
-        return llvm.build_s_rem(c.builder, left, right, "");
+        return llvmc.build_s_rem(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_ST {
         // TODO: unsigned integer types
-        return llvm.build_i_cmp(c.builder, 40, left, right, "");
+        return llvmc.build_i_cmp(c.builder, 40, left, right, "");
     } else if binary.kind == MIR_BIN_SE {
-        return llvm.build_i_cmp(c.builder, 41, left, right, "");
+        return llvmc.build_i_cmp(c.builder, 41, left, right, "");
     } else if binary.kind == MIR_BIN_GT {
-        return llvm.build_i_cmp(c.builder, 38, left, right, "");
+        return llvmc.build_i_cmp(c.builder, 38, left, right, "");
     } else if binary.kind == MIR_BIN_GE {
-        return llvm.build_i_cmp(c.builder, 39, left, right, "");
+        return llvmc.build_i_cmp(c.builder, 39, left, right, "");
     } else if binary.kind == MIR_BIN_EQ {
-        return llvm.build_i_cmp(c.builder, 32, left, right, "");
+        return llvmc.build_i_cmp(c.builder, 32, left, right, "");
     } else if binary.kind == MIR_BIN_NE {
-        return llvm.build_i_cmp(c.builder, 33, left, right, "");
+        return llvmc.build_i_cmp(c.builder, 33, left, right, "");
     } else if binary.kind == MIR_BIN_BOOL_AND {
-        return llvm.build_and(c.builder, left, right, "");
+        return llvmc.build_and(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_BOOL_OR {
-        return llvm.build_or(c.builder, left, right, "");
+        return llvmc.build_or(c.builder, left, right, "");
     } else {
         let ptr = left;
         let scalar = right;
@@ -730,10 +750,10 @@ def compile_binary(
 
         // for ptr - scalar, just negate the scalar value
         if binary.kind == MIR_BIN_SUB_SCALAR {
-            scalar = llvm.build_neg(c.builder, scalar, "");
+            scalar = llvmc.build_neg(c.builder, scalar, "");
         }
 
-        return llvm.build_in_bounds_gep(c.builder, ptr, &scalar, 1, "");
+        return llvmc.build_in_bounds_gep(c.builder, ptr, &scalar, 1, "");
     }
 
     dbg.assert_fmt(false, "Invalid binary kind: %d", binary.kind);
@@ -744,32 +764,32 @@ def compile_binary_float(
     c: *ModuleCompiler,
     func: *FunctionData,
     binary: *mir.ExprBinary
-): *llvm.Value {
+): *llvmc.Value {
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
 
     if binary.kind == MIR_BIN_ADD {
-        return llvm.build_f_add(c.builder, left, right, "");
+        return llvmc.build_f_add(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_SUB {
-        return llvm.build_f_sub(c.builder, left, right, "");
+        return llvmc.build_f_sub(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_MUL {
-        return llvm.build_f_mul(c.builder, left, right, "");
+        return llvmc.build_f_mul(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_DIV {
-        return llvm.build_f_div(c.builder, left, right, "");
+        return llvmc.build_f_div(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_MOD {
-        return llvm.build_f_rem(c.builder, left, right, "");
+        return llvmc.build_f_rem(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_ST {
-        return llvm.build_f_cmp(c.builder, 4, left, right, "");
+        return llvmc.build_f_cmp(c.builder, 4, left, right, "");
     } else if binary.kind == MIR_BIN_SE {
-        return llvm.build_f_cmp(c.builder, 5, left, right, "");
+        return llvmc.build_f_cmp(c.builder, 5, left, right, "");
     } else if binary.kind == MIR_BIN_GT {
-        return llvm.build_f_cmp(c.builder, 2, left, right, "");
+        return llvmc.build_f_cmp(c.builder, 2, left, right, "");
     } else if binary.kind == MIR_BIN_GE {
-        return llvm.build_f_cmp(c.builder, 3, left, right, "");
+        return llvmc.build_f_cmp(c.builder, 3, left, right, "");
     } else if binary.kind == MIR_BIN_EQ {
-        return llvm.build_f_cmp(c.builder, 1, left, right, "");
+        return llvmc.build_f_cmp(c.builder, 1, left, right, "");
     } else if binary.kind == MIR_BIN_NE {
-        return llvm.build_f_cmp(c.builder, 6, left, right, "");
+        return llvmc.build_f_cmp(c.builder, 6, left, right, "");
     }
 
     dbg.assert_fmt(false, "Invalid binary float kind: %d", binary.kind);
@@ -780,12 +800,12 @@ def compile_call(
     c: *ModuleCompiler,
     func: *FunctionData,
     e: *mir.Expression
-): *llvm.Value {
+): *llvmc.Value {
     let call = mir.as_expr_call(e);
     // TODO: we need to change this, when introducing function pointers
     dbg.assert(mir.is_addr_name(&call.callee), "callee should be name");
     let callee_name = mir.as_addr_name(&call.callee).value;
-    let llvm_func = llvm.get_named_function(c.context.llmod, callee_name.data);
+    let llvm_func = llvmc.get_named_function(c.context.llmod, callee_name.data);
     dbg.assert(llvm_func != null, "llvm function not found");
 
     let num_args = call.args.len;
@@ -800,8 +820,8 @@ def compile_call(
             // it has to be promoted to a double implicitly
             if ty.is_f32(arg.ty) {
                 // convert f32 to f64
-                let f64_ty = llvm.double_type_in_context(c.context.ctx);
-                value = llvm.build_fp_ext(c.builder, value, f64_ty, "");
+                let f64_ty = llvmc.double_type_in_context(c.context.ctx);
+                value = llvmc.build_fp_ext(c.builder, value, f64_ty, "");
             }
         }
 
@@ -809,8 +829,8 @@ def compile_call(
         i = i + 1;
     }
 
-    let arg_values = args.elements as **llvm.Value;
-    let call = llvm.build_call(c.builder, llvm_func, arg_values, args.len, "");
+    let arg_values = args.elements as **llvmc.Value;
+    let call = llvmc.build_call(c.builder, llvm_func, arg_values, args.len, "");
     ptrvec.free_v(&args);
     return call;
 }

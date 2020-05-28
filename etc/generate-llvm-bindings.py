@@ -45,6 +45,7 @@ whitelist = set([
     'LLVMBuildLoad',
     'LLVMBuildMalloc',
     'LLVMBuildMemCpy',
+    'LLVMBuildMemSet',
     'LLVMBuildMul',
     'LLVMBuildNeg',
     'LLVMBuildNot',

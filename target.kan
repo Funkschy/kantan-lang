@@ -4,7 +4,7 @@ import "dbg";
 import "std";
 import "name";
 import "path";
-import "llvm";
+import "llvmc";
 
 #define ARCH_X86_64 1
 
@@ -43,10 +43,10 @@ def arch_to_name(a: Arch): name.Ref {
 
 def arch_register(a: Arch): void {
     if a.value == ARCH_X86_64 {
-        llvm.initialize_x86_target_info();
-        llvm.initialize_x86_target();
-        llvm.initialize_x86_target_mc();
-        llvm.initialize_x86_asm_printer();
+        llvmc.initialize_x86_target_info();
+        llvmc.initialize_x86_target();
+        llvmc.initialize_x86_target_mc();
+        llvmc.initialize_x86_asm_printer();
         return;
     }
 
@@ -88,7 +88,7 @@ def env_to_name(a: Env): name.Ref {
 
 type Target struct {
     is_error: bool,
-    lltarget: *llvm.Target,
+    lltarget: *llvmc.Target,
     triple_or_error: string // llvm message
 }
 
@@ -108,9 +108,9 @@ def create_and_register_target(a: Arch, v: Vendor, os: OS, env: Env): Target {
         env.len, env.data
     );
 
-    let target: *llvm.Target = null;
+    let target: *llvmc.Target = null;
     let error: string = null;
-    if llvm.get_target_from_triple(triple, &target, &error) {
+    if llvmc.get_target_from_triple(triple, &target, &error) {
         delete triple;
         return Target { is_error: true, lltarget: null, triple_or_error: error };
     }
@@ -124,14 +124,14 @@ def create_and_register_target(a: Arch, v: Vendor, os: OS, env: Env): Target {
 
 def free_target(t: *Target): void {
     if t.is_error {
-        llvm.dispose_message(t.triple_or_error);
+        llvmc.dispose_message(t.triple_or_error);
     } else {
         delete t.triple_or_error;
     }
 }
 
 type TargetMachine struct {
-    lltm: *llvm.TargetMachine
+    lltm: *llvmc.TargetMachine
 }
 
 def create_target_machine(target: *Target): TargetMachine {
@@ -143,7 +143,7 @@ def create_target_machine(target: *Target): TargetMachine {
     let reloc_mode_pic = 2;
     let code_model_default = 0;
 
-    let tm = llvm.create_target_machine(
+    let tm = llvmc.create_target_machine(
         target.lltarget,
         target.triple_or_error,
         "generic", // cpu type
@@ -161,13 +161,13 @@ def create_target_machine(target: *Target): TargetMachine {
 }
 
 def free_target_machine(tm: *TargetMachine): void {
-    llvm.dispose_target_machine(tm.lltm);
+    llvmc.dispose_target_machine(tm.lltm);
 }
 
 // returns null or an error message
 def emit_to_file(
     tm: *TargetMachine,
-    mod: *llvm.Module,
+    mod: *llvmc.Module,
     out: path.Path,
     asm: bool
 ): string {
@@ -178,7 +178,7 @@ def emit_to_file(
 
     let file = std.strndup(out.inner, out.len);
     let err: string = null;
-    if llvm.target_machine_emit_to_file(tm.lltm, mod, file, gen_type, &err) {
+    if llvmc.target_machine_emit_to_file(tm.lltm, mod, file, gen_type, &err) {
         delete file;
         return err;
     }

@@ -1156,6 +1156,10 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let mod_idx = tc.ctx.mod.idx;
     ty.init_func(definition, fd.name, mangled_name, mod_idx, fd.is_extern);
 
+    // TODO: function names are not allowed to start with 'llvm.'
+    //  otherwise they are recognized as llvm intrinsics
+    //  we have to check for this edge case
+
     if ident.eq_lit(&fd.name, "main") {
         if tc.main_func != null {
             // TODO: custom error for duplicated main function

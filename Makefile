@@ -8,7 +8,7 @@ K_FILES = ast.kan \
 		  func.kan \
 		  ident.kan \
 		  lexer.kan \
-		  llvm.kan \
+		  llvmc.kan \
 		  main.kan \
 		  map.kan \
 		  mir.kan \
@@ -62,8 +62,9 @@ LLVM_LD_FLAGS = $(shell $(LLVM_CONFIG) --ldflags)
 LLVM_LIBS = $(shell $(LLVM_CONFIG) --libs $(LLVM_LIB_NAMES))
 
 KANTAN_RUST = kantan
-KANTAN_KANTAN = valgrind --leak-check=full $(START_FOLDER)/compiler
+KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDER)/suppress-llvm-errors.supp $(START_FOLDER)/compiler
 KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
+KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK)
 
 $(BIN_NAME) : $(K_FILES) $(C_FILES)
 	mkdir $(BUILD_FOLDER) ;
@@ -92,6 +93,11 @@ self : $(BIN_NAME) $(K_FILES) $(C_FILES)
 	done
 	pushd $(BUILD_FOLDER) ; \
 	$(KANTAN_KANTAN) $(K_FILES) ; \
+	for file in $(C_SRC_FILES) ; do \
+		gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
+	done; \
+	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(CPP_LIBS); \
+	mv self-hosted $(START_FOLDER)/self-hosted ; \
 	popd ; \
 	rm -r $(BUILD_FOLDER) ; \
 

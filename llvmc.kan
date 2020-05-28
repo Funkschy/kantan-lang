@@ -328,6 +328,8 @@ extern def LLVMBuildNot(arg1: *Builder, v: *Value, name: string): *Value;
 
 extern def LLVMBuildMalloc(arg1: *Builder, ty: *Type, name: string): *Value;
 
+extern def LLVMBuildMemSet(b: *Builder, ptr: *Value, val: *Value, len: *Value, align: i32): *Value;
+
 extern def LLVMBuildMemCpy(b: *Builder, dst: *Value, dst_align: i32, src: *Value, src_align: i32, size: *Value): *Value;
 
 extern def LLVMBuildAlloca(arg1: *Builder, ty: *Type, name: string): *Value;
@@ -447,6 +449,10 @@ def build_not(arg1: *Builder, v: *Value, name: string): *Value {
 // Memory
 def build_malloc(arg1: *Builder, ty: *Type, name: string): *Value {
     return LLVMBuildMalloc(arg1, ty, name);
+}
+
+def build_mem_set(b: *Builder, ptr: *Value, val: *Value, len: *Value, align: i32): *Value {
+    return LLVMBuildMemSet(b, ptr, val, len, align);
 }
 
 def build_mem_cpy(b: *Builder, dst: *Value, dst_align: i32, src: *Value, src_align: i32, size: *Value): *Value {
