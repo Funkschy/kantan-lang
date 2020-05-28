@@ -308,6 +308,7 @@ def translate_addr_load(
         return llvm.const_null(translate_type(c, a.ty));
     }
 
+    dbg.assert_fmt(false, "invalid address kind %d", a.kind);
     return null;
 }
 
@@ -548,9 +549,10 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let del = mir.as_inst_delete(inst);
         let addr = translate_addr(c, func, &del.addr);
         llvm.build_free(c.builder, addr);
+        return;
     }
 
-    // insert abort at end
+    dbg.assert_fmt(false, "invalid instruction kind %d", inst.kind);
 }
 
 def compile_expr(
@@ -601,6 +603,20 @@ def compile_expr(
         return storage;
     }
 
+    if mir.is_expr_sizeof(e) {
+        let so = mir.as_expr_sizeof(e);
+        let ty = translate_type(c, so.ty);
+
+        // TODO: remove when u64 is supported
+        return llvm.build_int_cast(
+            c.builder,
+            llvm.size_of(ty),
+            llvm.int32_type_in_context(c.context.ctx),
+            ""
+        );
+    }
+
+    dbg.assert_fmt(false, "invalid expression kind %d", e.kind);
     return null;
 }
 
@@ -689,6 +705,7 @@ def compile_binary(
         return llvm.build_in_bounds_gep(c.builder, ptr, &scalar, 1, "");
     }
 
+    dbg.assert_fmt(false, "Invalid binary kind: %d", binary.kind);
     return null;
 }
 
@@ -724,6 +741,7 @@ def compile_binary_float(
         return llvm.build_f_cmp(c.builder, 6, left, right, "");
     }
 
+    dbg.assert_fmt(false, "Invalid binary float kind: %d", binary.kind);
     return null;
 }
 
