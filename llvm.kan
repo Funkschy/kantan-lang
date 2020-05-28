@@ -200,6 +200,8 @@ extern def LLVMSetLinkage(global: *Value, linkage: i32): void;
 
 extern def LLVMSetUnnamedAddress(global: *Value, unnamed_addr: i32): void;
 
+extern def LLVMGetAlignment(v: *Value): i32;
+
 extern def LLVMAddGlobal(m: *Module, ty: *Type, name: string): *Value;
 
 extern def LLVMGetNamedGlobal(m: *Module, name: string): *Value;
@@ -245,6 +247,10 @@ def set_linkage(global: *Value, linkage: i32): void {
 
 def set_unnamed_address(global: *Value, unnamed_addr: i32): void {
     LLVMSetUnnamedAddress(global, unnamed_addr);
+}
+
+def get_alignment(v: *Value): i32 {
+    return LLVMGetAlignment(v);
 }
 
 def add_global(m: *Module, ty: *Type, name: string): *Value {
@@ -321,6 +327,8 @@ extern def LLVMBuildNeg(arg1: *Builder, v: *Value, name: string): *Value;
 extern def LLVMBuildNot(arg1: *Builder, v: *Value, name: string): *Value;
 
 extern def LLVMBuildMalloc(arg1: *Builder, ty: *Type, name: string): *Value;
+
+extern def LLVMBuildMemCpy(b: *Builder, dst: *Value, dst_align: i32, src: *Value, src_align: i32, size: *Value): *Value;
 
 extern def LLVMBuildAlloca(arg1: *Builder, ty: *Type, name: string): *Value;
 
@@ -439,6 +447,10 @@ def build_not(arg1: *Builder, v: *Value, name: string): *Value {
 // Memory
 def build_malloc(arg1: *Builder, ty: *Type, name: string): *Value {
     return LLVMBuildMalloc(arg1, ty, name);
+}
+
+def build_mem_cpy(b: *Builder, dst: *Value, dst_align: i32, src: *Value, src_align: i32, size: *Value): *Value {
+    return LLVMBuildMemCpy(b, dst, dst_align, src, src_align, size);
 }
 
 def build_alloca(arg1: *Builder, ty: *Type, name: string): *Value {
