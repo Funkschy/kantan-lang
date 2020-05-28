@@ -274,6 +274,9 @@ def translate_addr_load(
         let variable = variable_by_name(curr_func, addr_name.value);
 
         if load {
+            dbg.assert_fmt(
+                variable != null, "variable %s was null", addr_name.value.data
+            );
             return llvm.build_load(c.builder, variable, "");
         }
 
@@ -486,6 +489,11 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
     if mir.is_inst_assign(inst) {
         let assign = mir.as_inst_assign(inst);
 
+        if mir.is_expr_struct_init(&assign.value) {
+            compile_struct_init_assign(c, func, assign);
+            return;
+        }
+
         let value = compile_expr(c, func, &assign.value);
         dbg.assert(value != null, "value was null");
 
@@ -553,6 +561,29 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
     }
 
     dbg.assert_fmt(false, "invalid instruction kind %d", inst.kind);
+}
+
+def compile_struct_init_assign(
+    c: *ModuleCompiler,
+    func: *FunctionData,
+    assign: *mir.InstAssign
+): void {
+    let init = mir.as_expr_struct_init(&assign.value);
+
+    let storage = translate_addr_load(c, func, &assign.dest, false);
+    dbg.assert(storage != null, "null storage for struct init");
+
+    // TODO: memset struct storage to zero
+    let i = 0;
+    while i < init.args.len {
+        let arg = mir.init_arg_at(init, i);
+        let arg_addr = translate_addr(c, func, arg);
+
+        let field = llvm.build_struct_gep(c.builder, storage, i, "");
+        llvm.build_store(c.builder, arg_addr, field);
+
+        i = i + 1;
+    }
 }
 
 def compile_expr(
