@@ -63,7 +63,7 @@ def get_in(ns: *NameScope, name: name.Ref, out: *i32): bool {
 // In the inner scope, is will return `x_1`
 type NameTable struct {
     scopes: vec.Vec, // vec.Vec<NameScope>
-    // this counts how many versions of each name are in scope right now
+    // this counts how many versions of each name were at one point in scope
     in_scope: map.Map, // map.Map<name.Ref, i32>
     mangled_names: vec.Vec // vec.Vec<name.Owned>
 }
@@ -122,12 +122,12 @@ def bind(nt: *NameTable, to_bind: name.Ref): name.Ref {
     dbg.assert(top != null, "top was null");
 
     let idx = nt.mangled_names.len;
-
-    vec.push(&nt.mangled_names, &mangled as *void);
-    set_in_scope(nt, to_bind, value + 1);
     bind_in(top, to_bind, idx);
+    vec.push(&nt.mangled_names, &mangled as *void);
 
-    return name.make_ref(mangled.len, mangled.data);
+    set_in_scope(nt, to_bind, value + 1);
+
+    return name.ref(mangled);
 }
 
 def open_scope(nt: *NameTable): void {
@@ -142,13 +142,8 @@ def num_in_scope(nt: *NameTable, name: name.Ref): i32 {
 
 def set_in_scope(nt: *NameTable, name: name.Ref, count: i32): void {
     let key = map.create_key(name.len, name.data);
-    let item = map.get_item(&nt.in_scope, key);
     let count = std.int_to_ptr(count);
-    if item == null {
-        map.insert(&nt.in_scope, key, count);
-        return;
-    }
-    item.value = count;
+    map.insert(&nt.in_scope, key, count);
 }
 
 def close_scope(nt: *NameTable): void {

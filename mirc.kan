@@ -241,7 +241,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         dbg.assert(c.current_func != null, "current_func was null");
 
         let block_stmt = ast.as_block_stmt(s);
-        bind_s(c, 5, "block");
+        bind_s(c, 5, "__block");
 
         nt.open_scope(&c.names);
 
