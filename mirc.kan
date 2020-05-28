@@ -864,7 +864,7 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr): i32 {
         //  num |  num
         //  int |  ptr
         //  ptr |  int
-        if ty.is_num(left.ty) && ty.is_num(right.ty) {
+        if ty.equals(left.ty, right.ty) {
             return MIR_BIN_ADD;
         }
 
@@ -877,11 +877,7 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr): i32 {
         //  ptr |  int
         //  ptr |  ptr   <- this is not allowed for addtion
 
-        if ty.is_num(left.ty) && ty.is_num(right.ty) {
-            return MIR_BIN_SUB;
-        }
-
-        if ty.is_ptr_type(left.ty) && ty.is_ptr_type(right.ty) {
+        if ty.equals(left.ty, right.ty) {
             return MIR_BIN_SUB;
         }
 
