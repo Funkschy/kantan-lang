@@ -544,6 +544,12 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         return;
     }
 
+    if mir.is_inst_delete(inst) {
+        let del = mir.as_inst_delete(inst);
+        let addr = translate_addr(c, func, &del.addr);
+        llvm.build_free(c.builder, addr);
+    }
+
     // insert abort at end
 }
 
@@ -572,9 +578,7 @@ def compile_expr(
     if mir.is_expr_gep(e) {
         let gep = mir.as_expr_gep(e);
         let addr = translate_addr_load(c, func, &gep.addr, false);
-
-        let llgep = llvm.build_struct_gep(c.builder, addr, gep.idx, "");
-        return llvm.build_load(c.builder, llgep, "");
+        return llvm.build_struct_gep(c.builder, addr, gep.idx, "");
     }
 
     if mir.is_expr_bitcast(e) {
@@ -582,6 +586,19 @@ def compile_expr(
         let addr = translate_addr(c, func, &cast.addr);
         let into = translate_type(c, cast.into);
         return llvm.build_bit_cast(c.builder, addr, into, "");
+    }
+
+    if mir.is_expr_new(e) {
+        let new_e = mir.as_expr_new(e);
+        let addr = translate_addr_load(c, func, &new_e.addr, false);
+        let ty = translate_type(c, new_e.addr.ty);
+
+        let storage = llvm.build_malloc(c.builder, ty, "");
+        let align = llvm.get_alignment(addr);
+        let size = llvm.size_of(ty);
+        llvm.build_mem_cpy(c.builder, storage, align, addr, align, size);
+
+        return storage;
     }
 
     return null;
