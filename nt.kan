@@ -153,21 +153,6 @@ def set_in_scope(nt: *NameTable, name: name.Ref, count: i32): void {
 
 def close_scope(nt: *NameTable): void {
     let top = top(nt);
-    let top_iter = map.iter(&top.bindings);
-
-    // reduce the 'in_scope' count of the dropped variables
-    let bind = map.iter_next(&top_iter);
-    while bind != null {
-        let item = map.get_item(&nt.in_scope, bind.key);
-        dbg.assert(item != null, "item was null");
-
-        // update value in map
-        let value = std.ptr_to_int(item.value);
-        item.value = std.int_to_ptr(value - 1);
-
-        bind = map.iter_next(&top_iter);
-    }
-
     free_s(top);
     nt.scopes.len = nt.scopes.len - 1;
 }

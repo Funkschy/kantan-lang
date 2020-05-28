@@ -231,12 +231,16 @@ def field_at(t: *Struct, i: i32): *StructField {
 
 // get the index of the field with name 'name'
 // returns -1 if the field does not exist
+// if out_field_ty is not null, it is set to the type of the field
 // TODO(#85): Struct should have a vmap for its fields
-def field_idx(t: *Struct, name: ident.Ident): i32 {
+def field_idx(t: *Struct, name: ident.Ident, out_field_ty: **ty.Type): i32 {
     let i = 0;
     while i < t.fields.len {
         let f = field_at(t, i);
         if ident.eq_value(&name, &f.name) {
+            if out_field_ty != null {
+                *out_field_ty = f.ty;
+            }
             return i;
         }
         i = i + 1;

@@ -458,8 +458,8 @@ def compile_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
 def assign_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let assign = ast.as_assign_expr(e);
-    let target = expr_instruction(c, assign.left, rhs);
     let value = compile_expr(c, assign.right, true);
+    let target = expr_instruction_decl(c, assign.left, false, false);
 
     let meta = get_meta(c, e.span);
     push_assign(c, target, value, meta);
@@ -552,6 +552,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     if ty.is_ptr_type(left_ty) {
         dbg.assert(ty.is_ptr(left_ty), "strings are not accessible with '.'");
+        dbg.assert(ty.as_ptr(left_ty).count == 1, "invalid pointer count");
 
         push_temp_assign(
             c,
@@ -571,10 +572,16 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     );
 
     let struct_ty = ty.as_struct(left_ty);
-    let field_idx = ty.field_idx(struct_ty, ident);
+    let field_ty: *ty.Type = null;
+    let field_idx = ty.field_idx(struct_ty, ident, &field_ty);
     dbg.assert(field_idx >= 0, "no field with this name");
 
-    return mir.new_expr_gep(left_addr, field_idx);
+    let gep = mir.new_expr_gep(left_addr, field_idx);
+    let a = mir.create_addr_empty();
+    // Deref by default. This copy has to be removed if the value
+    // should be assigned
+    push_temp_assign(c, gep, field_ty, left_meta, &a);
+    return mir.new_expr_copy(a);
 }
 
 def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
@@ -594,6 +601,26 @@ def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     }
 
     return mir.new_expr_struct_init(mir_struct.name, inits);
+}
+
+def new_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
+    let new_e = ast.as_new_expr(e);
+    let meta = get_meta(c, e.span);
+
+    let value = mir.empty_expr();
+    let a = mir.create_addr_empty();
+    if !address_expression(c, new_e.expr, &a) {
+        value = complex_expr(c, new_e.expr, true);
+    } else {
+        value = mir.new_expr_copy(a);
+    }
+
+    push_temp_assign(c, value, new_e.expr.ty, meta, &a);
+    dbg.assert(mir.is_addr_name(&a), "address should be a name");
+    // since new internally uses memcpy, we always need a pointer to the
+    // actual value. Therefore it needs to be alloca'd
+    push_decl(c, mir.as_addr_name(&a).value, new_e.expr.ty, meta);
+    return mir.new_expr_new(a);
 }
 
 def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
@@ -619,9 +646,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     // EXPR_NEW
     if ast.is_new_expr(e) {
-        let new_e = ast.as_new_expr(e);
-        let addr = expr_instruction(c, new_e.expr, true);
-        return mir.new_expr_new(addr);
+        return new_expr(c, e);
     }
 
     // EXPR_SIZEOF
@@ -661,6 +686,15 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 // creates one or multiple instructions for the given expression and returns
 // the address of the result
 def expr_instruction(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Address {
+    return expr_instruction_decl(c, e, rhs, true);
+}
+
+def expr_instruction_decl(
+    c: *MirCompiler,
+    e: *ast.Expr,
+    rhs: bool,
+    decl: bool
+): mir.Address {
     let a = mir.create_addr_empty();
     if address_expression(c, e, &a) {
         return a;
@@ -686,7 +720,10 @@ def expr_instruction(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Address {
     }
 
     push_temp_assign(c, mir_expr, e.ty, meta, &a);
-    push_decl(c, mir.as_addr_name(&a).value, e.ty, meta);
+    if decl {
+        dbg.assert(mir.is_addr_name(&a), "address should be a name");
+        push_decl(c, mir.as_addr_name(&a).value, e.ty, meta);
+    }
     return a;
 }
 
