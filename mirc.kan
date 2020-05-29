@@ -807,6 +807,32 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     }
 
     if ast.is_char_expr(e) {
+        let char_expr = ast.as_char_expr(e);
+
+        // backslash
+        if std.char_to_int(*char_expr.ptr) == 92 {
+            let ptr = &c.data.char_lits.backslash;
+            let next = *(char_expr.ptr + 1);
+
+            if next == '0' {
+                ptr = &c.data.char_lits.zero;
+            } else if next == 'n' {
+                ptr = &c.data.char_lits.new_line;
+            } else if next == 'r' {
+                ptr = &c.data.char_lits.carriage_return;
+            } else if next == 't' {
+                ptr = &c.data.char_lits.tab;
+            } else if next == '"' {
+                ptr = &c.data.char_lits.double_quote;
+            } else if next == *"'" {
+                ptr = &c.data.char_lits.single_quote;
+            }
+
+            let s = ptr as string;
+            *out = mir.make_addr_const_strings(e.ty, s, s + 1);
+            return true;
+        }
+
         *out = mir.make_addr_const(e.ty, e.span);
         return true;
     }
