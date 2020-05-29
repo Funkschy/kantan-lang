@@ -284,7 +284,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_if_stmt(s) {
         let end_label = label(c);
         push_if_stmt(c, s, &end_label);
-        // TODO: wrong meta for if-stmt-endlabel
+        // TODO(#89): wrong meta for if-stmt-endlabel
         let end_meta = get_meta(c, ast.as_if_stmt(s).block.s.span);
         push_instr(c, mir.new_inst_label(end_meta, end_label));
         return;
@@ -293,7 +293,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_while_stmt(s) {
         let end_label = label(c);
         push_while_stmt(c, s, &end_label);
-        // TODO: wrong meta for while-stmt-endlabel
+        // TODO(#91): wrong meta for while-stmt-endlabel
         let end_meta = get_meta(c, ast.as_while_stmt(s).block.s.span);
         push_instr(c, mir.new_inst_label(end_meta, end_label));
         return;

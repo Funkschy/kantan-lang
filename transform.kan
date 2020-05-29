@@ -236,7 +236,7 @@ def optimize_single(module: *llvmc.Module): void {
     let opt_level_none = 0;
     let opt_level_less = 1;
     let opt_level_default = 2;
-    let opt_level_aggressive = 1;
+    let opt_level_aggressive = 3;
 
     let opt_level = opt_level_none;
 

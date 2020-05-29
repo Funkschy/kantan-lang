@@ -649,7 +649,7 @@ def compile_expr(
         let so = mir.as_expr_sizeof(e);
         let ty = translate_type(c, so.ty);
 
-        // TODO: remove when u64 is supported
+        // TODO(#88): remove when u64 is supported
         return llvmc.build_int_cast(
             c.builder,
             llvmc.size_of(ty),
@@ -724,7 +724,7 @@ def compile_binary(
     } else if binary.kind == MIR_BIN_DIV {
         return llvmc.build_s_div(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_MOD {
-        // TODO: this is actually a remainder operation, not modulo
+        // TODO(#90): this is actually a remainder operation, not modulo
         //  same for floats
         return llvmc.build_s_rem(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_ST {
@@ -806,7 +806,7 @@ def compile_call(
     e: *mir.Expression
 ): *llvmc.Value {
     let call = mir.as_expr_call(e);
-    // TODO: we need to change this, when introducing function pointers
+    // TODO(#92): we need to change this, when introducing function pointers
     dbg.assert(mir.is_addr_name(&call.callee), "callee should be name");
     let callee_name = mir.as_addr_name(&call.callee).value;
     let llvm_func = llvmc.get_named_function(c.context.llmod, callee_name.data);

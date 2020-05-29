@@ -57,7 +57,7 @@ def mangle_ident(
     );
 }
 
-// TODO: this should take a *mod.Module,
+// TODO(#87): this should take a *mod.Module,
 //  but can't, because the old compiler can't handle the circular reference
 //  from mod to name to mod
 def s_mangle(
