@@ -27,10 +27,13 @@ type ModuleCompiler struct {
     allocated_strings: ptrvec.Vec // ptrvec.Vec<string>
 }
 
-def create_compiler(irmod: *mir.Module): ModuleCompiler {
-    // since this can run in parallel, but llvmc.Context is not threadsafe,
-    // we need a separate context per module
-    let ctx = llvmc.context_create();
+def create_compiler(irmod: *mir.Module, ctx: *llvmc.Context): ModuleCompiler {
+    // ctx is only null, if we want to use multiple threads
+    if ctx == null {
+        // since this can run in parallel, but llvmc.Context is not threadsafe,
+        // we need a separate context per module
+        ctx = llvmc.context_create();
+    }
     let llmod = llvmc.module_create_with_name_in_context(irmod.actual.name.data, ctx);
     let path = mod.get_path(irmod.actual);
     llvmc.set_source_file_name(llmod, path.inner, path.len);
@@ -66,8 +69,9 @@ def free_context(ctx: *ModuleContext): void {
     llvmc.context_dispose(ctx.ctx);
 }
 
-def compile_mir_mod(irmod: *mir.Module): ModuleContext {
-    let compiler = create_compiler(irmod);
+// if the context is null, a new one will be created for this module
+def compile_mir_mod(irmod: *mir.Module, global_ctx: *llvmc.Context): ModuleContext {
+    let compiler = create_compiler(irmod, global_ctx);
 
     add_forward_declarations(&compiler);
     compile_functions(&compiler);

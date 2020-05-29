@@ -3,6 +3,7 @@
 #define USE_LLVM 1
 #define LLVM_DUMP 0
 #define MIR_DUMP 0
+#define ENABLE_THREADS 0
 
 import "io";
 import "std";
@@ -43,6 +44,16 @@ def map_data(data: *CompilationData): mirc.CompilationData {
 }
 
 def compile_all(comp_data: CompilationData, types: ptrvec.Vec): void {
+#if ENABLE_THREADS
+    io.printf("Compiling in parallel\n");
+    compile_all_parallel(comp_data, types);
+#else
+    io.printf("Compiling sequentially\n");
+    compile_all_sequential(comp_data, types);
+#endif
+}
+
+def compile_all_parallel(comp_data: CompilationData, types: ptrvec.Vec): void {
     let data = map_data(&comp_data);
     let n = mod.num_mods(data.mods);
 
@@ -83,7 +94,8 @@ def compile_all(comp_data: CompilationData, types: ptrvec.Vec): void {
 #endif
 
 #if USE_LLVM
-        let llvm_context = codegen.compile_mir_mod(&mir_mod);
+        // pass null as llvm.Context to signal multithreading
+        let llvm_context = codegen.compile_mir_mod(&mir_mod, null);
 #if LLVM_DUMP
         io.printf("--- llvm ---\n");
         llvmc.dump_module(llvm_context.llmod);
@@ -145,6 +157,76 @@ def compile_all(comp_data: CompilationData, types: ptrvec.Vec): void {
     llvmc.context_dispose(base_ctx);
 
     ptrvec.free_v(&bc_buffers);
+    target.free_target_machine(&tm);
+    target.free_target(&t);
+#endif
+}
+
+def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void {
+    let data = map_data(&comp_data);
+    let n = mod.num_mods(data.mods);
+
+#if USE_LLVM
+    let arch = target.arch_x86_64();
+    let vendor = target.vendor_unknown();
+    let os = target.os_linux();
+    let env = target.env_gnu();
+
+    let t = target.create_and_register_target(arch, vendor, os, env);
+    if t.is_error {
+        io.printf("%s\n", t.triple_or_error);
+        return;
+    }
+
+    let tm = target.create_target_machine(&t);
+    // the single context used for all modules
+    let base_ctx = llvmc.context_create();
+    let base_mod = llvmc.module_create_with_name_in_context("base", base_ctx);
+#endif
+
+    let i = 0;
+    while i < n {
+        let m = mod.get_mod(data.mods, i);
+
+        let mir_compiler = mirc.create_mirc(m, &data);
+        let mir_mod = mirc.compile(&mir_compiler);
+
+#if MIR_DUMP
+        io.printf("--- mir %s ---\n", mir_mod.actual.name.data);
+        mir.dump_module(&mir_mod);
+        io.printf("\n");
+#endif
+
+#if USE_LLVM
+        let llvm_context = codegen.compile_mir_mod(&mir_mod, base_ctx);
+        llvmc.verify_module(llvm_context.llmod, 0, null);
+        optimize_single(llvm_context.llmod);
+
+        llvmc.link_modules2(base_mod, llvm_context.llmod);
+#endif
+
+        mirc.free_compiler(&mir_compiler);
+        mir.free_mod(&mir_mod);
+
+        i = i + 1;
+    }
+
+#if LLVM_DUMP
+    io.printf("--- final ---\n");
+    llvmc.dump_module(base_mod);
+#endif
+
+#if USE_LLVM
+    let out = path.create("out.o", 5);
+    let error = target.emit_to_file(&tm, base_mod, out, false);
+    if error != null {
+        io.printf("%s\n", error);
+        llvmc.dispose_message(error);
+    }
+
+    llvmc.dispose_module(base_mod);
+    llvmc.context_dispose(base_ctx);
+
     target.free_target_machine(&tm);
     target.free_target(&t);
 #endif
