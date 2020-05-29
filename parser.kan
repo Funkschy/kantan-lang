@@ -1036,6 +1036,10 @@ def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
         err_ty = ERROR_CHAR_LIT_LEN;
     }
 
+    if next.ty == TOKEN_ESCAPE_ERR {
+        err_ty = ERROR_INVALID_ESCAPE_SEQUENCE;
+    }
+
     return create_error(
         next.span,
         std.err2str(err_ty, len, lexer.lexeme(next))

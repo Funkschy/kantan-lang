@@ -24,7 +24,9 @@ def lexeme(tok: *Token): string {
 }
 
 def is_err(token: *Token): bool {
-    return token.ty == TOKEN_UNKNOWN_ERR || token.ty == TOKEN_CHAR_ERR;
+    return token.ty == TOKEN_UNKNOWN_ERR
+        || token.ty == TOKEN_CHAR_ERR
+        || token.ty == TOKEN_ESCAPE_ERR;
 }
 
 // static (don't free!)
@@ -241,20 +243,61 @@ def lex_num(l: *Lexer): Token {
     return token_from_start(l, TOKEN_INT);
 }
 
-def lex_string(l: *Lexer): Token {
-    while !at_end(l) && current(l) != std.char_to_int('"') {
+def lex_char_sequence(l: *Lexer, terminator: i32, tok_type: i32): Token {
+    let backslash = 92;
+
+    let error_start: string = null;
+    let error_end: string = null;
+
+    let continue = true;
+    let escape_next = false;
+    while !at_end(l) && continue {
+        let curr = current(l);
+
+        if curr == backslash && !escape_next {
+            escape_next = true;
+        } else if curr == terminator {
+            continue = escape_next;
+            escape_next = false;
+        } else {
+            if escape_next {
+                // every escapable character
+                if curr != std.char_to_int('0')
+                    && curr != std.char_to_int('n')
+                    && curr != std.char_to_int('r')
+                    && curr != std.char_to_int('t')
+                    && curr != std.char_to_int('\\')
+                    && curr != 39 // single quote
+                    && curr != std.char_to_int('"') {
+
+                    error_start = l.current - 1;
+                    error_end = l.current + 1;
+                }
+            }
+
+            escape_next = false;
+        }
+
         advance(l);
     }
-    advance(l);
 
-    return create_token(l, TOKEN_STRING, l.start + 1, l.current - 1);
+    if error_start != null {
+        return create_token(l, TOKEN_ESCAPE_ERR, error_start, error_end);
+    }
+
+    return create_token(l, tok_type, l.start + 1, l.current - 1);
+}
+
+def lex_string(l: *Lexer): Token {
+    return lex_char_sequence(l, std.char_to_int('"'), TOKEN_STRING);
 }
 
 def lex_char(l: *Lexer): Token {
-    while !at_end(l) && current(l) != std.char_to_int(*"'") {
-        advance(l);
+    let char_seq = lex_char_sequence(l, std.char_to_int(*"'"), TOKEN_CHAR);
+
+    if is_err(&char_seq) {
+        return char_seq;
     }
-    advance(l);
 
     let len = l.current - l.start;
     if len == 4 && *(l.start + 1) == '\\' {

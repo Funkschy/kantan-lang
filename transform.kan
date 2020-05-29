@@ -9,6 +9,7 @@ import "std";
 import "mod";
 import "mir";
 import "vec";
+import "map";
 import "mirc";
 import "path";
 import "llvmc";
@@ -16,7 +17,33 @@ import "target";
 import "ptrvec";
 import "codegen";
 
-def compile_all(data: mirc.CompilationData, types: ptrvec.Vec): void {
+// Data which is shared between all Compiler instances
+// readonly, since it will be used across threads
+type CompilationData struct {
+    mods: *mod.Map,
+    proj_root: path.Path,
+    global_types: map.Map // map.Map<ident.Ident, *ty.Type>
+}
+
+def map_data(data: *CompilationData): mirc.CompilationData {
+    return mirc.CompilationData {
+        mods: data.mods,
+        proj_root: data.proj_root,
+        global_types: data.global_types,
+        char_lits: mirc.CharacterLiterals {
+            backslash: std.int_to_char(92),
+            new_line: std.int_to_char(10),
+            zero: std.int_to_char(0),
+            carriage_return: std.int_to_char(13),
+            tab: std.int_to_char(9),
+            double_quote: std.int_to_char(34),
+            single_quote: std.int_to_char(39)
+        }
+    };
+}
+
+def compile_all(comp_data: CompilationData, types: ptrvec.Vec): void {
+    let data = map_data(&comp_data);
     let n = mod.num_mods(data.mods);
 
 #if USE_LLVM

@@ -89,9 +89,9 @@ if __name__ == '__main__':
             continue
 
         output = execute()
-        if output != expected:
+        if output.strip() != expected.strip():
             print(f'{error}: in {filename}')
-            print(f'expected {expected}, but got {output}')
+            print(f'expected <{expected}>, but got \n<{output}>')
         else:
             print(f'{success} {filename}')
 

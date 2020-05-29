@@ -238,29 +238,44 @@ def create_const(
     let value = name.make_copied(span.len(s), s.start);
     let actual_len = value.len;
 
-    let i = 0;
-    while i < span.len(s) {
-        let c = *(s.start + i);
+    let backslash = 92;
+    let single_quote = 39;
+
+    let out_pos = 0;
+    let in_pos = 0;
+
+    while in_pos < span.len(s) {
+        let c = *(s.start + in_pos);
         let inc = 1;
 
-        if c == '\\' {
-            // \x are 2 chars, but we replace it with 1 escpaped byte
+        if std.char_to_int(c) == backslash {
+            // \x are 2 chars, but we replace it with 1 escaped byte
             actual_len = actual_len - 1;
-            let next = *(s.start + i + 1);
+            let next = *(s.start + in_pos + 1);
+
             if next == '0' {
-                c = '\0';
+                c = std.int_to_char(0);
             } else if next == 'n' {
-                c = '\n';
-            } else if next == '\\' {
-                c = '\\';
+                c = std.int_to_char(10);
+            } else if next == 'r' {
+                c = std.int_to_char(13);
+            } else if next == 't' {
+                c = std.int_to_char(9);
+            } else if std.char_to_int(next) == backslash {
+                c = std.int_to_char(backslash);
+            } else if next == '"' {
+                c = std.int_to_char(34);
+            } else if std.char_to_int(next) == single_quote {
+                c = std.int_to_char(single_quote);
             }
 
             // skip next
             inc = 2;
         }
 
-        *(value.data + i) = c;
-        i = i + inc;
+        *(value.data + out_pos) = c;
+        in_pos = in_pos + inc;
+        out_pos = out_pos + 1;
     }
 
     value.len = actual_len;

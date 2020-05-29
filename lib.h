@@ -19,6 +19,7 @@ char const *const *get_builtin_files() {
 static char const *const token_strings[] = {
     "unknown token",
     "invalid char literal",
+    "invalid escape sequence",
     "integer",
     "float",
     "null",
@@ -173,6 +174,7 @@ static char const *const error_texts[] = {
     "Char literal with length %1$d: '%.*s'",
     "Could not parse statement",
     "Illegal type identifier '%.*s': %s",
+    "Invalid escape sequence '%.*s'",
     // type errors
     "Duplicate definition of '%.*s'",
     "Identifier '%.*s' is not in scope",

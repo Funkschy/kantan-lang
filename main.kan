@@ -18,7 +18,6 @@ import "ptrvec";
 import "tychk";
 import "path";
 
-import "mirc";
 import "transform";
 import "llvmc"; // needed for shutdown
 
@@ -109,7 +108,7 @@ def main(argc: i32, argv: *string): i32 {
 
     if num_total_errs == 0 {
         transform.compile_all(
-            mirc.CompilationData {
+            transform.CompilationData {
                 mods: tychk_res.mods,
                 proj_root: project_root,
                 global_types: tychk_res.globals.bindings

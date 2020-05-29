@@ -17,11 +17,22 @@ import "scope";
 import "ident";
 import "source";
 
+type CharacterLiterals struct {
+    backslash: char,
+    new_line: char,
+    zero: char,
+    carriage_return: char,
+    tab: char,
+    double_quote: char,
+    single_quote: char
+}
+
 // Data which is shared between all the MirCompiler instances
 type CompilationData struct {
     mods: *mod.Map,
     proj_root: path.Path,
-    global_types: map.Map // map.Map<ident.Ident, *ty.Type>
+    global_types: map.Map, // map.Map<ident.Ident, *ty.Type>
+    char_lits: CharacterLiterals
 }
 
 // Compiles a single *mod.Module to a mir.Module

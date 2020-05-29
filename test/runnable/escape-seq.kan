@@ -1,0 +1,15 @@
+import "io";
+
+def main(): void {
+    // "\\"
+    // "\\0"
+    // "\\n"
+    // "\\r"
+    // "\\t"
+    let n = "\0";
+    io.printf("\\\\\\\n");
+    io.printf("%d\n", *n);
+    io.printf("abc\n");
+    io.printf("\tt");
+    io.printf("\tt\"\n");
+}
