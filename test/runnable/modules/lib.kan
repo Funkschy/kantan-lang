@@ -1,0 +1,13 @@
+import "bintree";
+
+type Person struct {
+    name: string
+}
+
+def test(): Person {
+    return Person { name: "Test" };
+}
+
+def bintest(): bintree.Person {
+    return bintree.Person { name: "Bintree Person", age: 100 };
+}

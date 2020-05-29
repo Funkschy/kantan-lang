@@ -1,0 +1,45 @@
+import "io";
+
+type Person struct {
+    name: string,
+    age: i32,
+    address: Address
+}
+
+type Address struct {
+    city: City,
+    hnr: string // number of the house
+}
+
+type City struct {
+    name: string
+}
+
+def make_peter(age: i32): Person {
+    return Person { 
+        name: "Peter", 
+        age: age, 
+        address: Address {
+            city: City { name: "Berlin" },
+            hnr: "100"
+        } 
+    };
+}
+
+def main(): i32 {
+    let p = make_peter(20);
+    let hans = p;
+    hans.address.city.name = "Neuss";
+    hans.address.hnr = "200";
+    hans.name = "Hans";
+    io.printf(
+        "%s, lives in %s in house number %s\n", 
+        p.name, p.address.city, p.address.hnr
+    );
+    io.printf(
+        "%s, lives in %s in house number %s\n", 
+        hans.name, hans.address.city, hans.address.hnr
+    );
+    p.age = 0;
+    return p.age;
+}

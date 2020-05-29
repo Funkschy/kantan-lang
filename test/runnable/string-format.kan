@@ -1,0 +1,15 @@
+import "io";
+
+extern def snprintf(fmt: string, size: i32, ...): i32;
+extern def malloc(size: i32): string;
+
+def main(): void {
+    let s = malloc(100);
+    let n = snprintf(s, 100, "My name is: %s", "Felix");
+
+    if n >= 0 && n < 100 {
+        io.printf("%s\n", s);
+    }
+
+    delete s;
+}

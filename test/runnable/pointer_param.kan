@@ -1,0 +1,7 @@
+def test(ptr: **i32): void {
+
+}
+
+def main(): void {
+
+}

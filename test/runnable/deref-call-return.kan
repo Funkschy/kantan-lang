@@ -1,0 +1,10 @@
+import "io";
+
+def main(): void {
+    let i = 5;
+    io.printf("%i\n", *test(&i));
+}
+
+def test(i: *i32): *i32 {
+    return i;
+}

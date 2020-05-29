@@ -1,0 +1,14 @@
+import "io";
+
+type Person struct {
+    age: i32
+}
+
+def main(): void {
+    let p = Person { age: 42 };
+    print_as_int(&p as *void);
+}
+
+def print_as_int(ptr: *void): void {
+    io.printf("%d\n", *(ptr as *i32));
+}

@@ -1,0 +1,15 @@
+import "io";
+
+type Int struct {
+    value: i32
+}
+
+def f(ptr: *i32): void {
+    *ptr = 42;
+}
+
+def main(): void {
+    let i = Int { value: 0 };
+    f(&i.value);
+    io.printf("%d\n", i);
+}

@@ -1,0 +1,36 @@
+import "io";
+import "lib";
+import "bintree";
+
+def test(): void {
+    io.printf("Test\n");
+}
+
+def main(): void {
+    let p = new lib.Person{ name: "Felix" };
+    let p2 = lib.test();
+    let p3 = bintree.Person { name: "Person", age: 20 };
+    let p4 = new lib.bintest();
+    let p5 = new bintree.Person { name: "Person", age: 20 };
+
+    io.printf("%s, %s\n", p.name, p2.name);
+    io.printf("%s, %s\n", p3.name, p4.name);
+
+    if (*p5 = bintree.Person { name: "P5", age: 200 }).age <= 200 {
+        test();
+    }
+
+    let tree = new bintree.Tree { root: null };
+    bintree.insert(tree, *p5);
+    bintree.insert(tree, *p4);
+    bintree.insert(tree, p3);
+
+    bintree.traverse(tree);
+
+    bintree.delete_tree(tree);
+    delete tree;
+
+    delete p;
+    delete p4;
+    delete p5;
+}

@@ -1,0 +1,25 @@
+import "io";
+
+type Address struct {
+    street: string
+}
+
+type Person struct {
+    age: i32,
+    address: *Address
+}
+
+extern def malloc(size: i32): *Address;
+extern def free(ptr: *Address): void;
+
+def main(): void {
+    let a = malloc(8);
+    a.street = "One Street";
+
+    let p = Person { age: 20, address: a };
+    p.address.street = "Another Street";
+
+    io.printf("%s\n", p.address.street);
+
+    free(a);
+}

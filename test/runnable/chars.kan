@@ -1,0 +1,10 @@
+import "io";
+
+def main(): void {
+    let s = "hello";
+    let c = *s;
+
+    io.printf("%c\n", c );
+    let c: char = 'A';
+    io.printf("%c\n", c + ' ');
+}

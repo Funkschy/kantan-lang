@@ -1,0 +1,19 @@
+import "io";
+
+extern def malloc(size: i32): *i32;
+extern def free(arr: *i32): void;
+
+def main(): void {
+    let arr = malloc(3 * sizeof i32);
+    *arr = 1;
+    *(arr + 1) = 2;
+    *(arr + 2) = 3;
+
+    let i = 0;
+    while i < 3 {
+        io.printf("%d\n", *(arr + i));
+        i = i + 1;
+    }
+
+    free(arr);
+}
