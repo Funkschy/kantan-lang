@@ -8,7 +8,7 @@ K_FILES = ast.kan \
 		  func.kan \
 		  ident.kan \
 		  lexer.kan \
-		  llvmc.kan \
+		  llvm.kan \
 		  main.kan \
 		  map.kan \
 		  mir.kan \

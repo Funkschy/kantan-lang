@@ -56,7 +56,7 @@ def mangle_ident(
         is_std_lib
     );
 }
-
+import "io";
 // TODO(#87): this should take a *mod.Module,
 //  but can't, because the old compiler can't handle the circular reference
 //  from mod to name to mod
@@ -80,19 +80,34 @@ def s_mangle(
         let mod_len = declared_in.len - proj_root.len - file_ending_len;
         let mod_name = declared_in.inner + proj_root.len;
 
+        // this is currently the only invalid identifier, so we just handle
+        // it as an edge case
+        let is_invalid_identifier = std.strncmp(mod_name, "llvm", 4) == 0;
+        if is_invalid_identifier {
+            mod_len = mod_len + 1;
+        }
+
         // +1 for '.'
         name_len = mod_len + len + 1;
         name_data = std.malloc(name_len + 1) as string;
 
-        let i = 0;
+        let out_idx = 0;
+        if is_invalid_identifier {
+            // escape the invalid name with '_'
+            *name_data = '_';
+            out_idx = 1;
+        }
+
+        let in_idx = 0;
         let sep = path.sys_separator();
-        while i < mod_len {
-            let c = *(mod_name + i);
+        while in_idx < mod_len {
+            let c = *(mod_name + in_idx);
             if c == sep {
                 c = '.';
             }
-            *(name_data + i) = c;
-            i = i + 1;
+            *(name_data + out_idx) = c;
+            in_idx = in_idx + 1;
+            out_idx = out_idx + 1;
         }
         *(name_data + mod_len) = '.';
 
