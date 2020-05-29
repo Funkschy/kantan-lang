@@ -133,15 +133,15 @@ def add_request(wrm: *WaitingRequestMap, request: WaitingRequest): void {
 
     let wanted_ident = req_waiting_for_ident(&request);
     // ------
-        let s = ident.to_string(wanted_ident);
-        let kind_s = "struct";
-        if request.kind == WAITING_TYPE_PTR {
-            kind_s = "ptr";
-        } else if request.kind == WAITING_FUNC_DEF {
-            kind_s = "func";
-        }
-        io.printf("DBG: >>> Adding %s request for '%s'\n ", kind_s, s);
-        delete s;
+    //  let s = ident.to_string(wanted_ident);
+    //  let kind_s = "struct";
+    //  if request.kind == WAITING_TYPE_PTR {
+    //      kind_s = "ptr";
+    //  } else if request.kind == WAITING_FUNC_DEF {
+    //      kind_s = "func";
+    //  }
+    //  io.printf("DBG: >>> Adding %s request for '%s'\n ", kind_s, s);
+    //  delete s;
     // ------
 
     let key = map.key_from_ident(wanted_ident);
@@ -427,7 +427,7 @@ def check(tc: *TypeChecker): CheckResult {
 def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     dbg.assert(m.ty == null, "mod type should be null");
     let p = mod.get_path(m);
-    io.printf("DBG: Initializing (%d) %.*s\n", idx, p.len, p.inner);
+    // io.printf("DBG: Initializing (%d) %.*s\n", idx, p.len, p.inner);
 
     let ty = ty.new_mod();
     m.ty = ty;
@@ -449,7 +449,7 @@ def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
     }
 
     let p = mod.get_path(m);
-    io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, p.len, p.inner);
+    // io.printf("DBG: Checking%s(%d) %.*s\n", d_o, idx, p.len, p.inner);
     let ctx = get_ctx(tc, idx);
     dbg.assert(ctx != null, "ctx should not be null");
 
@@ -576,7 +576,7 @@ def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.T
     let m = get_mod_by_alias(tc.ctx, dot_index, ident.start(name));
     if m == null {
         SET_OUT_MOD(null);
-        io.printf("DBG DEBUG %.*s mod not found\n", len, ident.start(name));
+        // io.printf("DBG DEBUG %.*s mod not found\n", len, ident.start(name));
         return null;
     }
 
@@ -584,7 +584,7 @@ def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.T
 
     let ty = mod.s_lookup(m, len - dot_index - 1, ident.start(name) + dot_index + 1);
     if ty == null {
-        io.printf("DBG DEBUG %.*s type not found\n", len, ident.start(name));
+        // io.printf("DBG DEBUG %.*s type not found\n", len, ident.start(name));
         return null;
     }
 
@@ -637,7 +637,7 @@ def fill_func_def(
     let f_ty = ty.as_func(t);
 
     let name = ident.to_string(&f_ty.name);
-    io.printf("DBG: Filling '%s'\n", name);
+    // io.printf("DBG: Filling '%s'\n", name);
     delete name;
 
     let error = false;
@@ -749,9 +749,9 @@ def fill_struct_fields(
 ): void {
     let s_ty = ty.as_struct(t);
 
-    let s = ident.to_string(&s_decl.name);
-    io.printf("----\nDBG: resolving %s\n", s);
-    delete s;
+    // let s = ident.to_string(&s_decl.name);
+    // io.printf("----\nDBG: resolving %s\n", s);
+    // delete s;
 
     let error = false;
     let waiting = false;
@@ -766,9 +766,9 @@ def fill_struct_fields(
             return;
         }
 
-        let s = tyid.to_string(&f.ty);
-        io.printf("DBG: field_ty %s\n", s);
-        delete s;
+        // let s = tyid.to_string(&f.ty);
+        // io.printf("DBG: field_ty %s\n", s);
+        // delete s;
 
         let mod: *mod.Module = null;
         let field_ty: *ty.Type = null;
@@ -821,9 +821,9 @@ def fill_struct_fields(
     if !error && !waiting {
         ty.fill_width_align(t);
 
-        let s = ident.to_string(&s_decl.name);
-        io.printf("DBG: %s has a width of %d, align of %d\n", s, t.width, t.align);
-        delete s;
+        // let s = ident.to_string(&s_decl.name);
+        // io.printf("DBG: %s has a width of %d, align of %d\n", s, t.width, t.align);
+        // delete s;
 
         update_all_waiting(tc, tc.ctx.mod, t, &s_ty.name);
         return;
@@ -917,18 +917,18 @@ def update_all_waiting(
     let waiting = get_waiting(waiting_map, resolved_name);
 
     if waiting == null {
-        let name = ident.to_string(resolved_name);
-        io.printf(
-            "DBG: no other types waiting for %s width: %d, align: %d\n",
-            name, resolved_ty.width, resolved_ty.align
-        );
-        delete name;
+        // let name = ident.to_string(resolved_name);
+        // io.printf(
+        //     "DBG: no other types waiting for %s width: %d, align: %d\n",
+        //     name, resolved_ty.width, resolved_ty.align
+        // );
+        // delete name;
         return;
     }
 
-    let name = ident.to_string(resolved_name);
-    io.printf("DBG: %d types waiting for %s\n", waiting.len, name);
-    delete name;
+    // let name = ident.to_string(resolved_name);
+    // io.printf("DBG: %d types waiting for %s\n", waiting.len, name);
+    // delete name;
 
     let i = 0;
     while i < waiting.len {
@@ -938,9 +938,9 @@ def update_all_waiting(
         i = i + 1;
     }
 
-    let s = ident.to_string(resolved_name);
-    io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
-    delete s;
+    // let s = ident.to_string(resolved_name);
+    // io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
+    // delete s;
 }
 
 def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type): void {
@@ -960,11 +960,11 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
             resolved_name = std.strdup("type");
         }
 
-        let waiting_name = ident.to_string(waiting_ident);
-        io.printf(
-            "DBG: %s was waiting for %s\n", waiting_name, resolved_name
-        );
-        delete waiting_name;
+        // let waiting_name = ident.to_string(waiting_ident);
+        // io.printf(
+        //     "DBG: %s was waiting for %s\n", waiting_name, resolved_name
+        // );
+        // delete waiting_name;
         delete resolved_name;
         // -----
 
@@ -1030,11 +1030,11 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
             }
         }
 
-        if ty.func_is_initalized(waiting_f_ty) {
-            let s = ident.to_string(&waiting_f_ty.name);
-            io.printf("DBG: %s is fully initialized\n", s);
-            delete s;
-        }
+        // if ty.func_is_initalized(waiting_f_ty) {
+        //     let s = ident.to_string(&waiting_f_ty.name);
+        //     io.printf("DBG: %s is fully initialized\n", s);
+        //     delete s;
+        // }
     }
 }
 
@@ -1196,18 +1196,18 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     let f_ty = ty.as_func(f_ty);
     if !ty.func_is_initalized(f_ty) {
         // --- DBG ---
-            let name_s = ident.to_string(f_name);
-            io.printf("DBG: %s is not fully initialized\n", name_s);
-            delete name_s;
+        //  let name_s = ident.to_string(f_name);
+        //  io.printf("DBG: %s is not fully initialized\n", name_s);
+        //  delete name_s;
         // --- DBG ---
 
         // in this case, an error will be pushed later
         return null;
     }
 
-    let name_s = ident.to_string(f_name);
-    io.printf(">> DBG: Checking %s body\n", name_s);
-    delete name_s;
+    // let name_s = ident.to_string(f_name);
+    // io.printf(">> DBG: Checking %s body\n", name_s);
+    // delete name_s;
 
     if f_s.decl.is_extern {
         return null;
