@@ -61,7 +61,7 @@ LLVM_C_FLAGS = $(shell $(LLVM_CONFIG) --cflags)
 LLVM_LD_FLAGS = $(shell $(LLVM_CONFIG) --ldflags)
 LLVM_LIBS = $(shell $(LLVM_CONFIG) --libs $(LLVM_LIB_NAMES))
 
-KANTAN_RUST = kantan
+KANTAN_RUST = $(START_FOLDER)/../kantan
 KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDER)/suppress-llvm-errors.supp $(START_FOLDER)/compiler
 KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
 KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK)
@@ -72,11 +72,11 @@ $(BIN_NAME) : $(K_FILES) $(C_FILES)
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
 	pushd $(BUILD_FOLDER) ; \
-	if $(KANTAN_RUST) $(K_FILES) -o ktemp.o ; then \
+	if $(KANTAN_RUST) $(K_FILES) ; then \
 		for file in $(C_SRC_FILES) ; do \
 			gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
 		done; \
-		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) ktemp.o $(C_OBJ_FILES) $(LLVM_LIBS) $(CPP_LIBS); \
+		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(CPP_LIBS); \
 		mv $(BIN_NAME) $(START_FOLDER) ; \
 		popd ; \
 		rm -r $(BUILD_FOLDER) ; \
