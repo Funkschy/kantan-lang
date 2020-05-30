@@ -55,11 +55,11 @@ LLVM_PATH = $(HOME)/Downloads/llvm/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.
 LLVM_CONFIG = $(LLVM_PATH)/bin/llvm-config
 
 LLVM_LIB_NAMES = core target analysis support x86codegen linker passes
-CPP_LIBS = -lpthread -lncurses
 
 LLVM_C_FLAGS = $(shell $(LLVM_CONFIG) --cflags)
 LLVM_LD_FLAGS = $(shell $(LLVM_CONFIG) --ldflags)
 LLVM_LIBS = $(shell $(LLVM_CONFIG) --libs $(LLVM_LIB_NAMES))
+LLVM_SYS_LIBS = $(shell $(LLVM_CONFIG) --system-libs)
 
 KANTAN_RUST = $(START_FOLDER)/../kantan
 KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDER)/suppress-llvm-errors.supp $(START_FOLDER)/compiler
@@ -76,7 +76,7 @@ $(BIN_NAME) : $(K_FILES) $(C_FILES)
 		for file in $(C_SRC_FILES) ; do \
 			gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
 		done; \
-		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(CPP_LIBS); \
+		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
 		mv $(BIN_NAME) $(START_FOLDER) ; \
 		popd ; \
 		rm -r $(BUILD_FOLDER) ; \
@@ -96,7 +96,7 @@ self : $(BIN_NAME) $(K_FILES) $(C_FILES)
 	for file in $(C_SRC_FILES) ; do \
 		gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
 	done; \
-	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(CPP_LIBS); \
+	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
 	mv self-hosted $(START_FOLDER)/self-hosted ; \
 	popd ; \
 	rm -r $(BUILD_FOLDER) ; \
