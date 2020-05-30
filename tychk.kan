@@ -180,11 +180,9 @@ def get_waiting(wrm: *WaitingRequestMap, ident: *ident.Ident): *vec.Vec {
 }
 
 def free_wait_map(wrm: *WaitingRequestMap): void {
-    let i = 0;
-    while i < wrm.requests.len {
+    for let i = 0; i < wrm.requests.len; i = i + 1 {
         let v = vec.get_ptr(&wrm.requests, i) as *vec.Vec;
         vec.free_v(v);
-        i = i + 1;
     }
 
     vec.free_v(&wrm.requests);
