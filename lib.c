@@ -270,8 +270,8 @@ void flag_unset(uint32_t *flags, uint32_t flag) {
     }
 }
 
-_Float32 int_to_float(int64_t i) {
-    return (_Float32) i;
+float int_to_float(int64_t i) {
+    return (float) i;
 }
 
 int32_t char_to_int(char c) {
