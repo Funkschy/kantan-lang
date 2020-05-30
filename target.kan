@@ -13,21 +13,36 @@ def arch_x86_64(): Arch {
 }
 
 #define VENDOR_UNKNOWN 1
+#define VENDOR_APPLE   2
 
 def vendor_unknown(): Vendor {
     return Vendor { value: VENDOR_UNKNOWN };
 }
 
-#define OS_LINUX 1
-
-def os_linux(): OS {
-    return OS { value: OS_LINUX };
+def vendor_apple(): Vendor {
+    return Vendor { value: VENDOR_APPLE };
 }
 
-#define ENV_GNU 1
+#define SYS_LINUX  1
+#define SYS_DARWIN 2
 
-def env_gnu(): Env {
-    return Env { value: ENV_GNU };
+def sys_linux(): Sys {
+    return Sys { value: SYS_LINUX };
+}
+
+def sys_darwin(): Sys {
+    return Sys { value: SYS_DARWIN };
+}
+
+#define ABI_EMPTY 1
+#define ABI_GNU   2
+
+def abi_empty(): Abi {
+    return Abi { value: ABI_EMPTY };
+}
+
+def abi_gnu(): Abi {
+    return Abi { value: ABI_GNU };
 }
 
 type Arch struct {
@@ -57,30 +72,36 @@ type Vendor struct {
     value: i32
 }
 
-def vendor_to_name(a: Vendor): name.Ref {
-    if a.value == VENDOR_UNKNOWN {
+def vendor_to_name(v: Vendor): name.Ref {
+    if v.value == VENDOR_UNKNOWN {
         return name.make_ref(7, "unknown");
     }
-    return name.make_ref(0, null);
-}
-
-type OS struct {
-    value: i32
-}
-
-def os_to_name(a: OS): name.Ref {
-    if a.value == OS_LINUX {
-        return name.make_ref(5, "linux");
+    if v.value == VENDOR_APPLE {
+        return name.make_ref(5, "apple");
     }
     return name.make_ref(0, null);
 }
 
-type Env struct {
+type Sys struct {
     value: i32
 }
 
-def env_to_name(a: Env): name.Ref {
-    if a.value == ENV_GNU {
+def sys_to_name(s: Sys): name.Ref {
+    if s.value == SYS_LINUX {
+        return name.make_ref(5, "linux");
+    }
+    if s.value == SYS_DARWIN {
+        return name.make_ref(6, "darwin");
+    }
+    return name.make_ref(0, null);
+}
+
+type Abi struct {
+    value: i32
+}
+
+def abi_to_name(a: Abi): name.Ref {
+    if a.value == ABI_GNU {
         return name.make_ref(3, "gnu");
     }
     return name.make_ref(0, null);
@@ -92,21 +113,32 @@ type Target struct {
     triple_or_error: string // llvm message
 }
 
-def create_and_register_target(a: Arch, v: Vendor, os: OS, env: Env): Target {
+def create_and_register_target(a: Arch, v: Vendor, sys: Sys, abi: Abi): Target {
     arch_register(a);
 
     let arch = arch_to_name(a);
     let vendor = vendor_to_name(v);
-    let os = os_to_name(os);
-    let env = env_to_name(env);
+    let sys = sys_to_name(sys);
+    let abi = abi_to_name(abi);
 
-    let triple = std.format_str(
-        "%.*s-%.*s-%.*s-%.*s",
-        arch.len, arch.data,
-        vendor.len, vendor.data,
-        os.len, os.data,
-        env.len, env.data
-    );
+    let triple = "";
+    // abi can be empty (for example on darwin)
+    if abi.data != null {
+        triple = std.format_str(
+            "%.*s-%.*s-%.*s-%.*s",
+            arch.len, arch.data,
+            vendor.len, vendor.data,
+            sys.len, sys.data,
+            abi.len, abi.data
+        );
+    } else {
+        triple = std.format_str(
+            "%.*s-%.*s-%.*s",
+            arch.len, arch.data,
+            vendor.len, vendor.data,
+            sys.len, sys.data
+        );
+    }
 
     let target: *llvm.Target = null;
     let error: string = null;
@@ -138,7 +170,7 @@ def create_target_machine(target: *Target): TargetMachine {
     dbg.assert(!target.is_error, "passed error target to create_target_machine");
 
     let default_code_opt_level = 2;
-    // we currently want our code to be position independent, so that we can
+    // we currently want our code to be psysition independent, so that we can
     // link it easily
     let reloc_mode_pic = 2;
     let code_model_default = 0;

@@ -60,10 +60,10 @@ def compile_all_parallel(comp_data: CompilationData, types: ptrvec.Vec): void {
 #if USE_LLVM
     let arch = target.arch_x86_64();
     let vendor = target.vendor_unknown();
-    let os = target.os_linux();
-    let env = target.env_gnu();
+    let sys = target.sys_linux();
+    let abi = target.abi_gnu();
 
-    let t = target.create_and_register_target(arch, vendor, os, env);
+    let t = target.create_and_register_target(arch, vendor, sys, abi);
     if t.is_error {
         io.printf("%s\n", t.triple_or_error);
         return;
@@ -169,10 +169,10 @@ def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void 
 #if USE_LLVM
     let arch = target.arch_x86_64();
     let vendor = target.vendor_unknown();
-    let os = target.os_linux();
-    let env = target.env_gnu();
+    let sys = target.sys_linux();
+    let abi = target.abi_gnu();
 
-    let t = target.create_and_register_target(arch, vendor, os, env);
+    let t = target.create_and_register_target(arch, vendor, sys, abi);
     if t.is_error {
         io.printf("%s\n", t.triple_or_error);
         return;
