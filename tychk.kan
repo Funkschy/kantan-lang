@@ -1229,10 +1229,12 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     }
 
     // check function body
-    if check_stmt(tc, f_s.block as *ast.Stmt) == null {
+    let body = check_stmt(tc, f_s.block as *ast.Stmt);
+    if body == null {
+        close_scope(tc);
         return null;
     }
-
+    f_s.block = body as *ast.BlockStmt;
 
     close_scope(tc);
     tc.ctx.current_func = last_func;
@@ -1463,16 +1465,28 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_block_stmt(s) {
         let b_s = ast.as_block_stmt(s);
 
+        let error = false;
         open_scope(tc);
 
         let i = 0;
         while i < b_s.stmts.len {
             let stmt = ast.stmt_at(b_s, i);
-            check_stmt(tc, stmt);
+
+            let checked = check_stmt(tc, stmt);
+            if checked == null {
+                error = true;
+            } else {
+                ast.set_stmt_at(b_s, i, checked);
+            }
+
             i = i + 1;
         }
 
         close_scope(tc);
+
+        if error {
+            return null;
+        }
 
         return s;
     }
@@ -1569,6 +1583,78 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         w_s.block = block as *ast.BlockStmt;
 
         return s;
+    }
+
+    // STMT_FOR
+    if ast.is_for_stmt(s) {
+        let f_s = ast.as_for_stmt(s);
+
+        let init: *ast.Stmt = null;
+        if f_s.initializer != null {
+            init = check_stmt(tc, f_s.initializer);
+            if init == null {
+                return null;
+            }
+            f_s.initializer = null;
+        }
+
+        let condition = check_expr(tc, f_s.condition);
+        if condition == null {
+            return null;
+        }
+
+        let bool_ty = get_global_instance(tc, "bool", 4);
+        if !ty.equals(bool_ty, condition.ty) {
+            push_invalid_condition_error(tc, condition);
+            return null;
+        }
+        f_s.condition = null;
+
+        let increment: *ast.Stmt = null;
+        if f_s.increment != null {
+            increment = check_stmt(tc, f_s.increment);
+            if increment == null {
+                return null;
+            }
+            f_s.increment = null;
+        }
+
+        let block = check_stmt(tc, f_s.block as *ast.Stmt) as *ast.BlockStmt;
+        if block == null {
+            return null;
+        }
+        f_s.block = null;
+
+        // transform for statement into while stmt
+        // this for loop compiles to...
+        // for let i = 0; i < 3; i = i + 1 {
+        //     ...
+        // }
+        //
+        // ...this block
+        // {
+        //     let i = 0;
+        //     while i < 3 {
+        //         ...
+        //         i = i + 1;
+        //     }
+        // }
+
+        if increment != null {
+            ast.push_stmt(block, increment);
+        }
+
+        let w_s = ast.new_while_stmt(s.span, condition, block);
+
+        let statements = ptrvec.with_cap(2);
+        if init != null {
+            ptrvec.push_ptr(&statements, init as *void);
+        }
+        ptrvec.push_ptr(&statements, w_s as *void);
+
+        let original_span = s.span;
+        ast.stmt_free(s);
+        return ast.new_block_stmt(original_span, statements);
     }
 
     // STMT_RETURN

@@ -103,6 +103,40 @@ def as_while_stmt(s: *Stmt): *WhileStmt {
     return s as *WhileStmt;
 }
 
+/////////// For stmt ///////////
+
+type ForStmt struct {
+    s: Stmt,
+    initializer: *Stmt,
+    condition: *Expr,
+    increment: *Stmt,
+    block: *BlockStmt
+}
+
+def new_for_stmt(
+    span: span.Span,
+    initializer: *Stmt,
+    condition: *Expr,
+    increment: *Stmt,
+    block: *BlockStmt
+): *Stmt {
+    return (new ForStmt {
+        s: Stmt { tag: STMT_FOR, span: span },
+        initializer: initializer,
+        condition: condition,
+        increment: increment,
+        block: block
+    }) as *Stmt;
+}
+
+def is_for_stmt(s: *Stmt): bool {
+    return s.tag == STMT_FOR;
+}
+
+def as_for_stmt(s: *Stmt): *ForStmt {
+    return s as *ForStmt;
+}
+
 /////////// If stmt ///////////
 
 type IfStmt struct {
@@ -181,6 +215,14 @@ def as_block_stmt(s: *Stmt): *BlockStmt {
 
 def stmt_at(b: *BlockStmt, i: i32): *Stmt {
     return ptrvec.get(&b.stmts, i) as *Stmt;
+}
+
+def set_stmt_at(b: *BlockStmt, i: i32, s: *Stmt): void {
+    return ptrvec.set(&b.stmts, i, s as *void);
+}
+
+def push_stmt(b: *BlockStmt, s: *Stmt): void {
+    ptrvec.push_ptr(&b.stmts, s as *void);
 }
 
 /////////// Func Decl stmt ///////////
@@ -335,6 +377,12 @@ def stmt_free(s: *Stmt): void {
         let while_stmt = as_while_stmt(s);
         expr_free(while_stmt.condition);
         stmt_free(while_stmt.block as *Stmt);
+    } else if is_for_stmt(s) {
+        let for_stmt = as_for_stmt(s);
+        stmt_free(for_stmt.initializer);
+        expr_free(for_stmt.condition);
+        stmt_free(for_stmt.increment);
+        stmt_free(for_stmt.block as *Stmt);
     } else if is_struct_decl_stmt(s) {
         let s_stmt = as_struct_decl_stmt(s);
         record.free_struct(&s_stmt.decl);

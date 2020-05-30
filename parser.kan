@@ -290,6 +290,11 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
         return false;
     }
 
+    if peek.ty == TOKEN_FOR {
+        *dest = parse_for_stmt(p);
+        return false;
+    }
+
     if peek.ty == TOKEN_TYPE {
         *dest = parse_type_stmt(p);
         return false;
@@ -311,13 +316,19 @@ def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
         return true;
     }
 
-    if peek.ty == TOKEN_LET {
-        *dest = parse_let_stmt(p);
+    if peek.ty == TOKEN_IMPORT {
+        *dest = parse_import_stmt(p);
         return true;
     }
 
-    if peek.ty == TOKEN_IMPORT {
-        *dest = parse_import_stmt(p);
+    return parse_simple_stmt(p, dest);
+}
+
+def parse_simple_stmt(p: *Parser, dest: **ast.Stmt): bool {
+    let peek = peek(p);
+
+    if peek.ty == TOKEN_LET {
+        *dest = parse_let_stmt(p);
         return true;
     }
 
@@ -482,6 +493,59 @@ def parse_while_stmt(p: *Parser): *ast.Stmt {
 
     let while_span = span.merge(while_tok.span, block.span);
     return ast.new_while_stmt(while_span, condition, ast.as_block_stmt(block));
+}
+
+def parse_for_stmt(p: *Parser): *ast.Stmt {
+    CONSUME_TOK_RET_NULL(for_tok, TOKEN_FOR);
+
+    let initializer: *ast.Stmt = null;
+    if peek(p).ty != TOKEN_SEMI {
+        parse_simple_stmt(p, &initializer);
+        if initializer == null {
+            return null;
+        }
+    }
+
+    CONSUME_RET_NULL(TOKEN_SEMI);
+
+    let peeked = peek(p);
+    let condition = expression(p, false);
+    if condition == null {
+        let error = create_consume_error_text(p, &peeked, "condition");
+        push_err(p, error);
+        ast.stmt_free(initializer);
+        return null;
+    }
+
+    CONSUME_RET_NULL(TOKEN_SEMI);
+
+    let increment: *ast.Stmt = null;
+    if peek(p).ty != TOKEN_LBRACE {
+        let inc_expr = expression(p, true);
+        if inc_expr == null {
+            ast.stmt_free(initializer);
+            ast.expr_free(condition);
+            return null;
+        }
+        increment = ast.new_expr_stmt(inc_expr);
+    }
+
+    let block = parse_block(p);
+    if block == null {
+        ast.stmt_free(initializer);
+        ast.expr_free(condition);
+        ast.stmt_free(increment);
+        return null;
+    }
+
+    let for_span = span.merge(for_tok.span, block.span);
+    return ast.new_for_stmt(
+        for_span,
+        initializer,
+        condition,
+        increment,
+        ast.as_block_stmt(block)
+    );
 }
 
 def parse_if_stmt(p: *Parser): *ast.Stmt {

@@ -21,38 +21,39 @@
 #define TOKEN_AS                18
 #define TOKEN_EXTERN            19
 #define TOKEN_SIZEOF            20
+#define TOKEN_FOR               21
 
-#define TOKEN_SEMI              21
-#define TOKEN_COMMA             22
-#define TOKEN_COLON             23
-#define TOKEN_DOT               24
-#define TOKEN_TRIPLE_DOT        25
-#define TOKEN_BANG              26
-#define TOKEN_BANG_EQ           27
-#define TOKEN_EQ                28
-#define TOKEN_DOUBLE_EQ         29
+#define TOKEN_SEMI              22
+#define TOKEN_COMMA             23
+#define TOKEN_COLON             24
+#define TOKEN_DOT               25
+#define TOKEN_TRIPLE_DOT        26
+#define TOKEN_BANG              27
+#define TOKEN_BANG_EQ           28
+#define TOKEN_EQ                29
+#define TOKEN_DOUBLE_EQ         30
 
-#define TOKEN_PLUS              30
-#define TOKEN_MINUS             31
-#define TOKEN_STAR              32
-#define TOKEN_SLASH             33
-#define TOKEN_PERCENT           34
+#define TOKEN_PLUS              31
+#define TOKEN_MINUS             32
+#define TOKEN_STAR              33
+#define TOKEN_SLASH             34
+#define TOKEN_PERCENT           35
 
-#define TOKEN_SMALLER           35
-#define TOKEN_SMALLER_EQ        36
-#define TOKEN_GREATER           37
-#define TOKEN_GREATER_EQ        38
+#define TOKEN_SMALLER           36
+#define TOKEN_SMALLER_EQ        37
+#define TOKEN_GREATER           38
+#define TOKEN_GREATER_EQ        39
 
-#define TOKEN_AMPERSAND         39
-#define TOKEN_DOUBLE_AMPERSAND  40
-#define TOKEN_PIPE              41
-#define TOKEN_DOUBLE_PIPE       42
+#define TOKEN_AMPERSAND         40
+#define TOKEN_DOUBLE_AMPERSAND  41
+#define TOKEN_PIPE              42
+#define TOKEN_DOUBLE_PIPE       43
 
-#define TOKEN_LPAREN            43
-#define TOKEN_RPAREN            44
-#define TOKEN_LBRACE            45
-#define TOKEN_RBRACE            46
-#define TOKEN_STRING            47
-#define TOKEN_CHAR              48
+#define TOKEN_LPAREN            44
+#define TOKEN_RPAREN            45
+#define TOKEN_LBRACE            46
+#define TOKEN_RBRACE            47
+#define TOKEN_STRING            48
+#define TOKEN_CHAR              49
 
-#define TOKEN_EOF               49
+#define TOKEN_EOF               50

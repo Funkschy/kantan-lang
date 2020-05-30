@@ -1,6 +1,7 @@
 #include "std.h"
 
 import "std";
+import "dbg";
 
 type Vec struct {
     len: i32,
@@ -73,13 +74,13 @@ def unsafe_get(v: *Vec, i: i32): *void {
 }
 
 def set(v: *Vec, i: i32, elem: *void): void {
-    if i >= 0 && i < v.cap {
-        // sizeof(*v.elements) is already 8, so we don't need to multiply
-        *(v.elements + i) = elem;
-        // assume all values in between to be initialized
-        if i >= v.len {
-            v.len = i + 1;
-        }
+    dbg.assert(i >= 0 && i < v.cap, "out of bounds set");
+
+    // sizeof(*v.elements) is already 8, so we don't need to multiply
+    *(v.elements + i) = elem;
+    // assume all values in between to be initialized
+    if i >= v.len {
+        v.len = i + 1;
     }
 }
 

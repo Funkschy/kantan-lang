@@ -8,3 +8,4 @@
 #define STMT_WHILE       8
 #define STMT_DELETE      9
 #define STMT_RETURN      10
+#define STMT_FOR         11

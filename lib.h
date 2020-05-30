@@ -38,6 +38,7 @@ static char const *const token_strings[] = {
     "as",
     "extern",
     "sizeof",
+    "for",
     ";",
     ",",
     ":",
@@ -136,7 +137,8 @@ static char const *const stmt_type_strings[] = {
     "if",
     "while",
     "delete",
-    "return"
+    "return",
+    "for"
 };
 
 static size_t const len_stmt_strings = sizeof(stmt_type_strings) / sizeof(char *);
@@ -190,12 +192,12 @@ static char const *const error_texts[] = {
     "Missing return statement",
     "Illegal use of declared type",
     "Type '%s' is not callable",
-    "Wrong number of arguments, expected '%d', but got '%d'",
+    "Wrong number of arguments. Expected '%d', but got '%d'",
     "Wrong argument type. Expected '%s', but got '%s'",
     "Expected the name of a struct, but got '%s'",
     "Could not infer type",
     "'%s' cannot be casted into '%s'",
-    "Invalid type for condition, expected 'bool', but got '%s'",
+    "Invalid type for condition. Expected 'bool', but got '%s'",
     "Trying to delete non pointer type: '%s'",
     "%s is currently not allowed, this may change in a future Kantan release",
     "Variable was declared with type '%s', but initialized with type '%s'",

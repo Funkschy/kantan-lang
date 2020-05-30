@@ -1,0 +1,6 @@
+def main(): void {
+    for ;true; {}
+    for ;""; {}
+    while 1 {}
+    while false {}
+}
