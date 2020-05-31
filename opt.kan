@@ -1,0 +1,51 @@
+import "io";
+
+import "std";
+import "ptrvec";
+
+type Config struct {
+    files: ptrvec.Vec,
+    opt_level: i32
+}
+
+def free_config(c: *Config) {
+    ptrvec.free_v(&c.files);
+}
+
+def parse(argc: i32, argv: *string): Config {
+    let config = Config {
+        files: ptrvec.with_cap(argc),
+        opt_level: 0
+    };
+
+    for let i = 1; i < argc; i = i + 1 {
+        let arg = *(argv + i);
+
+        if *arg != '-' {
+            ptrvec.push_ptr(&config.files, arg as *void);
+        } else if *(arg + 1) != '-' {
+            parse_short(&config, arg + 1);
+        }
+    }
+
+    return config;
+}
+
+// returns true on error
+def parse_short(config: *Config, arg: string): bool {
+    let len = std.strlen(arg);
+
+    if len == 2 && *arg == 'O' {
+        let num = *(arg + 1) - '0';
+
+        if num < 0 || num > 3 {
+            io.printf("ERROR: Invalid optimization level: %d\n", num);
+            return true;
+        }
+
+        config.opt_level = num;
+        return false;
+    }
+
+    return true;
+}

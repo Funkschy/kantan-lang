@@ -17,6 +17,7 @@ K_FILES = ast.kan \
 		  name.kan \
 		  nt.kan \
 		  num.kan \
+		  opt.kan \
 		  param.kan \
 		  parser.kan \
 		  path.kan \

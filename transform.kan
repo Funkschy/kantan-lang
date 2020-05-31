@@ -6,6 +6,7 @@
 #define ENABLE_THREADS 0
 
 import "io";
+import "opt";
 import "std";
 import "mod";
 import "mir";
@@ -23,7 +24,8 @@ import "codegen";
 type CompilationData struct {
     mods: *mod.Map,
     proj_root: path.Path,
-    global_types: map.Map // map.Map<ident.Ident, *ty.Type>
+    global_types: map.Map, // map.Map<ident.Ident, *ty.Type>
+    config: *opt.Config
 }
 
 def map_data(data: *CompilationData): mirc.CompilationData {
@@ -102,7 +104,7 @@ def compile_all_parallel(comp_data: CompilationData, types: ptrvec.Vec): void {
         io.printf("\n");
 #endif
         llvm.verify_module(llvm_context.llmod, 0, null);
-        optimize_single(llvm_context.llmod);
+        optimize_single(llvm_context.llmod, comp_data.config.opt_level);
 
         let buf = llvm.write_bitcode_to_memory_buffer(llvm_context.llmod);
         if buf == null {
@@ -200,7 +202,7 @@ def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void 
 #if USE_LLVM
         let llvm_context = codegen.compile_mir_mod(&mir_mod, base_ctx);
         llvm.verify_module(llvm_context.llmod, 0, null);
-        optimize_single(llvm_context.llmod);
+        optimize_single(llvm_context.llmod, comp_data.config.opt_level);
 
         llvm.link_modules2(base_mod, llvm_context.llmod);
 #endif
@@ -232,13 +234,12 @@ def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void 
 #endif
 }
 
-def optimize_single(module: *llvm.Module): void {
+def optimize_single(module: *llvm.Module, opt_level: i32): void {
+    // replace this with an enum
     let opt_level_none = 0;
     let opt_level_less = 1;
     let opt_level_default = 2;
     let opt_level_aggressive = 3;
-
-    let opt_level = opt_level_none;
 
     if opt_level == opt_level_none {
         return;
