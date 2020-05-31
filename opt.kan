@@ -4,8 +4,10 @@ import "std";
 import "ptrvec";
 
 type Config struct {
+    had_errors: bool,
     files: ptrvec.Vec,
-    opt_level: i32
+    opt_level: i32,
+    output_filename: string
 }
 
 def free_config(c: *Config) {
@@ -14,8 +16,10 @@ def free_config(c: *Config) {
 
 def parse(argc: i32, argv: *string): Config {
     let config = Config {
+        had_errors: false,
         files: ptrvec.with_cap(argc),
-        opt_level: 0
+        opt_level: 0,
+        output_filename: null
     };
 
     for let i = 1; i < argc; i = i + 1 {
@@ -24,15 +28,26 @@ def parse(argc: i32, argv: *string): Config {
         if *arg != '-' {
             ptrvec.push_ptr(&config.files, arg as *void);
         } else if *(arg + 1) != '-' {
-            parse_short(&config, arg + 1);
+            let set_to_next: *string = null;
+            if parse_short(&config, arg + 1, &config.had_errors, &set_to_next) {
+                if argc - i <= 1 {
+                    config.had_errors = true;
+                    io.printf("ERROR: Expected argument after '%s'\n", arg);
+                }
+                // skip next argument
+                i = i + 1;
+                *set_to_next = *(argv + i);
+            }
         }
     }
 
     return config;
 }
 
-// returns true on error
-def parse_short(config: *Config, arg: string): bool {
+// if this returns true, the following argument is interpreted as a value
+// set_to_next will be set to the field in config, which needs to be set to the next command line
+// argument (if available)
+def parse_short(config: *Config, arg: string, had_errors: *bool, set_to_next: **string): bool {
     let len = std.strlen(arg);
 
     if len == 2 && *arg == 'O' {
@@ -40,12 +55,21 @@ def parse_short(config: *Config, arg: string): bool {
 
         if num < 0 || num > 3 {
             io.printf("ERROR: Invalid optimization level: %d\n", num);
-            return true;
+            *had_errors = true;
+        } else {
+            config.opt_level = num;
         }
 
-        config.opt_level = num;
         return false;
     }
 
-    return true;
+    if len == 1 && *arg == 'o' {
+        *set_to_next = &config.output_filename;
+        return true;
+    }
+
+
+    io.printf("ERROR: Invalid flag '%s'\n", arg);
+    *had_errors = true;
+    return false;
 }

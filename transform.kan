@@ -147,9 +147,20 @@ def compile_all_parallel(comp_data: CompilationData, types: ptrvec.Vec): void {
     io.printf("--- final ---\n");
     llvm.dump_module(base_mod);
 #endif
+    let out_name = "out.o";
+    let out_len = 5;
+    let gen_asm = false;
 
-    let out = path.create("out.o", 5);
-    let error = target.emit_to_file(&tm, base_mod, out, false);
+    if comp_data.config.output_filename != null {
+        out_name = comp_data.config.output_filename;
+        out_len = std.strlen(out_name);
+        if out_len >= 3 {
+            gen_asm = std.strcmp(out_name + (out_len - 2), ".s") == 0;
+        }
+    }
+
+    let out = path.create(out_name, out_len);
+    let error = target.emit_to_file(&tm, base_mod, out, gen_asm);
     if error != null {
         io.printf("%s\n", error);
         llvm.dispose_message(error);
@@ -219,8 +230,20 @@ def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void 
 #endif
 
 #if USE_LLVM
-    let out = path.create("out.o", 5);
-    let error = target.emit_to_file(&tm, base_mod, out, false);
+    let out_name = "out.o";
+    let out_len = 5;
+    let gen_asm = false;
+
+    if comp_data.config.output_filename != null {
+        out_name = comp_data.config.output_filename;
+        out_len = std.strlen(out_name);
+        if out_len >= 3 {
+            gen_asm = std.strcmp(out_name + (out_len - 2), ".s") == 0;
+        }
+    }
+
+    let out = path.create(out_name, out_len);
+    let error = target.emit_to_file(&tm, base_mod, out, gen_asm);
     if error != null {
         io.printf("%s\n", error);
         llvm.dispose_message(error);
