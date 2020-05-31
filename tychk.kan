@@ -645,6 +645,12 @@ def fill_func_def(
     let ret_ty_mod: *mod.Module = null;
     let ret_ty: *ty.Type = null;
 
+    // no return type == implicit void
+    if tyid.is_empty(&f_decl.ret_ty) {
+        let literal = "void";
+        ret_ty_ident = ident.from_span(span.create(literal, literal + 4));
+    }
+
     if checked_lookup(tc, &ret_ty_ident, &ret_ty, &ret_ty_mod) == ERROR {
         // module does not exist
         error = true;

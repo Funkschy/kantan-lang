@@ -15,7 +15,7 @@ type Tree struct {
     root: *Node
 }
 
-def insert(tree: *Tree, person: Person): void {
+def insert(tree: *Tree, person: Person) {
     if tree.root == null {
         tree.root = new_node(person);
         return;

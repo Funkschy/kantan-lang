@@ -93,6 +93,9 @@ def advance(p: *Parser, dest: *lexer.Token): bool {
         // advance should not care about lex errors while in panic mode
         let error = create_lex_error(p, &next);
         push_err(p, error);
+        if dest != null {
+            *dest = next;
+        }
         return false;
     }
 
@@ -137,6 +140,9 @@ def consume_ident(p: *Parser, ident: *lexer.Token, allow_access_expr: bool): boo
 def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
     let next = lexer.empty_token();
     if !advance(p, &next) {
+        if dest != null {
+            *dest = next;
+        }
         return false;
     }
 
@@ -189,6 +195,7 @@ def consume_type_ident(p: *Parser, ident: *lexer.Token, err: *ParseError): bool 
     return true;
 }
 
+import "io";
 def consume_type(p: *Parser, dest: *tyid.Type): bool {
     let prev_num_errs = num_errs(p);
 
@@ -414,7 +421,7 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
 
     let closing_brace = lexer.empty_token();
     let fields = parse_field_list(p, &closing_brace);
-    if fields.elem_size == 0 {
+    if closing_brace.ty == TOKEN_UNKNOWN_ERR {
         vec.free_v(&fields);
         return null;
     }
@@ -436,21 +443,31 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     }
 
     CONSUME_RET_NULL(TOKEN_LPAREN);
-    let params = parse_param_list(p, is_extern);
+    let closing_paren = lexer.empty_token();
+    let params = parse_param_list(p, &closing_paren, is_extern);
+    // a parse error has occured during param parsing
+    if closing_paren.ty == TOKEN_UNKNOWN_ERR {
+        return null;
+    }
+
     let param_list = func.pl_from_vec(params);
 
-    if !consume(p, TOKEN_COLON) {
-        func.free_pl(&param_list);
-        return null;
-    }
-
+    let end_span = closing_paren.span;
     let ret_ty = tyid.empty();
-    if !consume_type(p, &ret_ty) {
-        func.free_pl(&param_list);
-        return null;
-    }
 
-    let end_span = tyid.ident_span(&ret_ty);
+    if peek(p).ty == TOKEN_COLON {
+        if !consume(p, TOKEN_COLON) {
+            func.free_pl(&param_list);
+            return null;
+        }
+
+        if !consume_type(p, &ret_ty) {
+            func.free_pl(&param_list);
+            return null;
+        }
+
+        end_span = tyid.ident_span(&ret_ty);
+    }
 
     let block: *ast.Stmt = null;
     if !is_extern {
@@ -684,7 +701,7 @@ def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
 }
 
 
-def parse_param_list(p: *Parser, allow_va: bool): vec.Vec {
+def parse_param_list(p: *Parser, closing_paren: *lexer.Token, allow_va: bool): vec.Vec {
 #define FAIL() vec.free_v(&params); return vec.create(0)
 
     let params = vec.create(sizeof param.Param);
@@ -723,7 +740,7 @@ def parse_param_list(p: *Parser, allow_va: bool): vec.Vec {
         }
     }
 
-    if !consume(p, TOKEN_RPAREN) {
+    if !consume_token(p, TOKEN_RPAREN, closing_paren) {
         FAIL();
     }
 
@@ -760,7 +777,7 @@ def parse_arg_list(p: *Parser, out: *ast.ArgList): bool {
 }
 
 // TODO(#24): allow trailing commas
-def parse_init_list(p: *Parser): ast.InitList {
+def parse_init_list(p: *Parser, closing_brace: *lexer.Token): ast.InitList {
 #define FAIL() ast.free_il(&inits); return ast.create_init_list()
     let inits = ast.create_init_list();
 
@@ -790,6 +807,10 @@ def parse_init_list(p: *Parser): ast.InitList {
                 FAIL();
             }
         }
+    }
+
+    if !consume_token(p, TOKEN_RBRACE, closing_brace) {
+        FAIL();
     }
 
     return inits;
@@ -948,11 +969,10 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
 
     // init expr
     if token.ty == TOKEN_LBRACE {
-        let inits = parse_init_list(p);
-
         let closing_brace = lexer.empty_token();
-        if !consume_token(p, TOKEN_RBRACE, &closing_brace) {
-            ast.free_il(&inits);
+        let inits = parse_init_list(p, &closing_brace);
+
+        if closing_brace.ty == TOKEN_UNKNOWN_ERR {
             return null;
         }
 
