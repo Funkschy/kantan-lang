@@ -5,6 +5,7 @@ import "ptrvec";
 
 type Config struct {
     had_errors: bool,
+    exit_immediately: bool,
     files: ptrvec.Vec,
     opt_level: i32,
     output_filename: string
@@ -17,6 +18,7 @@ def free_config(c: *Config) {
 def parse(argc: i32, argv: *string): Config {
     let config = Config {
         had_errors: false,
+        exit_immediately: false,
         files: ptrvec.with_cap(argc),
         opt_level: 0,
         output_filename: null
@@ -27,9 +29,20 @@ def parse(argc: i32, argv: *string): Config {
 
         if *arg != '-' {
             ptrvec.push_ptr(&config.files, arg as *void);
-        } else if *(arg + 1) != '-' {
+        } else {
             let set_to_next: *string = null;
-            if parse_short(&config, arg + 1, &config.had_errors, &set_to_next) {
+            let takes_argument = false;
+
+            if *(arg + 1) != '-' {
+                takes_argument = parse_short(&config, arg + 1, &config.had_errors, &set_to_next);
+            } else if std.strlen(arg) < 3 {
+                io.printf("ERROR: Invalid flag '--'\n");
+                config.had_errors = true;
+            } else {
+                takes_argument = parse_long(&config, arg + 2, &config.had_errors, &set_to_next);
+            }
+
+            if takes_argument {
                 if argc - i <= 1 {
                     config.had_errors = true;
                     io.printf("ERROR: Expected argument after '%s'\n", arg);
@@ -68,8 +81,37 @@ def parse_short(config: *Config, arg: string, had_errors: *bool, set_to_next: **
         return true;
     }
 
+    if len == 1 && *arg == 'h' {
+        print_usage();
+        config.exit_immediately = true;
+        return false;
+    }
 
     io.printf("ERROR: Invalid flag '%s'\n", arg);
     *had_errors = true;
     return false;
+}
+
+def parse_long(config: *Config, arg: string, had_errors: *bool, set_to_next: **string): bool {
+    if std.strcmp(arg, "help") == 0 {
+        print_usage();
+        config.exit_immediately = true;
+        return false;
+    }
+
+    io.printf("ERROR: Invalid flag '%s'\n", arg);
+    *had_errors = true;
+    return false;
+}
+
+def print_usage() {
+    io.printf("kantan\nFelix Schoeller <felix.schoeller@protonmail.com>\n");
+    io.printf("The official compiler for the Kantan programming language\n\n");
+    io.printf("USAGE:\n");
+    io.printf("    kantan [OPTIONS] <source-file>...\n\n");
+    io.printf("OPTIONS:\n");
+    io.printf("    -o <file>\tthe output file (end with .s for assembly output)\n");
+    io.printf("    -O<level>\tthe optimization level\t[possible values 0, 1, 2, 3]\n\n");
+    io.printf("ARGS:\n");
+    io.printf("    <source-file>...\n");
 }
