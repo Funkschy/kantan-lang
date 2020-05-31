@@ -106,6 +106,11 @@ def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
     return mir.create_meta(pos);
 }
 
+def lookup_global_type(c: *MirCompiler, len: i32, name: string): *ty.Type {
+    let key = map.create_key(len, name);
+    return map.get(&c.data.global_types, key) as *ty.Type;
+}
+
 def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
     dbg.assert(ty.is_struct(t), "non struct type passed to lookup");
 
@@ -135,8 +140,7 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 
         // "patch" main return type to be i32
         if is_main {
-            let key = map.create_key(3, "i32");
-            f_ty.ret = map.get(&c.data.global_types, key) as *ty.Type;
+            f_ty.ret = lookup_global_type(c, 3, "i32");
         }
 
         mir_func = new mir.create_func(t, mangled_name, is_extern);
@@ -517,7 +521,16 @@ def binary_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
     let right = expr_instruction(c, binary.right, true);
 
     let kind = mir_binary_kind_from_expr(binary);
-    return mir.new_expr_binary(kind, left, right);
+    let expr = mir.new_expr_binary(kind, left, right);
+
+    if !ty.equals(left.ty, e.ty) {
+        let meta = get_meta(c, e.span);
+        let bin_result = mir.create_addr_empty();
+        push_temp_assign(c, expr, left.ty, meta, &bin_result);
+        return mir.new_expr_intcast(bin_result, e.ty);
+    }
+
+    return expr;
 }
 
 def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {

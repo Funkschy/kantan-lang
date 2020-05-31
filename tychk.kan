@@ -2142,6 +2142,9 @@ def check_binary_expr(
         }
 
         if ty.is_char(first) {
+            if kind == BINARY_ADD || kind == BINARY_SUB {
+                return instance_of_ty(scope.s_get_in(&tc.globals, 3, "i32"));
+            }
             return first;
         }
 

@@ -626,10 +626,17 @@ def compile_expr(
     }
 
     if mir.is_expr_bitcast(e) {
-        let cast = mir.as_expr_bitcast(e);
+        let cast = mir.as_expr_cast(e);
         let addr = translate_addr(c, func, &cast.addr);
         let into = translate_type(c, cast.into);
         return llvm.build_bit_cast(c.builder, addr, into, "");
+    }
+
+    if mir.is_expr_intcast(e) {
+        let cast = mir.as_expr_cast(e);
+        let addr = translate_addr_load(c, func, &cast.addr, false);
+        let into = translate_type(c, cast.into);
+        return llvm.build_int_cast(c.builder, addr, into, "");
     }
 
     if mir.is_expr_new(e) {

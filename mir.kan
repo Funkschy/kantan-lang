@@ -754,22 +754,42 @@ def is_expr_sizeof(e: *Expression): bool {
     return e.kind == MIR_EXPR_SIZEOF;
 }
 
-type ExprBitCast struct {
+type ExprCast struct {
+    kind: i32,
     addr: Address,
     into: *ty.Type
 }
 
 def new_expr_bitcast(addr: Address, into: *ty.Type): Expression {
-    let cast = (new ExprBitCast { addr: addr, into: into }) as *void;
-    return create_expr(MIR_EXPR_BITCAST, cast);
+    let cast = (new ExprCast { kind: MIR_CAST_BIT, addr: addr, into: into });
+    return create_expr(MIR_EXPR_CAST, cast as *void);
 }
 
-def as_expr_bitcast(e: *Expression): *ExprBitCast {
-    return e.data as *ExprBitCast;
+def new_expr_intcast(addr: Address, into: *ty.Type): Expression {
+    let cast = (new ExprCast { kind: MIR_CAST_INT, addr: addr, into: into });
+    return create_expr(MIR_EXPR_CAST, cast as *void);
+}
+
+def as_expr_cast(e: *Expression): *ExprCast {
+    return e.data as *ExprCast;
+}
+
+def is_expr_cast(e: *Expression): bool {
+    return e.kind == MIR_EXPR_CAST;
 }
 
 def is_expr_bitcast(e: *Expression): bool {
-    return e.kind == MIR_EXPR_BITCAST;
+    if is_expr_cast(e) {
+        return as_expr_cast(e).kind == MIR_CAST_BIT;
+    }
+    return false;
+}
+
+def is_expr_intcast(e: *Expression): bool {
+    if is_expr_cast(e) {
+        return as_expr_cast(e).kind == MIR_CAST_INT;
+    }
+    return false;
 }
 
 // An expression is always on the right side of an assignment instruction
@@ -796,8 +816,8 @@ def is_expr_bitcast(e: *Expression): bool {
 // x = param #y:
 //  GetParam(i32),
 // Cast the value at the address to the supplied type
-// x = bitcast e to ty2:
-//  BitCast(Address, Type),
+// x = cast e to ty2:
+//  Cast(i32, Address, Type),
 type Expression struct {
     kind: i32,
     data: *void
@@ -964,8 +984,8 @@ def expr_to_name(e: *Expression): name.Owned {
         return name.make_owned(len, s);
     }
 
-    if is_expr_bitcast(e) {
-        let cast = as_expr_bitcast(e);
+    if is_expr_cast(e) {
+        let cast = as_expr_cast(e);
         let addr_n = addr_to_name(&cast.addr);
         let ty_s: string = null;
         let free_ty_s = ty.to_string_mangled(cast.into, true, &ty_s);
