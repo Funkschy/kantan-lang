@@ -1,0 +1,41 @@
+import "io";
+
+def first(ret: bool): bool {
+    io.printf("first\n");
+    return ret;
+}
+
+def second(ret: bool): bool {
+    io.printf("second\n");
+    return ret;
+}
+
+def third(ret: bool): bool {
+    io.printf("third\n");
+    return ret;
+}
+
+def main() {
+    if first(true) && second(true) && third(true) {
+        io.printf("all\n");
+    }
+
+    if first(false) && second(true) && third(true) {
+        io.printf("all\n");
+    }
+
+    if first(true) && second(false) && third(true) {
+        io.printf("all\n");
+    }
+
+    if first(true) || second(false) || third(true) {
+        io.printf("at least one\n");
+    }
+
+    if first(false) || second(false) || third(true) {
+        io.printf("at least one\n");
+    }
+
+    let b = first(true) && (second(false) || third(true));
+    io.printf("%d\n", b);
+}

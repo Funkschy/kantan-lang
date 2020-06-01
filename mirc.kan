@@ -514,11 +514,50 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
 def binary_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
     let binary = ast.as_binary_expr(e);
+    let short_circuit = 0;
+    let kind = mir_binary_kind_from_expr(binary, &short_circuit);
+
+    if short_circuit != 0 {
+        let result = temp_addr(c, e.ty);
+        push_decl(c, mir.as_addr_name(&result).value, e.ty, get_meta(c, e.span));
+
+        let end_label = label(c);
+        let else_label = label(c);
+
+        let left = expr_instruction(c, binary.left, true);
+        let left_meta = get_meta(c, binary.left.span);
+        push_assign(c, result, mir.new_expr_copy(left), get_meta(c, binary.left.span));
+
+        let then_target = mir.clone_label(&end_label);
+        let else_target = mir.clone_label(&else_label);
+        // for && we need to short circuit, if the left expr is false
+        if short_circuit == 1 {
+            let temp = else_target;
+            else_target = then_target;
+            then_target = temp;
+        }
+
+        let cond_jmp = mir.new_inst_jmpif(
+            left_meta,
+            left,
+            then_target,
+            else_target
+        );
+        push_instr(c, cond_jmp);
+
+        let else_meta = get_meta(c, binary.right.span);
+        push_instr(c, mir.new_inst_label(else_meta, else_label));
+        let right = expr_instruction(c, binary.right, true);
+        push_assign(c, result, mir.new_expr_copy(right), get_meta(c, binary.right.span));
+
+        let end_meta = get_meta(c, e.span);
+        push_instr(c, mir.new_inst_label(end_meta, end_label));
+        return mir.new_expr_copy(result);
+    }
 
     let left = expr_instruction(c, binary.left, true);
     let right = expr_instruction(c, binary.right, true);
 
-    let kind = mir_binary_kind_from_expr(binary);
     let expr = mir.new_expr_binary(kind, left, right);
 
     if !ty.equals(left.ty, e.ty) {
@@ -899,7 +938,8 @@ def name_from_ident(i: *ident.Ident): name.Ref {
 #include "mir_types.h"
 #include "expr_types.h"
 
-def mir_binary_kind_from_expr(binary: *ast.BinaryExpr): i32 {
+// sets short circuit to 1 for && and 2 for ||
+def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32 {
     let k = binary.kind;
     let left = binary.left;
     let right = binary.right;
@@ -930,6 +970,12 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr): i32 {
         }
 
         return MIR_BIN_SUB_SCALAR;
+    }
+
+    if k == MIR_BIN_BOOL_AND {
+        *short_circuit = 1;
+    } else if k == MIR_BIN_BOOL_OR {
+        *short_circuit = 2;
     }
 
     // ...everything else is identical
