@@ -45,8 +45,7 @@ C_FILES = $(C_SRC_FILES) \
 		  stmt_types.h \
 		  error_code.h \
 		  ty_types.h \
-		  mir_types.h \
-		  std.h
+		  mir_types.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))

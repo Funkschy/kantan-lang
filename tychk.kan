@@ -1,5 +1,4 @@
 #include "ty_types.h"
-#include "std.h"
 
 import "ast";
 import "ptrvec";

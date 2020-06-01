@@ -1,5 +1,4 @@
 #include "mir_types.h"
-#include "std.h"
 
 import "io";
 import "ty";

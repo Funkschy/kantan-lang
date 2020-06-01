@@ -1,5 +1,3 @@
-#include "std.h"
-
 #define USE_LLVM 1
 #define LLVM_DUMP 0
 #define MIR_DUMP 0

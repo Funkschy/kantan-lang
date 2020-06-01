@@ -1,4 +1,3 @@
-#include "std.h"
 #include "error_code.h"
 
 // TODO(#8): should be platform dependant

@@ -5,8 +5,6 @@
 // minor changes), while the prod one just uses numbers as variable names
 #define DBG_MIR_NAMES 1
 
-#include "std.h"
-
 import "map";
 import "vec";
 import "dbg";

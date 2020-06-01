@@ -1,8 +1,9 @@
 #include "./token_types.h"
 #include "./expr_types.h"
 #include "./error_code.h"
-#include "./std.h"
 
+// the 0 at the end is to enable the use of a semicolon at the end
+#define LETCHECK(name, expr) let name = (expr); if (name) == null { return null; } 0
 #define CONSUME_RET_NULL(ty) if !consume(p, (ty)) { return null; } 0
 #define CONSUME_TOK_RET_NULL(name, ty) let name = lexer.empty_token(); \
     if !consume_token(p, (ty), &(name)) { return null; } 0
@@ -352,7 +353,7 @@ def parse_simple_stmt(p: *Parser, dest: **ast.Stmt): bool {
 def parse_delete_stmt(p: *Parser): *ast.Stmt {
     CONSUME_TOK_RET_NULL(del_tok, TOKEN_DELETE);
 
-    letcheck(expr, expression(p, false));
+    LETCHECK(expr, expression(p, false));
     let del_span = span.merge(del_tok.span, expr.span);
     return ast.new_delete_stmt(del_span, expr);
 }
@@ -364,7 +365,7 @@ def parse_return_stmt(p: *Parser): *ast.Stmt {
         return ast.new_return_stmt(ret_tok.span, null);
     }
 
-    letcheck(expr, expression(p, false));
+    LETCHECK(expr, expression(p, false));
     let ret_span = span.merge(ret_tok.span, expr.span);
     return ast.new_return_stmt(ret_span, expr);
 }
@@ -818,7 +819,7 @@ def parse_init_list(p: *Parser, closing_brace: *lexer.Token): ast.InitList {
 }
 
 def expression(p: *Parser, no_struct: bool): *ast.Expr {
-    letcheck(left, parse_expression(p, precedence.assign(), no_struct));
+    LETCHECK(left, parse_expression(p, precedence.assign(), no_struct));
     while peek(p).ty == TOKEN_EQ {
         consume(p, TOKEN_EQ);
         let value = expression(p, no_struct);
@@ -834,7 +835,7 @@ def expression(p: *Parser, no_struct: bool): *ast.Expr {
 }
 
 def parse_expression(p: *Parser, precedence: i32, no_struct: bool): *ast.Expr {
-    letcheck(left, prefix(p, no_struct));
+    LETCHECK(left, prefix(p, no_struct));
 
     while next_higher_precedence(p, precedence, no_struct) {
         let token = lexer.empty_token();
@@ -871,7 +872,7 @@ def next_higher_precedence(p: *Parser, prec: i32, no_struct: bool): bool {
 
 def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 #define UNARY(tok, unary_ty) if token.ty == (tok) { \
-        letcheck(expr, parse_expression(p, precedence.unary(), no_struct)); \
+        LETCHECK(expr, parse_expression(p, precedence.unary(), no_struct)); \
         let merged_span = span.merge(token.span, expr.span); \
         return ast.new_unary_expr(merged_span, (unary_ty), expr); \
     } 0
@@ -916,7 +917,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     }
 
     if token.ty == TOKEN_NEW {
-        letcheck(e, expression(p, no_struct));
+        LETCHECK(e, expression(p, no_struct));
         let merged_span = span.merge(token.span, e.span);
         return ast.new_new_expr(merged_span, e);
     }
@@ -928,7 +929,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 
     if token.ty == TOKEN_LPAREN {
         // ignore no_struct, because it's in parens
-        letcheck(e, expression(p, false));
+        LETCHECK(e, expression(p, false));
 
         if !consume(p, TOKEN_RPAREN) {
             ast.expr_free(e);
@@ -945,7 +946,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {
     // access expr
     if token.ty == TOKEN_DOT {
-        letcheck(right, parse_expression(p, precedence.access(), no_struct));
+        LETCHECK(right, parse_expression(p, precedence.access(), no_struct));
         let merged_span = span.merge(left.span, right.span);
         return ast.new_access_expr(merged_span, left, right);
     }
@@ -1039,7 +1040,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     // a pattern matched
     if found {
         let prec = precedence.get(token.ty);
-        letcheck(right, parse_expression(p, prec, no_struct));
+        LETCHECK(right, parse_expression(p, prec, no_struct));
         let merged_span = span.merge(left.span, right.span);
         return ast.new_binary_expr(merged_span, ty, token.span, left, right);
     }

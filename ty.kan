@@ -1,4 +1,3 @@
-#include "std.h"
 #include "ty_types.h"
 
 import "ptrvec";
