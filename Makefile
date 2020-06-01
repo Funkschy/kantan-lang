@@ -37,7 +37,7 @@ K_FILES = ast.kan \
 		  tyid.kan \
 		  vec.kan \
 		  vmap.kan
-C_SRC_FILES = lib.c modsort.c
+C_SRC_FILES = lib.c modsort.c posixlink.c
 C_FILES = $(C_SRC_FILES) \
 		  lib.h \
 		  token_types.h \
@@ -72,7 +72,7 @@ $(BIN_NAME) : $(K_FILES) $(C_FILES)
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
 	pushd $(BUILD_FOLDER) ; \
-	if $(KANTAN_RUST) $(K_FILES) ; then \
+	if $(KANTAN_RUST) $(K_FILES) -o out.o; then \
 		for file in $(C_SRC_FILES) ; do \
 			gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
 		done; \
@@ -92,7 +92,7 @@ self : $(BIN_NAME) $(K_FILES) $(C_FILES)
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
 	pushd $(BUILD_FOLDER) ; \
-	$(KANTAN_KANTAN) $(K_FILES) ; \
+	$(KANTAN_KANTAN) $(K_FILES) -o out.o ; \
 	for file in $(C_SRC_FILES) ; do \
 		gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
 	done; \

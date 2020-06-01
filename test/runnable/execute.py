@@ -52,7 +52,7 @@ def compile(filename):
     if isdir(filename):
         files = list(map(lambda f: join(test_path, filename ,f), listdir(filename)))
 
-    return subprocess.run([compiler] + files, stdout=subprocess.PIPE).returncode
+    return subprocess.run([compiler, '-o', 'out.o'] + files, stdout=subprocess.PIPE).returncode
 
 
 def execute():

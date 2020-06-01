@@ -17,6 +17,11 @@ import "target";
 import "ptrvec";
 import "codegen";
 
+extern def link_obj_file(obj_name: string, exe_name: string): i32;
+
+// TODO: the unlink function only exists on posix systems, not windows
+extern def unlink(filename: string): i32;
+
 // Data which is shared between all Compiler instances
 // readonly, since it will be used across threads
 type CompilationData struct {
@@ -46,15 +51,15 @@ def map_data(data: *CompilationData): mirc.CompilationData {
 def compile_all(comp_data: CompilationData, types: ptrvec.Vec): void {
 #if ENABLE_THREADS
     io.printf("Compiling in parallel\n");
-    compile_all_parallel(comp_data, types);
+    compile_all_parallel(&comp_data, types);
 #else
     io.printf("Compiling sequentially\n");
-    compile_all_sequential(comp_data, types);
+    compile_all_sequential(&comp_data, types);
 #endif
 }
 
-def compile_all_parallel(comp_data: CompilationData, types: ptrvec.Vec): void {
-    let data = map_data(&comp_data);
+def compile_all_parallel(comp_data: *CompilationData, types: ptrvec.Vec): void {
+    let data = map_data(comp_data);
     let n = mod.num_mods(data.mods);
 
 #if USE_LLVM
@@ -145,24 +150,7 @@ def compile_all_parallel(comp_data: CompilationData, types: ptrvec.Vec): void {
     io.printf("--- final ---\n");
     llvm.dump_module(base_mod);
 #endif
-    let out_name = "out.o";
-    let out_len = 5;
-    let gen_asm = false;
-
-    if comp_data.config.output_filename != null {
-        out_name = comp_data.config.output_filename;
-        out_len = std.strlen(out_name);
-        if out_len >= 3 {
-            gen_asm = std.strcmp(out_name + (out_len - 2), ".s") == 0;
-        }
-    }
-
-    let out = path.create(out_name, out_len);
-    let error = target.emit_to_file(&tm, base_mod, out, gen_asm);
-    if error != null {
-        io.printf("%s\n", error);
-        llvm.dispose_message(error);
-    }
+    emit_to_file(comp_data, base_mod, tm);
 
     llvm.dispose_module(base_mod);
     llvm.context_dispose(base_ctx);
@@ -173,8 +161,8 @@ def compile_all_parallel(comp_data: CompilationData, types: ptrvec.Vec): void {
 #endif
 }
 
-def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void {
-    let data = map_data(&comp_data);
+def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec): void {
+    let data = map_data(comp_data);
     let n = mod.num_mods(data.mods);
 
 #if USE_LLVM
@@ -228,15 +216,32 @@ def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void 
 #endif
 
 #if USE_LLVM
+    emit_to_file(comp_data, base_mod, tm);
+
+    llvm.dispose_module(base_mod);
+    llvm.context_dispose(base_ctx);
+
+    target.free_target_machine(&tm);
+    target.free_target(&t);
+#endif
+}
+
+def emit_to_file(comp_data: *CompilationData, base_mod: *llvm.Module, tm: target.TargetMachine) {
     let out_name = "out.o";
     let out_len = 5;
     let gen_asm = false;
+    let gen_obj = false;
 
     if comp_data.config.output_filename != null {
-        out_name = comp_data.config.output_filename;
-        out_len = std.strlen(out_name);
-        if out_len >= 3 {
-            gen_asm = std.strcmp(out_name + (out_len - 2), ".s") == 0;
+        let len = std.strlen(comp_data.config.output_filename);
+        if len >= 3 {
+            gen_asm = std.strcmp(comp_data.config.output_filename + (len - 2), ".s") == 0;
+            gen_obj = std.strcmp(comp_data.config.output_filename + (len - 2), ".o") == 0;
+        }
+
+        if gen_asm || gen_obj {
+            out_name = comp_data.config.output_filename;
+            out_len = len;
         }
     }
 
@@ -245,14 +250,19 @@ def compile_all_sequential(comp_data: CompilationData, types: ptrvec.Vec): void 
     if error != null {
         io.printf("%s\n", error);
         llvm.dispose_message(error);
+        return;
     }
 
-    llvm.dispose_module(base_mod);
-    llvm.context_dispose(base_ctx);
+    if !(gen_asm || gen_obj) {
+        let exe_name = comp_data.config.output_filename;
+        if exe_name == null {
+            exe_name = "a.out";
+        }
 
-    target.free_target_machine(&tm);
-    target.free_target(&t);
-#endif
+        link_obj_file(out_name, exe_name);
+        // use unlink instead of remove, to not accidentally delete some directory
+        unlink(out_name);
+    }
 }
 
 def optimize_single(module: *llvm.Module, opt_level: i32): void {
