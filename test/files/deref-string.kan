@@ -1,0 +1,6 @@
+def main() {
+    let s = "abc";
+    *s;
+    let p = &s;
+    *p;
+}
