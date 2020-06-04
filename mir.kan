@@ -21,6 +21,7 @@ type Module struct {
     globals: map.Map, // map.Map<name.Ref, *GlobalConst>
     functions: map.Map, // map.Map<name.Ref, *Func>
     structs: map.Map, // map.Map<name.Ref, *Struct>
+    scopes: vec.Vec, // vec.Vec<Scope>
     actual: *mod.Module
 }
 
@@ -28,12 +29,14 @@ def create_mod(
     globals: map.Map,
     funcs: map.Map,
     structs: map.Map,
+    scopes: vec.Vec,
     actual: *mod.Module
 ): Module {
     return Module {
         globals: globals,
         functions: funcs,
         structs: structs,
+        scopes: scopes,
         actual: actual
     };
 }
@@ -72,6 +75,8 @@ def free_mod(m: *Module): void {
     map.free_m(&m.functions);
     map.free_m(&m.structs);
     map.free_m(&m.globals);
+
+    vec.free_v(&m.scopes);
 }
 
 def dump_module(m: *Module): void {
@@ -166,10 +171,11 @@ type Func struct {
     name: name.Ref,
     blocks: BlockMap,
     ty: *ty.Type,
+    meta: MetaData,
     is_extern: bool
 }
 
-def create_func(t: *ty.Type, mangled_name: name.Ref, is_extern: bool): Func {
+def create_func(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern: bool): Func {
     dbg.assert(ty.is_func(t), "func type was not func");
 
     let blocks = empty_block_map();
@@ -181,6 +187,7 @@ def create_func(t: *ty.Type, mangled_name: name.Ref, is_extern: bool): Func {
         name: mangled_name,
         blocks: blocks,
         ty: t,
+        meta: meta,
         is_extern: is_extern
     };
 }
@@ -213,12 +220,18 @@ def create_struct(t: *ty.Type, mangled_name: name.Ref, is_extern: bool): Struct 
     };
 }
 
-type MetaData struct {
-    pos: source.SourcePos
+type Scope struct {
+    id: i32,
+    parent: i32
 }
 
-def create_meta(pos: source.SourcePos): MetaData {
-    return MetaData { pos: pos };
+type MetaData struct {
+    pos: source.SourcePos,
+    scope: Scope
+}
+
+def create_meta(pos: source.SourcePos, scope: Scope): MetaData {
+    return MetaData { pos: pos, scope: scope };
 }
 
 type GlobalConst struct {
@@ -1164,7 +1177,7 @@ def as_inst_delete(inst: *Inst): *InstDelete {
 def create_inst_nop(): Inst {
     return Inst {
         kind: MIR_INST_NOP,
-        meta: create_meta(source.empty_pos()),
+        meta: create_meta(source.empty_pos(), Scope { id: -1, parent: -1 }),
         data: null
     };
 }

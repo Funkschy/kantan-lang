@@ -107,11 +107,25 @@ def abi_to_name(a: Abi): name.Ref {
 
 type Target struct {
     is_error: bool,
+    arch: Arch,
+    vendor: Vendor,
+    sys: Sys,
+    abi: Abi,
     lltarget: *llvm.Target,
     triple_or_error: string // llvm message
 }
 
 def create_and_register_target(a: Arch, v: Vendor, sys: Sys, abi: Abi): Target {
+    let target = Target {
+        is_error: false,
+        arch: a,
+        vendor: v,
+        sys: sys,
+        abi: abi,
+        lltarget: null,
+        triple_or_error: null
+    };
+
     arch_register(a);
 
     let arch = arch_to_name(a);
@@ -138,18 +152,18 @@ def create_and_register_target(a: Arch, v: Vendor, sys: Sys, abi: Abi): Target {
         );
     }
 
-    let target: *llvm.Target = null;
+    let lltarget: *llvm.Target = null;
     let error: string = null;
-    if llvm.get_target_from_triple(triple, &target, &error) {
+    if llvm.get_target_from_triple(triple, &lltarget, &error) {
         delete triple;
-        return Target { is_error: true, lltarget: null, triple_or_error: error };
+        target.is_error = true;
+        target.triple_or_error = error;
+        return target;
     }
 
-    return Target {
-        is_error: false,
-        lltarget: target,
-        triple_or_error: triple
-    };
+    target.lltarget = lltarget;
+    target.triple_or_error = triple;
+    return target;
 }
 
 def free_target(t: *Target): void {

@@ -16,7 +16,6 @@ type FileAddResult struct {
 }
 
 type FileMap struct {
-    home_dir: string,
     files: vec.Vec, // vec.Vec<source.SourceFile>
     // the largest shared path of all source files
     // Example:
@@ -30,10 +29,7 @@ type FileMap struct {
 }
 
 def create(): FileMap {
-    // TODO(#11): windows support
-    // TODO(#19): respond to home not found
     return FileMap {
-        home_dir: std.getenv("HOME"),
         files: vec.create(sizeof source.SourceFile),
         proj_root: path.buf_from(path.empty())
     };
@@ -79,23 +75,18 @@ def free_fm(m: *FileMap): void {
     path.free_pb(&m.proj_root);
 }
 
-def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
+def add_std_lib(m: *FileMap, rel_path: *path.Path, std_dir: string): FileAddResult {
     let len = num_builtin_files();
     let file_names = get_builtin_files();
-
-    // TODO(#26): users should be able to change this using env vars
-    let std_dir = std.format_str("%s/.kantan/std", m.home_dir);
 
     let i = 0;
     while i < len {
         let file_name = *(file_names + i);
-
         let full_file_name = std.format_str("%s/%s", std_dir, file_name);
 
         let res = 0;
         if (res = add_file(m, rel_path, full_file_name, true)) != 0 {
             delete full_file_name;
-            delete std_dir;
             return FileAddResult { file_name: file_name, err_code: res };
         }
 
@@ -113,7 +104,6 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path): FileAddResult {
         i = i + 1;
     }
 
-    delete std_dir;
     return FileAddResult { file_name: null, err_code: 0 };
 }
 

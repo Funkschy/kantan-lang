@@ -249,24 +249,27 @@ type CheckResult struct {
     had_errors: bool,
     types: ptrvec.Vec,
     mods: *mod.Map,
-    globals: scope.Scope
+    globals: scope.Scope,
+    main_func: *ty.Type
 }
 
 def empty_result(): CheckResult {
-    return create_result(false, ptrvec.create(), null, scope.create());
+    return create_result(false, ptrvec.create(), null, scope.create(), null);
 }
 
 def create_result(
     had_errors: bool,
     types: ptrvec.Vec,
     mods: *mod.Map,
-    globals: scope.Scope
+    globals: scope.Scope,
+    main_func: *ty.Type
 ): CheckResult {
     return CheckResult {
         had_errors: had_errors,
         types: types,
         mods: mods,
-        globals: globals
+        globals: globals,
+        main_func: main_func
     };
 }
 
@@ -282,11 +285,11 @@ def free_result(r: *CheckResult): void {
 }
 
 def create_err_result(tc: *TypeChecker): CheckResult {
-    return create_result(true, tc.types, tc.mods, tc.globals);
+    return create_result(true, tc.types, tc.mods, tc.globals, null);
 }
 
 def create_check_result(tc: *TypeChecker): CheckResult {
-    return create_result(num_errs(tc) > 0, tc.types, tc.mods, tc.globals);
+    return create_result(num_errs(tc) > 0, tc.types, tc.mods, tc.globals, tc.main_func);
 }
 
 def create(mods: *mod.Map): TypeChecker {
@@ -2411,10 +2414,20 @@ def push_wrong_type_error(
     actual: *ty.Type,
     span: span.Span
 ): void {
-    let expected_ty_s = "";
+    let expected_ty_s: string = null;
     let free_expected_ty_s = ty.to_string(expected, &expected_ty_s);
-    let actual_ty_s = "";
+    let actual_ty_s: string = null;
     let free_actual_ty_s = ty.to_string(actual, &actual_ty_s);
+
+    if actual_ty_s == null {
+        actual_ty_s = "unknown type";
+        free_actual_ty_s = false;
+    }
+
+    if expected_ty_s == null {
+        expected_ty_s = "unknown type";
+        free_expected_ty_s = false;
+    }
 
     let text = std.err2str(err_kind, expected_ty_s, actual_ty_s);
     if free_expected_ty_s {

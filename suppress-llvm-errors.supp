@@ -1,5 +1,11 @@
 {
-   LLVM accesses uninitialized memory
+   LLVM accesses peephole uninitialized memory
    Memcheck:Cond
    fun:_ZN12_GLOBAL__N_117PeepholeOptimizer20runOnMachineFunctionERN4llvm15MachineFunctionE
+}
+
+{
+   LLVM accesses addrange uninitialized memory
+   Memcheck:Cond
+   fun:_ZN4llvm16DwarfCompileUnit8addRangeENS_9RangeSpanE
 }

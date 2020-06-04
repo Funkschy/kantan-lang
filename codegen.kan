@@ -1,13 +1,14 @@
-import "io";
 import "ty";
 import "dbg";
 import "mod";
 import "mir";
 import "map";
 import "std";
+import "path";
 import "llvm";
 import "name";
 import "ident";
+import "target";
 import "ptrvec";
 
 // stuff that outlives the ModuleCompiler
@@ -20,9 +21,9 @@ type ModuleCompiler struct {
     context: ModuleContext,
     irmod: *mir.Module,
     builder: *llvm.Builder,
+    dbg: *DebugInfo,
     structs: map.Map, // map.Map<mir.RefName, *llvm.Type>
-    functions: map.Map, // map.Map<mir.RefName, *llvm.Type>
-    allocated_strings: ptrvec.Vec // ptrvec.Vec<string>
+    functions: map.Map // map.Map<mir.RefName, *llvm.Type>
 }
 
 def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
@@ -42,24 +43,17 @@ def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
         context: ModuleContext { ctx: ctx, llmod: llmod },
         irmod: irmod,
         builder: builder,
+        dbg: null,
         structs: map.create(),
-        functions: map.create(),
-        allocated_strings: ptrvec.create()
+        functions: map.create()
     };
 }
 
 def free_compiler(c: *ModuleCompiler): void {
     llvm.dispose_builder(c.builder);
 
-    let i = 0;
-    while i < c.allocated_strings.len {
-        delete ptrvec.get(&c.allocated_strings, i);
-        i = i + 1;
-    }
-
     map.free_m(&c.structs);
     map.free_m(&c.functions);
-    ptrvec.free_v(&c.allocated_strings);
 }
 
 def free_context(ctx: *ModuleContext): void {
@@ -68,19 +62,48 @@ def free_context(ctx: *ModuleContext): void {
 }
 
 // if the context is null, a new one will be created for this module
-def compile_mir_mod(irmod: *mir.Module, global_ctx: *llvm.Context): ModuleContext {
+def compile_mir_mod(
+    irmod: *mir.Module,
+    global_ctx: *llvm.Context,
+    std_dir: string,
+    t: target.Target
+): ModuleContext {
     let compiler = create_compiler(irmod, global_ctx);
+
+    let dbg = create_dbg_info(&compiler, std_dir);
+    compiler.dbg = &dbg; // enable debug information
 
     add_forward_declarations(&compiler);
     compile_functions(&compiler);
 
+    let module_flag_warning = 1;
+    let int_ty = llvm.int32_type_in_context(compiler.context.ctx);
+    let dbg_version = llvm.value_as_metadata(llvm.const_int(int_ty, 3, false));
+    llvm.add_module_flag(
+        compiler.context.llmod, module_flag_warning, "Debug Info Version", 18, dbg_version
+    );
+
+    if t.sys.value == target.sys_darwin().value {
+        // Darwin only supports dwarf 2
+        let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 2, false));
+        llvm.add_module_flag(
+            compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
+        );
+    } else {
+        let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 4, false));
+        llvm.add_module_flag(
+            compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
+        );
+    }
+
+    llvm.set_target(compiler.context.llmod, t.triple_or_error);
+    finalize(&dbg);
+
     let context = compiler.context;
     free_compiler(&compiler);
-    return context;
-}
 
-def push_allocated_string(c: *ModuleCompiler, s: string): void {
-    ptrvec.push_ptr(&c.allocated_strings, s as *void);
+    free_dbg_info(&dbg);
+    return context;
 }
 
 def add_forward_declarations(c: *ModuleCompiler): void {
@@ -411,6 +434,8 @@ def create_function_data(
         // to the same string as the corresponding name.Owned inside the
         // NameTable, which has to be null terminated, since it's a name.Owned
         let value_ptr = llvm.build_alloca(c.builder, ty, decl.name.data);
+        dbg_set_inst_location(c, &inst_decl, value_ptr);
+
         let key = map.create_key(decl.name.len, decl.name.data);
         map.insert(&locals, key, value_ptr as *void);
 
@@ -459,14 +484,16 @@ def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
 
     let llvm_func = llvm.get_named_function(c.context.llmod, func.name.data);
     dbg.assert_fmt(llvm_func!= null, "function not found %s", func.name.data);
+    if c.dbg != null {
+        let dbg_f = dbg_create_function(c.dbg, func, llvm_func_ty);
+        llvm.set_subprogram(llvm_func, dbg_f);
+    }
 
     let func_data = create_function_data(c, llvm_func, func);
 
-    let i = 0;
-    while i < func_data.blocks.len {
+    for let i = 0; i < func_data.blocks.len; i = i + 1 {
         let bb = mir.bm_get_bb_ptr(&func.blocks, i);
         compile_bb(c, &func_data, bb);
-        i = i + 1;
     }
 
     free_function_data(&func_data);
@@ -499,6 +526,11 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let value = compile_expr(c, func, &assign.value);
         dbg.assert(value != null, "value was null");
 
+        // calls should always have debug infos
+        if mir.is_expr_call(&assign.value) {
+            dbg_set_inst_location(c, inst, value);
+        }
+
         if mir.is_addr_empty(&assign.dest) {
             // Only void calls generate empty addresses. The typechecker does
             // not allow them to be assigned or used in any way, but the mir
@@ -521,14 +553,16 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         }
 
         // this is a declared variable
-        llvm.build_store(c.builder, value, storage);
+        let store = llvm.build_store(c.builder, value, storage);
+        dbg_set_inst_location(c, inst, store);
         return;
     }
 
     if mir.is_inst_jmp(inst) {
         let jmp = mir.as_inst_jmp(inst);
         let target_bb = bb_by_label(func, &jmp.target);
-        llvm.build_br(c.builder, target_bb);
+        let br = llvm.build_br(c.builder, target_bb);
+        dbg_set_inst_location(c, inst, br);
         return;
     }
 
@@ -539,26 +573,30 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let else_target_bb = bb_by_label(func, &jmp.else_target);
         let condition = translate_addr(c, func, &jmp.condition);
 
-        llvm.build_cond_br(c.builder, condition, if_target_bb, else_target_bb);
+        let br = llvm.build_cond_br(c.builder, condition, if_target_bb, else_target_bb);
+        dbg_set_inst_location(c, inst, br);
         return;
     }
 
     if mir.is_inst_return(inst) {
         let ret = mir.as_inst_return(inst);
         if mir.is_addr_empty(&ret.value) {
-            llvm.build_ret_void(c.builder);
+            let ret = llvm.build_ret_void(c.builder);
+            dbg_set_inst_location(c, inst, ret);
             return;
         }
 
         let value = translate_addr(c, func, &ret.value);
-        llvm.build_ret(c.builder, value);
+        let ret = llvm.build_ret(c.builder, value);
+        dbg_set_inst_location(c, inst, ret);
         return;
     }
 
     if mir.is_inst_delete(inst) {
         let del = mir.as_inst_delete(inst);
         let addr = translate_addr(c, func, &del.addr);
-        llvm.build_free(c.builder, addr);
+        let del = llvm.build_free(c.builder, addr);
+        dbg_set_inst_location(c, inst, del);
         return;
     }
 
@@ -842,4 +880,134 @@ def compile_call(
     let call = llvm.build_call(c.builder, llvm_func, arg_values, args.len, "");
     ptrvec.free_v(&args);
     return call;
+}
+
+type DebugInfo struct {
+    builder: *llvm.DbgBuilder,
+    scopes: ptrvec.Vec, // ptrvec.Vec<*llvm.MetaData>
+    cu: *llvm.MetaData,
+    file: *llvm.MetaData
+}
+
+def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
+    let mod_path = mod.get_path(c.irmod.actual);
+    let dir = path.parent(&mod_path);
+    let file = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
+
+    let builder = llvm.create_di_builder(c.context.llmod);
+    if mod.is_std_lib(c.irmod.actual) {
+        file = dir;
+        dir = path.create(std_dir, std.strlen(std_dir));
+    }
+    let llfile = llvm.di_builder_create_file(
+        builder, file.inner, file.len, dir.inner, dir.len - 1 // -1 to remove trailing '/'
+    );
+
+    let c_lang = 1;
+    let cu = llvm.di_builder_create_compile_unit(
+        builder, c_lang, llfile,
+        "kantanc", 7, // producer
+        false,        // optimized
+        "", 0,        // flags
+        0,            // runtime version
+        "", 0,        // split name
+        1,            // dwarf emission kind
+        0,            // DWOId
+        true,         // split debug inlining
+        false         // debug info for profiling
+    );
+
+    let scopes = ptrvec.with_cap(c.irmod.scopes.len);
+    ptrvec.zero(&scopes);
+    // the scope at index 0 is the file
+    ptrvec.push_ptr(&scopes, llfile as *void);
+
+    return DebugInfo {
+        builder: builder,
+        scopes: scopes,
+        cu: cu,
+        file: llfile
+    };
+}
+
+def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
+    let scope = meta.scope;
+    if scope.id < 0 {
+        return info.cu;
+    }
+
+    let metadata = ptrvec.get(&info.scopes, scope.id) as *llvm.MetaData;
+    if metadata == null {
+        // Empty scopes (scopes without statements) might not have been initialized,
+        // so we just look for the next smallest scope for parent
+        let parent: *llvm.MetaData = null;
+        for let i = scope.parent; parent == null && i >= 0; i = i - 1 {
+            parent = ptrvec.get(&info.scopes, i) as *llvm.MetaData;
+        }
+
+        dbg.assert_fmt(
+            parent != null,
+            "no parent scope with id %d (for %d)",
+            scope.parent,
+            scope.id
+        );
+
+        metadata = llvm.di_builder_create_lexical_block(
+            info.builder, parent, info.file, meta.pos.lnr, meta.pos.col
+        );
+
+        ptrvec.set(&info.scopes, scope.id, metadata as *void);
+    }
+
+    return metadata;
+}
+
+def dbg_create_function(info: *DebugInfo, ir_f: *mir.Func, ll_f: *llvm.Type): *llvm.MetaData {
+    let surrounding = ptrvec.get(&info.scopes, ir_f.meta.scope.parent) as *llvm.MetaData;
+    // TODO: add parameter types
+    let ll_ty = llvm.di_builder_create_subroutine_type(info.builder, info.file, null, 0, 0);
+
+    let sub_program = llvm.di_builder_create_function(
+        info.builder, surrounding, ir_f.name.data, ir_f.name.len,
+        "", 0, // linkage name
+        info.file, ir_f.meta.pos.lnr,
+        ll_ty,
+        false,           // is local to unit
+        !ir_f.is_extern, // is definition
+        ir_f.meta.pos.lnr,
+        0,               // flags
+        false            // is optimized
+    );
+
+    ptrvec.set(&info.scopes, ir_f.meta.scope.id, sub_program as *void);
+    return sub_program;
+}
+
+def dbg_set_inst_location(c: *ModuleCompiler, inst: *mir.Inst, val: *llvm.Value) {
+    if c.dbg == null {
+        return;
+    }
+
+    let loc = dbg_create_location(c, inst);
+    llvm.instruction_set_debug_loc(val, loc);
+}
+
+def dbg_create_location(c: *ModuleCompiler, inst: *mir.Inst): *llvm.MetaData {
+    let surrounding = dbg_get_scope(c.dbg, inst.meta);
+
+    return llvm.di_builder_create_debug_location(
+        c.context.ctx,
+        inst.meta.pos.lnr, inst.meta.pos.col,
+        surrounding,
+        null // inlined at
+    );
+}
+
+def finalize(info: *DebugInfo) {
+    llvm.di_builder_finalize(info.builder);
+}
+
+def free_dbg_info(info: *DebugInfo) {
+    llvm.dispose_di_builder(info.builder);
+    ptrvec.free_v(&info.scopes);
 }

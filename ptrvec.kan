@@ -17,6 +17,10 @@ def with_cap(cap: i32): Vec {
     return vec;
 }
 
+def zero(v: *Vec) {
+    std.memset(v.elements as *void, 0, v.len * sizeof *void);
+}
+
 def is_empty(v: *Vec): bool {
     return v.len <= 0;
 }
@@ -72,7 +76,7 @@ def unsafe_get(v: *Vec, i: i32): *void {
 }
 
 def set(v: *Vec, i: i32, elem: *void): void {
-    dbg.assert(i >= 0 && i < v.cap, "out of bounds set");
+    dbg.assert_fmt(i >= 0 && i < v.cap, "out of bounds set: %d", i);
 
     // sizeof(*v.elements) is already 8, so we don't need to multiply
     *(v.elements + i) = elem;

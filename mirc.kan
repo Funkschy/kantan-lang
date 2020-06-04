@@ -1,4 +1,3 @@
-import "io";
 import "ty";
 import "nt";
 import "vec";
@@ -42,7 +41,9 @@ type MirCompiler struct {
     functions: map.Map, // map.Map<name.Ref, *mir.Func>
     structs: map.Map, // map.Map<name.Ref, *mir.Struct>
     globals: map.Map, // map.Map<name.Ref, *mir.GlobalConst>
-    current_func: *mir.Func
+    current_func: *mir.Func,
+    scopes: vec.Vec,
+    current_scope: i32
 }
 
 def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
@@ -54,7 +55,9 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
         functions: map.create(),
         structs: map.create(),
         globals: map.create(),
-        current_func: null
+        current_func: null,
+        scopes: vec.create(sizeof mir.Scope),
+        current_scope: -1
     };
 }
 
@@ -66,7 +69,7 @@ def compile(c: *MirCompiler): mir.Module {
     let i = 0;
     let n = mod.num_stmts(c.mod);
 
-    nt.open_scope(&c.names);
+    open_scope(c);
 
     while i < n {
         let s = mod.get_stmt_at(c.mod, i);
@@ -74,9 +77,9 @@ def compile(c: *MirCompiler): mir.Module {
         i = i + 1;
     }
 
-    nt.close_scope(&c.names);
+    close_scope(c);
 
-    return mir.create_mod(c.globals, c.functions, c.structs, c.mod);
+    return mir.create_mod(c.globals, c.functions, c.structs, c.scopes, c.mod);
 }
 
 def add_function(c: *MirCompiler, f: *mir.Func): void {
@@ -100,8 +103,30 @@ def lookup_function(c: *MirCompiler, mangled_name: name.Ref): *mir.Func {
 }
 
 def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
-    let pos = source.span_to_pos(c.mod.source, s);
-    return mir.create_meta(pos);
+    return get_meta_mod(c, s, c.mod);
+}
+
+def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData {
+    let pos = source.span_to_pos(mod.source, s);
+    return mir.create_meta(pos, scope_at(c, c.current_scope));
+}
+
+def scope_at(c: *MirCompiler, id: i32): mir.Scope {
+    let s = vec.get_ptr(&c.scopes, id) as *mir.Scope;
+    dbg.assert(s != null, "no scope");
+    return *s;
+}
+
+def open_scope(c: *MirCompiler) {
+    nt.open_scope(&c.names);
+    let s = mir.Scope { id: c.scopes.len, parent: c.current_scope };
+    c.current_scope = s.id;
+    vec.push(&c.scopes, &s as *void);
+}
+
+def close_scope(c: *MirCompiler) {
+    nt.close_scope(&c.names);
+    c.current_scope = scope_at(c, c.current_scope).parent;
 }
 
 def lookup_global_type(c: *MirCompiler, len: i32, name: string): *ty.Type {
@@ -141,7 +166,10 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
             f_ty.ret = lookup_global_type(c, 3, "i32");
         }
 
-        mir_func = new mir.create_func(t, mangled_name, is_extern);
+        // we may override this, in compile_stmt, if the function was called, before
+        // it was declared
+        let meta = get_meta_mod(c, f_ty.name.span, mod_at(c, f_ty.declared_in));
+        mir_func = new mir.create_func(t, mangled_name, meta, is_extern);
         add_function(c, mir_func);
     }
 
@@ -161,13 +189,17 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let decl_stmt = ast.as_func_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
+        open_scope(c);
         let mir_func = lookup_or_declare_function(c, decl.func_ty);
+        // override the meta information, since it could be wrong, if the function
+        // was called before it was declared
+        let meta = get_meta(c, decl.name.span);
+        mir_func.meta = meta;
 
         if decl_stmt.block != null {
             let prev_func = c.current_func;
 
             c.current_func = mir_func;
-            nt.open_scope(&c.names);
 
             // Declare arguments
             let i = 0;
@@ -192,6 +224,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             compile_stmt(c, decl_stmt.block as *ast.Stmt);
             let last_bb = mir.bm_last_bb_ptr(&mir_func.blocks);
             if mir.is_inst_nop(&last_bb.terminator) {
+                open_scope(c);
                 let is_main = std.strcmp(mir_func.name.data, "main") == 0;
                 dbg.assert(
                     is_main || ty.is_void(mir.func_ret_ty(mir_func)),
@@ -210,12 +243,13 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
                 } else {
                     last_bb.terminator = mir.new_inst_return(meta);
                 }
+                close_scope(c);
             }
 
             c.current_func = prev_func;
-            nt.close_scope(&c.names);
         }
 
+        close_scope(c);
         return;
     }
 
@@ -256,7 +290,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let block_stmt = ast.as_block_stmt(s);
         bind_s(c, 5, "__block");
 
-        nt.open_scope(&c.names);
+        open_scope(c);
 
         let i = 0;
         while i < block_stmt.stmts.len {
@@ -265,14 +299,16 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
             i = i + 1;
         }
 
-        nt.close_scope(&c.names);
+        close_scope(c);
 
         return;
     }
 
     if ast.is_expr_stmt(s) {
         let e = ast.as_expr_stmt(s);
-        expr_instruction(c, e.expr, false);
+        // this has to be true, so that we deref pointers twice
+        // otherwise this will cause the llvm module to be broken
+        expr_instruction(c, e.expr, true);
         return;
     }
 

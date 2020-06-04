@@ -90,6 +90,14 @@ def line_info(
     out_line_nr: *i32,
     out_col: *i32
 ): void {
+    dbg.assert_fmt(
+        file.code <= target.start && target.end <= file.code + file.len,
+        "invalid target (%p-%p) for source (%p-%p) in %.*s",
+        target.start, target.end,
+        file.code, file.code + file.len,
+        file.file.path.inner.len, file.file.path.inner.inner
+    );
+
     let last_nl = target.start;
 
     let ptr = target.start;
