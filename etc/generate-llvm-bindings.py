@@ -14,6 +14,7 @@ links = [
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/pass_manager_builder.rs',
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/scalar.rs',
     'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/util.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/debuginfo.rs',
 ]
 
 
@@ -21,6 +22,7 @@ links = [
 whitelist = set([
     'LLVMAddFunction',
     'LLVMAddGlobal',
+    'LLVMAddModuleFlag',
     'LLVMAppendBasicBlockInContext',
     'LLVMArrayType',
     'LLVMBuildAdd',
@@ -79,8 +81,10 @@ whitelist = set([
     'LLVMFloatTypeInContext',
     'LLVMFunctionType',
     'LLVMGetAlignment',
+    'LLVMGetFirstFunction',
     'LLVMGetNamedFunction',
     'LLVMGetNamedGlobal',
+    'LLVMGetNextFunction',
     'LLVMGetParam',
     'LLVMInt1TypeInContext',
     'LLVMInt32TypeInContext',
@@ -93,15 +97,15 @@ whitelist = set([
     'LLVMSetInitializer',
     'LLVMSetLinkage',
     'LLVMSetSourceFileName',
+    'LLVMSetTarget',
     'LLVMSetUnnamedAddress',
     'LLVMShutdown',
     'LLVMSizeOf',
     'LLVMStructCreateNamed',
     'LLVMStructSetBody',
     'LLVMTypeOf',
+    'LLVMValueAsMetadata',
     'LLVMVoidTypeInContext',
-    'LLVMGetFirstFunction',
-    'LLVMGetNextFunction',
 
     # analysis
     'LLVMVerifyModule',
@@ -144,6 +148,20 @@ whitelist = set([
     'LLVMPassManagerBuilderUseInlinerWithThreshold',
     'LLVMRunFunctionPassManager',
     'LLVMRunPassManager',
+
+    # debuginfo
+    'LLVMCreateDIBuilder',
+    'LLVMDIBuilderCreateCompileUnit',
+    'LLVMDIBuilderCreateConstantValueExpression',
+    'LLVMDIBuilderCreateDebugLocation',
+    'LLVMDIBuilderCreateFile',
+    'LLVMDIBuilderCreateFunction',
+    'LLVMDIBuilderCreateLexicalBlock',
+    'LLVMDIBuilderCreateSubroutineType',
+    'LLVMDIBuilderFinalize',
+    'LLVMDisposeDIBuilder',
+    'LLVMInstructionSetDebugLoc',
+    'LLVMSetSubprogram',
 ])
 
 
@@ -287,6 +305,10 @@ typemap = {
     'LLVMRelocMode': ('i32', 'i32', None, None), # enum
     'LLVMCodeModel': ('i32', 'i32', None, None), # enum
     'LLVMCodeGenFileType': ('i32', 'i32', None, None), # enum
+    'LLVMDWARFSourceLanguage': ('i32', 'i32', None, None), # enum
+    'LLVMDWARFEmissionKind': ('i32', 'i32', None, None), # enum
+    'LLVMDIFlags': ('i32', 'i32', None, None), # enum
+    'LLVMModuleFlagBehavior': ('i32', 'i32', None, None), # enum
 
     'u8': ('char', 'i32', 'std.char_to_int', 'std.int_to_char'),
     '*mut ::libc::c_char': ('string', 'string', None, None),
@@ -298,6 +320,7 @@ typemap = {
 
     '::libc::size_t': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
     '::libc::c_ulonglong': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
+    'i64': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
     '*mut ::libc::size_t': ('*i32', '*i32', None, None),
     '::libc::c_uint': ('i32', 'i32', None, None),
     '*mut ::libc::c_uint': ('*i32', '*i32', None, None),
@@ -317,7 +340,8 @@ typemap = {
     'LLVMValueRef': ('*Value', '*Value', None, None),
     '*mut LLVMValueRef': ('**Value', '**Value', None, None),
     'LLVMBasicBlockRef': ('*BasicBlock', '*BasicBlock', None, None),
-    'LLVMMetadataRef': ('*OpaqueMetadata', '*OpaqueMetadata', None, None),
+    'LLVMMetadataRef': ('*MetaData', '*MetaData', None, None),
+    '*mut LLVMMetadataRef': ('**MetaData', '**MetaData', None, None),
     'LLVMNamedMDNodeRef': ('*OpaqueNamedMDNode', '*OpaqueNamedMDNode', None, None),
     'LLVMValueMetadataEntry': ('*OpaqueValueMetadataEntry', '*OpaqueValueMetadataEntry', None, None),
     'LLVMBuilderRef': ('*Builder', '*Builder', None, None),
@@ -337,6 +361,8 @@ typemap = {
     '*mut LLVMTargetRef': ('**Target', '**Target', None, None),
 
     'LLVMPassManagerBuilderRef': ('*PassManagerBuilder', '*PassManagerBuilder', None, None),
+
+    'LLVMDIBuilderRef': ('*DbgBuilder', '*DbgBuilder', None, None),
 }
 def map_typename(typename):
     typename = typename.strip()

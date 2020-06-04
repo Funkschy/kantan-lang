@@ -16,6 +16,8 @@ type TargetMachine struct {}
 type MemoryBuffer struct {}
 type PassManager struct {}
 type PassManagerBuilder struct {}
+type DbgBuilder struct {}
+type MetaData struct {}
 
 
 // Core
@@ -61,6 +63,10 @@ extern def LLVMDisposeModule(m: *Module): void;
 
 extern def LLVMSetSourceFileName(m: *Module, name: string, len: *void): void;
 
+extern def LLVMSetTarget(m: *Module, triple: string): void;
+
+extern def LLVMAddModuleFlag(m: *Module, behavior: i32, key: string, key_len: *void, val: *MetaData): void;
+
 extern def LLVMDumpModule(m: *Module): void;
 
 extern def LLVMAddFunction(m: *Module, name: string, function_ty: *Type): *Value;
@@ -79,10 +85,17 @@ def module_create_with_name_in_context(module_id: string, c: *Context): *Module 
 def dispose_module(m: *Module): void {
     LLVMDisposeModule(m);
 }
-
 // Set the original source file name of a module to a string Name with length Len.
 def set_source_file_name(m: *Module, name: string, len: i32): void {
     LLVMSetSourceFileName(m, name, std.int_to_ptr(len));
+}
+
+def set_target(m: *Module, triple: string): void {
+    LLVMSetTarget(m, triple);
+}
+// Add a module-level flag to the module-level flags metadata if it doesn't already exist.
+def add_module_flag(m: *Module, behavior: i32, key: string, key_len: i32, val: *MetaData): void {
+    LLVMAddModuleFlag(m, behavior, key, std.int_to_ptr(key_len), val);
 }
 
 def dump_module(m: *Module): void {
@@ -271,6 +284,15 @@ def set_global_constant(global_var: *Value, is_constant: bool): void {
 
 def get_param(fn: *Value, index: i32): *Value {
     return LLVMGetParam(fn, index);
+}
+
+
+// Core->Metadata
+extern def LLVMValueAsMetadata(val: *Value): *MetaData;
+
+// Obtain a Value as Metadata.
+def value_as_metadata(val: *Value): *MetaData {
+    return LLVMValueAsMetadata(val);
 }
 
 
@@ -725,3 +747,81 @@ extern def LLVMAddPromoteMemoryToRegisterPass(pm: *PassManager): void;
 def add_promote_memory_to_register_pass(pm: *PassManager): void {
     LLVMAddPromoteMemoryToRegisterPass(pm);
 }
+
+
+extern def LLVMCreateDIBuilder(m: *Module): *DbgBuilder;
+
+extern def LLVMDisposeDIBuilder(builder: *DbgBuilder): void;
+
+extern def LLVMDIBuilderFinalize(builder: *DbgBuilder): void;
+
+extern def LLVMDIBuilderCreateCompileUnit(builder: *DbgBuilder, lang: i32, file_ref: *MetaData, producer: string, producer_len: *void, is_optimized: i32, flags: string, flags_len: *void, runtime_ver: i32, split_name: string, split_name_len: *void, kind: i32, dwo_id: i32, split_debug_inlining: i32, debug_info_for_profiling: i32): *MetaData;
+
+extern def LLVMDIBuilderCreateFile(builder: *DbgBuilder, filename: string, filename_len: *void, directory: string, directory_len: *void): *MetaData;
+
+extern def LLVMDIBuilderCreateFunction(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, linkage_name: string, linkage_name_len: *void, file: *MetaData, line_no: i32, ty: *MetaData, is_local_to_unit: i32, is_definition: i32, scope_line: i32, flags: i32, is_optimized: i32): *MetaData;
+
+extern def LLVMDIBuilderCreateLexicalBlock(builder: *DbgBuilder, scope: *MetaData, file: *MetaData, line: i32, column: i32): *MetaData;
+
+extern def LLVMDIBuilderCreateDebugLocation(ctx: *Context, line: i32, column: i32, scope: *MetaData, inlined_at: *MetaData): *MetaData;
+
+extern def LLVMDIBuilderCreateSubroutineType(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData;
+
+extern def LLVMDIBuilderCreateConstantValueExpression(builder: *DbgBuilder, value: *void): *MetaData;
+
+extern def LLVMSetSubprogram(func: *Value, sp: *MetaData): void;
+
+extern def LLVMInstructionSetDebugLoc(inst: *Value, loc: *MetaData): void;
+
+// Construct a builder for a module and collect unresolved nodes.
+def create_di_builder(m: *Module): *DbgBuilder {
+    return LLVMCreateDIBuilder(m);
+}
+// Deallocate a builder and everything it owns.
+//
+// The builder must be finalized before this.
+def dispose_di_builder(builder: *DbgBuilder): void {
+    LLVMDisposeDIBuilder(builder);
+}
+// Construct any deferred debug info descriptors.
+def di_builder_finalize(builder: *DbgBuilder): void {
+    LLVMDIBuilderFinalize(builder);
+}
+
+def di_builder_create_compile_unit(builder: *DbgBuilder, lang: i32, file_ref: *MetaData, producer: string, producer_len: i32, is_optimized: bool, flags: string, flags_len: i32, runtime_ver: i32, split_name: string, split_name_len: i32, kind: i32, dwo_id: i32, split_debug_inlining: bool, debug_info_for_profiling: bool): *MetaData {
+    return LLVMDIBuilderCreateCompileUnit(builder, lang, file_ref, producer, std.int_to_ptr(producer_len), std.bool_to_int(is_optimized), flags, std.int_to_ptr(flags_len), runtime_ver, split_name, std.int_to_ptr(split_name_len), kind, dwo_id, std.bool_to_int(split_debug_inlining), std.bool_to_int(debug_info_for_profiling));
+}
+// Create a file descriptor to hold debugging information for a file.
+def di_builder_create_file(builder: *DbgBuilder, filename: string, filename_len: i32, directory: string, directory_len: i32): *MetaData {
+    return LLVMDIBuilderCreateFile(builder, filename, std.int_to_ptr(filename_len), directory, std.int_to_ptr(directory_len));
+}
+// Create a new descriptor for the specified subprogram.
+def di_builder_create_function(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, linkage_name: string, linkage_name_len: i32, file: *MetaData, line_no: i32, ty: *MetaData, is_local_to_unit: bool, is_definition: bool, scope_line: i32, flags: i32, is_optimized: bool): *MetaData {
+    return LLVMDIBuilderCreateFunction(builder, scope, name, std.int_to_ptr(name_len), linkage_name, std.int_to_ptr(linkage_name_len), file, line_no, ty, std.bool_to_int(is_local_to_unit), std.bool_to_int(is_definition), scope_line, flags, std.bool_to_int(is_optimized));
+}
+// Create a descriptor for a lexical block with the specified parent context.
+def di_builder_create_lexical_block(builder: *DbgBuilder, scope: *MetaData, file: *MetaData, line: i32, column: i32): *MetaData {
+    return LLVMDIBuilderCreateLexicalBlock(builder, scope, file, line, column);
+}
+// Creates a new DebugLocation that describes a source location.
+def di_builder_create_debug_location(ctx: *Context, line: i32, column: i32, scope: *MetaData, inlined_at: *MetaData): *MetaData {
+    return LLVMDIBuilderCreateDebugLocation(ctx, line, column, scope, inlined_at);
+}
+// Create subroutine type.
+def di_builder_create_subroutine_type(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData {
+    return LLVMDIBuilderCreateSubroutineType(builder, file, parameter_types, num_parameter_types, flags);
+}
+// Create a new descriptor for the specified variable that does not have an
+def di_builder_create_constant_value_expression(builder: *DbgBuilder, value: i32): *MetaData {
+    return LLVMDIBuilderCreateConstantValueExpression(builder, std.int_to_ptr(value));
+}
+// Set the subprogram attached to a function.
+def set_subprogram(func: *Value, sp: *MetaData): void {
+    LLVMSetSubprogram(func, sp);
+}
+// Set the debug location for the given instruction.
+def instruction_set_debug_loc(inst: *Value, loc: *MetaData): void {
+    LLVMInstructionSetDebugLoc(inst, loc);
+}
+
+
