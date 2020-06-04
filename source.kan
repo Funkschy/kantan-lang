@@ -6,13 +6,11 @@ import "ptrvec";
 
 import "dbg";
 
-#define KANTAN_FILE_ENDING ".kan"
-
 def kantan_file_ending(len: *i32): string {
     if len != null {
-        *len = std.strlen(KANTAN_FILE_ENDING);
+        *len = 4;
     }
-    return KANTAN_FILE_ENDING;
+    return ".kan";
 }
 
 type LineSpan struct {
@@ -95,7 +93,7 @@ def line_info(
     let last_nl = target.start;
 
     let ptr = target.start;
-    while ptr != file.code {
+    while ptr > file.code {
         if *ptr == '\n' {
             last_nl = ptr;
             ptr = file.code; // there is currently no 'break' keyword
