@@ -1,12 +1,13 @@
 #include "ty_types.h"
 
-import "ptrvec";
-import "vec";
 import "std";
-import "ident";
+import "mod";
+import "vec";
 import "span";
-import "scope";
 import "name";
+import "scope";
+import "ident";
+import "ptrvec";
 
 extern def type2str(kind: i32): string;
 
@@ -520,6 +521,50 @@ def width_was_calculated(t: *Type): bool {
     return t.align > 0;
 }
 
+// returns true, if the struct has uninitialized fields
+def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
+    let max_align = 1;
+    let width_sum = 0;
+
+    let current_offset = 0;
+    let last_align = 0;
+
+    for let i = 0; i < s_ty.fields.len; i = i + 1 {
+        let f = field_at(s_ty, i);
+        if f == null || f.ty == null {
+            return true;
+        }
+
+        if f.ty.align > max_align {
+            max_align = f.ty.align;
+        }
+
+        // s: string,  width: 8, align: 8, offset: 0,  padding: 0    , width_sum: 8
+        // c: char,    width: 1, align: 1, offset: 8,  padding: 0    , width_sum: 9
+        // x: i32      width: 4, align: 4, offset: 12, padding: 4 - 1,
+
+        let padding = 0;
+        if width_sum > 0 && (width_sum % f.ty.align) != 0 {
+            padding = f.ty.align - last_align;
+        }
+
+        let real_width = f.ty.width + padding;
+        width_sum = width_sum + real_width;
+
+        last_align = f.ty.width;
+    }
+
+    let rem = width_sum % max_align;
+    if rem != 0 {
+        width_sum = width_sum + (max_align - rem);
+    }
+
+    *width = width_sum;
+    *align = max_align;
+
+    return false;
+}
+
 // TODO(#38): implement either lookup table or full method dispatching for Type
 // returns true, if the types width/alignment could be calculated
 def fill_width_align(t: *Type): bool {
@@ -536,11 +581,7 @@ def fill_width_align(t: *Type): bool {
     let width = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
 
-    // FIXME(#40): Padding
-    //  the current implementation of this size calculation is just wrong
-    //  we need to actually check for alignment and padding and not just take
-    //  the sizes one by one
-    if is_ptr_type(t){
+    if is_ptr(t){
         width = 8; // TODO(#42): determine pointer width based on target
     } else if is_i32(t) {
         width = 4;
@@ -552,35 +593,7 @@ def fill_width_align(t: *Type): bool {
         width = 1;
     } else if is_struct(t) {
         let s_ty = as_struct(t);
-
-        let max_align = align;
-        let width_sum = 0;
-
-        let i = 0;
-        while i < s_ty.fields.len {
-            let f = field_at(s_ty, i);
-            let field_initialized = f != null;
-            if field_initialized {
-                field_initialized = f.ty != null;
-            }
-
-            if field_initialized {
-                let a = f.ty.align;
-                if a > max_align {
-                    max_align = a;
-                }
-
-                let w = f.ty.width;
-                width_sum = width_sum + w;
-            } else {
-                has_unresolved_fields = true;
-            }
-
-            i = i + 1;
-        }
-
-        width = width_sum;
-        align = max_align;
+        has_unresolved_fields = calc_struct_width_align(s_ty, &width, &align);
     }
 
     if has_unresolved_fields {
