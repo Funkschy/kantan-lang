@@ -152,7 +152,6 @@ static char const *const type_type_strings[] = {
     "f32",
     "char",
     "void",
-    "string",
     "function",
     "module",
     "struct"

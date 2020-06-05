@@ -1,5 +1,6 @@
 #include "ty_types.h"
 
+import "dbg";
 import "std";
 import "mod";
 import "vec";
@@ -113,6 +114,11 @@ type Ptr struct {
 // TODO(#28): don't allow pointers to Mod or other non-runtime abstractions (e.g Types)
 //  should we actually check this here, or just in the typechecker itself?
 def new_ptr(count: i32, inner: *Type): *Type {
+    if inner != null && is_ptr(inner) {
+        count = count + as_ptr(inner).count;
+        inner = as_ptr(inner).inner;
+    }
+
     let ptr = new Ptr {
         count: count,
         inner: inner
@@ -134,6 +140,12 @@ def new_ptr(count: i32, inner: *Type): *Type {
 
 def update_inner(ptr_ty: *Type, inner: *Type): void {
     let p = as_ptr(ptr_ty);
+
+    if inner != null && is_ptr(inner) {
+        inner = as_ptr(inner).inner;
+        p.count = p.count + as_ptr(inner).count;
+    }
+
     p.inner = inner;
     // only auto deref once
     if p.count < 2 {
@@ -150,44 +162,27 @@ def is_ptr(t: *Type): bool {
     return t.kind == TY_PTR;
 }
 
-def is_ptr_type(t: *Type): bool {
-    return t.kind == TY_PTR || t.kind == TY_STRING;
-}
-
 def as_ptr(t: *Type): *Ptr {
     return t.data as *Ptr;
 }
 
-/////////// string type ///////////
-
-def new_string(): *Type {
-    let t = new_type(TY_STRING, null);
-
-    // pointers always have a size
-    std.flag_unset(&t.flags, FLAG_UNSIZED);
-    // you cannot declare a pointer
-    std.flag_unset(&t.flags, FLAG_TY_DECL);
-
-    fill_width_align(t);
-    return t;
-}
-
 def is_string(t: *Type): bool {
-    return t.kind == TY_STRING;
+    return is_ptr(t) && as_ptr(t).count == 1 && is_char(as_ptr(t).inner);
 }
 
 /////////// struct type ///////////
 
 type StructField struct {
     name: ident.Ident,
-    ty: *Type
+    ty: *Type,
+    offset: i32 // gets set during fill_width_align
 }
 
 type Struct struct {
     name: ident.Ident,
     mangled_name: name.Owned,
     scope: scope.Scope,
-    declared_in: i32, // mod index
+    declared_in: *mod.Module,
     fields: vec.Vec // <StructField>
 }
 
@@ -196,7 +191,7 @@ def init_struct(
     t: *Type,
     name: ident.Ident,
     mangled_name: name.Owned,
-    declared_in: i32
+    declared_in: *mod.Module
 ): void {
     let s = new Struct {
         name: name,
@@ -220,7 +215,7 @@ def is_struct_decl(t: *Type): bool {
 }
 
 def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
-    let field = StructField { name: name, ty: ty };
+    let field = StructField { name: name, ty: ty, offset: 0 };
     vec.push(&t.fields, &field as *void);
     scope.bind_in(&t.scope, &name, ty);
 }
@@ -275,7 +270,7 @@ def create_param(name: ident.Ident, ty: *Type): Param {
 type Func struct {
     is_extern: bool,
     is_varargs: bool,
-    declared_in: i32, // mod index
+    declared_in: *mod.Module,
     ret: *Type,
     params: vec.Vec, // <Param>
     name: ident.Ident,
@@ -287,7 +282,7 @@ def init_func(
     t: *Type,
     name: ident.Ident,
     mangled_name: name.Owned,
-    declared_in: i32,
+    declared_in: *mod.Module,
     is_extern: bool
 ): void {
     let f = new Func {
@@ -439,7 +434,8 @@ def is_sized(t: *Type): bool {
 // if the type is not unsized and the with is unknown it wasn't
 // constructed correctly
 def is_initialized(t: *Type): bool {
-    return t.width != WIDTH_UNKNOWN || std.flag_get(&t.flags, FLAG_UNSIZED);
+    return t != null
+        && ((t.width != WIDTH_UNKNOWN && t.align > 0) || std.flag_get(&t.flags, FLAG_UNSIZED));
 }
 
 def is_scoped(t: *Type): bool {
@@ -525,13 +521,11 @@ def width_was_calculated(t: *Type): bool {
 def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
     let max_align = 1;
     let width_sum = 0;
-
-    let current_offset = 0;
     let last_align = 0;
 
     for let i = 0; i < s_ty.fields.len; i = i + 1 {
         let f = field_at(s_ty, i);
-        if f == null || f.ty == null {
+        if f == null || !is_initialized(f.ty) {
             return true;
         }
 
@@ -547,6 +541,8 @@ def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
         if width_sum > 0 && (width_sum % f.ty.align) != 0 {
             padding = f.ty.align - last_align;
         }
+
+        f.offset = width_sum + padding;
 
         let real_width = f.ty.width + padding;
         width_sum = width_sum + real_width;
@@ -581,7 +577,7 @@ def fill_width_align(t: *Type): bool {
     let width = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
 
-    if is_ptr(t){
+    if is_ptr(t) {
         width = 8; // TODO(#42): determine pointer width based on target
     } else if is_i32(t) {
         width = 4;
@@ -606,6 +602,12 @@ def fill_width_align(t: *Type): bool {
             align = width;
         }
         t.align = align;
+
+        if t.cached_instance != null {
+            t.cached_instance.width = width;
+            t.cached_instance.align = align;
+        }
+
         return true;
     }
 
@@ -657,12 +659,22 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
 
     if is_ptr(t) {
         let p_ty = as_ptr(t);
-        let asterisks = std.malloc(p_ty.count) as string;
-        std.memset(asterisks as *void, std.char_to_int('*'), p_ty.count);
+        let count = p_ty.count;
 
         let s_inner = "";
-        let free_inner = to_string_mangled(p_ty.inner, use_mangled, &s_inner);
-        let s = std.format_str("%.*s%s", p_ty.count, asterisks, s_inner);
+        let free_inner = false;
+
+        if p_ty.inner != null && is_char(p_ty.inner) {
+            count = count - 1;
+            s_inner = "string";
+        } else {
+            free_inner = to_string_mangled(p_ty.inner, use_mangled, &s_inner);
+        }
+
+        let asterisks = std.malloc(count) as string;
+        std.memset(asterisks as *void, std.char_to_int('*'), count);
+        let s = std.format_str("%.*s%s", count, asterisks, s_inner);
+
         if free_inner {
             delete s_inner;
         }
@@ -677,6 +689,11 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
 }
 
 def to_static_string(t: *Type): string {
+    // since string is just an alias, this would normaly output 'pointer'
+    if is_string(t) {
+        return "string";
+    }
+
     return type2str(t.kind);
 }
 

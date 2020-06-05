@@ -22,7 +22,7 @@ type ModuleCompiler struct {
     irmod: *mir.Module,
     builder: *llvm.Builder,
     dbg: *DebugInfo,
-    structs: map.Map, // map.Map<mir.RefName, *llvm.Type>
+    structs: map.Map,  // map.Map<mir.RefName, *llvm.Type>
     functions: map.Map // map.Map<mir.RefName, *llvm.Type>
 }
 
@@ -249,10 +249,6 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         return llvm.int8_type_in_context(c.context.ctx);
     }
 
-    if ty.is_string(t) {
-        return llvm.pointer_type(llvm.int8_type_in_context(c.context.ctx), 0);
-    }
-
     if ty.is_struct(t) {
         return lookup_or_declare_struct(c, t);
     }
@@ -397,7 +393,10 @@ def create_function_data(
 ): FunctionData {
     let num_blocks = mir.bm_num_blocks(&irfunc.blocks);
     let blocks = map.with_cap(num_blocks);
+    let f_ty = ty.as_func(irfunc.ty);
 
+    // unset the location for the prologue emission
+    dbg_set_inst_location(c, null);
     let entry_block: *llvm.BasicBlock = null;
 
     let i = 0;
@@ -422,11 +421,10 @@ def create_function_data(
 
     // compile variable declarations for the entire function
     llvm.position_builder_at_end(c.builder, entry_block);
-    i = 0;
-    while i < num_locals {
+
+    for let i = 0; i < num_locals; i = i + 1 {
         let inst_decl = mir.bm_decl_at(&irfunc.blocks, i);
         dbg.assert(mir.is_inst_decl(&inst_decl), "expected a declaration");
-
         let decl = mir.as_inst_decl(&inst_decl);
         let ty = translate_type(c, decl.ty);
 
@@ -434,12 +432,9 @@ def create_function_data(
         // to the same string as the corresponding name.Owned inside the
         // NameTable, which has to be null terminated, since it's a name.Owned
         let value_ptr = llvm.build_alloca(c.builder, ty, decl.name.data);
-        dbg_set_inst_location(c, &inst_decl, value_ptr);
 
         let key = map.create_key(decl.name.len, decl.name.data);
         map.insert(&locals, key, value_ptr as *void);
-
-        i = i + 1;
     }
 
     return FunctionData {
@@ -485,7 +480,7 @@ def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
     let llvm_func = llvm.get_named_function(c.context.llmod, func.name.data);
     dbg.assert_fmt(llvm_func!= null, "function not found %s", func.name.data);
     if c.dbg != null {
-        let dbg_f = dbg_create_function(c.dbg, func, llvm_func_ty);
+        let dbg_f = dbg_create_function(c, func, llvm_func_ty);
         llvm.set_subprogram(llvm_func, dbg_f);
     }
 
@@ -515,6 +510,8 @@ def compile_bb(c: *ModuleCompiler, func: *FunctionData, bb: *mir.BasicBlock): vo
 }
 
 def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void {
+    dbg_set_inst_location(c, inst);
+
     if mir.is_inst_assign(inst) {
         let assign = mir.as_inst_assign(inst);
 
@@ -528,7 +525,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
 
         // calls should always have debug infos
         if mir.is_expr_call(&assign.value) {
-            dbg_set_inst_location(c, inst, value);
+            llvm.set_inst_debug_location(c.builder, value);
         }
 
         if mir.is_addr_empty(&assign.dest) {
@@ -552,9 +549,21 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
             return;
         }
 
+        // unset the instruction location for parameters since we want to skip their assignment
+        if assign.param_idx >= 0 {
+            dbg_set_inst_location(c, null);
+        }
+
         // this is a declared variable
         let store = llvm.build_store(c.builder, value, storage);
-        dbg_set_inst_location(c, inst, store);
+
+        // check if this is a parameter
+        if assign.param_idx >= 0 {
+            dbg_declare_parameter(c, func, storage, store, inst, assign.param_idx);
+        } else {
+            llvm.set_inst_debug_location(c.builder, store);
+        }
+
         return;
     }
 
@@ -562,7 +571,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let jmp = mir.as_inst_jmp(inst);
         let target_bb = bb_by_label(func, &jmp.target);
         let br = llvm.build_br(c.builder, target_bb);
-        dbg_set_inst_location(c, inst, br);
+        llvm.set_inst_debug_location(c.builder, br);
         return;
     }
 
@@ -574,7 +583,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let condition = translate_addr(c, func, &jmp.condition);
 
         let br = llvm.build_cond_br(c.builder, condition, if_target_bb, else_target_bb);
-        dbg_set_inst_location(c, inst, br);
+        llvm.set_inst_debug_location(c.builder, br);
         return;
     }
 
@@ -582,13 +591,13 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let ret = mir.as_inst_return(inst);
         if mir.is_addr_empty(&ret.value) {
             let ret = llvm.build_ret_void(c.builder);
-            dbg_set_inst_location(c, inst, ret);
+            llvm.set_inst_debug_location(c.builder, ret);
             return;
         }
 
         let value = translate_addr(c, func, &ret.value);
         let ret = llvm.build_ret(c.builder, value);
-        dbg_set_inst_location(c, inst, ret);
+        llvm.set_inst_debug_location(c.builder, ret);
         return;
     }
 
@@ -596,7 +605,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let del = mir.as_inst_delete(inst);
         let addr = translate_addr(c, func, &del.addr);
         let del = llvm.build_free(c.builder, addr);
-        dbg_set_inst_location(c, inst, del);
+        llvm.set_inst_debug_location(c.builder, del);
         return;
     }
 
@@ -627,7 +636,8 @@ def compile_struct_init_assign(
         let arg_addr = translate_addr(c, func, arg);
 
         let field = llvm.build_struct_gep(c.builder, storage, i, "");
-        llvm.build_store(c.builder, arg_addr, field);
+        let store = llvm.build_store(c.builder, arg_addr, field);
+        llvm.set_inst_debug_location(c.builder, store);
 
         i = i + 1;
     }
@@ -749,7 +759,7 @@ def compile_binary(
         return llvm.build_add(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_SUB {
         // pointer subtraction (both types have to be equal for MIR_BIN_SUB)
-        if ty.is_ptr_type(binary.left.ty) {
+        if ty.is_ptr(binary.left.ty) {
             let int64_ty = llvm.int64_type_in_context(c.context.ctx);
             left = llvm.build_ptr_to_int(c.builder, left, int64_ty, "");
             right = llvm.build_ptr_to_int(c.builder, right, int64_ty, "");
@@ -790,7 +800,7 @@ def compile_binary(
     } else {
         let ptr = left;
         let scalar = right;
-        if ty.is_ptr_type(binary.right.ty) {
+        if ty.is_ptr(binary.right.ty) {
             ptr = right;
             scalar = left;
         }
@@ -886,7 +896,9 @@ type DebugInfo struct {
     builder: *llvm.DbgBuilder,
     scopes: ptrvec.Vec, // ptrvec.Vec<*llvm.MetaData>
     cu: *llvm.MetaData,
-    file: *llvm.MetaData
+    file: *llvm.MetaData,
+    std_dir: string,
+    structs: map.Map // map.Map<mir.Refname, *llvm.MetaData>
 }
 
 def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
@@ -926,8 +938,168 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
         builder: builder,
         scopes: scopes,
         cu: cu,
-        file: llfile
+        file: llfile,
+        std_dir: std_dir,
+        structs: map.create()
     };
+}
+
+def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
+    dbg.assert(c.dbg != null, "called dbg_translate_type in non-debug mode");
+
+    // TODO: enum
+    let dw_ate_address         = 1;
+    let dw_ate_boolean         = 2;
+    let dw_ate_complex_float   = 3;
+    let dw_ate_float           = 4;
+    let dw_ate_signed          = 5;
+    let dw_ate_signed_char     = 6;
+    let dw_ate_unsigned        = 7;
+    let dw_ate_unsigned_char   = 8;
+    let dw_ate_imaginary_float = 9;
+    let dw_ate_packed_decimal  = 10;
+    let dw_ate_numeric_string  = 11;
+    let dw_ate_edited          = 12;
+    let dw_ate_signed_fixed    = 13;
+    let dw_ate_unsigned_fixed  = 14;
+    let dw_ate_decimal_float   = 15;
+
+    if ty.is_i32(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "i32", 3, 32, dw_ate_signed, 0
+        );
+    }
+
+    if ty.is_void(t) {
+        return null;
+    }
+
+    if ty.is_f32(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "f32", 3, 32, dw_ate_float, 0
+        );
+    }
+
+    if ty.is_bool(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "bool", 4, 8, dw_ate_boolean, 0
+        );
+    }
+
+    if ty.is_char(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "char", 4, 8, dw_ate_signed_char, 0
+        );
+    }
+
+    if ty.is_struct(t) {
+        let s_ty = ty.as_struct(t);
+        let key = map.create_key(s_ty.mangled_name.len, s_ty.mangled_name.data);
+
+        let cached = map.get(&c.dbg.structs, key) as *llvm.MetaData;
+        if cached != null {
+            return cached;
+        }
+
+        let s = map.get(&c.irmod.structs, key) as *mir.Struct;
+        dbg.assert_fmt(s != null, "struct %s does not exist", s_ty.mangled_name.data);
+
+        let scope: *llvm.MetaData = null;
+        let file = c.dbg.file;
+
+        if s.is_extern {
+            let mod_path = mod.get_path(s_ty.declared_in);
+            let dir = path.parent(&mod_path);
+            let filename = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
+
+            if mod.is_std_lib(s_ty.declared_in) {
+                filename = dir;
+                dir = path.create(c.dbg.std_dir, std.strlen(c.dbg.std_dir));
+            }
+
+            file = llvm.di_builder_create_file(
+                c.dbg.builder,
+                filename.inner, filename.len,
+                dir.inner, dir.len - 1 // -1 to remove trailing '/'
+            );
+            scope = file;
+        } else {
+            scope = dbg_get_scope(c.dbg, s.meta);
+        }
+
+        let tag = 19; // dwarf_tag_structure_type
+        let placeholder = llvm.di_builder_create_forward_decl(
+            c.dbg.builder, tag,
+            s.name.data, s.name.len,
+            scope, file, s.meta.pos.lnr,
+            0, t.width * 8, t.align * 8,
+            s.name.data, s.name.len
+        );
+        map.insert(&c.dbg.structs, key, placeholder as *void);
+
+        let field_types = ptrvec.with_cap(s_ty.fields.len);
+        for let i = 0; i < s_ty.fields.len; i = i + 1 {
+            let field = ty.field_at(s_ty, i);
+            let width_bits = field.ty.width * 8;
+            let offset_in_bits = field.offset * 8;
+
+            let member = llvm.di_builder_create_member_type(
+                c.dbg.builder, scope,
+                ident.start(&field.name), ident.len(&field.name),
+                file, s.meta.pos.lnr, // TODO: line number of field
+                width_bits, field.ty.align * 8, offset_in_bits,
+                0, dbg_translate_type(c, field.ty)
+            );
+
+            ptrvec.push_ptr(&field_types, member as *void);
+        }
+
+        let llvm_struct_ty = llvm.di_builder_create_struct_type(
+            c.dbg.builder, scope,
+            s.name.data, s.name.len,
+            file, s.meta.pos.lnr,
+            t.width * 8, t.align * 8, 0, placeholder,
+            field_types.elements as **llvm.MetaData, field_types.len,
+            0, null,
+            s.name.data, s.name.len
+        );
+
+        ptrvec.free_v(&field_types);
+        map.insert(&c.dbg.structs, key, llvm_struct_ty as *void);
+
+        return llvm_struct_ty;
+    }
+
+    if ty.is_ptr(t) {
+        let ptr = ty.as_ptr(t);
+        let inner = dbg_translate_type(c, ptr.inner);
+        let inner_name = "";
+        let free_inner_name = ty.to_string(ptr.inner, &inner_name);
+        let inner_len = std.strlen(inner_name);
+
+        for let i = 0; i < ptr.count; i = i + 1 {
+            let star_count = i + 1;
+            let name = std.malloc(star_count + inner_len);
+            std.memset(name, std.char_to_int('*'), star_count);
+            std.memcpy(name + star_count, inner_name as *void, inner_len);
+
+            // TODO: determine pointer size based on target pointer width
+            inner = llvm.di_builder_create_pointer_type(
+                c.dbg.builder, inner, t.width, t.align, 0, name as string, star_count + inner_len
+            );
+
+            delete name;
+        }
+
+        if free_inner_name {
+            delete inner_name;
+        }
+
+        return inner;
+    }
+
+    dbg.assert_fmt(false, "unhandled type %d", t.kind);
+    return null;
 }
 
 def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
@@ -962,10 +1134,22 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
     return metadata;
 }
 
-def dbg_create_function(info: *DebugInfo, ir_f: *mir.Func, ll_f: *llvm.Type): *llvm.MetaData {
+def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): *llvm.MetaData {
+    let info = c.dbg;
     let surrounding = ptrvec.get(&info.scopes, ir_f.meta.scope.parent) as *llvm.MetaData;
-    // TODO: add parameter types
-    let ll_ty = llvm.di_builder_create_subroutine_type(info.builder, info.file, null, 0, 0);
+
+    let f_ty = ty.as_func(ir_f.ty);
+    let types = ptrvec.with_cap(f_ty.params.len + 1); // +1 for return type
+    for let i = 0; i < f_ty.params.len; i = i + 1 {
+        let param = ty.param_at(f_ty, i);
+        ptrvec.push_ptr(&types, dbg_translate_type(c, param.ty) as *void);
+    }
+    ptrvec.push_ptr(&types, dbg_translate_type(c, f_ty.ret) as *void);
+
+    let ll_ty = llvm.di_builder_create_subroutine_type(
+        info.builder, info.file, types.elements as **llvm.MetaData, types.len, 0
+    );
+    ptrvec.free_v(&types);
 
     let sub_program = llvm.di_builder_create_function(
         info.builder, surrounding, ir_f.name.data, ir_f.name.len,
@@ -983,13 +1167,18 @@ def dbg_create_function(info: *DebugInfo, ir_f: *mir.Func, ll_f: *llvm.Type): *l
     return sub_program;
 }
 
-def dbg_set_inst_location(c: *ModuleCompiler, inst: *mir.Inst, val: *llvm.Value) {
+def dbg_set_inst_location(c: *ModuleCompiler, inst: *mir.Inst) {
     if c.dbg == null {
         return;
     }
 
+    if inst == null {
+        llvm.set_current_debug_location2(c.builder, null);
+        return;
+    }
+
     let loc = dbg_create_location(c, inst);
-    llvm.instruction_set_debug_loc(val, loc);
+    llvm.set_current_debug_location2(c.builder, loc);
 }
 
 def dbg_create_location(c: *ModuleCompiler, inst: *mir.Inst): *llvm.MetaData {
@@ -1003,6 +1192,44 @@ def dbg_create_location(c: *ModuleCompiler, inst: *mir.Inst): *llvm.MetaData {
     );
 }
 
+def dbg_declare_parameter(
+    c: *ModuleCompiler,
+    func: *FunctionData,
+    storage: *llvm.Value,
+    insert_after: *llvm.Value,
+    inst: *mir.Inst,
+    param_nr: i32
+) {
+    if c.dbg == null {
+        return;
+    }
+
+    let param = ty.param_at(ty.as_func(func.irfunc.ty), param_nr);
+
+    let surrounding = dbg_get_scope(c.dbg, inst.meta);
+    let loc = dbg_create_location(c, inst);
+    let ty = dbg_translate_type(c, param.ty);
+    dbg.assert(ty != null, "dbg type was null");
+
+    let dbg_local_var = llvm.di_builder_create_parameter_variable(
+        c.dbg.builder,
+        surrounding,
+        ident.start(&param.name), ident.len(&param.name),
+        param_nr + 1,
+        c.dbg.file,
+        inst.meta.pos.lnr,
+        ty,
+        false,  // always preserve
+        0       // flags
+    );
+
+    let expr = llvm.di_builder_create_expression(c.dbg.builder, null, 0);
+
+    llvm.di_builder_insert_declare_before(
+        c.dbg.builder, storage, dbg_local_var, expr, loc, insert_after
+    );
+}
+
 def finalize(info: *DebugInfo) {
     llvm.di_builder_finalize(info.builder);
 }
@@ -1010,4 +1237,5 @@ def finalize(info: *DebugInfo) {
 def free_dbg_info(info: *DebugInfo) {
     llvm.dispose_di_builder(info.builder);
     ptrvec.free_v(&info.scopes);
+    map.free_m(&info.structs);
 }

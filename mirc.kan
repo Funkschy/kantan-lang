@@ -142,9 +142,17 @@ def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
     let mir_struct = lookup_struct(c, mangled_name);
 
     if mir_struct == null {
-        let is_extern = s_ty.declared_in != c.mod.idx;
-        mir_struct = new mir.create_struct(t, mangled_name, is_extern);
+        let is_extern = s_ty.declared_in != c.mod;
+
+        // we may override this, in compile_stmt, if the struct was used, before
+        // it was declared
+        let meta = get_meta_mod(c, s_ty.name.span, s_ty.declared_in);
+        mir_struct = new mir.create_struct(t, mangled_name, meta, is_extern);
         add_struct(c, mir_struct);
+
+        for let i = 0; i < s_ty.fields.len; i = i + 1 {
+            declare_type(c, ty.field_at(s_ty, i).ty);
+        }
     }
 
     return mir_struct;
@@ -158,7 +166,7 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     let mir_func = lookup_function(c, mangled_name);
 
     if mir_func == null {
-        let is_extern = f_ty.declared_in != c.mod.idx || f_ty.is_extern;
+        let is_extern = f_ty.declared_in != c.mod || f_ty.is_extern;
         let is_main = std.strcmp(f_ty.mangled_name.data, "main") == 0;
 
         // "patch" main return type to be i32
@@ -168,7 +176,7 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 
         // we may override this, in compile_stmt, if the function was called, before
         // it was declared
-        let meta = get_meta_mod(c, f_ty.name.span, mod_at(c, f_ty.declared_in));
+        let meta = get_meta_mod(c, f_ty.name.span, f_ty.declared_in);
         mir_func = new mir.create_func(t, mangled_name, meta, is_extern);
         add_function(c, mir_func);
     }
@@ -176,12 +184,29 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     return mir_func;
 }
 
+// everything, that uses an explicit type identifier (tyid.Type), needs to be declared,
+// since it could be an external type
+def declare_type(c: *MirCompiler, t: *ty.Type) {
+    if ty.is_struct(t) {
+        lookup_or_declare_struct(c, t);
+    }
+
+    if ty.is_ptr(t) && ty.is_struct(ty.as_ptr(t).inner) {
+        lookup_or_declare_struct(c, ty.as_ptr(t).inner);
+    }
+}
+
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_struct_decl_stmt(s) {
         let decl_stmt = ast.as_struct_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
-        lookup_or_declare_struct(c, decl.struct_ty);
+        // override the meta information, since it could be wrong, if the struct
+        // was used before it was declared
+        let mir_struct = lookup_or_declare_struct(c, decl.struct_ty);
+        let meta = get_meta(c, decl.name.span);
+        mir_struct.meta = meta;
+
         return;
     }
 
@@ -201,23 +226,23 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
             c.current_func = mir_func;
 
+            declare_type(c, ty.as_func(decl.func_ty).ret);
+
             // Declare arguments
-            let i = 0;
             let f_ty = ty.as_func(decl.func_ty);
-            let n = f_ty.params.len;
-            while i < n {
+            for let i = 0; i < f_ty.params.len; i = i + 1 {
                 let p = ty.param_at(f_ty, i);
                 let meta = get_meta(c, p.name.span);
 
                 let name = bind_ident(c, &p.name);
                 push_decl(c, name, p.ty, meta);
 
+                declare_type(c, p.ty);
+
                 let value = mir.new_expr_copy(mir.make_addr_arg(i, p.ty));
                 let meta = get_meta(c, p.name.span);
                 let target = mir.make_addr_name(name, p.ty);
-                push_assign(c, target, value, meta);
-
-                i = i + 1;
+                push_assign_param(c, target, value, meta, i);
             }
 
             // compile function code
@@ -256,6 +281,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
     if ast.is_let_stmt(s) {
         let let_stmt = ast.as_let_stmt(s);
         let ty = let_stmt.value.ty;
+        declare_type(c, ty);
 
         let a = mir.create_addr_empty();
         let mir_expr = mir.empty_expr();
@@ -385,6 +411,17 @@ def push_assign(
     m: mir.MetaData
 ): void {
     let assign = mir.new_inst_assign(m, target, value, target.ty);
+    push_instr_p(c, &assign);
+}
+
+def push_assign_param(
+    c: *MirCompiler,
+    target: mir.Address,
+    value: mir.Expression,
+    m: mir.MetaData,
+    param_idx: i32
+): void {
+    let assign = mir.new_inst_assign_param(m, target, value, target.ty, param_idx);
     push_instr_p(c, &assign);
 }
 
@@ -639,7 +676,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let ident = ast.as_ident_expr(access.right).ident;
 
     // the only other option currently is a module, which we can't really compile
-    if !ty.is_struct(access.left.ty) && !ty.is_ptr_type(access.left.ty) {
+    if !ty.is_struct(access.left.ty) && !ty.is_ptr(access.left.ty) {
         return compile_expr(c, access.right, rhs);
     }
 
@@ -647,8 +684,8 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let left_addr = expr_instruction(c, access.left, rhs);
     let left_ty = left_addr.ty;
 
-    if ty.is_ptr_type(left_ty) {
-        dbg.assert(ty.is_ptr(left_ty), "strings are not accessible with '.'");
+    if ty.is_ptr(left_ty) {
+        dbg.assert(!ty.is_string(left_ty), "strings are not accessible with '.'");
         dbg.assert(ty.as_ptr(left_ty).count == 1, "invalid pointer count");
 
         push_temp_assign(
@@ -749,6 +786,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_SIZEOF
     if ast.is_sizeof_expr(e) {
         let so = ast.as_sizeof_expr(e);
+        declare_type(c, so.actual_ty);
         // TODO(#81): in theory, this should return a AddressConst with e.ty.width as
         //  its value. But currently i don't really trust the width calculation
         //  algorithm, so we still use ExprSizeOf, even though it should be
@@ -761,6 +799,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_AS
     if ast.is_as_expr(e) {
         let e_as = ast.as_as_expr(e);
+        declare_type(c, e.ty);
         let addr = expr_instruction(c, e_as.expr, rhs);
 
         return mir.new_expr_bitcast(addr, e.ty);

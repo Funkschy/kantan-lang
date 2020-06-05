@@ -207,15 +207,17 @@ def func_push_instr(f: *Func, inst: *Inst): void {
 type Struct struct {
     name: name.Ref,
     ty: *ty.Type,
+    meta: MetaData,
     is_extern: bool
 }
 
-def create_struct(t: *ty.Type, mangled_name: name.Ref, is_extern: bool): Struct {
+def create_struct(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern: bool): Struct {
     dbg.assert(ty.is_struct(t), "struct type was not struct");
 
     return Struct {
         name: mangled_name,
         ty: t,
+        meta: meta,
         is_extern: is_extern
     };
 }
@@ -1041,14 +1043,25 @@ def as_inst_decl(inst: *Inst): *InstDecl {
 
 type InstAssign struct {
     dest: Address,
-    value: Expression
+    value: Expression,
+    param_idx: i32 // -1 if this is not a param
 }
 
 def new_inst_assign(meta: MetaData, dest: Address, value: Expression, t: *ty.Type): Inst {
+    return new_inst_assign_param(meta, dest, value, t, -1);
+}
+
+def new_inst_assign_param(
+    meta: MetaData,
+    dest: Address,
+    value: Expression,
+    t: *ty.Type,
+    param_idx: i32
+): Inst {
     return Inst {
         kind: MIR_INST_ASSIGN,
         meta: meta,
-        data: (new InstAssign { dest: dest, value: value }) as *void
+        data: (new InstAssign { dest: dest, value: value, param_idx: param_idx }) as *void
     };
 }
 

@@ -196,7 +196,6 @@ def consume_type_ident(p: *Parser, ident: *lexer.Token, err: *ParseError): bool 
     return true;
 }
 
-import "io";
 def consume_type(p: *Parser, dest: *tyid.Type): bool {
     let prev_num_errs = num_errs(p);
 

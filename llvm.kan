@@ -297,12 +297,27 @@ def value_as_metadata(val: *Value): *MetaData {
 
 
 // Core->Basic Block
+extern def LLVMBasicBlockAsValue(bb: *BasicBlock): *Value;
+
 extern def LLVMAppendBasicBlockInContext(c: *Context, fn: *Value, name: string): *BasicBlock;
 
+
+def basic_block_as_value(bb: *BasicBlock): *Value {
+    return LLVMBasicBlockAsValue(bb);
+}
 
 def append_basic_block_in_context(c: *Context, fn: *Value, name: string): *BasicBlock {
     return LLVMAppendBasicBlockInContext(c, fn, name);
 }
+
+
+// Core->Instructions
+
+
+// Core->Values again; these don't appear in Doxygen because they're macro-generated.
+
+
+// Core->Extract/Insert Value
 
 
 // Core->Instruction Builders
@@ -310,7 +325,13 @@ extern def LLVMCreateBuilderInContext(c: *Context): *Builder;
 
 extern def LLVMPositionBuilderAtEnd(builder: *Builder, block: *BasicBlock): void;
 
+extern def LLVMGetInsertBlock(builder: *Builder): *BasicBlock;
+
 extern def LLVMDisposeBuilder(builder: *Builder): void;
+
+extern def LLVMSetCurrentDebugLocation2(builder: *Builder, loc: *MetaData): void;
+
+extern def LLVMSetInstDebugLocation(builder: *Builder, inst: *Value): void;
 
 extern def LLVMBuildRetVoid(arg1: *Builder): *Value;
 
@@ -393,8 +414,22 @@ def position_builder_at_end(builder: *Builder, block: *BasicBlock): void {
     LLVMPositionBuilderAtEnd(builder, block);
 }
 
+def get_insert_block(builder: *Builder): *BasicBlock {
+    return LLVMGetInsertBlock(builder);
+}
+
 def dispose_builder(builder: *Builder): void {
     LLVMDisposeBuilder(builder);
+}
+// Set location information used by debugging information.
+def set_current_debug_location2(builder: *Builder, loc: *MetaData): void {
+    LLVMSetCurrentDebugLocation2(builder, loc);
+}
+// Attempts to set the debug location for the given instruction using the
+// current debug location for the given builder.  If the builder has no current
+// debug location, this function is a no-op.
+def set_inst_debug_location(builder: *Builder, inst: *Value): void {
+    LLVMSetInstDebugLocation(builder, inst);
 }
 // Terminators
 def build_ret_void(arg1: *Builder): *Value {
@@ -542,6 +577,9 @@ def build_call(arg1: *Builder, fn: *Value, args: **Value, num_args: i32, name: s
 }
 
 
+// Core->Module Providers
+
+
 // Core->Memory Buffers
 extern def LLVMDisposeMemoryBuffer(mem_buf: *MemoryBuffer): void;
 
@@ -549,6 +587,9 @@ extern def LLVMDisposeMemoryBuffer(mem_buf: *MemoryBuffer): void;
 def dispose_memory_buffer(mem_buf: *MemoryBuffer): void {
     LLVMDisposeMemoryBuffer(mem_buf);
 }
+
+
+// Core->pass registry
 
 
 // Core->Pass managers
@@ -602,7 +643,7 @@ def dispose_pass_manager(pm: *PassManager): void {
 extern def LLVMLinkModules2(dest: *Module, src: *Module): i32;
 
 // Link the source module into the destination module.
-//
+// 
 // Destroys the source module, returns true on error. Use the diagnostic
 // handler to get any diagnostic message.
 def link_modules2(dest: *Module, src: *Module): bool {
@@ -613,7 +654,7 @@ def link_modules2(dest: *Module, src: *Module): bool {
 extern def LLVMVerifyModule(m: *Module, action: i32, out_message: *string): i32;
 
 // Verify that a module is valid, taking the specified action if not.
-//
+// 
 // Optionally returns a human-readable description of any invalid constructs,
 // which must be disposed with `LLVMDisposeMessage`.
 def verify_module(m: *Module, action: i32, out_message: *string): bool {
@@ -645,6 +686,11 @@ def initialize_x86_target_mc(): void {
 def initialize_x86_asm_printer(): void {
     LLVMInitializeX86AsmPrinter();
 }
+
+
+
+
+// macros (wrappers/target.c).
 
 
 extern def LLVMGetTargetFromTriple(triple: string, t: **Target, error_message: *string): i32;
@@ -767,18 +813,32 @@ extern def LLVMDIBuilderCreateDebugLocation(ctx: *Context, line: i32, column: i3
 
 extern def LLVMDIBuilderCreateSubroutineType(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData;
 
+extern def LLVMDIBuilderCreateBasicType(builder: *DbgBuilder, name: string, name_len: *void, size_in_bits: *void, encoding: i32, flags: i32): *MetaData;
+
+extern def LLVMDIBuilderCreatePointerType(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: *void, align_in_bits: i32, address_space: i32, name: string, name_len: *void): *MetaData;
+
+extern def LLVMDIBuilderCreateStructType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_number: i32, size_in_bits: *void, align_in_bits: i32, flags: i32, derived_from: *MetaData, elements: **MetaData, num_elements: i32, run_time_lang: i32, v_table_holder: *MetaData, unique_id: string, unique_id_len: *void): *MetaData;
+
+extern def LLVMDIBuilderCreateMemberType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_no: i32, size_in_bits: *void, align_in_bits: i32, offset_in_bits: *void, flags: i32, ty: *MetaData): *MetaData;
+
+extern def LLVMDIBuilderCreateForwardDecl(builder: *DbgBuilder, tag: i32, name: string, name_len: *void, scope: *MetaData, file: *MetaData, line: i32, runtime_lang: i32, size_in_bits: *void, align_in_bits: i32, unique_identifier: string, unique_identifier_len: *void): *MetaData;
+
+extern def LLVMDIBuilderCreateExpression(builder: *DbgBuilder, addr: *i32, length: *void): *MetaData;
+
 extern def LLVMDIBuilderCreateConstantValueExpression(builder: *DbgBuilder, value: *void): *MetaData;
 
-extern def LLVMSetSubprogram(func: *Value, sp: *MetaData): void;
+extern def LLVMDIBuilderInsertDeclareBefore(builder: *DbgBuilder, storage: *Value, var_info: *MetaData, expr: *MetaData, debug_loc: *MetaData, instr: *Value): *Value;
 
-extern def LLVMInstructionSetDebugLoc(inst: *Value, loc: *MetaData): void;
+extern def LLVMDIBuilderCreateParameterVariable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, arg_no: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: i32, flags: i32): *MetaData;
+
+extern def LLVMSetSubprogram(func: *Value, sp: *MetaData): void;
 
 // Construct a builder for a module and collect unresolved nodes.
 def create_di_builder(m: *Module): *DbgBuilder {
     return LLVMCreateDIBuilder(m);
 }
 // Deallocate a builder and everything it owns.
-//
+// 
 // The builder must be finalized before this.
 def dispose_di_builder(builder: *DbgBuilder): void {
     LLVMDisposeDIBuilder(builder);
@@ -811,17 +871,45 @@ def di_builder_create_debug_location(ctx: *Context, line: i32, column: i32, scop
 def di_builder_create_subroutine_type(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData {
     return LLVMDIBuilderCreateSubroutineType(builder, file, parameter_types, num_parameter_types, flags);
 }
+// Create debugging information entry for a basic type.
+def di_builder_create_basic_type(builder: *DbgBuilder, name: string, name_len: i32, size_in_bits: i32, encoding: i32, flags: i32): *MetaData {
+    return LLVMDIBuilderCreateBasicType(builder, name, std.int_to_ptr(name_len), std.int_to_ptr(size_in_bits), encoding, flags);
+}
+// Create debugging information entry for a pointer.
+def di_builder_create_pointer_type(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: i32, align_in_bits: i32, address_space: i32, name: string, name_len: i32): *MetaData {
+    return LLVMDIBuilderCreatePointerType(builder, pointee_ty, std.int_to_ptr(size_in_bits), align_in_bits, address_space, name, std.int_to_ptr(name_len));
+}
+// Create debugging information entry for a struct.
+def di_builder_create_struct_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_number: i32, size_in_bits: i32, align_in_bits: i32, flags: i32, derived_from: *MetaData, elements: **MetaData, num_elements: i32, run_time_lang: i32, v_table_holder: *MetaData, unique_id: string, unique_id_len: i32): *MetaData {
+    return LLVMDIBuilderCreateStructType(builder, scope, name, std.int_to_ptr(name_len), file, line_number, std.int_to_ptr(size_in_bits), align_in_bits, flags, derived_from, elements, num_elements, run_time_lang, v_table_holder, unique_id, std.int_to_ptr(unique_id_len));
+}
+// Create debugging information entry for a member.
+def di_builder_create_member_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_no: i32, size_in_bits: i32, align_in_bits: i32, offset_in_bits: i32, flags: i32, ty: *MetaData): *MetaData {
+    return LLVMDIBuilderCreateMemberType(builder, scope, name, std.int_to_ptr(name_len), file, line_no, std.int_to_ptr(size_in_bits), align_in_bits, std.int_to_ptr(offset_in_bits), flags, ty);
+}
+// Create a permanent forward-declared type.
+def di_builder_create_forward_decl(builder: *DbgBuilder, tag: i32, name: string, name_len: i32, scope: *MetaData, file: *MetaData, line: i32, runtime_lang: i32, size_in_bits: i32, align_in_bits: i32, unique_identifier: string, unique_identifier_len: i32): *MetaData {
+    return LLVMDIBuilderCreateForwardDecl(builder, tag, name, std.int_to_ptr(name_len), scope, file, line, runtime_lang, std.int_to_ptr(size_in_bits), align_in_bits, unique_identifier, std.int_to_ptr(unique_identifier_len));
+}
+// Create a new descriptor for the specified variable which has a complex
+def di_builder_create_expression(builder: *DbgBuilder, addr: *i32, length: i32): *MetaData {
+    return LLVMDIBuilderCreateExpression(builder, addr, std.int_to_ptr(length));
+}
 // Create a new descriptor for the specified variable that does not have an
 def di_builder_create_constant_value_expression(builder: *DbgBuilder, value: i32): *MetaData {
     return LLVMDIBuilderCreateConstantValueExpression(builder, std.int_to_ptr(value));
 }
+// Insert a new llvm.dbg.declare intrinsic call before the given instruction.
+def di_builder_insert_declare_before(builder: *DbgBuilder, storage: *Value, var_info: *MetaData, expr: *MetaData, debug_loc: *MetaData, instr: *Value): *Value {
+    return LLVMDIBuilderInsertDeclareBefore(builder, storage, var_info, expr, debug_loc, instr);
+}
+// Create a new descriptor for a function parameter variable.
+def di_builder_create_parameter_variable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, arg_no: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: bool, flags: i32): *MetaData {
+    return LLVMDIBuilderCreateParameterVariable(builder, scope, name, std.int_to_ptr(name_len), arg_no, file, line_no, ty, std.bool_to_int(always_preserve), flags);
+}
 // Set the subprogram attached to a function.
 def set_subprogram(func: *Value, sp: *MetaData): void {
     LLVMSetSubprogram(func, sp);
-}
-// Set the debug location for the given instruction.
-def instruction_set_debug_loc(inst: *Value, loc: *MetaData): void {
-    LLVMInstructionSetDebugLoc(inst, loc);
 }
 
 

@@ -494,8 +494,10 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     let global = scope.create();
     scope.s_bind_in(&global, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
     scope.s_bind_in(&global, 3, "f32", push_tmp_ty(tc, ty.new_f32()));
-    scope.s_bind_in(&global, 6, "string", push_tmp_ty(tc, ty.new_string()));
-    scope.s_bind_in(&global, 4, "char", push_tmp_ty(tc, ty.new_char()));
+    let char_ty = push_tmp_ty(tc, ty.new_char());
+    scope.s_bind_in(&global, 4, "char", char_ty);
+    scope.s_bind_in(&global, 6, "string", push_tmp_ty(tc, ty.new_ptr(1, instance_of_ty(char_ty))));
+
     scope.s_bind_in(&global, 4, "void", push_tmp_ty(tc, ty.new_void()));
     scope.s_bind_in(&global, std.strlen(ERROR_TY), ERROR_TY, push_tmp_ty(tc, ty.new_error()));
 
@@ -936,12 +938,9 @@ def update_all_waiting(
     // io.printf("DBG: %d types waiting for %s\n", waiting.len, name);
     // delete name;
 
-    let i = 0;
-    while i < waiting.len {
+    for let i = 0; i < waiting.len; i = i + 1 {
         let req = vec.get_ptr(waiting, i) as *WaitingRequest;
         update_waiting(tc, req, resolved_ty);
-
-        i = i + 1;
     }
 
     // let s = ident.to_string(resolved_name);
@@ -959,19 +958,20 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         let waiting_ident = &waiting_s_ty.name;
 
         // ----- DBG -----
-        let resolved_name: string = null;
-        if ty.is_struct(resolved_ty) {
-            resolved_name = ident.to_string(&ty.as_struct(resolved_ty).name);
-        } else {
-            resolved_name = std.strdup("type");
-        }
+        // let resolved_name: string = null;
+        // if ty.is_struct(resolved_ty) {
+        //     resolved_name = ident.to_string(&ty.as_struct(resolved_ty).name);
+        // } else {
+        //     resolved_name = std.strdup("type");
+        // }
 
         // let waiting_name = ident.to_string(waiting_ident);
         // io.printf(
-        //     "DBG: %s was waiting for %s\n", waiting_name, resolved_name
+        //     "DBG: %s was waiting for %s (%d %d)\n", waiting_name, resolved_name,
+        //     resolved_ty.width, resolved_ty.align
         // );
         // delete waiting_name;
-        delete resolved_name;
+        // delete resolved_name;
         // -----
 
         let field = ty.field_at(waiting_s_ty, req.offset);
@@ -1041,7 +1041,10 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         //     io.printf("DBG: %s is fully initialized\n", s);
         //     delete s;
         // }
+        return;
     }
+
+    dbg.assert(false, "reached unreachable code");
 }
 
 def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
@@ -1131,7 +1134,7 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     push_tmp_ty(tc, definition);
 
     let owned_name = mangle_struct_name(tc, &sd.name);
-    ty.init_struct(definition, sd.name, owned_name, tc.ctx.mod.idx);
+    ty.init_struct(definition, sd.name, owned_name, tc.ctx.mod);
     return definition;
 }
 
@@ -1159,8 +1162,7 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     push_tmp_ty(tc, definition);
 
     let mangled_name = mangle_func_name(tc, &fd.name, fd.is_extern);
-    let mod_idx = tc.ctx.mod.idx;
-    ty.init_func(definition, fd.name, mangled_name, mod_idx, fd.is_extern);
+    ty.init_func(definition, fd.name, mangled_name, tc.ctx.mod, fd.is_extern);
 
     if ident.eq_lit(&fd.name, "main") {
         if tc.main_func != null {
@@ -1524,7 +1526,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        if !ty.is_ptr_type(expr.ty) {
+        if !ty.is_ptr(expr.ty) {
             push_delete_non_ptr_error(tc, expr);
             return null;
         }
@@ -1722,7 +1724,7 @@ def check_expr_scope_expect(
     // EXPR_NULL
     if ast.is_null_expr(e) {
         if expected != null {
-            if ty.is_ptr_type(expected) {
+            if ty.is_ptr(expected) {
                 e.ty = expected;
                 return e;
             }
@@ -1952,7 +1954,7 @@ def check_expr_scope_expect(
             return null;
         }
 
-        if !ty.is_ptr_type(expr.ty) {
+        if !ty.is_ptr(expr.ty) {
             push_invalid_cast_error(tc, expr.ty, dest_ty, e.span);
             return null;
         }
@@ -2150,7 +2152,7 @@ def check_binary_expr(
             return first;
         }
 
-        if ty.is_ptr_type(first) {
+        if ty.is_ptr(first) {
             // pointer subtraction is the only allowed operation
             if kind == BINARY_SUB {
                 return instance_of_ty(scope.s_get_in(&tc.globals, 3, "i32"));
@@ -2166,16 +2168,16 @@ def check_binary_expr(
 
     if kind == BINARY_ADD {
         // both ptr + int and int + ptr are ok
-        if ty.is_ptr_type(first) && ty.is_integer(second) {
+        if ty.is_ptr(first) && ty.is_integer(second) {
             return first;
         }
 
-        if ty.is_ptr_type(second) && ty.is_integer(first) {
+        if ty.is_ptr(second) && ty.is_integer(first) {
             return second;
         }
     } else if kind == BINARY_SUB {
         // only ptr - int is allowed, not the other way
-        if ty.is_ptr_type(first) && ty.is_integer(second) {
+        if ty.is_ptr(first) && ty.is_integer(second) {
             return first;
         }
     }
@@ -2225,7 +2227,7 @@ def check_unary_expr(
     }
 
     if kind == UNARY_DEREF {
-        if !ty.is_ptr_type(expr.ty) {
+        if !ty.is_ptr(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);
             let text = std.err2str(ERROR_UNARY_DEREF_NON_PTR, s_ty);
             push_mk_err(tc, text, span);
@@ -2233,17 +2235,13 @@ def check_unary_expr(
         }
 
         let e_ty: *ty.Type = null;
-        if ty.is_string(expr.ty) {
-            e_ty = get_global_instance(tc, "char", 4);
+        let p_ty = ty.as_ptr(expr.ty);
+        if p_ty.count <= 1 {
+            e_ty = p_ty.inner;
         } else {
-            let p_ty = ty.as_ptr(expr.ty);
-            if p_ty.count <= 1 {
-                e_ty = p_ty.inner;
-            } else {
-                let ptr = ty.new_ptr(p_ty.count - 1, p_ty.inner);
-                push_tmp_ty(tc, ptr);
-                e_ty = ptr;
-            }
+            let ptr = ty.new_ptr(p_ty.count - 1, p_ty.inner);
+            push_tmp_ty(tc, ptr);
+            e_ty = ptr;
         }
 
         return e_ty;

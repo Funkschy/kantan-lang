@@ -25,6 +25,7 @@ whitelist = set([
     'LLVMAddModuleFlag',
     'LLVMAppendBasicBlockInContext',
     'LLVMArrayType',
+    'LLVMBasicBlockAsValue',
     'LLVMBuildAdd',
     'LLVMBuildAlloca',
     'LLVMBuildAnd',
@@ -82,6 +83,7 @@ whitelist = set([
     'LLVMFunctionType',
     'LLVMGetAlignment',
     'LLVMGetFirstFunction',
+    'LLVMGetInsertBlock',
     'LLVMGetNamedFunction',
     'LLVMGetNamedGlobal',
     'LLVMGetNextFunction',
@@ -93,8 +95,10 @@ whitelist = set([
     'LLVMModuleCreateWithNameInContext',
     'LLVMPointerType',
     'LLVMPositionBuilderAtEnd',
+    'LLVMSetCurrentDebugLocation2',
     'LLVMSetGlobalConstant',
     'LLVMSetInitializer',
+    'LLVMSetInstDebugLocation',
     'LLVMSetLinkage',
     'LLVMSetSourceFileName',
     'LLVMSetTarget',
@@ -151,16 +155,23 @@ whitelist = set([
 
     # debuginfo
     'LLVMCreateDIBuilder',
+    'LLVMDIBuilderCreateBasicType',
     'LLVMDIBuilderCreateCompileUnit',
     'LLVMDIBuilderCreateConstantValueExpression',
     'LLVMDIBuilderCreateDebugLocation',
+    'LLVMDIBuilderCreateExpression',
     'LLVMDIBuilderCreateFile',
+    'LLVMDIBuilderCreateForwardDecl',
     'LLVMDIBuilderCreateFunction',
     'LLVMDIBuilderCreateLexicalBlock',
+    'LLVMDIBuilderCreateMemberType',
+    'LLVMDIBuilderCreateParameterVariable',
+    'LLVMDIBuilderCreatePointerType',
+    'LLVMDIBuilderCreateStructType',
     'LLVMDIBuilderCreateSubroutineType',
     'LLVMDIBuilderFinalize',
+    'LLVMDIBuilderInsertDeclareBefore',
     'LLVMDisposeDIBuilder',
-    'LLVMInstructionSetDebugLoc',
     'LLVMSetSubprogram',
 ])
 
@@ -309,6 +320,7 @@ typemap = {
     'LLVMDWARFEmissionKind': ('i32', 'i32', None, None), # enum
     'LLVMDIFlags': ('i32', 'i32', None, None), # enum
     'LLVMModuleFlagBehavior': ('i32', 'i32', None, None), # enum
+    'LLVMDWARFTypeEncoding': ('i32', 'i32', None, None), # enum
 
     'u8': ('char', 'i32', 'std.char_to_int', 'std.int_to_char'),
     '*mut ::libc::c_char': ('string', 'string', None, None),
@@ -321,7 +333,10 @@ typemap = {
     '::libc::size_t': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
     '::libc::c_ulonglong': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
     'i64': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
+    'u64': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
+    'u32': ('i32', 'i32', None, None),
     '*mut ::libc::size_t': ('*i32', '*i32', None, None),
+    '*mut i64': ('*i32', '*i32', None, None),
     '::libc::c_uint': ('i32', 'i32', None, None),
     '*mut ::libc::c_uint': ('*i32', '*i32', None, None),
     '::libc::c_int': ('i32', 'i32', None, None),
@@ -345,7 +360,6 @@ typemap = {
     'LLVMNamedMDNodeRef': ('*OpaqueNamedMDNode', '*OpaqueNamedMDNode', None, None),
     'LLVMValueMetadataEntry': ('*OpaqueValueMetadataEntry', '*OpaqueValueMetadataEntry', None, None),
     'LLVMBuilderRef': ('*Builder', '*Builder', None, None),
-    'LLVMDIBuilderRef': ('*OpaqueDIBuilder', '*OpaqueDIBuilder', None, None),
     'LLVMModuleProviderRef': ('*ModuleProvider', '*ModuleProvider', None, None),
     'LLVMPassManagerRef': ('*PassManager', '*PassManager', None, None),
     'LLVMPassRegistryRef': ('*PassRegistry', '*PassRegistry', None, None),

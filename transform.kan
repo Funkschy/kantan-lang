@@ -106,7 +106,7 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
 
     let main_mod: *mod.Module = null;
     if comp_data.main_func != null {
-        main_mod = mod.get_mod(comp_data.mods, ty.as_func(comp_data.main_func).declared_in);
+        main_mod = ty.as_func(comp_data.main_func).declared_in;
     } else {
         main_mod = mod.get_mod(comp_data.mods, 0);
     }
