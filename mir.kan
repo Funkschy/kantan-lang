@@ -1044,11 +1044,17 @@ def as_inst_decl(inst: *Inst): *InstDecl {
 type InstAssign struct {
     dest: Address,
     value: Expression,
-    param_idx: i32 // -1 if this is not a param
+    // TODO: convert this to a union
+    param_idx: i32, // -1 if this is not a param
+    original_ident: ident.Ident
 }
 
 def new_inst_assign(meta: MetaData, dest: Address, value: Expression, t: *ty.Type): Inst {
     return new_inst_assign_param(meta, dest, value, t, -1);
+}
+
+def assign_has_original_ident(a: *InstAssign): bool {
+    return !ident.is_empty(&a.original_ident);
 }
 
 def new_inst_assign_param(
@@ -1061,7 +1067,31 @@ def new_inst_assign_param(
     return Inst {
         kind: MIR_INST_ASSIGN,
         meta: meta,
-        data: (new InstAssign { dest: dest, value: value, param_idx: param_idx }) as *void
+        data: (new InstAssign {
+            dest: dest,
+            value: value,
+            param_idx: param_idx,
+            original_ident: ident.empty()
+        }) as *void
+    };
+}
+
+def new_inst_assign_decl(
+    meta: MetaData,
+    dest: Address,
+    value: Expression,
+    t: *ty.Type,
+    original_ident: ident.Ident
+): Inst {
+    return Inst {
+        kind: MIR_INST_ASSIGN,
+        meta: meta,
+        data: (new InstAssign {
+            dest: dest,
+            value: value,
+            param_idx: -1,
+            original_ident: original_ident
+        }) as *void
     };
 }
 

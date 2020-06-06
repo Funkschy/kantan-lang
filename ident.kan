@@ -18,6 +18,10 @@ def empty(): Ident {
     return create(lexer.empty_token());
 }
 
+def is_empty(i: *Ident): bool {
+    return start(i) == null;
+}
+
 def start(i: *Ident): string {
     return i.span.start;
 }

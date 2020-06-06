@@ -521,7 +521,6 @@ def width_was_calculated(t: *Type): bool {
 def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
     let max_align = 1;
     let width_sum = 0;
-    let last_align = 0;
 
     for let i = 0; i < s_ty.fields.len; i = i + 1 {
         let f = field_at(s_ty, i);
@@ -538,16 +537,15 @@ def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
         // x: i32      width: 4, align: 4, offset: 12, padding: 4 - 1,
 
         let padding = 0;
-        if width_sum > 0 && (width_sum % f.ty.align) != 0 {
-            padding = f.ty.align - last_align;
+        let rem = width_sum % f.ty.align;
+        if width_sum > 0 && rem != 0 {
+            padding = f.ty.align - rem;
         }
 
         f.offset = width_sum + padding;
 
         let real_width = f.ty.width + padding;
         width_sum = width_sum + real_width;
-
-        last_align = f.ty.width;
     }
 
     let rem = width_sum % max_align;

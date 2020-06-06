@@ -11,6 +11,14 @@ import "ident";
 import "target";
 import "ptrvec";
 
+type CompilationOptions struct {
+    // if the context is null, a new one will be created for this module
+    global_ctx: *llvm.Context,
+    std_dir: string,
+    target: target.Target,
+    debug_info: bool
+}
+
 // stuff that outlives the ModuleCompiler
 type ModuleContext struct {
     ctx: *llvm.Context,
@@ -61,48 +69,53 @@ def free_context(ctx: *ModuleContext): void {
     llvm.context_dispose(ctx.ctx);
 }
 
-// if the context is null, a new one will be created for this module
-def compile_mir_mod(
-    irmod: *mir.Module,
-    global_ctx: *llvm.Context,
-    std_dir: string,
-    t: target.Target
-): ModuleContext {
-    let compiler = create_compiler(irmod, global_ctx);
+def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleContext {
+    let compiler = create_compiler(irmod, options.global_ctx);
 
-    let dbg = create_dbg_info(&compiler, std_dir);
-    compiler.dbg = &dbg; // enable debug information
+    let dbg: *DebugInfo = null;
+    if options.debug_info {
+        let info = create_dbg_info(&compiler, options.std_dir);
+        dbg = &info;
+        compiler.dbg = dbg; // enable debug information
+    }
 
     add_forward_declarations(&compiler);
     compile_functions(&compiler);
 
-    let module_flag_warning = 1;
-    let int_ty = llvm.int32_type_in_context(compiler.context.ctx);
-    let dbg_version = llvm.value_as_metadata(llvm.const_int(int_ty, 3, false));
-    llvm.add_module_flag(
-        compiler.context.llmod, module_flag_warning, "Debug Info Version", 18, dbg_version
-    );
-
-    if t.sys.value == target.sys_darwin().value {
-        // Darwin only supports dwarf 2
-        let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 2, false));
-        llvm.add_module_flag(
-            compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
-        );
-    } else {
-        let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 4, false));
-        llvm.add_module_flag(
-            compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
-        );
-    }
-
+    let t = options.target;
     llvm.set_target(compiler.context.llmod, t.triple_or_error);
-    finalize(&dbg);
+
+    if options.debug_info {
+        let module_flag_warning = 1;
+        let int_ty = llvm.int32_type_in_context(compiler.context.ctx);
+        let dbg_version = llvm.value_as_metadata(llvm.const_int(int_ty, 3, false));
+        llvm.add_module_flag(
+            compiler.context.llmod, module_flag_warning, "Debug Info Version", 18, dbg_version
+        );
+
+        if t.sys.value == target.sys_darwin().value {
+            // Darwin only supports dwarf 2
+            let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 2, false));
+            llvm.add_module_flag(
+                compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
+            );
+        } else {
+            let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 4, false));
+            llvm.add_module_flag(
+                compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
+            );
+        }
+
+        finalize(dbg);
+    }
 
     let context = compiler.context;
     free_compiler(&compiler);
 
-    free_dbg_info(&dbg);
+    if options.debug_info {
+        free_dbg_info(dbg);
+    }
+
     return context;
 }
 
@@ -516,7 +529,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let assign = mir.as_inst_assign(inst);
 
         if mir.is_expr_struct_init(&assign.value) {
-            compile_struct_init_assign(c, func, assign);
+            compile_struct_init_assign(c, func, inst);
             return;
         }
 
@@ -562,6 +575,18 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
             dbg_declare_parameter(c, func, storage, store, inst, assign.param_idx);
         } else {
             llvm.set_inst_debug_location(c.builder, store);
+
+            if mir.assign_has_original_ident(assign) {
+                dbg_declare_local(
+                    c,
+                    storage,
+                    store,
+                    inst,
+                    assign.dest.ty,
+                    ident.len(&assign.original_ident),
+                    ident.start(&assign.original_ident)
+                );
+            }
         }
 
         return;
@@ -615,8 +640,9 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
 def compile_struct_init_assign(
     c: *ModuleCompiler,
     func: *FunctionData,
-    assign: *mir.InstAssign
+    inst: *mir.Inst
 ): void {
+    let assign = mir.as_inst_assign(inst);
     let init = mir.as_expr_struct_init(&assign.value);
 
     let dest_ty = translate_type(c, assign.dest.ty);
@@ -640,6 +666,18 @@ def compile_struct_init_assign(
         llvm.set_inst_debug_location(c.builder, store);
 
         i = i + 1;
+    }
+
+    if mir.assign_has_original_ident(assign) {
+        dbg_declare_local(
+            c,
+            storage,
+            storage,
+            inst,
+            assign.dest.ty,
+            ident.len(&assign.original_ident),
+            ident.start(&assign.original_ident)
+        );
     }
 }
 
@@ -1191,6 +1229,44 @@ def dbg_create_location(c: *ModuleCompiler, inst: *mir.Inst): *llvm.MetaData {
         null // inlined at
     );
 }
+
+def dbg_declare_local(
+    c: *ModuleCompiler,
+    storage: *llvm.Value,
+    insert_after: *llvm.Value,
+    inst: *mir.Inst,
+    t: *ty.Type,
+    name_len: i32,
+    name: string
+) {
+    if c.dbg == null {
+        return;
+    }
+
+    let surrounding = dbg_get_scope(c.dbg, inst.meta);
+    let loc = dbg_create_location(c, inst);
+    let ty = dbg_translate_type(c, t);
+    dbg.assert(ty != null, "dbg type was null");
+
+    let dbg_local_var = llvm.di_builder_create_auto_variable(
+        c.dbg.builder,
+        surrounding,
+        name, name_len,
+        c.dbg.file,
+        inst.meta.pos.lnr,
+        ty,
+        false,  // always preserve
+        0,      // flags
+        0       // align
+    );
+
+    let expr = llvm.di_builder_create_expression(c.dbg.builder, null, 0);
+
+    llvm.di_builder_insert_declare_before(
+        c.dbg.builder, storage, dbg_local_var, expr, loc, insert_after
+    );
+}
+
 
 def dbg_declare_parameter(
     c: *ModuleCompiler,

@@ -829,6 +829,8 @@ extern def LLVMDIBuilderCreateConstantValueExpression(builder: *DbgBuilder, valu
 
 extern def LLVMDIBuilderInsertDeclareBefore(builder: *DbgBuilder, storage: *Value, var_info: *MetaData, expr: *MetaData, debug_loc: *MetaData, instr: *Value): *Value;
 
+extern def LLVMDIBuilderCreateAutoVariable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: i32, flags: i32, align_in_bits: i32): *MetaData;
+
 extern def LLVMDIBuilderCreateParameterVariable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, arg_no: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: i32, flags: i32): *MetaData;
 
 extern def LLVMSetSubprogram(func: *Value, sp: *MetaData): void;
@@ -902,6 +904,10 @@ def di_builder_create_constant_value_expression(builder: *DbgBuilder, value: i32
 // Insert a new llvm.dbg.declare intrinsic call before the given instruction.
 def di_builder_insert_declare_before(builder: *DbgBuilder, storage: *Value, var_info: *MetaData, expr: *MetaData, debug_loc: *MetaData, instr: *Value): *Value {
     return LLVMDIBuilderInsertDeclareBefore(builder, storage, var_info, expr, debug_loc, instr);
+}
+// Create a new descriptor for a local auto variable.
+def di_builder_create_auto_variable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: bool, flags: i32, align_in_bits: i32): *MetaData {
+    return LLVMDIBuilderCreateAutoVariable(builder, scope, name, std.int_to_ptr(name_len), file, line_no, ty, std.bool_to_int(always_preserve), flags, align_in_bits);
 }
 // Create a new descriptor for a function parameter variable.
 def di_builder_create_parameter_variable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, arg_no: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: bool, flags: i32): *MetaData {

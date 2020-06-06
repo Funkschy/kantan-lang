@@ -155,6 +155,7 @@ whitelist = set([
 
     # debuginfo
     'LLVMCreateDIBuilder',
+    'LLVMDIBuilderCreateAutoVariable',
     'LLVMDIBuilderCreateBasicType',
     'LLVMDIBuilderCreateCompileUnit',
     'LLVMDIBuilderCreateConstantValueExpression',

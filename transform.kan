@@ -132,6 +132,13 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
     let dir = path.parent(&mod_path);
     let file = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
     llvm.set_source_file_name(base_mod, file.inner, file.len);
+
+    let options = codegen.CompilationOptions {
+        global_ctx: base_ctx,
+        std_dir: comp_data.std_dir,
+        target: t,
+        debug_info: comp_data.config.debug_info
+    };
 #endif
 
     let i = 0;
@@ -148,7 +155,7 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
 #endif
 
 #if USE_LLVM
-        let llvm_context = codegen.compile_mir_mod(&mir_mod, base_ctx, comp_data.std_dir, t);
+        let llvm_context = codegen.compile_mir_mod(&mir_mod, &options);
         llvm.verify_module(llvm_context.llmod, 0, null);
         optimize_single(llvm_context.llmod, comp_data.config.opt_level);
 
