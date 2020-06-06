@@ -819,7 +819,7 @@ def compile_binary(
         //  same for floats
         return llvm.build_s_rem(c.builder, left, right, "");
     } else if binary.kind == MIR_BIN_ST {
-        // TODO: unsigned integer types
+        // TODO(#96): unsigned integer types
         return llvm.build_i_cmp(c.builder, 40, left, right, "");
     } else if binary.kind == MIR_BIN_SE {
         return llvm.build_i_cmp(c.builder, 41, left, right, "");
@@ -1084,7 +1084,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             let member = llvm.di_builder_create_member_type(
                 c.dbg.builder, scope,
                 ident.start(&field.name), ident.len(&field.name),
-                file, s.meta.pos.lnr, // TODO: line number of field
+                file, s.meta.pos.lnr, // TODO(#97): line number of field
                 width_bits, field.ty.align * 8, offset_in_bits,
                 0, dbg_translate_type(c, field.ty)
             );
@@ -1121,7 +1121,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             std.memset(name, std.char_to_int('*'), star_count);
             std.memcpy(name + star_count, inner_name as *void, inner_len);
 
-            // TODO: determine pointer size based on target pointer width
+            // TODO(#99): determine pointer size based on target pointer width
             inner = llvm.di_builder_create_pointer_type(
                 c.dbg.builder, inner, t.width, t.align, 0, name as string, star_count + inner_len
             );

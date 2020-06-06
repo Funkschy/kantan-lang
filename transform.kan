@@ -21,7 +21,7 @@ import "codegen";
 
 extern def link_obj_file(obj_name: string, exe_name: string): i32;
 
-// TODO: the unlink function only exists on posix systems, not windows
+// TODO(#98): the unlink function only exists on posix systems, not windows
 extern def unlink(filename: string): i32;
 
 // Data which is shared between all Compiler instances
