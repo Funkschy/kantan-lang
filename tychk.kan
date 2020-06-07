@@ -1313,13 +1313,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_import_stmt(s) {
         let i_s = ast.as_import_stmt(s);
 
-        if !in_global_scope(tc) {
-            push_currently_not_allowed_error(
-                tc, "Importing outside the global scope", i_s.mod.span
-            );
-            return null;
-        }
-
         let alias: ident.Ident = ident.empty();
         let ty: *ty.Type = null;
 
@@ -1334,14 +1327,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // STMT_STRUCT_DECL
     if ast.is_struct_decl_stmt(s) {
         let sd = &ast.as_struct_decl_stmt(s).decl;
-
-        let in_global_scope = in_global_scope(tc);
-        if !in_global_scope {
-            push_currently_not_allowed_error(
-                tc, "Declaring Structs outside the global scope", sd.name.span
-            );
-            return null;
-        }
 
         if !tc.decl_only_pass {
             return s;
@@ -1360,14 +1345,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_func_decl_stmt(s) {
         let f_s = ast.as_func_decl_stmt(s);
         let fd = &f_s.decl;
-
-        let in_global_scope = in_global_scope(tc);
-        if !in_global_scope {
-            push_currently_not_allowed_error(
-                tc, "Declaring Functions outside the global scope", fd.name.span
-            );
-            return null;
-        }
 
         if tc.decl_only_pass {
             let ty = check_func_decl(tc, fd);
@@ -1453,20 +1430,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     // the statements below this should only be resolved in the real pass
     if tc.decl_only_pass {
         return s;
-    }
-
-    if in_global_scope(tc) {
-        if ast.is_return_stmt(s) {
-            push_return_outside_of_func_error(tc, s.span);
-            return null;
-        }
-
-        let rsn = std.format_str(
-            "using '%s statements' inside the global scope", stmt2str(s.tag)
-        );
-        push_currently_not_allowed_error(tc, rsn, s.span);
-        delete rsn;
-        return null;
     }
 
     // STMT_BLOCK
@@ -1796,20 +1759,18 @@ def check_expr_scope_expect(
             return null;
         }
 
-        let scope = ty.get_scope(a_e.left.ty);
-        if scope == null {
+        let left_scope = ty.get_scope(a_e.left.ty);
+        if left_scope == null {
             push_internal_error(tc, a_e.left.span, "no scope for type found");
             return null;
         }
 
-        let right = check_expr_scope(tc, a_e.right, scope);
+        let right = scope.get_in(left_scope, &a_e.right.ident);
         if right == null {
             return null;
         }
 
-        a_e.right = right;
-        e.ty = right.ty;
-
+        e.ty = right;
         return e;
     }
 
@@ -2355,11 +2316,6 @@ def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr): void {
     push_mk_err(tc, error, e.span);
 }
 
-def push_return_outside_of_func_error(tc: *TypeChecker, span: span.Span): void {
-    let text = std.err2str(ERROR_RETURN_OUTSIDE_OF_FUNC);
-    push_mk_err(tc, text, span);
-}
-
 def push_not_callable_error(tc: *TypeChecker, span: span.Span, actual_ty: *ty.Type): void {
     let text = std.err2str(ERROR_CALLING_NON_FUNCTION, ty.to_static_string(actual_ty));
     push_mk_err(tc, text, span);
@@ -2540,9 +2496,4 @@ def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr): void {
         delete ty_s;
     }
     push_mk_err(tc, text, e.span);
-}
-
-def push_currently_not_allowed_error(tc: *TypeChecker, rsn: string, span: span.Span): void {
-    let text = std.err2str(ERROR_CURRENTLY_NOT_ALLOWED, rsn);
-    push_mk_err(tc, text, span);
 }

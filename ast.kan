@@ -399,12 +399,10 @@ type AccessExpr struct {
     e: Expr,
     // left could be another AccessExpr
     left: *Expr,
-    // the only valid type for right is IdentExpr, however the parser does not
-    // guarantee this, so it has to be checked by tychk
-    right: *Expr
+    right: *IdentExpr
 }
 
-def new_access_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
+def new_access_expr(span: span.Span, left: *Expr, right: *IdentExpr): *Expr {
     return (new AccessExpr {
         e: create_expr(EXPR_ACCESS, span),
         left: left,
@@ -804,7 +802,7 @@ def expr_free(e: *Expr): void {
     } else if is_access_expr(e) {
         let a_expr = as_access_expr(e);
         expr_free(a_expr.left);
-        expr_free(a_expr.right);
+        expr_free(a_expr.right as *Expr);
     } else if is_call_expr(e) {
         let c_expr = as_call_expr(e);
         expr_free(c_expr.callee);
@@ -909,7 +907,7 @@ def expr_to_string(e: *Expr): string {
         let a_expr = as_access_expr(e);
 
         let left = expr_to_string(a_expr.left);
-        let right = expr_to_string(a_expr.right);
+        let right = expr_to_string(a_expr.right as *Expr);
 
         let s = std.format_str("%s.%s", left, right);
         delete left;

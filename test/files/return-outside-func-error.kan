@@ -1,2 +1,3 @@
+// this test makes no real sense, since the parser does not allow this
 return 1;
 return;

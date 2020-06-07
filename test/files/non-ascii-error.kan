@@ -1,1 +1,3 @@
-let あ　= 0;
+def main() {
+    let あ　= 0;
+}

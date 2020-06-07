@@ -1,7 +1,7 @@
-let i = test;
-let j = i + 3; // this should not be reported as a separate error
-
 import "io";
 def main(): void {
+    let i = test;
+    let j = i + 3; // this should not be reported as a separate error
+
     io.printf("%d\n", i); // this neither
 }

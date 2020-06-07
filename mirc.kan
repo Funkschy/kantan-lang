@@ -680,15 +680,11 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
 def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let access = ast.as_access_expr(e);
-    dbg.assert(
-        ast.is_ident_expr(access.right),
-        "Expected right side of access expression to be an IdentExpr"
-    );
-    let ident = ast.as_ident_expr(access.right).ident;
+    let ident = access.right.ident;
 
     // the only other option currently is a module, which we can't really compile
     if !ty.is_struct(access.left.ty) && !ty.is_ptr(access.left.ty) {
-        return compile_expr(c, access.right, rhs);
+        return compile_expr(c, access.right as *ast.Expr, rhs);
     }
 
     let left_meta = get_meta(c, access.left.span);

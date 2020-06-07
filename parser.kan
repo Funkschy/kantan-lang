@@ -111,28 +111,9 @@ def consume(p: *Parser, ty: i32): bool {
     return consume_token(p, ty, null);
 }
 
-def consume_ident(p: *Parser, ident: *lexer.Token, allow_access_expr: bool): bool {
+def consume_ident(p: *Parser, ident: *lexer.Token): bool {
     if !consume_token(p, TOKEN_IDENT, ident) {
         return false;
-    }
-
-    if allow_access_expr {
-        while peek(p).ty == TOKEN_DOT {
-            consume(p, TOKEN_DOT);
-
-            let first_part = *ident;
-            if !consume_token(p, TOKEN_IDENT, ident) {
-                return false;
-            }
-
-            let merged_span = span.merge(first_part.span, ident.span);
-            *ident = lexer.create_token_from_span(
-                &p.lexer,
-                TOKEN_IDENT,
-                lexer.lexeme(&first_part),
-                merged_span
-            );
-        }
     }
 
     return true;
@@ -233,7 +214,7 @@ def parse(p: *Parser): *mod.Module {
     let curr_mod = new mod.create(src);
 
     while peek(p).ty != TOKEN_EOF {
-        let s = statement(p);
+        let s = top_level(p);
         if s != null {
             mod.push_stmt(curr_mod, s);
         }
@@ -242,12 +223,27 @@ def parse(p: *Parser): *mod.Module {
     return curr_mod;
 }
 
-def statement(p: *Parser): *ast.Stmt {
+def top_level(p: *Parser): *ast.Stmt {
+    let peek = peek(p);
+
     let prev_num_errs = num_errs(p);
     let start = lexer.current_ptr(&p.lexer);
 
     let s: *ast.Stmt = null;
-    let consume_semi = parse_statement(p, &s);
+    let consume_semi = false;
+
+    if peek.ty == TOKEN_DEF {
+        s = parse_func_def(p, false);
+    } else if peek.ty == TOKEN_EXTERN {
+        consume(p, TOKEN_EXTERN);
+        s = parse_func_def(p, true);
+        consume_semi = true;
+    } else if peek.ty == TOKEN_TYPE {
+        s = parse_type_stmt(p);
+    } else if peek.ty == TOKEN_IMPORT {
+        s = parse_import_stmt(p);
+        consume_semi = true;
+    }
 
     if s == null {
         let end = sync(p);
@@ -273,80 +269,78 @@ def statement(p: *Parser): *ast.Stmt {
     return s;
 }
 
-// returns true, if the caller needs to consume a ';'
-def parse_statement(p: *Parser, dest: **ast.Stmt): bool {
-    let peek = peek(p);
+def statement(p: *Parser): *ast.Stmt {
+    let prev_num_errs = num_errs(p);
+    let start = lexer.current_ptr(&p.lexer);
 
-    if peek.ty == TOKEN_DEF {
-        *dest = parse_func_def(p, false);
-        return false;
+    let s = parse_statement(p);
+
+    if s == null {
+        let end = sync(p);
+
+        // no parse error was added...
+        if prev_num_errs == num_errs(p) {
+            // ... so just add a generic one
+            let error = create_statement_error(p, start, end);
+            push_err(p, error);
+        }
+
+        return null;
     }
 
+    return s;
+}
+
+def parse_statement(p: *Parser): *ast.Stmt {
+    let peek = peek(p);
+
     if peek.ty == TOKEN_IF {
-        *dest = parse_if_stmt(p);
-        return false;
+        return parse_if_stmt(p);
     }
 
     if peek.ty == TOKEN_LBRACE {
-        *dest = parse_block(p);
-        return false;
+        return parse_block(p);
     }
 
     if peek.ty == TOKEN_WHILE {
-        *dest = parse_while_stmt(p);
-        return false;
+        return parse_while_stmt(p);
     }
 
     if peek.ty == TOKEN_FOR {
-        *dest = parse_for_stmt(p);
-        return false;
+        return parse_for_stmt(p);
     }
 
-    if peek.ty == TOKEN_TYPE {
-        *dest = parse_type_stmt(p);
-        return false;
+    let simple = parse_simple_stmt(p);
+    if simple != null && !consume(p, TOKEN_SEMI) {
+        sync(p);
+        ast.stmt_free(simple);
+        return null;
     }
 
-    if peek.ty == TOKEN_EXTERN {
-        consume(p, TOKEN_EXTERN);
-        *dest = parse_func_def(p, true);
-        return true;
-    }
-
-    if peek.ty == TOKEN_DELETE {
-        *dest = parse_delete_stmt(p);
-        return true;
-    }
-
-    if peek.ty == TOKEN_RETURN {
-        *dest = parse_return_stmt(p);
-        return true;
-    }
-
-    if peek.ty == TOKEN_IMPORT {
-        *dest = parse_import_stmt(p);
-        return true;
-    }
-
-    return parse_simple_stmt(p, dest);
+    return simple;
 }
 
-def parse_simple_stmt(p: *Parser, dest: **ast.Stmt): bool {
+def parse_simple_stmt(p: *Parser): *ast.Stmt {
     let peek = peek(p);
 
     if peek.ty == TOKEN_LET {
-        *dest = parse_let_stmt(p);
-        return true;
+        return parse_let_stmt(p);
+    }
+
+    if peek.ty == TOKEN_DELETE {
+        return parse_delete_stmt(p);
+    }
+
+    if peek.ty == TOKEN_RETURN {
+        return parse_return_stmt(p);
     }
 
     let expr = expression(p, false);
     if expr == null {
-        *dest = null;
-        return true;
+        return null;
     }
 
-    *dest = ast.new_expr_stmt(expr);
-    return true;
+    return ast.new_expr_stmt(expr);
 }
 
 def parse_delete_stmt(p: *Parser): *ast.Stmt {
@@ -385,7 +379,7 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
     CONSUME_TOK_RET_NULL(let_tok, TOKEN_LET);
 
     let ident = lexer.empty_token();
-    if !consume_ident(p, &ident, false) {
+    if !consume_ident(p, &ident) {
         return null;
     }
 
@@ -412,7 +406,7 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
     CONSUME_TOK_RET_NULL(type_tok, TOKEN_TYPE);
 
     let ident_token = lexer.empty_token();
-    if !consume_ident(p, &ident_token, false) {
+    if !consume_ident(p, &ident_token) {
         return null;
     }
 
@@ -438,7 +432,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     CONSUME_TOK_RET_NULL(def_tok, TOKEN_DEF);
 
     let ident = lexer.empty_token();
-    if !consume_ident(p, &ident, false) {
+    if !consume_ident(p, &ident) {
         return null;
     }
 
@@ -517,7 +511,7 @@ def parse_for_stmt(p: *Parser): *ast.Stmt {
 
     let initializer: *ast.Stmt = null;
     if peek(p).ty != TOKEN_SEMI {
-        parse_simple_stmt(p, &initializer);
+        initializer = parse_simple_stmt(p);
         if initializer == null {
             return null;
         }
@@ -666,7 +660,7 @@ def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
     let peeked = peek(p);
     while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
         let ident_token = lexer.empty_token();
-        if !consume_ident(p, &ident_token, false) {
+        if !consume_ident(p, &ident_token) {
             FAIL();
         }
         let ident = ident.create(ident_token);
@@ -715,7 +709,7 @@ def parse_param_list(p: *Parser, closing_paren: *lexer.Token, allow_va: bool): v
             consume_token(p, TOKEN_TRIPLE_DOT, &ident_token);
         } else {
             ident_token = lexer.empty_token();
-            if !consume_ident(p, &ident_token, false) {
+            if !consume_ident(p, &ident_token) {
                 FAIL();
             }
 
@@ -784,7 +778,7 @@ def parse_init_list(p: *Parser, closing_brace: *lexer.Token): ast.InitList {
     let peeked = peek(p);
     while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
         let ident_token = lexer.empty_token();
-        if !consume_ident(p, &ident_token, false) {
+        if !consume_ident(p, &ident_token) {
             FAIL();
         }
 
@@ -945,9 +939,14 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {
     // access expr
     if token.ty == TOKEN_DOT {
-        LETCHECK(right, parse_expression(p, precedence.access(), no_struct));
+        let right = lexer.empty_token();
+        if !consume_ident(p, &right) {
+            return null;
+        }
+
+        let right = ast.new_ident_expr(right);
         let merged_span = span.merge(left.span, right.span);
-        return ast.new_access_expr(merged_span, left, right);
+        return ast.new_access_expr(merged_span, left, ast.as_ident_expr(right));
     }
 
     // call expr

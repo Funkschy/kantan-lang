@@ -1,2 +1,4 @@
-let i: i32 =
-"";
+def main() {
+    let i: i32 =
+    "";
+}

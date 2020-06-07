@@ -1,3 +1,4 @@
+// this test does not make any sense currently, since the parser doesn't even accept this
 def main(): void {
     import "io";
     def test(): void {

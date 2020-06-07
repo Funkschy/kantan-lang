@@ -1,1 +1,3 @@
-let test: i32 = null;
+def main() {
+    let test: i32 = null;
+}

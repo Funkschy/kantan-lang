@@ -1,4 +1,4 @@
-let first = 4;
 def main(): void {
+    let first = 4;
     &first / 2;
 }
