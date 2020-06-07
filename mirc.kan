@@ -1004,13 +1004,7 @@ def label(c: *MirCompiler): mir.Label {
 }
 
 def s_mangle(c: *MirCompiler, len: i32, s: string): name.Owned {
-    return name.s_mangle(
-        c.data.proj_root,
-        len,
-        s,
-        mod.get_path(c.mod),
-        mod.is_std_lib(c.mod)
-    );
+    return name.s_mangle(c.data.proj_root, len, s, c.mod);
 }
 
 def name_from_ident(i: *ident.Ident): name.Ref {

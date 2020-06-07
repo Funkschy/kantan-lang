@@ -1767,6 +1767,7 @@ def check_expr_scope_expect(
 
         let right = scope.get_in(left_scope, &a_e.right.ident);
         if right == null {
+            push_not_defined_error(tc, &a_e.right.ident);
             return null;
         }
 
@@ -2244,20 +2245,12 @@ def mangle_func_name(tc: *TypeChecker, i: *ident.Ident, is_extern: bool): name.O
         return name.make_copied(len, ident.start(i));
     }
 
-    let declared_in = tc.ctx.mod;
-    let declared_in_path = declared_in.source.file.path.inner;
-    return name.mangle_ident(
-        tc.mods.proj_root, i, mod.get_path(declared_in), mod.is_std_lib(declared_in)
-    );
+    return name.mangle_ident(tc.mods.proj_root, i, tc.ctx.mod);
 }
 
 def mangle_struct_name(tc: *TypeChecker, i: *ident.Ident): name.Owned {
     dbg.assert(i != null, "ident was null");
-
-    let declared_in = tc.ctx.mod;
-    return name.mangle_ident(
-        tc.mods.proj_root, i, mod.get_path(declared_in), mod.is_std_lib(declared_in)
-    );
+    return name.mangle_ident(tc.mods.proj_root, i, tc.ctx.mod);
 }
 
 def free_tc(tc: *TypeChecker): void {

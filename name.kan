@@ -1,3 +1,4 @@
+import "mod";
 import "dbg";
 import "std";
 import "path";
@@ -45,27 +46,21 @@ def empty(): Ref {
 def mangle_ident(
     proj_root: path.Path,
     name: *ident.Ident,
-    declared_in: path.Path,
-    is_std_lib: bool
+    declared_in: *mod.Module
 ): Owned {
     return s_mangle(
         proj_root,
         ident.len(name),
         ident.start(name),
-        declared_in,
-        is_std_lib
+        declared_in
     );
 }
-import "io";
-// TODO(#87): this should take a *mod.Module,
-//  but can't, because the old compiler can't handle the circular reference
-//  from mod to name to mod
+
 def s_mangle(
     proj_root: path.Path,
     len: i32,
     s: string,
-    declared_in: path.Path,
-    is_std_lib: bool
+    declared_in: *mod.Module
 ): Owned {
     let name_len = 0;
     let name_data = "";
@@ -76,9 +71,11 @@ def s_mangle(
     let file_ending_len = 0;
     source.kantan_file_ending(&file_ending_len);
 
-    if !is_std_lib {
-        let mod_len = declared_in.len - proj_root.len - file_ending_len;
-        let mod_name = declared_in.inner + proj_root.len;
+    let p = mod.get_path(declared_in);
+
+    if !mod.is_std_lib(declared_in) {
+        let mod_len = p.len - proj_root.len - file_ending_len;
+        let mod_name = p.inner + proj_root.len;
 
         // this is currently the only invalid identifier, so we just handle
         // it as an edge case
@@ -115,8 +112,8 @@ def s_mangle(
         std.memcpy(dest as *void, s as *void, len);
         *(name_data + name_len) = '\0';
     } else {
-        let file_name_len = declared_in.len - file_ending_len;
-        let file_name = declared_in.inner;
+        let file_name_len = p.len - file_ending_len;
+        let file_name = p.inner;
 
         name_len = 4 + file_name_len + 1 + len;
         name_data = std.format_str(

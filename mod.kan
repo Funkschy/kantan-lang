@@ -37,9 +37,7 @@ def create(src: *source.SourceFile): Module {
 }
 
 def mangle_mod_name(m: *Module, proj_root: path.Path): name.Owned {
-    let mangled = name.s_mangle(
-        proj_root, 0, null, m.source.file.path.inner, is_std_lib(m)
-    );
+    let mangled = name.s_mangle(proj_root, 0, null, m);
     mangled.len = mangled.len - 1;
     *(mangled.data + mangled.len) = '\0';
     return mangled;
