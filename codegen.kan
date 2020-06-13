@@ -562,8 +562,9 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
             return;
         }
 
+        let is_param = assign.param_idx >= 0;
         // unset the instruction location for parameters since we want to skip their assignment
-        if assign.param_idx >= 0 {
+        if is_param {
             dbg_set_inst_location(c, null);
         }
 
@@ -571,7 +572,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
         let store = llvm.build_store(c.builder, value, storage);
 
         // check if this is a parameter
-        if assign.param_idx >= 0 {
+        if is_param {
             dbg_declare_parameter(c, func, storage, store, inst, assign.param_idx);
         } else {
             llvm.set_inst_debug_location(c.builder, store);
@@ -1247,8 +1248,18 @@ def dbg_declare_local(
         return;
     }
 
-    let surrounding = dbg_get_scope(c.dbg, inst.meta);
-    let loc = dbg_create_location(c, inst);
+    let assign = mir.as_inst_assign(inst);
+    let var_meta = inst.meta;
+    var_meta.scope = assign.var_scope;
+
+    let surrounding = dbg_get_scope(c.dbg, var_meta);
+    let loc = llvm.di_builder_create_debug_location(
+        c.context.ctx,
+        inst.meta.pos.lnr, inst.meta.pos.col,
+        surrounding,
+        null // inlined at
+    );
+
     let ty = dbg_translate_type(c, t);
     dbg.assert(ty != null, "dbg type was null");
 

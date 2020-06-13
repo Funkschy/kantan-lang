@@ -1,5 +1,6 @@
 import "ty";
 import "nt";
+import "opt";
 import "vec";
 import "mod";
 import "mir";
@@ -26,6 +27,7 @@ type CharacterLiterals struct {
 
 // Data which is shared between all the MirCompiler instances
 type CompilationData struct {
+    config: *opt.Config,
     mods: *mod.Map,
     proj_root: path.Path,
     global_types: map.Map, // map.Map<ident.Ident, *ty.Type>
@@ -113,20 +115,53 @@ def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData 
 
 def scope_at(c: *MirCompiler, id: i32): mir.Scope {
     let s = vec.get_ptr(&c.scopes, id) as *mir.Scope;
-    dbg.assert(s != null, "no scope");
+    dbg.assert_fmt(s != null, "no scope at %d", id);
     return *s;
 }
 
+// open_scope opens a real semantic scope (so in our case a {} block statement)
 def open_scope(c: *MirCompiler) {
     nt.open_scope(&c.names);
-    let s = mir.Scope { id: c.scopes.len, parent: c.current_scope };
+    // The whole scope logic is only needed for debugger information, but is actually
+    // quite expensive, so we only calculate it, if neccessary
+    if !c.data.config.debug_info && c.scopes.len > 0 {
+        return;
+    }
+
+    let s = mir.Scope { id: c.scopes.len, parent: c.current_scope, num_decls: 0 };
+    c.current_scope = s.id;
+    vec.push(&c.scopes, &s as *void);
+}
+
+// open_var_scope opens a local variable scope
+// each variable declaration opens an implicit scope, since we don't want the debugger
+// to display variables before they are initialized
+def open_var_scope(c: *MirCompiler) {
+    if !c.data.config.debug_info {
+        return;
+    }
+
+    let current = scope_at(c, c.current_scope);
+    let s = mir.Scope {
+        id: c.scopes.len,
+        parent: c.current_scope,
+        num_decls: current.num_decls + 1
+    };
     c.current_scope = s.id;
     vec.push(&c.scopes, &s as *void);
 }
 
 def close_scope(c: *MirCompiler) {
     nt.close_scope(&c.names);
-    c.current_scope = scope_at(c, c.current_scope).parent;
+    if !c.data.config.debug_info && c.scopes.len > 0{
+        return;
+    }
+
+    let current = scope_at(c, c.current_scope);
+    while current.num_decls > 0 {
+        current = scope_at(c, current.parent);
+    }
+    c.current_scope = current.parent;
 }
 
 def lookup_global_type(c: *MirCompiler, len: i32, name: string): *ty.Type {
@@ -421,7 +456,9 @@ def push_assign_decl(
     m: mir.MetaData,
     original_ident: ident.Ident
 ): void {
-    let assign = mir.new_inst_assign_decl(m, target, value, target.ty, original_ident);
+    open_var_scope(c);
+    let scope = scope_at(c, c.current_scope);
+    let assign = mir.new_inst_assign_decl(m, target, value, target.ty, scope, original_ident);
     push_instr_p(c, &assign);
 }
 

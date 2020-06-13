@@ -224,7 +224,8 @@ def create_struct(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern
 
 type Scope struct {
     id: i32,
-    parent: i32
+    parent: i32,
+    num_decls: i32
 }
 
 type MetaData struct {
@@ -1046,6 +1047,7 @@ type InstAssign struct {
     value: Expression,
     // TODO: convert this to a union
     param_idx: i32, // -1 if this is not a param
+    var_scope: Scope, // every variable opens an implicit scope, after it was assigned
     original_ident: ident.Ident
 }
 
@@ -1071,6 +1073,7 @@ def new_inst_assign_param(
             dest: dest,
             value: value,
             param_idx: param_idx,
+            var_scope: meta.scope,
             original_ident: ident.empty()
         }) as *void
     };
@@ -1081,6 +1084,7 @@ def new_inst_assign_decl(
     dest: Address,
     value: Expression,
     t: *ty.Type,
+    var_scope: Scope,
     original_ident: ident.Ident
 ): Inst {
     return Inst {
@@ -1090,6 +1094,7 @@ def new_inst_assign_decl(
             dest: dest,
             value: value,
             param_idx: -1,
+            var_scope: var_scope,
             original_ident: original_ident
         }) as *void
     };
@@ -1220,7 +1225,7 @@ def as_inst_delete(inst: *Inst): *InstDelete {
 def create_inst_nop(): Inst {
     return Inst {
         kind: MIR_INST_NOP,
-        meta: create_meta(source.empty_pos(), Scope { id: -1, parent: -1 }),
+        meta: create_meta(source.empty_pos(), Scope { id: -1, parent: -1, num_decls: 0 }),
         data: null
     };
 }

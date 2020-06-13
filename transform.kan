@@ -37,6 +37,7 @@ type CompilationData struct {
 
 def map_data(data: *CompilationData): mirc.CompilationData {
     return mirc.CompilationData {
+        config: data.config,
         mods: data.mods,
         proj_root: data.proj_root,
         global_types: data.global_types,
