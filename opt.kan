@@ -3,13 +3,17 @@ import "io";
 import "std";
 import "ptrvec";
 
+extern def get_sys(linux: *bool, darwin: *bool, win32: *bool);
+
 type Config struct {
     had_errors: bool,
     exit_immediately: bool,
     debug_info: bool,
     files: ptrvec.Vec,
     opt_level: i32,
-    output_filename: string
+    output_filename: string,
+    target_os: string,
+    is_same_target_as_os: bool
 }
 
 def free_config(c: *Config) {
@@ -23,7 +27,9 @@ def parse(argc: i32, argv: *string): Config {
         debug_info: false,
         files: ptrvec.with_cap(argc),
         opt_level: 0,
-        output_filename: null
+        output_filename: null,
+        target_os: null,
+        is_same_target_as_os: true
     };
 
     for let i = 1; i < argc; i = i + 1 {
@@ -52,6 +58,25 @@ def parse(argc: i32, argv: *string): Config {
                 // skip next argument
                 i = i + 1;
                 *set_to_next = *(argv + i);
+            }
+        }
+    }
+
+    config.had_errors = error_in_config_values(&config);
+
+    if !config.had_errors {
+        let linux = false;
+        let darwin = false;
+        let win32 = false;
+
+        get_sys(&linux, &darwin, &win32);
+        if config.target_os != null {
+            if std.strcmp(config.target_os, "linux") == 0 {
+                config.is_same_target_as_os = linux;
+            } else if std.strcmp(config.target_os, "win32") == 0 {
+                config.is_same_target_as_os = win32;
+            } else if std.strcmp(config.target_os, "darwin") == 0{
+                config.is_same_target_as_os = darwin;
             }
         }
     }
@@ -106,8 +131,27 @@ def parse_long(config: *Config, arg: string, had_errors: *bool, set_to_next: **s
         return false;
     }
 
+    if std.strcmp(arg, "sys") == 0 {
+        *set_to_next = &config.target_os;
+        return true;
+    }
+
     io.printf("ERROR: Invalid flag '%s'\n", arg);
     *had_errors = true;
+    return false;
+}
+
+def error_in_config_values(config: *Config): bool {
+    if config.target_os != null {
+        if std.strcmp(config.target_os, "win32") == 0 {}
+        else if std.strcmp(config.target_os, "linux") == 0 {}
+        else if std.strcmp(config.target_os, "darwin") == 0 {}
+        else {
+            io.printf("ERROR: Invalid target system '%s'\n", config.target_os);
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -118,7 +162,10 @@ def print_usage() {
     io.printf("    kantan [OPTIONS] <source-file>...\n\n");
     io.printf("OPTIONS:\n");
     io.printf("    -o <file>\tthe output file (end with .s for assembly output)\n");
-    io.printf("    -O<level>\tthe optimization level\t[possible values 0, 1, 2, 3]\n\n");
+    io.printf("    -O<level>\tthe optimization level\t[possible values 0, 1, 2, 3]\n");
+    io.printf("    -h / --help\tprint this message\n");
+    io.printf("    --sys\tset the target OS\t[possible values 'linux', 'darwin', 'win32']\n");
+    io.printf("\n");
     io.printf("ARGS:\n");
     io.printf("    <source-file>...\n");
 }

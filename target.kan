@@ -23,6 +23,7 @@ def vendor_apple(): Vendor {
 
 #define SYS_LINUX  1
 #define SYS_DARWIN 2
+#define SYS_WIN32  3
 
 def sys_linux(): Sys {
     return Sys { value: SYS_LINUX };
@@ -32,8 +33,13 @@ def sys_darwin(): Sys {
     return Sys { value: SYS_DARWIN };
 }
 
+def sys_win32(): Sys {
+    return Sys { value: SYS_WIN32 };
+}
+
 #define ABI_EMPTY 1
 #define ABI_GNU   2
+#define ABI_MSVC  3
 
 def abi_empty(): Abi {
     return Abi { value: ABI_EMPTY };
@@ -41,6 +47,10 @@ def abi_empty(): Abi {
 
 def abi_gnu(): Abi {
     return Abi { value: ABI_GNU };
+}
+
+def abi_msvc(): Abi {
+    return Abi { value: ABI_MSVC };
 }
 
 type Arch struct {
@@ -91,6 +101,9 @@ def sys_to_name(s: Sys): name.Ref {
     if s.value == SYS_DARWIN {
         return name.make_ref(6, "darwin");
     }
+    if s.value == SYS_WIN32 {
+        return name.make_ref(5, "win32");
+    }
     return name.make_ref(0, null);
 }
 
@@ -101,6 +114,9 @@ type Abi struct {
 def abi_to_name(a: Abi): name.Ref {
     if a.value == ABI_GNU {
         return name.make_ref(3, "gnu");
+    }
+    if a.value == ABI_MSVC {
+        return name.make_ref(4, "msvc");
     }
     return name.make_ref(0, null);
 }

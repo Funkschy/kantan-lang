@@ -298,3 +298,13 @@ void *int_to_ptr(int32_t i) {
     size_t s = i;
     return *((void **)&s);
 }
+
+void get_sys(bool *is_linux, bool *is_darwin, bool *is_win32) {
+#if defined(linux) || defined(__linux__)
+    if (is_linux) *is_linux = true;
+#elif defined(darwin) || defined(__APPLE__)
+    if (is_darwin) *is_darwin = true;
+#elif defined(WIN32) || defined(_WIN32)
+    if (is_win32) *is_win32 = true;
+#endif
+}
