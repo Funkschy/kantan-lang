@@ -1,18 +1,19 @@
 #define EXPR_INT        1
 #define EXPR_FLOAT      2
 #define EXPR_NULL       3
-#define EXPR_STRING     4
-#define EXPR_CHAR       5
-#define EXPR_BINARY     6
-#define EXPR_UNARY      7
-#define EXPR_IDENT      8
-#define EXPR_ASSIGN     9
-#define EXPR_CALL       10
-#define EXPR_INIT       11
-#define EXPR_ACCESS     12
-#define EXPR_AS         13
-#define EXPR_NEW        14
-#define EXPR_SIZEOF     15
+#define EXPR_UNDEFINED  4
+#define EXPR_STRING     5
+#define EXPR_CHAR       6
+#define EXPR_BINARY     7
+#define EXPR_UNARY      8
+#define EXPR_IDENT      9
+#define EXPR_ASSIGN     10
+#define EXPR_CALL       11
+#define EXPR_INIT       12
+#define EXPR_ACCESS     13
+#define EXPR_AS         14
+#define EXPR_NEW        15
+#define EXPR_SIZEOF     16
 
 // These have to match the mir_types
 

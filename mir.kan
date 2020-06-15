@@ -519,6 +519,14 @@ def is_addr_null(a: *Address): bool {
     return a.kind == MIR_ADDR_NULL;
 }
 
+def create_addr_undefined(ty: *ty.Type): Address {
+    return create_addr(MIR_ADDR_UNDEFINED, ty, null, null);
+}
+
+def is_addr_undefined(a: *Address): bool {
+    return a.kind == MIR_ADDR_UNDEFINED;
+}
+
 type Address struct {
     kind: i32,
     ty: *ty.Type,
@@ -583,6 +591,10 @@ def addr_to_name(a: *Address): name.Owned {
 
     if is_addr_null(a) {
         return name.make_copied(4, "null");
+    }
+
+    if is_addr_undefined(a) {
+        return name.make_copied(9, "undefined");
     }
 
     return name.make_owned(0, null);

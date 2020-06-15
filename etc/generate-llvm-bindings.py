@@ -88,6 +88,7 @@ whitelist = set([
     'LLVMGetNamedGlobal',
     'LLVMGetNextFunction',
     'LLVMGetParam',
+    'LLVMGetUndef',
     'LLVMInt1TypeInContext',
     'LLVMInt32TypeInContext',
     'LLVMInt64TypeInContext',

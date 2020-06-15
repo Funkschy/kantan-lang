@@ -969,6 +969,11 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         return true;
     }
 
+    if ast.is_undefined_expr(e) {
+        *out = mir.create_addr_undefined(e.ty);
+        return true;
+    }
+
     if ast.is_string_expr(e) {
         let name = string_lit(c, e);
         *out = mir.make_addr_global(name, e.ty);

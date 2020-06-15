@@ -213,6 +213,8 @@ def ident_type(l: *Lexer): i32 {
         return check_keyword(l, 1, 1, "s", TOKEN_AS);
     } else if start == std.char_to_int('f') {
         return check_keyword(l, 1, 2, "or", TOKEN_FOR);
+    } else if start == std.char_to_int('u') {
+        return check_keyword(l, 1, 8, "ndefined", TOKEN_UNDEFINED);
     }
 
     return TOKEN_IDENT;

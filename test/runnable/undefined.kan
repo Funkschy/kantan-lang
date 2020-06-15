@@ -1,0 +1,25 @@
+import "io";
+
+type MyStruct struct {
+    id: i32,
+    name: string
+}
+
+def main() {
+    let ms: MyStruct = undefined;
+    init(&ms);
+
+    io.printf("%d %s\n", ms.id, ms.name);
+    ms = init_ret(undefined);
+    io.printf("%d %s\n", ms.id, ms.name);
+}
+
+def init(ms: *MyStruct) {
+    ms.id = 1;
+    ms.name = "mystruct";
+}
+
+def init_ret(ms: MyStruct): MyStruct {
+    ms = MyStruct { id: 2, name: "other struct" };
+    return ms;
+}

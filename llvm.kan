@@ -199,6 +199,8 @@ extern def LLVMTypeOf(val: *Value): *Type;
 
 extern def LLVMConstNull(ty: *Type): *Value;
 
+extern def LLVMGetUndef(ty: *Type): *Value;
+
 extern def LLVMConstInt(int_ty: *Type, n: *void, sign_extend: i32): *Value;
 
 extern def LLVMConstIntOfString(int_ty: *Type, text: string, radix: char): *Value;
@@ -232,6 +234,10 @@ def type_of(val: *Value): *Type {
 
 def const_null(ty: *Type): *Value {
     return LLVMConstNull(ty);
+}
+
+def get_undef(ty: *Type): *Value {
+    return LLVMGetUndef(ty);
 }
 
 def const_int(int_ty: *Type, n: i32, sign_extend: bool): *Value {

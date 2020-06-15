@@ -623,6 +623,26 @@ def as_null_expr(e: *Expr): *NullExpr {
     return e as *NullExpr;
 }
 
+/////////// undefined expr ///////////
+
+type UndefinedExpr struct {
+    e: Expr
+}
+
+def new_undefined_expr(span: span.Span): *Expr {
+    return (new UndefinedExpr {
+        e: create_expr(EXPR_UNDEFINED, span)
+    }) as *Expr;
+}
+
+def is_undefined_expr(e: *Expr): bool {
+    return e.tag == EXPR_UNDEFINED;
+}
+
+def as_undefined_expr(e: *Expr): *UndefinedExpr {
+    return e as *UndefinedExpr;
+}
+
 /////////// sizeOf expr ///////////
 
 type SizeOfExpr struct {
@@ -841,6 +861,10 @@ def expr_to_string(e: *Expr): string {
 
     if is_null_expr(e) {
         return std.strdup("null");
+    }
+
+    if is_undefined_expr(e) {
+        return std.strdup("undefined");
     }
 
     if is_string_expr(e) {

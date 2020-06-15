@@ -345,6 +345,10 @@ def translate_addr_load(
         return llvm.const_null(translate_type(c, a.ty));
     }
 
+    if mir.is_addr_undefined(a) {
+        return llvm.get_undef(translate_type(c, a.ty));
+    }
+
     dbg.assert_fmt(false, "invalid address kind %d", a.kind);
     return null;
 }

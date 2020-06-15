@@ -1696,6 +1696,17 @@ def check_expr_scope_expect(
         return null;
     }
 
+    // EXPR_UNDEFINED
+    if ast.is_undefined_expr(e) {
+        // undefined can take any value, as long as we know the type
+        if expected != null {
+            e.ty = expected;
+            return e;
+        }
+        push_could_not_infer_error(tc, e.span);
+        return null;
+    }
+
     // EXPR_CHAR
     if ast.is_char_expr(e) {
         e.ty = get_global_instance(tc, "char", 4);
