@@ -21,6 +21,14 @@ If you just want to try the language, simply dowload the latest [release](https:
 
 After downloading, just run ./kantan --help to view you options.
 
+If you want to use the io module, you also need to create the file ~/.kantan/std/io.kan and put the following content inside:
+```
+extern def printf(fmt: string, ...): i32;
+extern def puts(s: string): i32;
+extern def putchar(c: i32): i32;
+```
+Don't worry, in the future the stdlib will be installed alongside the compiler, but currently there is no real stdlib, so this is good enough.
+
 There is also a [vim plugin](https://github.com/Funkschy/kantan.vim), which you can use to get syntax highlighting in vim/nvim.
 
 Compiling the compiler from scratch is a bit more complicated. To compile the Kantan compiler you need to have the gcc/g++, llvm, gpp(preprocessor, not c++) and make installed. You will probably need to adjust the Makefile quite a bit.
