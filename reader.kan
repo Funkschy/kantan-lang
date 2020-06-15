@@ -64,7 +64,7 @@ def get_ptr_from_span(m: *FileMap, span: span.Span): *source.SourceFile {
 def free_fm(m: *FileMap): void {
     let i = 0;
     while i < m.files.len {
-        let s = source.empty();
+        let s: source.SourceFile = undefined;
         if vec.get(&m.files, i, &s as *void) {
             source.free_sf(&s);
         }
@@ -135,7 +135,7 @@ def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool):
         return error;
     }
 
-    let sf = source.empty();
+    let sf: source.SourceFile = undefined;
     if (res = source.read(abs_path, &sf, is_std_lib)) != 0 {
         path.free_pb(&abs_path);
         return res;

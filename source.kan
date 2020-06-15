@@ -35,17 +35,6 @@ type SourceFile struct {
     map: SourceMap
 }
 
-def empty(): SourceFile {
-    let map = SourceMap { line_starts: ptrvec.create() };
-    return SourceFile {
-        is_std_lib: false,
-        len: 0,
-        code: null,
-        file: file.empty(),
-        map: map
-    };
-}
-
 def free_sf(sf: *SourceFile): void {
     delete sf.code;
     file.free_f(&sf.file);

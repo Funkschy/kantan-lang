@@ -6,10 +6,6 @@ type File struct {
     path: path.PathBuf
 }
 
-def empty(): File {
-    return File { path: path.buf_from(path.empty()) };
-}
-
 def create(path: path.PathBuf): File {
     return File { path: path };
 }
