@@ -401,7 +401,7 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
     let let_span = span.merge(let_tok.span, e.span);
     return ast.new_let_stmt(let_span, ident, ty, e);
 }
-
+import "io";
 def parse_type_stmt(p: *Parser): *ast.Stmt {
     CONSUME_TOK_RET_NULL(type_tok, TOKEN_TYPE);
 
@@ -410,6 +410,14 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
+    if peek(p).ty == TOKEN_ENUM {
+        return parse_enum_decl(p, ident_token, type_tok);
+    }
+
+    return parse_struct_decl(p, ident_token, type_tok);
+}
+
+def parse_struct_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Token): *ast.Stmt {
     CONSUME_RET_NULL(TOKEN_STRUCT);
     CONSUME_RET_NULL(TOKEN_LBRACE);
 
@@ -425,6 +433,25 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
         struct_span,
         ident.create(ident_token),
         fields
+    );
+}
+
+def parse_enum_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Token): *ast.Stmt {
+    CONSUME_RET_NULL(TOKEN_ENUM);
+    CONSUME_RET_NULL(TOKEN_LBRACE);
+
+    let closing_brace = lexer.empty_token();
+    let values = parse_value_list(p, &closing_brace);
+    if closing_brace.ty == TOKEN_UNKNOWN_ERR {
+        vec.free_v(&values);
+        return null;
+    }
+
+    let enum_span = span.merge(type_tok.span, closing_brace.span);
+    return ast.new_enum_decl_stmt(
+        enum_span,
+        ident.create(ident_token),
+        values
     );
 }
 
@@ -694,6 +721,37 @@ def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
 #undef FAIL
 }
 
+def parse_value_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
+#define FAIL() vec.free_v(&values); return vec.create(0)
+
+    let values = vec.create(sizeof ident.Ident);
+
+    let peeked = peek(p);
+    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
+        let ident_token = lexer.empty_token();
+        if !consume_ident(p, &ident_token) {
+            FAIL();
+        }
+        let ident = ident.create(ident_token);
+
+        vec.push(&values, &ident as *void);
+
+        peeked = peek(p);
+
+        // consume separator
+        if peeked.ty == TOKEN_COMMA {
+            consume(p, TOKEN_COMMA);
+        }
+    }
+
+    if !consume_token(p, TOKEN_RBRACE, closing_brace) {
+        FAIL();
+    }
+
+    return values;
+
+#undef FAIL
+}
 
 def parse_param_list(p: *Parser, closing_paren: *lexer.Token, allow_va: bool): vec.Vec {
 #define FAIL() vec.free_v(&params); return vec.create(0)

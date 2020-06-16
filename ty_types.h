@@ -8,3 +8,4 @@
 #define TY_FUNC             7
 #define TY_MOD              8
 #define TY_STRUCT           9
+#define TY_ENUM             10

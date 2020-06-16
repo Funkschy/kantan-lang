@@ -1123,6 +1123,7 @@ def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     return ty;
 }
 
+// TODO: remove duplicated code
 def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let prev = lookup(tc, &sd.name);
     if prev != null {
@@ -1133,8 +1134,40 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let definition = ty.new_type(TY_STRUCT, null);
     push_tmp_ty(tc, definition);
 
-    let owned_name = mangle_struct_name(tc, &sd.name);
+    let owned_name = mangle_type_name(tc, &sd.name);
     ty.init_struct(definition, sd.name, owned_name, tc.ctx.mod);
+    return definition;
+}
+
+def check_enum_decl(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
+    let decl = declare_enum(tc, ed);
+    if decl == null {
+        return null;
+    }
+
+    for let i = 0; i < ed.values.len; i = i + 1 {
+        let name: ident.Ident = undefined;
+        vec.get(&ed.values, i, &name as *void);
+        ty.push_value(decl, name, i);
+    }
+
+    return decl;
+}
+
+def declare_enum(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
+    let prev = lookup(tc, &ed.name);
+    if prev != null {
+        push_duplicate_def_error(tc, &ed.name);
+        return null;
+    }
+
+    let definition = ty.new_type(TY_ENUM, null);
+    push_tmp_ty(tc, definition);
+
+    let owned_name = mangle_type_name(tc, &ed.name);
+    // currently, all enums are just i32 values
+    let base_type = get_global_instance(tc, "i32", 3);
+    ty.init_enum(definition, ed.name, owned_name, tc.ctx.mod, base_type);
     return definition;
 }
 
@@ -1337,6 +1370,23 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         bind(tc, &sd.name, ty);
         sd.struct_ty = ty;
+
+        return s;
+    }
+
+    // STMT_ENUM_DECL
+    if ast.is_enum_decl_stmt(s) {
+        let ed = &ast.as_enum_decl_stmt(s).decl;
+
+        if !tc.decl_only_pass {
+            return s;
+        }
+
+        let ty = check_enum_decl(tc, ed);
+        dbg.assert(ty != null, "enum type should never be null");
+
+        bind(tc, &ed.name, ty);
+        ed.enum_ty = ty;
 
         return s;
     }
@@ -2098,7 +2148,15 @@ def check_binary_expr(
             || kind == BINARY_ST || kind == BINARY_SE
             || kind == BINARY_GT || kind == BINARY_GE
         {
-            return instance_of_ty(scope.s_get_in(&tc.globals, 4, "bool"));
+            if ty.is_bool(first) {
+                return first;
+            }
+
+            if ty.is_comparable(first) {
+                return instance_of_ty(scope.s_get_in(&tc.globals, 4, "bool"));
+            }
+
+            RET_INVALID_TYS();
         }
 
         if kind == BINARY_LOG_OR || kind == BINARY_LOG_AND {
@@ -2259,7 +2317,7 @@ def mangle_func_name(tc: *TypeChecker, i: *ident.Ident, is_extern: bool): name.O
     return name.mangle_ident(tc.mods.proj_root, i, tc.ctx.mod);
 }
 
-def mangle_struct_name(tc: *TypeChecker, i: *ident.Ident): name.Owned {
+def mangle_type_name(tc: *TypeChecker, i: *ident.Ident): name.Owned {
     dbg.assert(i != null, "ident was null");
     return name.mangle_ident(tc.mods.proj_root, i, tc.ctx.mod);
 }

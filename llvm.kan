@@ -819,6 +819,10 @@ extern def LLVMDIBuilderCreateDebugLocation(ctx: *Context, line: i32, column: i3
 
 extern def LLVMDIBuilderCreateSubroutineType(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData;
 
+extern def LLVMDIBuilderCreateEnumerator(builder: *DbgBuilder, name: string, name_len: *void, value: *void, is_unsigned: i32): *MetaData;
+
+extern def LLVMDIBuilderCreateEnumerationType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_number: i32, size_in_bits: *void, align_in_bits: i32, elements: **MetaData, num_elements: i32, class_ty: *MetaData): *MetaData;
+
 extern def LLVMDIBuilderCreateBasicType(builder: *DbgBuilder, name: string, name_len: *void, size_in_bits: *void, encoding: i32, flags: i32): *MetaData;
 
 extern def LLVMDIBuilderCreatePointerType(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: *void, align_in_bits: i32, address_space: i32, name: string, name_len: *void): *MetaData;
@@ -878,6 +882,14 @@ def di_builder_create_debug_location(ctx: *Context, line: i32, column: i32, scop
 // Create subroutine type.
 def di_builder_create_subroutine_type(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData {
     return LLVMDIBuilderCreateSubroutineType(builder, file, parameter_types, num_parameter_types, flags);
+}
+// Create debugging information entry for an enumerator.
+def di_builder_create_enumerator(builder: *DbgBuilder, name: string, name_len: i32, value: i32, is_unsigned: bool): *MetaData {
+    return LLVMDIBuilderCreateEnumerator(builder, name, std.int_to_ptr(name_len), std.int_to_ptr(value), std.bool_to_int(is_unsigned));
+}
+// Create debugging information entry for an enumeration.
+def di_builder_create_enumeration_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_number: i32, size_in_bits: i32, align_in_bits: i32, elements: **MetaData, num_elements: i32, class_ty: *MetaData): *MetaData {
+    return LLVMDIBuilderCreateEnumerationType(builder, scope, name, std.int_to_ptr(name_len), file, line_number, std.int_to_ptr(size_in_bits), align_in_bits, elements, num_elements, class_ty);
 }
 // Create debugging information entry for a basic type.
 def di_builder_create_basic_type(builder: *DbgBuilder, name: string, name_len: i32, size_in_bits: i32, encoding: i32, flags: i32): *MetaData {

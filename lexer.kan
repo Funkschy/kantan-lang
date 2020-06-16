@@ -184,6 +184,8 @@ def ident_type(l: *Lexer): i32 {
             return check_keyword(l, 2, 4, "tern", TOKEN_EXTERN);
         } else if next == std.char_to_int('l') {
             return check_keyword(l, 2, 2, "se", TOKEN_ELSE);
+        } else if next == std.char_to_int('n') {
+            return check_keyword(l, 2, 2, "um", TOKEN_ENUM);
         }
     } else if start == std.char_to_int('n') && l.current - l.start > 2 {
         let next = 0;

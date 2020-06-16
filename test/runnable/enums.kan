@@ -1,0 +1,22 @@
+import "io";
+
+type MyEnum enum {
+    First, Second, Third
+}
+
+def main() {
+    let x = MyEnum.First;
+    let y: MyEnum = MyEnum.Second;
+
+    if x == y {
+        io.printf("failed\n");
+    }
+
+    y = MyEnum.First;
+    io.printf("%d\n", x == y);
+    io.printf("%d\n", x == MyEnum.First);
+    io.printf("%d\n", x < MyEnum.First);
+    io.printf("%d\n", x <= MyEnum.Second);
+    io.printf("%d\n", x <= MyEnum.Third);
+    io.printf("%d\n", x != MyEnum.Third);
+}

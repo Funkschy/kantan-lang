@@ -21,6 +21,7 @@ type Module struct {
     globals: map.Map, // map.Map<name.Ref, *GlobalConst>
     functions: map.Map, // map.Map<name.Ref, *Func>
     structs: map.Map, // map.Map<name.Ref, *Struct>
+    enums: map.Map, // map.Map<name.Ref, *Enum>
     scopes: vec.Vec, // vec.Vec<Scope>
     actual: *mod.Module
 }
@@ -29,6 +30,7 @@ def create_mod(
     globals: map.Map,
     funcs: map.Map,
     structs: map.Map,
+    enums: map.Map,
     scopes: vec.Vec,
     actual: *mod.Module
 ): Module {
@@ -36,6 +38,7 @@ def create_mod(
         globals: globals,
         functions: funcs,
         structs: structs,
+        enums: enums,
         scopes: scopes,
         actual: actual
     };
@@ -53,12 +56,20 @@ def free_mod(m: *Module): void {
         item = map.iter_next(&f_iter);
     }
 
-    // free struct names
+    // free struct values
     let s_iter = map.iter(&m.structs);
     let item = map.iter_next(&s_iter);
     while item != null {
         delete item.value;
         item = map.iter_next(&s_iter);
+    }
+
+    // free enum values
+    let e_iter = map.iter(&m.enums);
+    let item = map.iter_next(&e_iter);
+    while item != null {
+        delete item.value;
+        item = map.iter_next(&e_iter);
     }
 
     // free globals
@@ -74,6 +85,7 @@ def free_mod(m: *Module): void {
 
     map.free_m(&m.functions);
     map.free_m(&m.structs);
+    map.free_m(&m.enums);
     map.free_m(&m.globals);
 
     vec.free_v(&m.scopes);
@@ -119,6 +131,26 @@ def dump_module(m: *Module): void {
 
         io.printf(" }\n");
         item = map.iter_next(&s_iter);
+    }
+
+    let e_iter = map.iter(&m.enums);
+    let item = map.iter_next(&e_iter);
+    while item != null {
+        let e = item.value as *Enum;
+        let e_ty = ty.as_enum(e.ty);
+
+        io.printf("%.*s { ", e.name.len, e.name.data);
+        for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
+            if i > 0 {
+                io.printf(", ");
+            }
+
+            let value = ty.value_at(e_ty, i);
+            io.printf("%.*s", ident.len(&value.name), ident.start(&value.name));
+        }
+        io.printf(" }\n");
+
+        item = map.iter_next(&e_iter);
     }
 
     let g_iter = map.iter(&m.globals);
@@ -219,6 +251,22 @@ def create_struct(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern
         ty: t,
         meta: meta,
         is_extern: is_extern
+    };
+}
+
+type Enum struct {
+    name: name.Ref,
+    ty: *ty.Type,
+    meta: MetaData
+}
+
+def create_enum(t: *ty.Type, mangled_name: name.Ref, meta: MetaData): Enum {
+    dbg.assert(ty.is_enum(t), "enum type was not enum");
+
+    return Enum {
+        name: mangled_name,
+        ty: t,
+        meta: meta
     };
 }
 
@@ -443,6 +491,22 @@ def const_len(c: *AddressConst): i32 {
     return c.end - c.start;
 }
 
+type AddressConstValue struct {
+    value: i32
+}
+
+def make_addr_const_value(ty: *ty.Type, value: i32): Address {
+    return create_addr(MIR_ADDR_CONST_VALUE, ty, std.int_to_ptr(value), null);
+}
+
+def as_addr_const_value(a: *Address): AddressConstValue {
+    return AddressConstValue { value: std.ptr_to_int(a.data_hi) };
+}
+
+def is_addr_const_value(a: *Address): bool {
+    return a.kind == MIR_ADDR_CONST_VALUE;
+}
+
 type AddressGlobal struct {
     name: name.Ref
 }
@@ -555,6 +619,13 @@ def addr_to_name(a: *Address): name.Owned {
         let s = std.l_format_str(
             &len, "const %.*s", const_len(&const), const.start
         );
+        return name.make_owned(len, s);
+    }
+
+    if is_addr_const_value(a) {
+        let const = as_addr_const_value(a);
+        let len = 0;
+        let s = std.l_format_str(&len, "const %d", const.value);
         return name.make_owned(len, s);
     }
 

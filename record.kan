@@ -140,3 +140,26 @@ def to_string(s: *StructDecl): string {
 
     return s;
 }
+
+type EnumDecl struct {
+    name: ident.Ident,
+    values: vec.Vec, // vec.Vec<ident.Ident>
+    enum_ty: *ty.Type
+}
+
+def create_enum(name: ident.Ident, values: vec.Vec): EnumDecl {
+    return EnumDecl { name: name, values: values, enum_ty: null };
+}
+
+def free_enum(e: *EnumDecl): void {
+    vec.free_v(&e.values);
+}
+
+def num_values(e: *EnumDecl): i32 {
+    return e.values.len;
+}
+
+def value_at(e: *EnumDecl, i: i32, dest: *ident.Ident): bool {
+    return vec.get(&e.values, i, dest as *void);
+}
+

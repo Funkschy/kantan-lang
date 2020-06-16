@@ -161,6 +161,8 @@ whitelist = set([
     'LLVMDIBuilderCreateCompileUnit',
     'LLVMDIBuilderCreateConstantValueExpression',
     'LLVMDIBuilderCreateDebugLocation',
+    'LLVMDIBuilderCreateEnumerationType',
+    'LLVMDIBuilderCreateEnumerator',
     'LLVMDIBuilderCreateExpression',
     'LLVMDIBuilderCreateFile',
     'LLVMDIBuilderCreateForwardDecl',

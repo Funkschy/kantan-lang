@@ -35,6 +35,7 @@ static char const *const token_strings[] = {
     "return",
     "type",
     "struct",
+    "enum",
     "as",
     "extern",
     "sizeof",
@@ -135,6 +136,7 @@ static char const *const stmt_type_strings[] = {
     "import",
     "function declaration",
     "structured type declaration",
+    "enum type declaration",
     "block",
     "if",
     "while",
@@ -156,7 +158,8 @@ static char const *const type_type_strings[] = {
     "void",
     "function",
     "module",
-    "struct"
+    "struct",
+    "enum"
 };
 
 static size_t const len_type_strings = sizeof(type_type_strings) / sizeof(char *);

@@ -278,6 +278,28 @@ def as_struct_decl_stmt(s: *Stmt): *StructDeclStmt {
     return s as *StructDeclStmt;
 }
 
+/////////// Enum Decl stmt ///////////
+
+type EnumDeclStmt struct {
+    s: Stmt,
+    decl: record.EnumDecl
+}
+
+def new_enum_decl_stmt(span: span.Span, name: ident.Ident, values: vec.Vec): *Stmt {
+    return (new EnumDeclStmt {
+        s: Stmt { tag: STMT_ENUM_DECL, span: span },
+        decl: record.create_enum(name, values)
+    }) as *Stmt;
+}
+
+def is_enum_decl_stmt(s: *Stmt): bool {
+    return s.tag == STMT_ENUM_DECL;
+}
+
+def as_enum_decl_stmt(s: *Stmt): *EnumDeclStmt {
+    return s as *EnumDeclStmt;
+}
+
 /////////// import stmt ///////////
 
 type ImportStmt struct {
@@ -386,6 +408,9 @@ def stmt_free(s: *Stmt): void {
     } else if is_struct_decl_stmt(s) {
         let s_stmt = as_struct_decl_stmt(s);
         record.free_struct(&s_stmt.decl);
+    } else if is_enum_decl_stmt(s) {
+        let e_stmt = as_enum_decl_stmt(s);
+        record.free_enum(&e_stmt.decl);
     }
 
     delete s;

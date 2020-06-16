@@ -4,6 +4,7 @@ import "dbg";
 import "std";
 import "mod";
 import "vec";
+import "vmap";
 import "span";
 import "name";
 import "scope";
@@ -256,6 +257,82 @@ def as_struct(t: *Type): *Struct {
     return t.data as *Struct;
 }
 
+/////////// enum type ///////////
+
+type EnumValue struct {
+    name: ident.Ident,
+    value: i32
+}
+
+type Enum struct {
+    name: ident.Ident,
+    mangled_name: name.Owned,
+    scope: scope.Scope,
+    declared_in: *mod.Module,
+    base_ty: *Type, // currently only i32
+    values: vmap.Map // vmap.Map<ident.Ident, EnumValue>
+}
+
+// this function is used to initialize placeholder enums of tychk
+def init_enum(
+    t: *Type,
+    name: ident.Ident,
+    mangled_name: name.Owned,
+    declared_in: *mod.Module,
+    base_ty: *Type
+): void {
+    dbg.assert(base_ty != null, "base_ty was null");
+
+    let s = new Enum {
+        name: name,
+        mangled_name: mangled_name,
+        scope: scope.create(),
+        declared_in: declared_in,
+        base_ty: base_ty,
+        values: vmap.create(sizeof EnumValue)
+    };
+
+    t.data = s as *void;
+    std.flag_set(&t.flags, FLAG_SCOPED);
+    fill_width_align(t);
+}
+
+def is_enum(t: *Type): bool {
+    return t.kind == TY_ENUM;
+}
+
+def is_enum_decl(t: *Type): bool {
+    return is_enum(t) && is_decl(t);
+}
+
+def as_enum(t: *Type): *Enum {
+    return t.data as *Enum;
+}
+
+def num_values(t: *Enum): i32 {
+    return t.values.values.len;
+}
+
+def push_value(t: *Type, name: ident.Ident, value: i32): void {
+    let e_ty = as_enum(t);
+    let value = EnumValue { name: name, value: value };
+    let key = vmap.key_from_ident(&name);
+    vmap.insert(&e_ty.values, key, &value as *void);
+
+    let field_type = instance_of(t);
+    // all enum values have the enum itself as their type
+    scope.bind_in(&e_ty.scope, &name, field_type);
+}
+
+def value_at(t: *Enum, i: i32): *EnumValue {
+    return vmap.get_ptr_idx(&t.values, i) as *EnumValue;
+}
+
+def value_by_name(t: *Enum, name: ident.Ident): *EnumValue {
+    let key = vmap.key_from_ident(&name);
+    return vmap.get_ptr(&t.values, key) as *EnumValue;
+}
+
 /////////// func type ///////////
 
 type Param struct {
@@ -468,6 +545,14 @@ def free_ty(t: *Type): void {
         delete t.data;
     }
 
+    if is_enum(t) {
+        let e_ty = as_enum(t);
+        name.free_owned(&e_ty.mangled_name);
+        vmap.free_m(&e_ty.values);
+        scope.free_s(&e_ty.scope);
+        delete t.data;
+    }
+
     if is_mod(t) {
         let m_ty = as_mod(t);
         scope.free_s(&m_ty.scope);
@@ -495,6 +580,10 @@ def get_scope(t: *Type): *scope.Scope {
         return &as_struct(t).scope;
     }
 
+    if is_enum(t) {
+        return &as_enum(t).scope;
+    }
+
     if is_ptr(t) {
         return get_scope(as_ptr(t).inner);
     }
@@ -508,6 +597,13 @@ def is_num(t: *Type): bool {
 
 def is_integer(t: *Type): bool {
     return is_i32(t);
+}
+
+def is_comparable(t: *Type): bool {
+    return is_num(t)
+        || is_ptr(t)
+        || is_char(t)
+        || is_enum(t);
 }
 
 /////////// align utils ///////////
@@ -588,6 +684,11 @@ def fill_width_align(t: *Type): bool {
     } else if is_struct(t) {
         let s_ty = as_struct(t);
         has_unresolved_fields = calc_struct_width_align(s_ty, &width, &align);
+    } else if is_enum(t) {
+        let e_ty = as_enum(t);
+        fill_width_align(e_ty.base_ty);
+        width = e_ty.base_ty.width;
+        align = e_ty.base_ty.align;
     }
 
     if has_unresolved_fields {
@@ -626,7 +727,7 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
 
     if is_func(t) {
         let f_ty = as_func(t);
-        let s_ret = "";
+        let s_ret = ")";
         let free_ret = to_string(f_ty.ret, &s_ret);
         let name = f_ty.mangled_name.data;
         if !use_mangled {
@@ -652,6 +753,17 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         }
 
         *out = ident.to_string(&s_ty.name);
+        return true;
+    }
+
+    if is_enum(t) {
+        let e_ty = as_enum(t);
+        if use_mangled {
+            *out = e_ty.mangled_name.data;
+            return false;
+        }
+
+        *out = ident.to_string(&e_ty.name);
         return true;
     }
 
