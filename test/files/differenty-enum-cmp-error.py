@@ -11,8 +11,9 @@ class Test(Code):
             msg = 'expected 2 errors, but got {}'.format(len(output.errors))
             return self.create_error(msg)
 
+
         error = output.errors[0]
-        expected_rsn = "Wrong return type for function. Expected '*return-wrong-ty-error.MyStruct', but got '**return-wrong-ty-error.MyStruct'"
+        expected_rsn = "Identifier 'Fist' is not in scope"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)
@@ -21,21 +22,21 @@ class Test(Code):
         if error.line != 10:
             return self.create_error('wrong line')
 
-        if error.col != 12:
+        if error.col != 18:
             print(error.col)
             return self.create_error('wrong column')
 
         error = output.errors[1]
-        expected_rsn = "Wrong return type for function. Expected 'return-wrong-ty-error.MyStruct', but got 'return-wrong-ty-error.MyOtherStruct'"
+        expected_rsn = "Invalid operator for types 'differenty-enum-cmp-error.First' and 'differenty-enum-cmp-error.Second'"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)
             return self.create_error(msg)
 
-        if error.line != 18:
+        if error.line != 11:
             return self.create_error('wrong line')
 
-        if error.col != 12:
+        if error.col != 15:
             print(error.col)
             return self.create_error('wrong column')
 

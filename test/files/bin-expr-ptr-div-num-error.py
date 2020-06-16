@@ -12,7 +12,7 @@ class Test(Code):
             return self.create_error(msg)
 
         error = output.errors[0]
-        expected_rsn = "Invalid operator for types 'pointer' and 'i32'"
+        expected_rsn = "Invalid operator for types '*i32' and 'i32'"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)

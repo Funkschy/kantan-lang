@@ -1,0 +1,12 @@
+type First enum {
+    One, Two
+}
+
+type Second enum {
+    One, Two
+}
+
+def main() {
+    First.One == Fist.Two;
+    First.One == Second.One; // illegal
+}
