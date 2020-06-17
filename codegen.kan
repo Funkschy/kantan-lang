@@ -1141,8 +1141,28 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         let e = map.get(&c.irmod.enums, key) as *mir.Enum;
         dbg.assert_fmt(e != null, "enum %s does not exist", e_ty.mangled_name.data);
 
+        let scope: *llvm.MetaData = null;
         let file = c.dbg.file;
-        let scope = dbg_get_scope(c.dbg, e.meta);
+
+        if e.is_extern {
+            let mod_path = mod.get_path(e_ty.declared_in);
+            let dir = path.parent(&mod_path);
+            let filename = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
+
+            if mod.is_std_lib(e_ty.declared_in) {
+                filename = dir;
+                dir = path.create(c.dbg.std_dir, std.strlen(c.dbg.std_dir));
+            }
+
+            file = llvm.di_builder_create_file(
+                c.dbg.builder,
+                filename.inner, filename.len,
+                dir.inner, dir.len - 1 // -1 to remove trailing '/'
+            );
+            scope = file;
+        } else {
+            scope = dbg_get_scope(c.dbg, e.meta);
+        }
 
         let enumerators = ptrvec.with_cap(ty.num_values(e_ty));
         for let i = 0; i < ty.num_values(e_ty); i = i + 1 {

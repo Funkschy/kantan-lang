@@ -213,12 +213,12 @@ def lookup_or_declare_enum(c: *MirCompiler, t: *ty.Type): *mir.Enum {
     let mir_enum = lookup_enum(c, mangled_name);
 
     if mir_enum == null {
-        dbg.assert(e_ty.declared_in == c.mod, "extern enums make no sense");
+        let is_extern = e_ty.declared_in != c.mod;
 
         // we may override this, in compile_stmt, if the enum was used, before
         // it was declared
         let meta = get_meta_mod(c, e_ty.name.span, e_ty.declared_in);
-        mir_enum = new mir.create_enum(t, mangled_name, meta);
+        mir_enum = new mir.create_enum(t, mangled_name, meta, is_extern);
         add_enum(c, mir_enum);
     }
 

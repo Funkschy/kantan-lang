@@ -139,7 +139,12 @@ def dump_module(m: *Module): void {
         let e = item.value as *Enum;
         let e_ty = ty.as_enum(e.ty);
 
-        io.printf("%.*s { ", e.name.len, e.name.data);
+        let s_extern = "";
+        if e.is_extern {
+            s_extern = "extern ";
+        }
+
+        io.printf("%s%.*s { ", s_extern, e.name.len, e.name.data);
         for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
             if i > 0 {
                 io.printf(", ");
@@ -257,16 +262,18 @@ def create_struct(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern
 type Enum struct {
     name: name.Ref,
     ty: *ty.Type,
-    meta: MetaData
+    meta: MetaData,
+    is_extern: bool
 }
 
-def create_enum(t: *ty.Type, mangled_name: name.Ref, meta: MetaData): Enum {
+def create_enum(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern: bool): Enum {
     dbg.assert(ty.is_enum(t), "enum type was not enum");
 
     return Enum {
         name: mangled_name,
         ty: t,
-        meta: meta
+        meta: meta,
+        is_extern: is_extern
     };
 }
 
