@@ -29,7 +29,8 @@ extern def putchar(c: i32): i32;
 ```
 Don't worry, in the future the stdlib will be installed alongside the compiler, but currently there is no real stdlib, so this is good enough.
 
-There is also a [vim plugin](https://github.com/Funkschy/kantan.vim), which you can use to get syntax highlighting in vim/nvim.
+There is also a [vscode plugin](https://github.com/Funkschy/vscode-kantan), which adds support for syntax highlighting and graphical debugging.
+Alternatively, install the [vim plugin](https://github.com/Funkschy/kantan.vim), which you can use to get syntax highlighting in vim/nvim.
 
 Compiling the compiler from scratch is a bit more complicated. To compile the Kantan compiler you need to have the gcc/g++, llvm, gpp(preprocessor, not c++) and make installed. You will probably need to adjust the Makefile quite a bit.
 
