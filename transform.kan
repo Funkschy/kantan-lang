@@ -118,15 +118,13 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
     let sys = target.sys_linux();
     let abi = target.abi_gnu();
 
-    if comp_data.config.target_os != null {
-        if std.strcmp(comp_data.config.target_os, "win32") == 0 {
-            abi = target.abi_msvc();
-            sys = target.sys_win32();
-        } else if std.strcmp(comp_data.config.target_os, "darwin") == 0 {
-            vendor = target.vendor_apple();
-            abi = target.abi_empty();
-            sys = target.sys_darwin();
-        }
+    if std.strcmp(comp_data.config.target_os, "win32") == 0 {
+        abi = target.abi_msvc();
+        sys = target.sys_win32();
+    } else if std.strcmp(comp_data.config.target_os, "darwin") == 0 {
+        vendor = target.vendor_apple();
+        abi = target.abi_empty();
+        sys = target.sys_darwin();
     }
 
     let t = target.create_and_register_target(arch, vendor, sys, abi);

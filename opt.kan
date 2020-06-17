@@ -75,8 +75,18 @@ def parse(argc: i32, argv: *string): Config {
                 config.is_same_target_as_os = linux;
             } else if std.strcmp(config.target_os, "win32") == 0 {
                 config.is_same_target_as_os = win32;
-            } else if std.strcmp(config.target_os, "darwin") == 0{
+            } else if std.strcmp(config.target_os, "darwin") == 0 {
                 config.is_same_target_as_os = darwin;
+            }
+        } else {
+            config.is_same_target_as_os = true;
+
+            if linux {
+                config.target_os = "linux";
+            } else if darwin {
+                config.target_os = "darwin";
+            } else if win32 {
+                config.target_os = "win32";
             }
         }
     }
