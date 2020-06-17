@@ -208,7 +208,8 @@ static char const *const error_texts[] = {
     "Invalid expression",
     "Cannot use unsized type '%s' inside a struct",
     "Cannot use unsized type '%s' as a function parameter",
-    "Cannot take the size of an unsized type '%s'"
+    "Cannot take the size of an unsized type '%s'",
+    "Duplicate entry '%.*s' in enum '%.*s'",
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

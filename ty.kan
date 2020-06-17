@@ -313,15 +313,22 @@ def num_values(t: *Enum): i32 {
     return t.values.values.len;
 }
 
-def push_value(t: *Type, name: ident.Ident, value: i32): void {
+// returns true, if the value was already in the enum
+def push_value(t: *Type, name: ident.Ident, value: i32): bool {
     let e_ty = as_enum(t);
-    let value = EnumValue { name: name, value: value };
     let key = vmap.key_from_ident(&name);
+
+    if vmap.get_ptr(&e_ty.values, key) != null {
+        return true;
+    }
+
+    let value = EnumValue { name: name, value: value };
     vmap.insert(&e_ty.values, key, &value as *void);
 
     let field_type = instance_of(t);
     // all enum values have the enum itself as their type
     scope.bind_in(&e_ty.scope, &name, field_type);
+    return false;
 }
 
 def value_at(t: *Enum, i: i32): *EnumValue {

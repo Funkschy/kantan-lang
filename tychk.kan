@@ -1148,7 +1148,10 @@ def check_enum_decl(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
     for let i = 0; i < ed.values.len; i = i + 1 {
         let name: ident.Ident = undefined;
         vec.get(&ed.values, i, &name as *void);
-        ty.push_value(decl, name, i);
+        if ty.push_value(decl, name, i) {
+            push_duplicate_enum_value_error(tc, ty.as_enum(decl), &name);
+            return null;
+        }
     }
 
     return decl;
@@ -1366,7 +1369,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         let ty = check_struct_decl(tc, sd);
-        dbg.assert(ty != null, "struct type should never be null");
+        if ty == null {
+            return null;
+        }
 
         bind(tc, &sd.name, ty);
         sd.struct_ty = ty;
@@ -1383,7 +1388,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         let ty = check_enum_decl(tc, ed);
-        dbg.assert(ty != null, "enum type should never be null");
+        if ty == null {
+            return null;
+        }
 
         bind(tc, &ed.name, ty);
         ed.enum_ty = ty;
@@ -2391,6 +2398,17 @@ def push_wrong_num_args_error(tc: *TypeChecker, expected: i32, actual: i32, span
 def push_invalid_expr_error(tc: *TypeChecker, e: *ast.Expr): void {
     let text = std.err2str(ERROR_INVALID_EXPRESSION);
     push_mk_err(tc, text, e.span);
+}
+
+def push_duplicate_enum_value_error(tc: *TypeChecker, e: *ty.Enum, value_name: *ident.Ident) {
+    let len = ident.len(value_name);
+    let text = std.err2str(
+        ERROR_DUPLICATE_ENUM_VALUE,
+        len, ident.start(value_name),
+        e.mangled_name.len,
+        e.mangled_name.data
+    );
+    push_mk_err(tc, text, value_name.span);
 }
 
 def push_bin_invalid_types_error(
