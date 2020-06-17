@@ -1123,7 +1123,7 @@ def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     return ty;
 }
 
-// TODO: remove duplicated code
+// TODO(#103): remove duplicated code
 def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let prev = lookup(tc, &sd.name);
     if prev != null {
