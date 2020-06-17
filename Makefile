@@ -44,7 +44,6 @@ C_FILES = $(C_SRC_FILES) \
 		  expr_types.h \
 		  stmt_types.h \
 		  error_code.h \
-		  ty_types.h \
 		  mir_types.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)

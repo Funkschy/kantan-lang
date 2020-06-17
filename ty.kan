@@ -1,5 +1,3 @@
-#include "ty_types.h"
-
 import "dbg";
 import "std";
 import "mod";
@@ -11,7 +9,12 @@ import "scope";
 import "ident";
 import "ptrvec";
 
-extern def type2str(kind: i32): string;
+extern def type2str(kind: Kind): string;
+
+// the order is important, if it is changed, the order of strings in lib.h also has to change
+type Kind enum {
+    Error, Ptr, Bool, I32, F32, Char, Void, Func, Mod, Struct, Enum
+}
 
 // TODO(#15): this should be imported, but can't because of circular dependencies
 //  for some reason, this works anyway
@@ -32,13 +35,13 @@ extern def type2str(kind: i32): string;
 /////////// error type ///////////
 
 def new_error(): *Type {
-    let t = new_type(TY_ERROR, null);
+    let t = new_type(Kind.Error, null);
     std.flag_set(&t.flags, FLAG_UNSIZED);
     return t;
 }
 
 def is_error(t: *Type): bool {
-    return t.kind == TY_ERROR;
+    return t.kind == Kind.Error;
 }
 
 /////////// void type ///////////
@@ -46,61 +49,61 @@ def is_error(t: *Type): bool {
 // TODO(#84): remove void type. Replace it with byte type and empty return types
 
 def new_void(): *Type {
-    let t = new_type(TY_VOID, null);
+    let t = new_type(Kind.Void, null);
     std.flag_set(&t.flags, FLAG_UNSIZED);
     return t;
 }
 
 def is_void(t: *Type): bool {
-    return t.kind == TY_VOID;
+    return t.kind == Kind.Void;
 }
 
 /////////// i32 type ///////////
 
 def new_i32(): *Type {
-    let t = new_type(TY_I32, null);
+    let t = new_type(Kind.I32, null);
     fill_width_align(t);
     return t;
 }
 
 def is_i32(t: *Type): bool {
-    return t.kind == TY_I32;
+    return t.kind == Kind.I32;
 }
 
 /////////// f32 type ///////////
 
 def new_f32(): *Type {
-    let t = new_type(TY_F32, null);
+    let t = new_type(Kind.F32, null);
     fill_width_align(t);
     return t;
 }
 
 def is_f32(t: *Type): bool {
-    return t.kind == TY_F32;
+    return t.kind == Kind.F32;
 }
 
 /////////// char type ///////////
 
 def new_char(): *Type {
-    let t = new_type(TY_CHAR, null);
+    let t = new_type(Kind.Char, null);
     fill_width_align(t);
     return t;
 }
 
 def is_char(t: *Type): bool {
-    return t.kind == TY_CHAR;
+    return t.kind == Kind.Char;
 }
 
 /////////// bool type ///////////
 
 def new_bool(): *Type {
-    let t = new_type(TY_BOOL, null);
+    let t = new_type(Kind.Bool, null);
     fill_width_align(t);
     return t;
 }
 
 def is_bool(t: *Type): bool {
-    return t.kind == TY_BOOL;
+    return t.kind == Kind.Bool;
 }
 
 /////////// pointer type ///////////
@@ -125,7 +128,7 @@ def new_ptr(count: i32, inner: *Type): *Type {
         inner: inner
     };
 
-    let t = new_type(TY_PTR, ptr as *void);
+    let t = new_type(Kind.Ptr, ptr as *void);
     if inner != null && count < 2 {
         // only auto deref once
         t.flags = inner.flags;
@@ -160,7 +163,7 @@ def update_inner(ptr_ty: *Type, inner: *Type): void {
 }
 
 def is_ptr(t: *Type): bool {
-    return t.kind == TY_PTR;
+    return t.kind == Kind.Ptr;
 }
 
 def as_ptr(t: *Type): *Ptr {
@@ -208,7 +211,7 @@ def init_struct(
 }
 
 def is_struct(t: *Type): bool {
-    return t.kind == TY_STRUCT;
+    return t.kind == Kind.Struct;
 }
 
 def is_struct_decl(t: *Type): bool {
@@ -298,7 +301,7 @@ def init_enum(
 }
 
 def is_enum(t: *Type): bool {
-    return t.kind == TY_ENUM;
+    return t.kind == Kind.Enum;
 }
 
 def is_enum_decl(t: *Type): bool {
@@ -423,7 +426,7 @@ def param_at(t: *Func, i: i32): *Param {
 }
 
 def is_func(t: *Type): bool {
-    return t.kind == TY_FUNC;
+    return t.kind == Kind.Func;
 }
 
 def as_func(t: *Type): *Func {
@@ -441,7 +444,7 @@ def new_mod(): *Type {
         scope: scope.create()
     };
 
-    let t = new_type(TY_MOD, m as *void);
+    let t = new_type(Kind.Mod, m as *void);
 
     std.flag_set(&t.flags, FLAG_SCOPED);
     std.flag_set(&t.flags, FLAG_UNSIZED);
@@ -450,7 +453,7 @@ def new_mod(): *Type {
 }
 
 def is_mod(t: *Type): bool {
-    return t.kind == TY_MOD;
+    return t.kind == Kind.Mod;
 }
 
 def as_mod(t: *Type): *Mod {
@@ -460,7 +463,7 @@ def as_mod(t: *Type): *Mod {
 /////////// base type ///////////
 
 type Type struct {
-    kind: i32,
+    kind: Kind,
     width: i32, // width in bytes
     align: i32,
     flags: i32,
@@ -468,7 +471,7 @@ type Type struct {
     cached_instance: *Type // only ever create one instance of a single type
 }
 
-def new_type(kind: i32, data: *void): *Type {
+def new_type(kind: Kind, data: *void): *Type {
     return new create_type(kind, data);
 }
 
@@ -484,7 +487,7 @@ def tychk_untouch(t: *Type): void {
     std.flag_unset(&t.flags, FLAG_TYCHK_TOUCHED);
 }
 
-def create_type(kind: i32, data: *void): Type {
+def create_type(kind: Kind, data: *void): Type {
     return Type {
         kind: kind,
         width: WIDTH_UNKNOWN,

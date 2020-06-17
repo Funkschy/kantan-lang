@@ -1,5 +1,3 @@
-#include "ty_types.h"
-
 import "ast";
 import "ptrvec";
 import "vec";
@@ -1131,7 +1129,7 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
         return null;
     }
 
-    let definition = ty.new_type(TY_STRUCT, null);
+    let definition = ty.new_type(ty.Kind.Struct, null);
     push_tmp_ty(tc, definition);
 
     let owned_name = mangle_type_name(tc, &sd.name);
@@ -1145,15 +1143,17 @@ def check_enum_decl(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
         return null;
     }
 
+    let e_ty = ty.as_enum(decl);
     for let i = 0; i < ed.values.len; i = i + 1 {
         let name: ident.Ident = undefined;
         vec.get(&ed.values, i, &name as *void);
         if ty.push_value(decl, name, i) {
-            push_duplicate_enum_value_error(tc, ty.as_enum(decl), &name);
+            push_duplicate_enum_value_error(tc, e_ty, &name);
             return null;
         }
     }
 
+    update_all_waiting(tc, tc.ctx.mod, decl, &e_ty.name);
     return decl;
 }
 
@@ -1164,7 +1164,7 @@ def declare_enum(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
         return null;
     }
 
-    let definition = ty.new_type(TY_ENUM, null);
+    let definition = ty.new_type(ty.Kind.Enum, null);
     push_tmp_ty(tc, definition);
 
     let owned_name = mangle_type_name(tc, &ed.name);
@@ -1194,7 +1194,7 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
         return null;
     }
 
-    let definition = ty.new_type(TY_FUNC, null);
+    let definition = ty.new_type(ty.Kind.Func, null);
     push_tmp_ty(tc, definition);
 
     let mangled_name = mangle_func_name(tc, &fd.name, fd.is_extern);
