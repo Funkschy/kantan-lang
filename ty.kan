@@ -1,3 +1,4 @@
+import "str";
 import "dbg";
 import "std";
 import "mod";
@@ -725,7 +726,7 @@ def fill_width_align(t: *Type): bool {
 
 // returns true if the string needs to be freed
 def to_string(t: *Type, out: *string): bool {
-    return to_string_mangled(t, false, out);
+    return to_string_mangled(t, true, out);
 }
 
 // returns true if the string needs to be freed
@@ -739,18 +740,33 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         let f_ty = as_func(t);
         let s_ret = ")";
         let free_ret = to_string(f_ty.ret, &s_ret);
-        let name = f_ty.mangled_name.data;
-        if !use_mangled {
-            name = ident.to_string(&f_ty.name);
+
+        let buf = str.create_buf();
+        for let i = 0; i < f_ty.params.len; i = i + 1 {
+            if i > 0 {
+                str.append(&buf, 2, ", ");
+            }
+
+            let p = param_at(f_ty, i);
+
+            let p_ty_s = "";
+            let free_p_ty_s = to_string_mangled(p.ty, use_mangled, &p_ty_s);
+            let len = std.strlen(p_ty_s);
+
+            str.append(&buf, len, p_ty_s);
+
+            if free_p_ty_s {
+                delete p_ty_s;
+            }
         }
-        // TODO(#44): format parameters
-        let s = std.format_str("%s (...) -> %s", name, s_ret);
+
+        let s = std.format_str("(%s) -> %s", buf.content, s_ret);
         if free_ret {
             delete s_ret;
         }
-        if !use_mangled {
-            delete name;
-        }
+
+        str.free_buf(&buf);
+
         *out = s;
         return true;
     }

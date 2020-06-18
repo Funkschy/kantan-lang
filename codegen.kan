@@ -1198,7 +1198,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         let ptr = ty.as_ptr(t);
         let inner = dbg_translate_type(c, ptr.inner);
         let inner_name = "";
-        let free_inner_name = ty.to_string_mangled(ptr.inner, true, &inner_name);
+        let free_inner_name = ty.to_string(ptr.inner, &inner_name);
         let inner_len = std.strlen(inner_name);
 
         for let i = 0; i < ptr.count; i = i + 1 {

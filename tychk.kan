@@ -2418,9 +2418,9 @@ def push_bin_invalid_types_error(
     span: span.Span
 ): void {
     let s_first = "";
-    let free_s_first = ty.to_string_mangled(first, true, &s_first);
+    let free_s_first = ty.to_string(first, &s_first);
     let s_second = "";
-    let free_s_second = ty.to_string_mangled(second, true, &s_second);
+    let free_s_second = ty.to_string(second, &s_second);
 
     let text = std.err2str(ERROR_BIN_INVALID_TYPES, s_first, s_second);
 
@@ -2461,9 +2461,9 @@ def push_wrong_type_error(
     span: span.Span
 ): void {
     let expected_ty_s: string = null;
-    let free_expected_ty_s = ty.to_string_mangled(expected, true, &expected_ty_s);
+    let free_expected_ty_s = ty.to_string(expected, &expected_ty_s);
     let actual_ty_s: string = null;
-    let free_actual_ty_s = ty.to_string_mangled(actual, true, &actual_ty_s);
+    let free_actual_ty_s = ty.to_string(actual, &actual_ty_s);
 
     if actual_ty_s == null {
         actual_ty_s = "unknown type";
@@ -2489,9 +2489,9 @@ def push_wrong_type_error(
 
 def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
     let ret_ty_s = "";
-    let free_ret_ty_s = ty.to_string_mangled(tc.ctx.current_func.ret, true, &ret_ty_s);
+    let free_ret_ty_s = ty.to_string(tc.ctx.current_func.ret, &ret_ty_s);
     let ty_s = "";
-    let free_ty_s = ty.to_string_mangled(expr.ty, true, &ty_s);
+    let free_ty_s = ty.to_string(expr.ty, &ty_s);
 
     let text = std.err2str(ERROR_WRONG_RETURN_TYPE, ret_ty_s, ty_s);
     if free_ty_s {
@@ -2527,9 +2527,9 @@ def push_invalid_cast_error(
     span: span.Span
 ): void {
     let src_ty_s = "";
-    let free_src_ty_s = ty.to_string_mangled(src, true, &src_ty_s);
+    let free_src_ty_s = ty.to_string(src, &src_ty_s);
     let dest_ty_s = "";
-    let free_dest_ty_s = ty.to_string_mangled(dest, true, &dest_ty_s);
+    let free_dest_ty_s = ty.to_string(dest, &dest_ty_s);
 
     let text = std.err2str(ERROR_INVALID_CAST, src_ty_s, dest_ty_s);
     if free_dest_ty_s {
@@ -2582,7 +2582,7 @@ def push_expr_not_assignable_error(tc: *TypeChecker, e: *ast.Expr): void {
 
 def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr): void {
     let ty_s = "";
-    let free_ty_s = ty.to_string_mangled(e.ty, true, &ty_s);
+    let free_ty_s = ty.to_string(e.ty, &ty_s);
     let text = std.err2str(ERROR_DELETE_NON_PTR, ty_s);
     if free_ty_s {
         delete ty_s;
