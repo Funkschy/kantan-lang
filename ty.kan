@@ -434,6 +434,18 @@ def as_func(t: *Type): *Func {
     return t.data as *Func;
 }
 
+def is_callable(t: *Type): bool {
+    return is_func(t)
+        || (is_ptr(t) && as_ptr(t).count == 1 && is_func(as_ptr(t).inner));
+}
+
+def callable_as_func(t: *Type): *Func {
+    if is_func(t) {
+        return as_func(t);
+    }
+    return as_func(as_ptr(t).inner);
+}
+
 /////////// mod type ///////////
 
 type Mod struct {
@@ -834,6 +846,10 @@ def to_static_string(t: *Type): string {
 }
 
 def equals(first: *Type, second: *Type): bool {
+    if first == second {
+        return true;
+    }
+
     if first == null || second == null {
         return false;
     }
@@ -842,6 +858,28 @@ def equals(first: *Type, second: *Type): bool {
         return false;
     }
 
+    if is_func(first) && is_func(second) {
+        let first = as_func(first);
+        let second = as_func(second);
+
+        if !equals(first.ret, second.ret) {
+            return false;
+        }
+
+        if first.params.len != second.params.len {
+            return false;
+        }
+
+        for let i = 0; i < first.params.len; i = i + 1 {
+            if !equals(param_at(first, i).ty, param_at(second, i).ty) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    let was_pointer = false;
     let first_ptr_count = 0;
     let second_ptr_count = 0;
 
@@ -849,14 +887,17 @@ def equals(first: *Type, second: *Type): bool {
         let p_ty = as_ptr(first);
         first_ptr_count = p_ty.count;
         first = p_ty.inner;
+        was_pointer = true;
     }
     if is_ptr(second) {
         let p_ty = as_ptr(second);
         second_ptr_count = p_ty.count;
         second = p_ty.inner;
+        was_pointer = true;
     }
 
-    // only pointers and struct instances are created multiple times, everything
-    // else should be unique in memory
-    return first == second && first_ptr_count == second_ptr_count;
+    // either, at least one operand was a pointer, then we recursively call equals, or neither
+    // types were pointers, then we just compare their memory addresses, which should be unique
+    return ((!was_pointer && first == second) || (was_pointer && equals(first, second)))
+        && first_ptr_count == second_ptr_count;
 }

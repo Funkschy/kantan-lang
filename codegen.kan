@@ -4,6 +4,7 @@ import "mod";
 import "mir";
 import "map";
 import "std";
+import "vmap";
 import "path";
 import "llvm";
 import "name";
@@ -25,13 +26,18 @@ type ModuleContext struct {
     llmod: *llvm.Module
 }
 
+type LLVMFunction struct {
+    ty: *llvm.Type,
+    val: *llvm.Value
+}
+
 type ModuleCompiler struct {
     context: ModuleContext,
     irmod: *mir.Module,
     builder: *llvm.Builder,
     dbg: *DebugInfo,
     structs: map.Map,  // map.Map<mir.RefName, *llvm.Type>
-    functions: map.Map // map.Map<mir.RefName, *llvm.Type>
+    functions: vmap.Map // map.Map<mir.RefName, LLVMFunction>
 }
 
 def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
@@ -53,7 +59,7 @@ def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
         builder: builder,
         dbg: null,
         structs: map.create(),
-        functions: map.create()
+        functions: vmap.create(sizeof LLVMFunction)
     };
 }
 
@@ -61,7 +67,7 @@ def free_compiler(c: *ModuleCompiler): void {
     llvm.dispose_builder(c.builder);
 
     map.free_m(&c.structs);
-    map.free_m(&c.functions);
+    vmap.free_m(&c.functions);
 }
 
 def free_context(ctx: *ModuleContext): void {
@@ -171,41 +177,25 @@ def add_global_const(c: *ModuleCompiler, gc: *mir.GlobalConst): void {
     llvm.set_initializer(global_storage, const_string);
 }
 
-def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): LLVMFunction {
     dbg.assert(ty.is_func(t), "non func type passed");
     let f_ty = ty.as_func(t);
 
     let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
-    let func_decl = map.get(&c.functions, key) as *llvm.Type;
+    let func_ptr = vmap.get_ptr(&c.functions, key) as *LLVMFunction;
 
-    if func_decl == null {
-        let num_params = f_ty.params.len;
-        let params = ptrvec.with_cap(num_params);
-
-        let i = 0;
-        while i < num_params {
-            let param = ty.param_at(f_ty, i);
-
-            let param_ty = translate_type(c, param.ty);
-            ptrvec.push_ptr(&params, param_ty as *void);
-
-            i = i + 1;
-        }
-
-        let ret_ty = translate_type(c, f_ty.ret);
-
-        let param_types = params.elements as **llvm.Type;
-        func_decl = llvm.function_type(
-            ret_ty, param_types, num_params, f_ty.is_varargs
-        );
-        ptrvec.free_v(&params);
+    if func_ptr == null {
+        let func_type = translate_type(c, t);
+        dbg.assert(func_type != null, "could not translate function type");
 
         let name = f_ty.mangled_name.data;
-        llvm.add_function(c.context.llmod, name, func_decl);
-        map.insert(&c.functions, key, func_decl as *void);
+        let func_val = llvm.add_function(c.context.llmod, name, func_type);
+        let func = LLVMFunction { ty: func_type, val: func_val };
+        func_ptr = &func;
+        vmap.insert(&c.functions, key, func_ptr as *void);
     }
 
-    return func_decl;
+    return *func_ptr;
 }
 
 def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
@@ -289,6 +279,32 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         return t;
     }
 
+    if ty.is_callable(t) {
+        let f_ty = ty.callable_as_func(t);
+        let num_params = f_ty.params.len;
+        let params = ptrvec.with_cap(num_params);
+
+        let i = 0;
+        while i < num_params {
+            let param = ty.param_at(f_ty, i);
+
+            let param_ty = translate_type(c, param.ty);
+            ptrvec.push_ptr(&params, param_ty as *void);
+
+            i = i + 1;
+        }
+
+        let ret_ty = translate_type(c, f_ty.ret);
+
+        let param_types = params.elements as **llvm.Type;
+        let func_type = llvm.function_type(
+            ret_ty, param_types, num_params, f_ty.is_varargs
+        );
+        ptrvec.free_v(&params);
+
+        return func_type;
+    }
+
     dbg.assert_fmt(false, "unhandled type %d", t.kind);
     return null;
 }
@@ -309,9 +325,10 @@ def translate_addr_load(
 ): *llvm.Value {
     if mir.is_addr_name(a) {
         let addr_name = mir.as_addr_name(a);
-        let variable = variable_by_name(curr_func, addr_name.value);
+        let variable = lookup(c, curr_func, addr_name.value);
 
-        if load {
+        // don't load functions, since they are unsized (we need to load function pointers though)
+        if load && !ty.is_func(a.ty) {
             dbg.assert_fmt(
                 variable != null, "variable %s was null", addr_name.value.data
             );
@@ -323,7 +340,7 @@ def translate_addr_load(
 
     if mir.is_addr_ref(a) {
         let ref = mir.as_addr_ref(a);
-        return variable_by_name(curr_func, ref.name);
+        return lookup(c, curr_func, ref.name);
     }
 
     if mir.is_addr_const(a) {
@@ -483,9 +500,18 @@ def bb_by_label(f: *FunctionData, label: *mir.Label): *llvm.BasicBlock {
     return map.get(&f.blocks, key) as *llvm.BasicBlock;
 }
 
-def variable_by_name(f: *FunctionData, var_name: name.Ref): *llvm.Value {
+def lookup(c: *ModuleCompiler, f: *FunctionData, var_name: name.Ref): *llvm.Value {
     let key = map.create_key(var_name.len, var_name.data);
     let value = map.get(&f.locals, key) as *llvm.Value;
+
+    // try to find a function with this name instead
+    if value == null {
+        let func = vmap.get_ptr(&c.functions, key) as *LLVMFunction;
+        if func != null {
+            value = func.val;
+        }
+    }
+
     return value;
 }
 
@@ -495,23 +521,22 @@ def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvm.Value): void
 }
 
 def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
-    let llvm_func_ty = lookup_or_declare_function(c, func.ty);
+    let llvm_func = lookup_or_declare_function(c, func.ty);
     dbg.assert_fmt(
-        llvm_func_ty != null, "function type not found %s", func.name.data
+        llvm_func.val != null && llvm_func.ty != null, "function not found '%s'", func.name.data
     );
 
     if func.is_extern {
         return;
     }
 
-    let llvm_func = llvm.get_named_function(c.context.llmod, func.name.data);
-    dbg.assert_fmt(llvm_func!= null, "function not found %s", func.name.data);
+    let llvm_func_ty = llvm_func.ty;
     if c.dbg != null {
         let dbg_f = dbg_create_function(c, func, llvm_func_ty);
-        llvm.set_subprogram(llvm_func, dbg_f);
+        llvm.set_subprogram(llvm_func.val, dbg_f);
     }
 
-    let func_data = create_function_data(c, llvm_func, func);
+    let func_data = create_function_data(c, llvm_func.val, func);
 
     for let i = 0; i < func_data.blocks.len; i = i + 1 {
         let bb = mir.bm_get_bb_ptr(&func.blocks, i);
@@ -912,10 +937,7 @@ def compile_call(
     e: *mir.Expression
 ): *llvm.Value {
     let call = mir.as_expr_call(e);
-    // TODO(#92): we need to change this, when introducing function pointers
-    dbg.assert(mir.is_addr_name(&call.callee), "callee should be name");
-    let callee_name = mir.as_addr_name(&call.callee).value;
-    let llvm_func = llvm.get_named_function(c.context.llmod, callee_name.data);
+    let llvm_func = translate_addr(c, func, &call.callee);
     dbg.assert(llvm_func != null, "llvm function not found");
 
     let num_args = call.args.len;
@@ -952,7 +974,8 @@ type DebugInfo struct {
     file: *llvm.MetaData,
     std_dir: string,
     structs: map.Map, // map.Map<mir.Refname, *llvm.MetaData>
-    enums: map.Map // map.Map<mir.Refname, *llvm.MetaData>
+    enums: map.Map, // map.Map<mir.Refname, *llvm.MetaData>
+    functions: map.Map // map.Map<mir.Refname, *llvm.MetaData>
 }
 
 def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
@@ -999,7 +1022,8 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
         file: llfile,
         std_dir: std_dir,
         structs: map.create(),
-        enums: map.create()
+        enums: map.create(),
+        functions: map.create()
     };
 }
 
@@ -1222,6 +1246,20 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         return inner;
     }
 
+    if ty.is_callable(t) {
+        let f_ty = ty.callable_as_func(t);
+        let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
+
+        let cached = map.get(&c.dbg.functions, key) as *llvm.MetaData;
+        if cached != null {
+            return cached;
+        }
+
+        let f_ty = dbg_create_subroutine_type(c, f_ty);
+        map.insert(&c.dbg.functions, key, f_ty as *void);
+        return f_ty;
+    }
+
     dbg.assert_fmt(false, "unhandled type %d", t.kind);
     return null;
 }
@@ -1258,11 +1296,7 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
     return metadata;
 }
 
-def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): *llvm.MetaData {
-    let info = c.dbg;
-    let surrounding = ptrvec.get(&info.scopes, ir_f.meta.scope.parent) as *llvm.MetaData;
-
-    let f_ty = ty.as_func(ir_f.ty);
+def dbg_create_subroutine_type(c: *ModuleCompiler, f_ty: *ty.Func): *llvm.MetaData {
     let types = ptrvec.with_cap(f_ty.params.len + 1); // +1 for return type
     for let i = 0; i < f_ty.params.len; i = i + 1 {
         let param = ty.param_at(f_ty, i);
@@ -1271,14 +1305,23 @@ def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): 
     ptrvec.push_ptr(&types, dbg_translate_type(c, f_ty.ret) as *void);
 
     let ll_ty = llvm.di_builder_create_subroutine_type(
-        info.builder, info.file, types.elements as **llvm.MetaData, types.len, 0
+        c.dbg.builder, c.dbg.file, types.elements as **llvm.MetaData, types.len, 0
     );
     ptrvec.free_v(&types);
 
+    return ll_ty;
+}
+
+def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): *llvm.MetaData {
+    let surrounding = ptrvec.get(&c.dbg.scopes, ir_f.meta.scope.parent) as *llvm.MetaData;
+
+    let f_ty = ty.as_func(ir_f.ty);
+    let ll_ty = dbg_create_subroutine_type(c, f_ty);
+
     let sub_program = llvm.di_builder_create_function(
-        info.builder, surrounding, ir_f.name.data, ir_f.name.len,
+        c.dbg.builder, surrounding, ir_f.name.data, ir_f.name.len,
         "", 0, // linkage name
-        info.file, ir_f.meta.pos.lnr,
+        c.dbg.file, ir_f.meta.pos.lnr,
         ll_ty,
         false,           // is local to unit
         !ir_f.is_extern, // is definition
@@ -1287,7 +1330,10 @@ def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): 
         false            // is optimized
     );
 
-    ptrvec.set(&info.scopes, ir_f.meta.scope.id, sub_program as *void);
+    let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
+    map.insert(&c.dbg.functions, key, ll_ty as *void);
+
+    ptrvec.set(&c.dbg.scopes, ir_f.meta.scope.id, sub_program as *void);
     return sub_program;
 }
 
@@ -1411,4 +1457,5 @@ def free_dbg_info(info: *DebugInfo) {
     ptrvec.free_v(&info.scopes);
     map.free_m(&info.structs);
     map.free_m(&info.enums);
+    map.free_m(&info.functions);
 }

@@ -60,10 +60,10 @@ LLVM_LD_FLAGS = $(shell $(LLVM_CONFIG) --ldflags)
 LLVM_LIBS = $(shell $(LLVM_CONFIG) --libs $(LLVM_LIB_NAMES))
 LLVM_SYS_LIBS = $(shell $(LLVM_CONFIG) --system-libs)
 
-KANTAN_STABLE = $(START_FOLDER)/../kantan
+KANTAN_STABLE = $(START_FOLDER)/../kantan -g
 KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDER)/suppress-llvm-errors.supp $(START_FOLDER)/compiler
 KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
-KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK)
+KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
 
 $(BIN_NAME) : $(K_FILES) $(C_FILES)
 	mkdir $(BUILD_FOLDER) ;

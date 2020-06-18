@@ -1,0 +1,22 @@
+import "io";
+
+def add(a: i32, b: i32): i32 {
+    return a + b;
+}
+
+def sub(a: i32, b: i32): i32 {
+    return a - b;
+}
+
+def calc(a: i32, b: i32): i32 {
+    let f = &add;
+    let i = f(a, b);
+    f = &sub;
+    return f(i, a);
+}
+
+def main() {
+    let f = &io.printf;
+    f("%d\n", calc(1, 2));
+    return;
+}

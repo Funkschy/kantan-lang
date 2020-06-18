@@ -2004,12 +2004,12 @@ def check_expr_scope_expect(
         }
 
         let f_ty = callee.ty;
-        if !ty.is_func(f_ty) {
+        if !ty.is_callable(f_ty) {
             push_not_callable_error(tc, e.span, f_ty);
             return null;
         }
 
-        let func = ty.as_func(f_ty);
+        let func = ty.callable_as_func(f_ty);
         let expected_num_args = func.params.len;
         let actual_num_args = ast.num_args(&c_e.args);
         if expected_num_args != actual_num_args {
@@ -2239,7 +2239,7 @@ def check_unary_expr(
         return null;
     }
 
-    if ty.is_decl(expr.ty) {
+    if ty.is_decl(expr.ty) && !ty.is_func(expr.ty) {
         let text = std.err2str(ERROR_USING_OP_ON_TY_DECL);
         push_mk_err(tc, text, span);
         return null;
