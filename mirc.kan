@@ -968,8 +968,8 @@ def expr_instruction_decl(
 // with the correct address
 def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     if ty.is_func(e.ty) {
-        // currently all functions are static, this has to change, when we introduce
-        // function pointers
+        // all functions are static, function pointers are no functions, but pointers, so they
+        // are not compiled here
 
         let mir_func = lookup_or_declare_function(c, e.ty);
         *out = mir.make_addr_name(mir_func.name, e.ty);
