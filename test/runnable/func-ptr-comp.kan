@@ -1,0 +1,18 @@
+import "io";
+
+def f() {
+
+}
+
+def g() {
+
+}
+
+def main() {
+    io.printf("%d\n", &f == &f);
+    io.printf("%d\n", &f == &g);
+    let f2 = &f;
+    io.printf("%d\n", &f == f2);
+    let g2 = &g;
+    io.printf("%d\n", f2 == g2);
+}

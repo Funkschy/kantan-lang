@@ -209,6 +209,7 @@ static char const *const error_texts[] = {
     "Cannot use unsized type '%s' inside a struct",
     "Cannot use unsized type '%s' as a function parameter",
     "Cannot take the size of an unsized type '%s'",
+    "Unsized type '%s' cannot be dereferenced",
     "Duplicate entry '%.*s' in enum '%.*s'",
 };
 

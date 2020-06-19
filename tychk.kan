@@ -2282,6 +2282,11 @@ def check_unary_expr(
             e_ty = ptr;
         }
 
+        if !ty.is_sized(e_ty) {
+            push_deref_unsized_error(tc, e_ty, span);
+            return null;
+        }
+
         return e_ty;
     }
 
@@ -2566,6 +2571,10 @@ def push_unsized_param_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void 
 
 def push_unsized_sizeof_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
     push_simple_error(tc, ERROR_UNSIZED_SIZEOF, t, s);
+}
+
+def push_deref_unsized_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+    push_simple_error(tc, ERROR_DEREF_OF_UNSIZED_TYPE, t, s);
 }
 
 def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
