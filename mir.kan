@@ -860,19 +860,22 @@ def is_expr_sizeof(e: *Expression): bool {
 }
 
 type ExprCast struct {
-    kind: i32,
+    kind: CastKind,
     addr: Address,
     into: *ty.Type
 }
 
-def new_expr_bitcast(addr: Address, into: *ty.Type): Expression {
-    let cast = (new ExprCast { kind: MIR_CAST_BIT, addr: addr, into: into });
+type CastKind enum {
+    Bit, Int, FloatToSInt, SIntToFloat
+}
+
+def new_expr_cast(kind: CastKind, addr: Address, into: *ty.Type): Expression {
+    let cast = (new ExprCast { kind: kind, addr: addr, into: into });
     return create_expr(MIR_EXPR_CAST, cast as *void);
 }
 
 def new_expr_intcast(addr: Address, into: *ty.Type): Expression {
-    let cast = (new ExprCast { kind: MIR_CAST_INT, addr: addr, into: into });
-    return create_expr(MIR_EXPR_CAST, cast as *void);
+    return new_expr_cast(CastKind.Int, addr, into);
 }
 
 def as_expr_cast(e: *Expression): *ExprCast {
@@ -881,20 +884,6 @@ def as_expr_cast(e: *Expression): *ExprCast {
 
 def is_expr_cast(e: *Expression): bool {
     return e.kind == MIR_EXPR_CAST;
-}
-
-def is_expr_bitcast(e: *Expression): bool {
-    if is_expr_cast(e) {
-        return as_expr_cast(e).kind == MIR_CAST_BIT;
-    }
-    return false;
-}
-
-def is_expr_intcast(e: *Expression): bool {
-    if is_expr_cast(e) {
-        return as_expr_cast(e).kind == MIR_CAST_INT;
-    }
-    return false;
 }
 
 // An expression is always on the right side of an assignment instruction

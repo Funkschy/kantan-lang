@@ -1,0 +1,10 @@
+import "io";
+
+def main() {
+    let f = 3.14;
+    let i = f as i32;
+    io.printf("%d\n", i == 3);
+
+    let x = i as f32 + 0.14;
+    io.printf("%d\n", (x - f) < 0.001);
+}

@@ -613,6 +613,10 @@ def checked_lookup(
     return OK;
 }
 
+// TODO: this can leak memory if we e.g. try to cast a variable into another variable
+//  let f = 3.14;
+//  let i = f as i32;
+//  let x = i as f + 0.14; // this somehow leaks memory
 def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
     let out_ty: *ty.Type = null;
     if checked_lookup(tc, &name.ident, &out_ty, null) == OK && out_ty != null {
@@ -1984,7 +1988,7 @@ def check_expr_scope_expect(
             return null;
         }
 
-        if !ty.is_ptr(expr.ty) {
+        if !ty.can_be_casted(expr.ty, dest_ty) {
             push_invalid_cast_error(tc, expr.ty, dest_ty, e.span);
             return null;
         }

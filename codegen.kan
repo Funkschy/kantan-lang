@@ -749,18 +749,29 @@ def compile_expr(
         return llvm.build_struct_gep(c.builder, addr, gep.idx, "");
     }
 
-    if mir.is_expr_bitcast(e) {
+    if mir.is_expr_cast(e) {
         let cast = mir.as_expr_cast(e);
+
+        if cast.kind == mir.CastKind.Int {
+            let addr = translate_addr_load(c, func, &cast.addr, false);
+            let into = translate_type(c, cast.into);
+            return llvm.build_int_cast(c.builder, addr, into, "");
+        }
+
         let addr = translate_addr(c, func, &cast.addr);
         let into = translate_type(c, cast.into);
-        return llvm.build_bit_cast(c.builder, addr, into, "");
-    }
 
-    if mir.is_expr_intcast(e) {
-        let cast = mir.as_expr_cast(e);
-        let addr = translate_addr_load(c, func, &cast.addr, false);
-        let into = translate_type(c, cast.into);
-        return llvm.build_int_cast(c.builder, addr, into, "");
+        if cast.kind == mir.CastKind.Bit {
+            return llvm.build_bit_cast(c.builder, addr, into, "");
+        }
+
+        if cast.kind == mir.CastKind.SIntToFloat {
+            return llvm.build_si_to_fp(c.builder, addr, into, "");
+        }
+
+        if cast.kind == mir.CastKind.FloatToSInt {
+            return llvm.build_fp_to_si(c.builder, addr, into, "");
+        }
     }
 
     if mir.is_expr_new(e) {

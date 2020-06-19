@@ -1,0 +1,13 @@
+import "io";
+
+def main() {
+    let lim = 1000;
+    let sum = 0;
+    for let i = 0; i < lim; i = i + 1{
+        if i % 3 == 0 || i % 5 == 0 {
+            sum = sum + i;
+        }
+    }
+
+    io.printf("%d\n", sum);
+}

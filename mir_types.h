@@ -49,6 +49,3 @@
 #define MIR_UNARY_BOOL_NEG      1
 #define MIR_UNARY_NUM_NEG       2
 #define MIR_UNARY_DEREF         3
-
-#define MIR_CAST_BIT            1
-#define MIR_CAST_INT            2

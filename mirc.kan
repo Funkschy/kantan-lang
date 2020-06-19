@@ -901,8 +901,9 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         let e_as = ast.as_as_expr(e);
         declare_type(c, e.ty);
         let addr = expr_instruction(c, e_as.expr, rhs);
+        let kind = cast_kind(e);
 
-        return mir.new_expr_bitcast(addr, e.ty);
+        return mir.new_expr_cast(kind, addr, e.ty);
     }
 
     // EXPR_CALL
@@ -1107,6 +1108,26 @@ def s_mangle(c: *MirCompiler, len: i32, s: string): name.Owned {
 
 def name_from_ident(i: *ident.Ident): name.Ref {
     return name.make_ref(ident.len(i), ident.start(i));
+}
+
+def cast_kind(e: *ast.Expr): mir.CastKind {
+    let cast = ast.as_as_expr(e);
+    let from = cast.expr.ty;
+    let into = e.ty;
+
+    if ty.is_i32(from) && ty.is_f32(into) {
+        return mir.CastKind.SIntToFloat;
+    }
+
+    if ty.is_f32(from) && ty.is_i32(into) {
+        return mir.CastKind.FloatToSInt;
+    }
+
+    if ty.is_i32(from) && ty.is_char(into) || ty.is_char(from) && ty.is_i32(into) {
+        return mir.CastKind.Int;
+    }
+
+    return mir.CastKind.Bit;
 }
 
 #include "mir_types.h"

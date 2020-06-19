@@ -629,6 +629,11 @@ def is_comparable(t: *Type): bool {
         || is_enum(t);
 }
 
+def can_be_casted(from: *Type, into: *Type): bool {
+    return (is_ptr(from) && is_ptr(into))
+        || (is_num(from) && is_num(into));
+}
+
 /////////// align utils ///////////
 // TODO(#36): should be in separate file, but can't because of circular imports
 

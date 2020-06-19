@@ -1,0 +1,18 @@
+import "io";
+
+def main() {
+    let a = 0;
+    let b = 1;
+    let sum = 0;
+    while b <= 4000000 {
+        let tmp = b;
+        b = a + b;
+        a = tmp;
+
+        if b % 2 == 0 {
+            sum = sum + b;
+        }
+    }
+
+    io.printf("%d\n", sum);
+}
