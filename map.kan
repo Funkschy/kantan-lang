@@ -59,6 +59,10 @@ def create(): Map {
 }
 
 def with_cap(cap: i32): Map {
+    if cap == 0 {
+        return Map { len: 0, cap: 0, items: null };
+    }
+
     if cap % 2 != 0 {
         cap = num.next_pow_of_2(cap);
     }
