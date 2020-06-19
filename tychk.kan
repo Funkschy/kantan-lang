@@ -491,6 +491,7 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     // TODO(#32): this should probably be defined in something like a builtin.kan
     let global = scope.create();
     scope.s_bind_in(&global, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
+    scope.s_bind_in(&global, 3, "i64", push_tmp_ty(tc, ty.new_i64()));
     scope.s_bind_in(&global, 3, "f32", push_tmp_ty(tc, ty.new_f32()));
     let char_ty = push_tmp_ty(tc, ty.new_char());
     scope.s_bind_in(&global, 4, "char", char_ty);
@@ -1735,6 +1736,11 @@ def check_expr_scope_expect(
 
     // EXPR_INT
     if ast.is_int_expr(e) {
+        if expected != null && ty.is_i64(expected) {
+            e.ty = get_global_instance(tc, "i64", 3);
+            return e;
+        }
+
         e.ty = get_global_instance(tc, "i32", 3);
         return e;
     }

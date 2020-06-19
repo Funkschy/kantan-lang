@@ -236,6 +236,10 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         return llvm.int32_type_in_context(c.context.ctx);
     }
 
+    if ty.is_i64(t) {
+        return llvm.int64_type_in_context(c.context.ctx);
+    }
+
     if ty.is_void(t) {
         return llvm.void_type_in_context(c.context.ctx);
     }
@@ -401,7 +405,7 @@ def translate_literal(
     let copy = std.strndup(start, end - start);
     let llvm_lit: *llvm.Value = null;
 
-    if ty.is_i32(t) {
+    if ty.is_integer(t) {
         llvm_lit = llvm.const_int_of_string(llvm_ty, copy, 10);
     }
 
@@ -752,7 +756,7 @@ def compile_expr(
     if mir.is_expr_cast(e) {
         let cast = mir.as_expr_cast(e);
 
-        if cast.kind == mir.CastKind.Int {
+        if cast.kind == mir.CastKind.IntPtr {
             let addr = translate_addr_load(c, func, &cast.addr, false);
             let into = translate_type(c, cast.into);
             return llvm.build_int_cast(c.builder, addr, into, "");
@@ -760,6 +764,10 @@ def compile_expr(
 
         let addr = translate_addr(c, func, &cast.addr);
         let into = translate_type(c, cast.into);
+
+        if cast.kind == mir.CastKind.Int {
+            return llvm.build_int_cast(c.builder, addr, into, "");
+        }
 
         if cast.kind == mir.CastKind.Bit {
             return llvm.build_bit_cast(c.builder, addr, into, "");
@@ -1061,6 +1069,12 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     if ty.is_i32(t) {
         return llvm.di_builder_create_basic_type(
             c.dbg.builder, "i32", 3, 32, dw_ate_signed, 0
+        );
+    }
+
+    if ty.is_i64(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "i64", 3, 64, dw_ate_signed, 0
         );
     }
 

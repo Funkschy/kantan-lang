@@ -734,7 +734,7 @@ def binary_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
         let meta = get_meta(c, e.span);
         let bin_result = mir.create_addr_empty();
         push_temp_assign(c, expr, left.ty, meta, &bin_result);
-        return mir.new_expr_intcast(bin_result, e.ty);
+        return mir.new_expr_intptr_cast(bin_result, e.ty);
     }
 
     return expr;
@@ -1123,7 +1123,7 @@ def cast_kind(e: *ast.Expr): mir.CastKind {
         return mir.CastKind.FloatToSInt;
     }
 
-    if ty.is_i32(from) && ty.is_char(into) || ty.is_char(from) && ty.is_i32(into) {
+    if ty.is_integer(from) && ty.is_integer(into) {
         return mir.CastKind.Int;
     }
 

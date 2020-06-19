@@ -866,7 +866,7 @@ type ExprCast struct {
 }
 
 type CastKind enum {
-    Bit, Int, FloatToSInt, SIntToFloat
+    Bit, IntPtr, Int, FloatToSInt, SIntToFloat
 }
 
 def new_expr_cast(kind: CastKind, addr: Address, into: *ty.Type): Expression {
@@ -874,8 +874,8 @@ def new_expr_cast(kind: CastKind, addr: Address, into: *ty.Type): Expression {
     return create_expr(MIR_EXPR_CAST, cast as *void);
 }
 
-def new_expr_intcast(addr: Address, into: *ty.Type): Expression {
-    return new_expr_cast(CastKind.Int, addr, into);
+def new_expr_intptr_cast(addr: Address, into: *ty.Type): Expression {
+    return new_expr_cast(CastKind.IntPtr, addr, into);
 }
 
 def as_expr_cast(e: *Expression): *ExprCast {

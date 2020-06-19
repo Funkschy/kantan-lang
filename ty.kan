@@ -14,7 +14,7 @@ extern def type2str(kind: Kind): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
-    Error, Ptr, Bool, I32, F32, Char, Void, Func, Mod, Struct, Enum
+    Error, Ptr, Bool, I32, F32, I64, Char, Void, Func, Mod, Struct, Enum
 }
 
 // TODO(#15): this should be imported, but can't because of circular dependencies
@@ -69,6 +69,18 @@ def new_i32(): *Type {
 
 def is_i32(t: *Type): bool {
     return t.kind == Kind.I32;
+}
+
+/////////// i64 type ///////////
+
+def new_i64(): *Type {
+    let t = new_type(Kind.I64, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_i64(t: *Type): bool {
+    return t.kind == Kind.I64;
 }
 
 /////////// f32 type ///////////
@@ -615,11 +627,11 @@ def get_scope(t: *Type): *scope.Scope {
 }
 
 def is_num(t: *Type): bool {
-    return is_i32(t) || is_f32(t);
+    return is_integer(t) || is_f32(t);
 }
 
 def is_integer(t: *Type): bool {
-    return is_i32(t);
+    return is_i32(t) || is_i64(t);
 }
 
 def is_comparable(t: *Type): bool {
@@ -705,6 +717,8 @@ def fill_width_align(t: *Type): bool {
         width = 4;
     } else if is_f32(t) {
         width = 4;
+    } else if is_i64(t) {
+        width = 8;
     } else if is_bool(t) {
         width = 1;
     } else if is_char(t) {
