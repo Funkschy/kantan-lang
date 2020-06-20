@@ -634,10 +634,6 @@ def checked_type_lookup(
     return OK;
 }
 
-// TODO: this can leak memory if we e.g. try to cast a variable into another variable
-//  let f = 3.14;
-//  let i = f as i32;
-//  let x = i as f + 0.14; // this somehow leaks memory
 def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
     let out_ty: *ty.Type = null;
     if checked_type_lookup(tc, &name.ident, &out_ty, null) == OK && out_ty != null {
@@ -1481,7 +1477,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         // TODO(#71): if a let stmt is in global scope, it should only allow compile time
         //  expressions as initialization
 
-        // TODO: do we need these 2 bind_value calls? shouln't the value already be ERROR?
+        // TODO(#104): do we need these 2 bind_value calls? shouldn't the value already be ERROR?
 
         if value == null {
             // bind the error type here, to get rid of follow up errors
