@@ -24,14 +24,12 @@ type Kind enum {
 #define WIDTH_UNKNOWN -1
 
 // These flags have to be powers of 2
-#define FLAG_SCOPED        1
-#define FLAG_UNSIZED       2
+#define FLAG_TYPE_SCOPED   1
+#define FLAG_VALUE_SCOPED  2
+#define FLAG_UNSIZED       4
 // this gets set, when tychk visits a type for the first time and gets unset
 // when the type is fully resolved
-#define FLAG_TYCHK_TOUCHED 4
-// if this flag is set, this type refers to a declaration, not an actual instance
-// this is used to check for things like 'bool == false' which would be legal otherwise
-#define FLAG_TY_DECL       8
+#define FLAG_TYCHK_TOUCHED 8
 
 /////////// error type ///////////
 
@@ -149,8 +147,6 @@ def new_ptr(count: i32, inner: *Type): *Type {
 
     // pointers always have a size
     std.flag_unset(&t.flags, FLAG_UNSIZED);
-    // you cannot declare a pointer
-    std.flag_unset(&t.flags, FLAG_TY_DECL);
     fill_width_align(t);
     return t;
 }
@@ -171,8 +167,6 @@ def update_inner(ptr_ty: *Type, inner: *Type): void {
     }
     // pointers always have a size
     std.flag_unset(&ptr_ty.flags, FLAG_UNSIZED);
-    // you cannot declare a pointer
-    std.flag_unset(&ptr_ty.flags, FLAG_TY_DECL);
 }
 
 def is_ptr(t: *Type): bool {
@@ -220,15 +214,11 @@ def init_struct(
 
     t.data = s as *void;
     t.width = WIDTH_UNKNOWN;
-    std.flag_set(&t.flags, FLAG_SCOPED);
+    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
 }
 
 def is_struct(t: *Type): bool {
     return t.kind == Kind.Struct;
-}
-
-def is_struct_decl(t: *Type): bool {
-    return is_struct(t) && is_decl(t);
 }
 
 def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
@@ -309,16 +299,12 @@ def init_enum(
     };
 
     t.data = s as *void;
-    std.flag_set(&t.flags, FLAG_SCOPED);
+    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
     fill_width_align(t);
 }
 
 def is_enum(t: *Type): bool {
     return t.kind == Kind.Enum;
-}
-
-def is_enum_decl(t: *Type): bool {
-    return is_enum(t) && is_decl(t);
 }
 
 def as_enum(t: *Type): *Enum {
@@ -341,7 +327,7 @@ def push_value(t: *Type, name: ident.Ident, value: i32): bool {
     let value = EnumValue { name: name, value: value };
     vmap.insert(&e_ty.values, key, &value as *void);
 
-    let field_type = instance_of(t);
+    let field_type = t;
     // all enum values have the enum itself as their type
     scope.bind_in(&e_ty.scope, &name, field_type);
     return false;
@@ -461,17 +447,20 @@ def callable_as_func(t: *Type): *Func {
 /////////// mod type ///////////
 
 type Mod struct {
-    scope: scope.Scope
+    types: scope.Scope
+    values: scope.Scope
 }
 
 def new_mod(): *Type {
     let m = new Mod {
-        scope: scope.create()
+        types: scope.create(),
+        values: scope.create()
     };
 
     let t = new_type(Kind.Mod, m as *void);
 
-    std.flag_set(&t.flags, FLAG_SCOPED);
+    std.flag_set(&t.flags, FLAG_TYPE_SCOPED);
+    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
     std.flag_set(&t.flags, FLAG_UNSIZED);
 
     return t;
@@ -492,8 +481,7 @@ type Type struct {
     width: i32, // width in bytes
     align: i32,
     flags: i32,
-    data: *void, // extra data, eg. 'Struct' or 'Func'
-    cached_instance: *Type // only ever create one instance of a single type
+    data: *void // extra data, eg. 'Struct' or 'Func'
 }
 
 def new_type(kind: Kind, data: *void): *Type {
@@ -517,26 +505,9 @@ def create_type(kind: Kind, data: *void): Type {
         kind: kind,
         width: WIDTH_UNKNOWN,
         align: 0,
-        flags: FLAG_TY_DECL, // types are declarations by default
-        data: data,
-        cached_instance: null
+        flags: 0,
+        data: data
     };
-}
-
-def instance_of(base: *Type): *Type {
-    if base.cached_instance != null {
-        return base.cached_instance;
-    }
-
-    let inst = new *base;
-    std.flag_unset(&inst.flags, FLAG_TY_DECL);
-    base.cached_instance = inst;
-
-    return inst;
-}
-
-def is_decl(t: *Type): bool {
-    return std.flag_get(&t.flags, FLAG_TY_DECL);
 }
 
 def is_sized(t: *Type): bool {
@@ -550,12 +521,20 @@ def is_initialized(t: *Type): bool {
         && ((t.width != WIDTH_UNKNOWN && t.align > 0) || std.flag_get(&t.flags, FLAG_UNSIZED));
 }
 
-def is_scoped(t: *Type): bool {
+def is_type_scoped(t: *Type): bool {
     if t == null {
         return false;
     }
 
-    return std.flag_get(&t.flags, FLAG_SCOPED);
+    return std.flag_get(&t.flags, FLAG_TYPE_SCOPED);
+}
+
+def is_value_scoped(t: *Type): bool {
+    if t == null {
+        return false;
+    }
+
+    return std.flag_get(&t.flags, FLAG_VALUE_SCOPED);
 }
 
 def free_ty(t: *Type): void {
@@ -590,7 +569,8 @@ def free_ty(t: *Type): void {
 
     if is_mod(t) {
         let m_ty = as_mod(t);
-        scope.free_s(&m_ty.scope);
+        scope.free_s(&m_ty.values);
+        scope.free_s(&m_ty.types);
         delete t.data;
     }
 
@@ -598,17 +578,13 @@ def free_ty(t: *Type): void {
         delete t.data;
     }
 
-    if t.cached_instance != null {
-        delete t.cached_instance;
-    }
-
     delete t;
 }
 
-// looks for an ident in types with FLAG_SCOPED
-def get_scope(t: *Type): *scope.Scope {
+// looks for an ident in types with FLAG_VALUE_SCOPED
+def get_value_scope(t: *Type): *scope.Scope {
     if is_mod(t) {
-        return &as_mod(t).scope;
+        return &as_mod(t).values;
     }
 
     if is_struct(t) {
@@ -620,7 +596,15 @@ def get_scope(t: *Type): *scope.Scope {
     }
 
     if is_ptr(t) {
-        return get_scope(as_ptr(t).inner);
+        return get_value_scope(as_ptr(t).inner);
+    }
+
+    return null;
+}
+
+def get_type_scope(t: *Type): *scope.Scope {
+    if is_mod(t) {
+        return &as_mod(t).types;
     }
 
     return null;
@@ -743,11 +727,6 @@ def fill_width_align(t: *Type): bool {
             align = width;
         }
         t.align = align;
-
-        if t.cached_instance != null {
-            t.cached_instance.width = width;
-            t.cached_instance.align = align;
-        }
 
         return true;
     }

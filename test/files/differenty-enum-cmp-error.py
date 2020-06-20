@@ -13,7 +13,7 @@ class Test(Code):
 
 
         error = output.errors[0]
-        expected_rsn = "Identifier 'Fist' is not in scope"
+        expected_rsn = "No value called 'Fist' in scope"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)

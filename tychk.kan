@@ -203,24 +203,31 @@ type Ctx struct {
     mod: *mod.Module,
     current_func: *ty.Func, // the function that is currently being resolved (or null)
     imports: map.Map, // <string, *mod.Module>
-    scopes: scope.ScopeStack
+    values: scope.ScopeStack,
+    types: scope.ScopeStack
 }
 
-def create_ctx(mod: *mod.Module, global: *scope.Scope): *Ctx {
-    let scopes = scope.create_stack();
-    scope.push_scope(&scopes, global);
-    scope.push_scope(&scopes, ty.get_scope(mod.ty));
+def create_ctx(mod: *mod.Module, global_types: *scope.Scope, global_values: *scope.Scope): *Ctx {
+    let values = scope.create_stack();
+    scope.push_scope(&values, global_values);
+    scope.push_scope(&values, ty.get_value_scope(mod.ty));
+
+    let types = scope.create_stack();
+    scope.push_scope(&types, global_types);
+    scope.push_scope(&types, ty.get_type_scope(mod.ty));
 
     return new Ctx {
         mod: mod,
         current_func: null,
         imports: map.create(),
-        scopes: scopes
+        values: values,
+        types: types
     };
 }
 
 def free_ctx(ctx: *Ctx): void {
-    scope.free_stack(&ctx.scopes, 2);
+    scope.free_stack(&ctx.types, 2);
+    scope.free_stack(&ctx.values, 2);
     map.free_m(&ctx.imports);
     delete ctx;
 }
@@ -236,7 +243,8 @@ type TypeChecker struct {
     ctx: *Ctx,
     main_func: *ty.Type,
     types: ptrvec.Vec,
-    globals: scope.Scope,
+    global_types: scope.Scope,
+    global_values: scope.Scope,
     errors: vec.Vec, // <TypeError>
     requests: vec.Vec, // Vec<WaitingRequestMap> indexed by mod idx
     contexts: ptrvec.Vec
@@ -247,7 +255,7 @@ type CheckResult struct {
     had_errors: bool,
     types: ptrvec.Vec,
     mods: *mod.Map,
-    globals: scope.Scope,
+    global_types: scope.Scope,
     main_func: *ty.Type
 }
 
@@ -259,14 +267,14 @@ def create_result(
     had_errors: bool,
     types: ptrvec.Vec,
     mods: *mod.Map,
-    globals: scope.Scope,
+    global_types: scope.Scope,
     main_func: *ty.Type
 ): CheckResult {
     return CheckResult {
         had_errors: had_errors,
         types: types,
         mods: mods,
-        globals: globals,
+        globals_types: global_types,
         main_func: main_func
     };
 }
@@ -279,15 +287,15 @@ def free_result(r: *CheckResult): void {
     }
 
     ptrvec.free_v(&r.types);
-    scope.free_s(&r.globals);
+    scope.free_s(&r.global_types);
 }
 
 def create_err_result(tc: *TypeChecker): CheckResult {
-    return create_result(true, tc.types, tc.mods, tc.globals, null);
+    return create_result(true, tc.types, tc.mods, tc.global_types, null);
 }
 
 def create_check_result(tc: *TypeChecker): CheckResult {
-    return create_result(num_errs(tc) > 0, tc.types, tc.mods, tc.globals, tc.main_func);
+    return create_result(num_errs(tc) > 0, tc.types, tc.mods, tc.global_types, tc.main_func);
 }
 
 def create(mods: *mod.Map): TypeChecker {
@@ -300,14 +308,16 @@ def create(mods: *mod.Map): TypeChecker {
         ctx: null,
         main_func: null,
         types: ptrvec.with_cap(256),
-        globals: scope.create(),
+        global_types: scope.create(),
+        global_values: scope.create(),
         errors: vec.create(sizeof TypeError),
         requests: vec.with_cap(sizeof WaitingRequestMap, num_mods),
         contexts: ptrvec.with_cap(num_mods)
     };
     vec.init_zero(&tc.requests);
 
-    tc.globals = create_global_scope(&tc);
+    tc.global_types = create_global_types_scope(&tc);
+    tc.global_values = create_global_values_scope(&tc, &tc.global_types);
     return tc;
 }
 
@@ -355,7 +365,7 @@ def check(tc: *TypeChecker): CheckResult {
         let next = map.iter_next(&iter);
 
         while next != null {
-            let incomplete_ty = mod.s_lookup(m, next.key.len, next.key.value);
+            let incomplete_ty = mod.s_lookup_type(m, next.key.len, next.key.value);
             if incomplete_ty != null {
                 // DBG START
                 // io.printf("----\n");
@@ -391,7 +401,7 @@ def check(tc: *TypeChecker): CheckResult {
                 let j = 0;
                 while j < pending.len {
                     let req = vec.get_ptr(pending, j) as *WaitingRequest;
-                    push_not_defined_error(tc, &req.waiting_for);
+                    push_not_defined_error(tc, &req.waiting_for, LookupKind.Types);
                     error = true;
                     j = j + 1;
                 }
@@ -430,7 +440,7 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     let ty = ty.new_mod();
     m.ty = ty;
 
-    let ctx = create_ctx(m, &tc.globals);
+    let ctx = create_ctx(m, &tc.global_types, &tc.global_values);
     ptrvec.set(&tc.contexts, idx, ctx as *void);
     tc.ctx = ctx;
 
@@ -487,7 +497,7 @@ def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
     return vec.get_ptr(&tc.requests, mod.idx) as *WaitingRequestMap;
 }
 
-def create_global_scope(tc: *TypeChecker): scope.Scope {
+def create_global_types_scope(tc: *TypeChecker): scope.Scope {
     // TODO(#32): this should probably be defined in something like a builtin.kan
     let global = scope.create();
     scope.s_bind_in(&global, 3, "i32", push_tmp_ty(tc, ty.new_i32()));
@@ -495,7 +505,7 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     scope.s_bind_in(&global, 3, "f32", push_tmp_ty(tc, ty.new_f32()));
     let char_ty = push_tmp_ty(tc, ty.new_char());
     scope.s_bind_in(&global, 4, "char", char_ty);
-    scope.s_bind_in(&global, 6, "string", push_tmp_ty(tc, ty.new_ptr(1, instance_of_ty(char_ty))));
+    scope.s_bind_in(&global, 6, "string", push_tmp_ty(tc, ty.new_ptr(1, char_ty)));
 
     scope.s_bind_in(&global, 4, "void", push_tmp_ty(tc, ty.new_void()));
     scope.s_bind_in(&global, std.strlen(ERROR_TY), ERROR_TY, push_tmp_ty(tc, ty.new_error()));
@@ -503,14 +513,20 @@ def create_global_scope(tc: *TypeChecker): scope.Scope {
     let bool_ty = push_tmp_ty(tc, ty.new_bool());
     scope.s_bind_in(&global, 4, "bool", bool_ty);
 
-    scope.s_bind_in(&global, 4, "true", instance_of_ty(bool_ty));
-    scope.s_bind_in(&global, 5, "false", instance_of_ty(bool_ty));
+    return global;
+}
+
+def create_global_values_scope(tc: *TypeChecker, global_types: *scope.Scope): scope.Scope {
+    let global = scope.create();
+    let bool_ty = scope.s_get_in(global_types, 4, "bool");
+    scope.s_bind_in(&global, 4, "true", bool_ty);
+    scope.s_bind_in(&global, 5, "false", bool_ty);
 
     return global;
 }
 
-def get_global_instance(tc: *TypeChecker, name: string, len: i32): *ty.Type {
-    return instance_of_ty(scope.s_get_in(&tc.globals, len, name));
+def get_global_type(tc: *TypeChecker, len: i32, name: string): *ty.Type {
+    return scope.s_get_in(&tc.global_types, len, name);
 }
 
 def num_errs(tc: *TypeChecker): i32 {
@@ -552,18 +568,22 @@ def sorted_mods(mods: *mod.Map): *i32 {
     return sorted_mods;
 }
 
-def instance_of_ty(t: *ty.Type): *ty.Type {
-    return ty.instance_of(t);
+def lookup_value(tc: *TypeChecker, name: *ident.Ident): *ty.Type {
+    return scope.lookup(&tc.ctx.values, name);
 }
 
-def lookup(tc: *TypeChecker, ident: *ident.Ident): *ty.Type {
-    return m_lookup(tc, ident, null);
+def lookup_type(tc: *TypeChecker, name: *ident.Ident): *ty.Type {
+    return scope.lookup(&tc.ctx.types, name);
 }
 
 // if the ident has a '.' inside it like 'mymod.test', out_mod will be set to a
 // reference to the correspoding module (mymod) this will happen, even if out_mod
 // does not contain the actual type (test)
-def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.Type {
+def m_lookup_type(
+    tc: *TypeChecker,
+    name: *ident.Ident,
+    out_mod: **mod.Module
+): *ty.Type {
 #define SET_OUT_MOD(m) if out_mod != null { *out_mod = (m); } 0
 
     let len = ident.len(name);
@@ -571,7 +591,7 @@ def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.T
     if dot_index < 0 {
         // same module
         SET_OUT_MOD(tc.ctx.mod);
-        return scope.lookup(&tc.ctx.scopes, name);
+        return scope.lookup(&tc.ctx.types, name);
     }
 
     let m = get_mod_by_alias(tc.ctx, dot_index, ident.start(name));
@@ -583,7 +603,7 @@ def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.T
 
     SET_OUT_MOD(m);
 
-    let ty = mod.s_lookup(m, len - dot_index - 1, ident.start(name) + dot_index + 1);
+    let ty = mod.s_lookup_type(m, len - dot_index - 1, ident.start(name) + dot_index + 1);
     if ty == null {
         // io.printf("DBG DEBUG %.*s type not found\n", len, ident.start(name));
         return null;
@@ -592,13 +612,13 @@ def m_lookup(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): *ty.T
     return ty;
 }
 
-def checked_lookup(
+def checked_type_lookup(
     tc: *TypeChecker,
     name: *ident.Ident,
     out_ty: **ty.Type,
     out_mod: **mod.Module
 ): i32 {
-    let ty = m_lookup(tc, name, out_mod);
+    let ty = m_lookup_type(tc, name, out_mod);
     if out_mod == null {
         *out_ty = ty;
         return OK;
@@ -606,7 +626,7 @@ def checked_lookup(
 
     if *out_mod == null {
         // TODO(#35): should just be module name
-        push_not_defined_error(tc, name);
+        push_not_defined_error(tc, name, LookupKind.Types);
         return ERROR;
     }
 
@@ -620,15 +640,14 @@ def checked_lookup(
 //  let x = i as f + 0.14; // this somehow leaks memory
 def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
     let out_ty: *ty.Type = null;
-    if checked_lookup(tc, &name.ident, &out_ty, null) == OK && out_ty != null {
-        out_ty = instance_of_ty(out_ty);
+    if checked_type_lookup(tc, &name.ident, &out_ty, null) == OK && out_ty != null {
         if tyid.is_ptr(name) {
             return push_tmp_ty(tc, ty.new_ptr(name.pointer_count, out_ty));
         } else {
             return out_ty;
         }
     } else {
-        push_not_defined_error(tc, &name.ident);
+        push_not_defined_error(tc, &name.ident, LookupKind.Types);
     }
 
     return null;
@@ -658,7 +677,7 @@ def fill_func_def(
         ret_ty_ident = ident.from_span(span.create(literal, literal + 4));
     }
 
-    if checked_lookup(tc, &ret_ty_ident, &ret_ty, &ret_ty_mod) == ERROR {
+    if checked_type_lookup(tc, &ret_ty_ident, &ret_ty, &ret_ty_mod) == ERROR {
         // module does not exist
         error = true;
     }
@@ -673,10 +692,8 @@ def fill_func_def(
             func_wait_for_type(tc, ret_ty_mod, ret_ty_ident, OFFSET_RETURN_TYPE, t);
             waiting = true;
         } else if tyid.is_ptr(&f_decl.ret_ty) {
-            ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, instance_of_ty(ret_ty));
+            ret_ty = ty.new_ptr(f_decl.ret_ty.pointer_count, ret_ty);
             push_tmp_ty(tc, ret_ty);
-        } else {
-            ret_ty = instance_of_ty(ret_ty);
         }
     }
 
@@ -693,12 +710,10 @@ def fill_func_def(
             let p_ty_name = p.ty.ident;
             let p_ty: *ty.Type = null;
 
-            if checked_lookup(tc, &p_ty_name, &p_ty, &p_mod) == OK {
+            if checked_type_lookup(tc, &p_ty_name, &p_ty, &p_mod) == OK {
                 if p_ty == null && p_mod != null {
                     func_wait_for_type(tc, p_mod, p_ty_name, i, t);
                     waiting = true;
-                } else if p_ty != null {
-                    p_ty = instance_of_ty(p_ty);
                 }
 
                 if tyid.is_ptr(&p.ty) {
@@ -741,23 +756,25 @@ def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
     return ty;
 }
 
-def open_scope(tc: *TypeChecker): void {
-    scope.open_scope(&tc.ctx.scopes);
+def open_scope(tc: *TypeChecker) {
+    scope.open_scope(&tc.ctx.types);
+    scope.open_scope(&tc.ctx.values);
 }
 
-def close_scope(tc: *TypeChecker): void {
-    scope.close_scope(&tc.ctx.scopes);
+def close_scope(tc: *TypeChecker) {
+    scope.close_scope(&tc.ctx.types);
+    scope.close_scope(&tc.ctx.values);
 }
 
-def bind(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type): void {
-    scope.bind(&tc.ctx.scopes, ident, ty);
+def bind_type(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type) {
+    scope.bind(&tc.ctx.types, ident, ty);
 }
 
-def fill_struct_fields(
-    tc: *TypeChecker,
-    s_decl: *record.StructDecl,
-    t: *ty.Type
-): void {
+def bind_value(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type) {
+    scope.bind(&tc.ctx.values, ident, ty);
+}
+
+def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type) {
     let s_ty = ty.as_struct(t);
 
     // let s = ident.to_string(&s_decl.name);
@@ -783,15 +800,13 @@ def fill_struct_fields(
 
         let mod: *mod.Module = null;
         let field_ty: *ty.Type = null;
-        if checked_lookup(tc, &f.ty.ident, &field_ty, &mod) == OK {
+        if checked_type_lookup(tc, &f.ty.ident, &field_ty, &mod) == OK {
             // pointers are ok, because their size is known
             let is_ptr = tyid.is_ptr(&f.ty);
             if field_ty != null {
                 let is_struct = ty.is_struct(field_ty);
 
                 if ty.is_initialized(field_ty) {
-                    field_ty = instance_of_ty(field_ty);
-
                     if is_ptr {
                         field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
                         push_tmp_ty(tc, field_ty);
@@ -954,7 +969,6 @@ def update_all_waiting(
 def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type): void {
     let waiting_ty = req.to_fill;
     let waiting_mod = req.to_fill_mod;
-    resolved_ty = instance_of_ty(resolved_ty);
 
     if req.kind == WAITING_TYPE || req.kind == WAITING_TYPE_PTR {
         let waiting_s_ty = ty.as_struct(waiting_ty);
@@ -1073,10 +1087,6 @@ def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
     return ident.from_span(new_span);
 }
 
-def in_global_scope(tc: *TypeChecker): bool {
-    return scope.num_scopes(&tc.ctx.scopes) <= 2;
-}
-
 def check_import(
     tc: *TypeChecker,
     i_s: *ast.ImportStmt,
@@ -1128,7 +1138,7 @@ def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
 
 // TODO(#103): remove duplicated code
 def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
-    let prev = lookup(tc, &sd.name);
+    let prev = lookup_type(tc, &sd.name);
     if prev != null {
         push_duplicate_def_error(tc, &sd.name);
         return null;
@@ -1163,7 +1173,12 @@ def check_enum_decl(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
 }
 
 def declare_enum(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
-    let prev = lookup(tc, &ed.name);
+    // since enum names are values and types at the same time, we have to check for name
+    // collisions with values and types aswell
+    let prev = lookup_type(tc, &ed.name);
+    if prev == null {
+        prev = lookup_value(tc, &ed.name);
+    }
     if prev != null {
         push_duplicate_def_error(tc, &ed.name);
         return null;
@@ -1174,7 +1189,7 @@ def declare_enum(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
 
     let owned_name = mangle_type_name(tc, &ed.name);
     // currently, all enums are just i32 values
-    let base_type = get_global_instance(tc, "i32", 3);
+    let base_type = get_global_type(tc, 3, "i32");
     ty.init_enum(definition, ed.name, owned_name, tc.ctx.mod, base_type);
     return definition;
 }
@@ -1193,7 +1208,7 @@ def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
 }
 
 def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
-    let prev = lookup(tc, &fd.name);
+    let prev = lookup_value(tc, &fd.name);
     if prev != null {
         push_duplicate_def_error(tc, &fd.name);
         return null;
@@ -1226,10 +1241,10 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
 
 def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     let f_name = &f_s.decl.name;
-    let f_ty = lookup(tc, f_name);
+    let f_ty = lookup_value(tc, f_name);
 
     if f_ty == null {
-        push_not_defined_error(tc, f_name);
+        push_not_defined_error(tc, f_name, LookupKind.Values);
         return null;
     }
 
@@ -1266,7 +1281,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     let i = 0;
     while i < f_ty.params.len {
         let p = ty.param_at(f_ty, i);
-        bind(tc, &p.name, p.ty);
+        bind_value(tc, &p.name, p.ty);
         i = i + 1;
     }
 
@@ -1361,7 +1376,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        bind(tc, &alias, ty);
+        // since types and/or values could be imported, imports live in both namespaces
+        bind_type(tc, &alias, ty);
+        bind_value(tc, &alias, ty);
         return s;
     }
 
@@ -1378,7 +1395,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        bind(tc, &sd.name, ty);
+        bind_type(tc, &sd.name, ty);
         sd.struct_ty = ty;
 
         return s;
@@ -1397,7 +1414,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        bind(tc, &ed.name, ty);
+        // the name of an enum can refer to both, the Enum scope (value) or the enum Type
+        bind_type(tc, &ed.name, ty);
+        bind_value(tc, &ed.name, ty);
         ed.enum_ty = ty;
 
         return s;
@@ -1412,7 +1431,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             let ty = check_func_decl(tc, fd);
 
             if ty != null {
-                bind(tc, &fd.name, ty);
+                bind_value(tc, &fd.name, ty);
                 fd.func_ty = ty;
             } else {
                 return null;
@@ -1440,10 +1459,10 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         // the function bodies in the decl_only_pass
         if tc.decl_only_pass {
             // placeholder to bind the name
-            let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
+            let temp_ty = get_global_type(tc, std.strlen(ERROR_TY), ERROR_TY);
             // we need to bind the name here, so we can give an error, when someone
             // tries to write a function with the same name
-            bind(tc, &l_s.ident, temp_ty);
+            bind_value(tc, &l_s.ident, temp_ty);
             return s;
         }
 
@@ -1462,10 +1481,12 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         // TODO(#71): if a let stmt is in global scope, it should only allow compile time
         //  expressions as initialization
 
+        // TODO: do we need these 2 bind_value calls? shouln't the value already be ERROR?
+
         if value == null {
             // bind the error type here, to get rid of follow up errors
-            let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
-            bind(tc, &l_s.ident, temp_ty);
+            let temp_ty = get_global_type(tc, std.strlen(ERROR_TY), ERROR_TY);
+            bind_value(tc, &l_s.ident, temp_ty);
             return null;
         }
 
@@ -1473,8 +1494,8 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             if !ty.equals(value.ty, expected_ty) {
                 push_wrong_let_type_error(tc, expected_ty, value.ty, s.span);
                 // bind the error type here, to get rid of follow up errors
-                let temp_ty = get_global_instance(tc, ERROR_TY, std.strlen(ERROR_TY));
-                bind(tc, &l_s.ident, temp_ty);
+                let temp_ty = get_global_type(tc, std.strlen(ERROR_TY), ERROR_TY);
+                bind_value(tc, &l_s.ident, temp_ty);
                 return null;
             }
         }
@@ -1485,7 +1506,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         l_s.value = value;
-        bind(tc, &l_s.ident, l_s.value.ty);
+        bind_value(tc, &l_s.ident, l_s.value.ty);
         return s;
     }
 
@@ -1569,7 +1590,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        let bool_ty = get_global_instance(tc, "bool", 4);
+        let bool_ty = get_global_type(tc, 4, "bool");
         if !ty.equals(bool_ty, condition.ty) {
             push_invalid_condition_error(tc, condition);
             return null;
@@ -1602,7 +1623,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        let bool_ty = get_global_instance(tc, "bool", 4);
+        let bool_ty = get_global_type(tc, 4, "bool");
         if !ty.equals(bool_ty, condition.ty) {
             push_invalid_condition_error(tc, condition);
             return null;
@@ -1636,7 +1657,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        let bool_ty = get_global_instance(tc, "bool", 4);
+        let bool_ty = get_global_type(tc, 4, "bool");
         if !ty.equals(bool_ty, condition.ty) {
             push_invalid_condition_error(tc, condition);
             return null;
@@ -1714,40 +1735,54 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     return null;
 }
 
+type LookupKind enum {
+    Types, Values
+}
+
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
-    return check_expr_scope(tc, e, null);
+    return check_expr_scope(tc, e, null, LookupKind.Values);
+}
+
+def check_expr_with_kind(tc: *TypeChecker, e: *ast.Expr, lookup_kind: LookupKind): *ast.Expr {
+    return check_expr_scope(tc, e, null, lookup_kind);
 }
 
 def check_expr_expect(tc: *TypeChecker, e: *ast.Expr, expected: *ty.Type): *ast.Expr {
-    return check_expr_scope_expect(tc, e, null, expected);
+    return check_expr_scope_expect(tc, e, null, expected, LookupKind.Values);
 }
 
-def check_expr_scope(tc: *TypeChecker, e: *ast.Expr, scope: *scope.Scope): *ast.Expr {
-    return check_expr_scope_expect(tc, e, scope, null);
+def check_expr_scope(
+    tc: *TypeChecker,
+    e: *ast.Expr,
+    scope: *scope.Scope,
+    lookup_kind: LookupKind
+): *ast.Expr {
+    return check_expr_scope_expect(tc, e, scope, null, lookup_kind);
 }
 
 def check_expr_scope_expect(
     tc: *TypeChecker,
     e: *ast.Expr,
     lookup_scope: *scope.Scope,
-    expected: *ty.Type
+    expected: *ty.Type,
+    lookup_kind: LookupKind
 ): *ast.Expr {
     dbg.assert(!tc.decl_only_pass, "expressions should not be checked during the decl_only_pass");
 
     // EXPR_INT
     if ast.is_int_expr(e) {
         if expected != null && ty.is_i64(expected) {
-            e.ty = get_global_instance(tc, "i64", 3);
+            e.ty = get_global_type(tc, 3, "i64");
             return e;
         }
 
-        e.ty = get_global_instance(tc, "i32", 3);
+        e.ty = get_global_type(tc, 3, "i32");
         return e;
     }
 
     // EXPR_FLOAT
     if ast.is_float_expr(e) {
-        e.ty = get_global_instance(tc, "f32", 3);
+        e.ty = get_global_type(tc, 3, "f32");
         return e;
     }
 
@@ -1776,13 +1811,13 @@ def check_expr_scope_expect(
 
     // EXPR_CHAR
     if ast.is_char_expr(e) {
-        e.ty = get_global_instance(tc, "char", 4);
+        e.ty = get_global_type(tc, 4, "char");
         return e;
     }
 
     // EXPR_STRING
     if ast.is_string_expr(e) {
-        e.ty = get_global_instance(tc, "string", 6);
+        e.ty = get_global_type(tc, 6, "string");
         return e;
     }
 
@@ -1790,13 +1825,17 @@ def check_expr_scope_expect(
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
         if lookup_scope == null {
-            e.ty = lookup(tc, ident);
+            if lookup_kind == LookupKind.Values {
+                e.ty = lookup_value(tc, ident);
+            } else {
+                e.ty = lookup_type(tc, ident);
+            }
         } else {
             e.ty = scope.get_in(lookup_scope, ident);
         }
 
         if e.ty == null {
-            push_not_defined_error(tc, ident);
+            push_not_defined_error(tc, ident, lookup_kind);
             return null;
         }
 
@@ -1814,7 +1853,7 @@ def check_expr_scope_expect(
     if ast.is_access_expr(e) {
         let a_e = ast.as_access_expr(e);
 
-        let left = check_expr_scope(tc, a_e.left, lookup_scope);
+        let left = check_expr_scope(tc, a_e.left, lookup_scope, LookupKind.Values);
         if left == null {
             return null;
         }
@@ -1825,8 +1864,9 @@ def check_expr_scope_expect(
         //  "Type 'pointer' cannot be accessed with '.' operator" does not
         //  make sense, when the actual pointer to a struct can be accessed with '.'
 
-        // Type cannot be accessed with '.'
-        if !ty.is_scoped(a_e.left.ty) || ty.is_struct_decl(a_e.left.ty) {
+        let value_scoped = lookup_kind == LookupKind.Values && ty.is_value_scoped(a_e.left.ty);
+        let type_scoped = lookup_kind == LookupKind.Types && ty.is_type_scoped(a_e.left.ty);
+        if !(value_scoped || type_scoped) {
             // struct types are the types of the definition and not an actual
             // instance (basically class vs object of that class). There is currently
             // no mechanism to access the fields of a struct definition, which could
@@ -1837,7 +1877,13 @@ def check_expr_scope_expect(
             return null;
         }
 
-        let left_scope = ty.get_scope(a_e.left.ty);
+        let left_scope: *scope.Scope = null;
+        if lookup_kind == LookupKind.Values {
+            left_scope = ty.get_value_scope(a_e.left.ty);
+        } else {
+            left_scope = ty.get_type_scope(a_e.left.ty);
+        }
+
         if left_scope == null {
             push_internal_error(tc, a_e.left.span, "no scope for type found");
             return null;
@@ -1845,7 +1891,7 @@ def check_expr_scope_expect(
 
         let right = scope.get_in(left_scope, &a_e.right.ident);
         if right == null {
-            push_not_defined_error(tc, &a_e.right.ident);
+            push_not_defined_error(tc, &a_e.right.ident, lookup_kind);
             return null;
         }
 
@@ -1976,7 +2022,7 @@ def check_expr_scope_expect(
         }
 
         s_e.actual_ty = actual_ty;
-        e.ty = get_global_instance(tc, "i32", 3);
+        e.ty = get_global_type(tc, 3, "i32");
         return e;
     }
 
@@ -2079,12 +2125,12 @@ def check_expr_scope_expect(
     // EXPR_INIT
     if ast.is_init_expr(e) {
         let i_e = ast.as_init_expr(e);
-        let left = check_expr(tc, i_e.struct_ty);
+        let left = check_expr_with_kind(tc, i_e.struct_ty, LookupKind.Types);
         if left == null {
             return null;
         }
 
-        if !ty.is_struct_decl(left.ty) {
+         if !ty.is_struct(left.ty) {
             push_init_non_struct_error(tc, left.ty, e.span);
             return null;
         }
@@ -2122,7 +2168,7 @@ def check_expr_scope_expect(
 
         // TODO(#54): those names are really confusing
         i_e.struct_ty = left;
-        e.ty = instance_of_ty(left.ty);
+        e.ty = left.ty;
         return e;
     }
 
@@ -2153,13 +2199,6 @@ def check_binary_expr(
         return null;
     }
 
-    if ty.is_decl(first) || ty.is_decl(second) {
-        let text = std.err2str(ERROR_USING_OP_ON_TY_DECL);
-        push_mk_err(tc, text, span);
-        return null;
-    }
-
-
     if ty.equals(first, second) {
         if kind == BINARY_EQ || kind == BINARY_NE
             || kind == BINARY_ST || kind == BINARY_SE
@@ -2170,7 +2209,7 @@ def check_binary_expr(
             }
 
             if ty.is_comparable(first) {
-                return instance_of_ty(scope.s_get_in(&tc.globals, 4, "bool"));
+                return get_global_type(tc, 4, "bool");
             }
 
             RET_INVALID_TYS();
@@ -2195,7 +2234,7 @@ def check_binary_expr(
 
         if ty.is_char(first) {
             if kind == BINARY_ADD || kind == BINARY_SUB {
-                return instance_of_ty(scope.s_get_in(&tc.globals, 3, "i32"));
+                return get_global_type(tc, 3, "i32");
             }
             return first;
         }
@@ -2203,7 +2242,7 @@ def check_binary_expr(
         if ty.is_ptr(first) {
             // pointer subtraction is the only allowed operation
             if kind == BINARY_SUB {
-                return instance_of_ty(scope.s_get_in(&tc.globals, 3, "i32"));
+                return get_global_type(tc, 3, "i32");
             }
 
             let text = std.err2str(ERROR_BIN_PTR_INVALID);
@@ -2246,12 +2285,6 @@ def check_unary_expr(
 
     if expr.ty == null {
         push_internal_error(tc, span, "Unary expr type was null");
-        return null;
-    }
-
-    if ty.is_decl(expr.ty) && !ty.is_func(expr.ty) {
-        let text = std.err2str(ERROR_USING_OP_ON_TY_DECL);
-        push_mk_err(tc, text, span);
         return null;
     }
 
@@ -2367,6 +2400,8 @@ def free_tc(tc: *TypeChecker): void {
         i = i + 1;
     }
     ptrvec.free_v(&tc.contexts);
+
+    scope.free_s(&tc.global_values);
 }
 
 def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
@@ -2389,8 +2424,18 @@ def push_duplicate_def_error(tc: *TypeChecker, name: *ident.Ident): void {
     push_ident_error(tc, ERROR_DUPLICATE_DEFINTION, name);
 }
 
-def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident): void {
-    push_ident_error(tc, ERROR_NOT_DEFINED, name);
+def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident, kind: LookupKind): void {
+    let kind_s = "";
+    if kind == LookupKind.Values {
+        kind_s = "value";
+    } else {
+        kind_s = "type";
+    }
+
+    let len = ident.len(name);
+    let text = std.err2str(ERROR_NOT_DEFINED, kind_s, len, ident.start(name));
+
+    push_mk_err(tc, text, name.span);
 }
 
 def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr): void {

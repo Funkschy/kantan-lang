@@ -184,7 +184,7 @@ static char const *const error_texts[] = {
     "Invalid escape sequence '%.*s'",
     // type errors
     "Duplicate definition of '%.*s'",
-    "Identifier '%.*s' is not in scope",
+    "No %s called '%.*s' in scope",
     "Type '%s' cannot be accessed with '%s' operator",
     "Incomplete type '%.*s'",
     "Invalid operator for types '%s' and '%s'",
