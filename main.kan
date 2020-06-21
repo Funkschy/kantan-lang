@@ -18,7 +18,7 @@ import "tychk";
 import "path";
 
 import "transform";
-import "llvm"; // needed for shutdown
+import "llvm-bindings" as llvm; // needed for shutdown
 
 def main(argc: i32, argv: *string): i32 {
     if argc <= 1 {

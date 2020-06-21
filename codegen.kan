@@ -6,7 +6,7 @@ import "map";
 import "std";
 import "vmap";
 import "path";
-import "llvm";
+import "llvm-bindings" as llvm;
 import "name";
 import "ident";
 import "target";

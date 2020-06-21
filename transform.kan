@@ -14,7 +14,7 @@ import "vec";
 import "map";
 import "mirc";
 import "path";
-import "llvm";
+import "llvm-bindings" as llvm;
 import "target";
 import "ptrvec";
 import "codegen";

@@ -2,7 +2,7 @@ import "dbg";
 import "std";
 import "name";
 import "path";
-import "llvm";
+import "llvm-bindings" as llvm;
 
 type Arch enum {
     X86_64
