@@ -4,6 +4,10 @@ type MyEnum enum {
     First, Second, Third
 }
 
+type WithInit enum {
+    First = 2, Second, Third
+}
+
 def main() {
     let x = MyEnum.First;
     let y: MyEnum = MyEnum.Second;
@@ -19,4 +23,9 @@ def main() {
     io.printf("%d\n", x <= MyEnum.Second);
     io.printf("%d\n", x <= MyEnum.Third);
     io.printf("%d\n", x != MyEnum.Third);
+
+    io.printf("%d\n", WithInit.First);
+    io.printf("%d\n", WithInit.Second);
+    io.printf("%d\n", WithInit.Third);
+    io.printf("%d\n", WithInit.First == WithInit.First);
 }

@@ -441,9 +441,11 @@ def parse_enum_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Token)
     CONSUME_RET_NULL(TOKEN_LBRACE);
 
     let closing_brace = lexer.empty_token();
-    let values = parse_value_list(p, &closing_brace);
+    let start_value: *ast.Expr = null;
+    let values = parse_enum_values(p, &closing_brace, &start_value);
     if closing_brace.ty == TOKEN_UNKNOWN_ERR {
         vec.free_v(&values);
+        ast.expr_free(start_value);
         return null;
     }
 
@@ -451,7 +453,8 @@ def parse_enum_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Token)
     return ast.new_enum_decl_stmt(
         enum_span,
         ident.create(ident_token),
-        values
+        values,
+        start_value
     );
 }
 
@@ -721,7 +724,7 @@ def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
 #undef FAIL
 }
 
-def parse_value_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
+def parse_enum_values(p: *Parser, closing_brace: *lexer.Token, start_value: **ast.Expr): vec.Vec {
 #define FAIL() vec.free_v(&values); return vec.create(0)
 
     let values = vec.create(sizeof ident.Ident);
@@ -734,13 +737,23 @@ def parse_value_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
         }
         let ident = ident.create(ident_token);
 
+        // The first enum value can be followed by a starting value
+        if values.len == 0 && peek(p).ty == TOKEN_EQ {
+            consume(p, TOKEN_EQ);
+            *start_value = parse_expression(p, precedence.assign(), false);
+
+            if *start_value == null {
+                FAIL();
+            }
+        }
+
         vec.push(&values, &ident as *void);
 
         peeked = peek(p);
 
         // consume separator
-        if peeked.ty == TOKEN_COMMA {
-            consume(p, TOKEN_COMMA);
+        if peek(p).ty != TOKEN_RBRACE && !consume(p, TOKEN_COMMA) {
+            FAIL();
         }
     }
 

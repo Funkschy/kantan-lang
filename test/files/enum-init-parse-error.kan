@@ -1,0 +1,9 @@
+type Error1 enum {
+    Test = io = 1,
+    Two
+}
+
+type Error2 enum {
+    First, Second = 1
+}
+

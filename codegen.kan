@@ -1221,7 +1221,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 c.dbg.builder,
                 ident.start(&enum_value.name),
                 ident.len(&enum_value.name),
-                i,   // value
+                enum_value.value,
                 true // are there signed enum values?
             );
 

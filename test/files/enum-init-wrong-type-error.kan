@@ -1,0 +1,4 @@
+type Error enum {
+    First = "",
+    Second
+}

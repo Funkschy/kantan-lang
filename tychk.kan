@@ -1148,17 +1148,51 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     return definition;
 }
 
-def check_enum_decl(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
+// This is just temporary until compile time code execution is working, so it's not part of std.kan
+extern def strtol(start: string, end: *string, base: i32): i32;
+
+def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
+    let ed = &decl_stmt.decl;
     let decl = declare_enum(tc, ed);
     if decl == null {
         return null;
     }
 
     let e_ty = ty.as_enum(decl);
+    let start_value = 0;
+
+    if decl_stmt.start_value != null {
+        let init = check_expr(tc, decl_stmt.start_value);
+        if init == null {
+            return null;
+        }
+
+        // TODO: allow enums of i64, i16...
+        // currently only i32, no other integer types
+        if !ty.is_i32(init.ty) {
+            push_invalid_enum_start_value_error(tc, e_ty, init);
+            return null;
+        }
+
+        if !ast.is_int_expr(decl_stmt.start_value) {
+            push_internal_error(
+                tc,
+                decl_stmt.start_value.span,
+                "The compiler cannot handle arbitrary enum start value expressions yet"
+            );
+        }
+
+        let value_span = decl_stmt.start_value.span;
+        let literal_len = span.len(value_span);
+        let value_end = value_span.end;
+        // this does no error checks, since the lexer/parser should ensure the correctness.
+        start_value = strtol(value_span.start, &value_end, 10);
+    }
+
     for let i = 0; i < ed.values.len; i = i + 1 {
         let name: ident.Ident = undefined;
         vec.get(&ed.values, i, &name as *void);
-        if ty.push_value(decl, name, i) {
+        if ty.push_value(decl, name, start_value + i) {
             push_duplicate_enum_value_error(tc, e_ty, &name);
             return null;
         }
@@ -1399,13 +1433,14 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     // STMT_ENUM_DECL
     if ast.is_enum_decl_stmt(s) {
-        let ed = &ast.as_enum_decl_stmt(s).decl;
+        let decl_stmt = ast.as_enum_decl_stmt(s);
+        let ed = &decl_stmt.decl;
 
         if !tc.decl_only_pass {
             return s;
         }
 
-        let ty = check_enum_decl(tc, ed);
+        let ty = check_enum_decl(tc, decl_stmt);
         if ty == null {
             return null;
         }
@@ -1763,10 +1798,9 @@ def check_expr_scope_expect(
     expected: *ty.Type,
     lookup_kind: LookupKind
 ): *ast.Expr {
-    dbg.assert(!tc.decl_only_pass, "expressions should not be checked during the decl_only_pass");
-
     // EXPR_INT
     if ast.is_int_expr(e) {
+        // TODO: check size of literal to determine correct integer width
         if expected != null && ty.is_i64(expected) {
             e.ty = get_global_type(tc, 3, "i64");
             return e;
@@ -2461,10 +2495,26 @@ def push_duplicate_enum_value_error(tc: *TypeChecker, e: *ty.Enum, value_name: *
     let text = std.err2str(
         ERROR_DUPLICATE_ENUM_VALUE,
         len, ident.start(value_name),
-        e.mangled_name.len,
-        e.mangled_name.data
+        e.mangled_name.len, e.mangled_name.data
     );
     push_mk_err(tc, text, value_name.span);
+}
+
+def push_invalid_enum_start_value_error(tc: *TypeChecker, e: *ty.Enum, start_value: *ast.Expr) {
+    let s_start_ty = "";
+    let free_s_start_ty = ty.to_string(start_value.ty, &s_start_ty);
+
+    let text = std.err2str(
+        ERROR_INVALID_ENUM_START_VALUE,
+        s_start_ty,
+        e.mangled_name.len, e.mangled_name.data
+    );
+
+    if free_s_start_ty {
+        delete s_start_ty;
+    }
+
+    push_mk_err(tc, text, start_value.span);
 }
 
 def push_bin_invalid_types_error(

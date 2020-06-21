@@ -282,13 +282,20 @@ def as_struct_decl_stmt(s: *Stmt): *StructDeclStmt {
 
 type EnumDeclStmt struct {
     s: Stmt,
-    decl: record.EnumDecl
+    decl: record.EnumDecl,
+    start_value: *Expr // if null => start_value = 0
 }
 
-def new_enum_decl_stmt(span: span.Span, name: ident.Ident, values: vec.Vec): *Stmt {
+def new_enum_decl_stmt(
+    span: span.Span,
+    name: ident.Ident,
+    values: vec.Vec,
+    start_value: *Expr
+): *Stmt {
     return (new EnumDeclStmt {
         s: Stmt { tag: STMT_ENUM_DECL, span: span },
-        decl: record.create_enum(name, values)
+        decl: record.create_enum(name, values),
+        start_value: start_value
     }) as *Stmt;
 }
 
@@ -411,6 +418,7 @@ def stmt_free(s: *Stmt): void {
     } else if is_enum_decl_stmt(s) {
         let e_stmt = as_enum_decl_stmt(s);
         record.free_enum(&e_stmt.decl);
+        expr_free(e_stmt.start_value);
     }
 
     delete s;

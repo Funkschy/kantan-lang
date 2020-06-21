@@ -212,6 +212,7 @@ static char const *const error_texts[] = {
     "Cannot take the size of an unsized type '%s'",
     "Unsized type '%s' cannot be dereferenced",
     "Duplicate entry '%.*s' in enum '%.*s'",
+    "Invalid enum start value type '%s' in enum '%.*s'",
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
