@@ -4,68 +4,31 @@ import "name";
 import "path";
 import "llvm";
 
-#define ARCH_X86_64 1
-
-def arch_x86_64(): Arch {
-    return Arch { value: ARCH_X86_64 };
+type Arch enum {
+    X86_64
 }
 
-#define VENDOR_UNKNOWN 1
-#define VENDOR_APPLE   2
-
-def vendor_unknown(): Vendor {
-    return Vendor { value: VENDOR_UNKNOWN };
+type Vendor enum {
+    Unknown, Apple
 }
 
-def vendor_apple(): Vendor {
-    return Vendor { value: VENDOR_APPLE };
+type Sys enum {
+    Linux, Darwin, Win32
 }
 
-#define SYS_LINUX  1
-#define SYS_DARWIN 2
-#define SYS_WIN32  3
-
-def sys_linux(): Sys {
-    return Sys { value: SYS_LINUX };
-}
-
-def sys_darwin(): Sys {
-    return Sys { value: SYS_DARWIN };
-}
-
-def sys_win32(): Sys {
-    return Sys { value: SYS_WIN32 };
-}
-
-#define ABI_EMPTY 1
-#define ABI_GNU   2
-#define ABI_MSVC  3
-
-def abi_empty(): Abi {
-    return Abi { value: ABI_EMPTY };
-}
-
-def abi_gnu(): Abi {
-    return Abi { value: ABI_GNU };
-}
-
-def abi_msvc(): Abi {
-    return Abi { value: ABI_MSVC };
-}
-
-type Arch struct {
-    value: i32
+type Abi enum {
+    Empty, Gnu, Msvc
 }
 
 def arch_to_name(a: Arch): name.Ref {
-    if a.value == ARCH_X86_64 {
+    if a == Arch.X86_64 {
         return name.make_ref(6, "x86_64");
     }
     return name.make_ref(0, null);
 }
 
 def arch_register(a: Arch): void {
-    if a.value == ARCH_X86_64 {
+    if a == Arch.X86_64 {
         llvm.initialize_x86_target_info();
         llvm.initialize_x86_target();
         llvm.initialize_x86_target_mc();
@@ -73,49 +36,37 @@ def arch_register(a: Arch): void {
         return;
     }
 
-    dbg.assert_fmt(0 == 1, "unknown target architecture: %d", a.value);
-}
-
-type Vendor struct {
-    value: i32
+    dbg.assert_fmt(0 == 1, "unknown target architecture: %d", a);
 }
 
 def vendor_to_name(v: Vendor): name.Ref {
-    if v.value == VENDOR_UNKNOWN {
+    if v == Vendor.Unknown {
         return name.make_ref(7, "unknown");
     }
-    if v.value == VENDOR_APPLE {
+    if v == Vendor.Apple {
         return name.make_ref(5, "apple");
     }
     return name.make_ref(0, null);
 }
 
-type Sys struct {
-    value: i32
-}
-
 def sys_to_name(s: Sys): name.Ref {
-    if s.value == SYS_LINUX {
+    if s == Sys.Linux {
         return name.make_ref(5, "linux");
     }
-    if s.value == SYS_DARWIN {
+    if s == Sys.Darwin {
         return name.make_ref(6, "darwin");
     }
-    if s.value == SYS_WIN32 {
+    if s == Sys.Win32 {
         return name.make_ref(5, "win32");
     }
     return name.make_ref(0, null);
 }
 
-type Abi struct {
-    value: i32
-}
-
 def abi_to_name(a: Abi): name.Ref {
-    if a.value == ABI_GNU {
+    if a == Abi.Gnu {
         return name.make_ref(3, "gnu");
     }
-    if a.value == ABI_MSVC {
+    if a == Abi.Msvc {
         return name.make_ref(4, "msvc");
     }
     return name.make_ref(0, null);

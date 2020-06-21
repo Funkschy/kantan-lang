@@ -99,7 +99,7 @@ def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleCon
             compiler.context.llmod, module_flag_warning, "Debug Info Version", 18, dbg_version
         );
 
-        if t.sys.value == target.sys_darwin().value {
+        if t.sys == target.Sys.Darwin {
             // Darwin only supports dwarf 2
             let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 2, false));
             llvm.add_module_flag(

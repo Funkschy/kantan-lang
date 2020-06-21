@@ -113,18 +113,18 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
     }
 
 #if USE_LLVM
-    let arch = target.arch_x86_64();
-    let vendor = target.vendor_unknown();
-    let sys = target.sys_linux();
-    let abi = target.abi_gnu();
+    let arch = target.Arch.X86_64;
+    let vendor = target.Vendor.Unknown;
+    let sys = target.Sys.Linux;
+    let abi = target.Abi.Gnu;
 
     if std.strcmp(comp_data.config.target_os, "win32") == 0 {
-        abi = target.abi_msvc();
-        sys = target.sys_win32();
+        abi = target.Abi.Msvc;
+        sys = target.Sys.Win32;
     } else if std.strcmp(comp_data.config.target_os, "darwin") == 0 {
-        vendor = target.vendor_apple();
-        abi = target.abi_empty();
-        sys = target.sys_darwin();
+        vendor = target.Vendor.Apple;
+        abi = target.Abi.Empty;
+        sys = target.Sys.Darwin;
     }
 
     let t = target.create_and_register_target(arch, vendor, sys, abi);
