@@ -1192,7 +1192,7 @@ def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
     for let i = 0; i < ed.values.len; i = i + 1 {
         let name: ident.Ident = undefined;
         vec.get(&ed.values, i, &name as *void);
-        if ty.push_value(decl, name, start_value + i) {
+        if ty.push_enum_value(decl, name, start_value + i) {
             push_duplicate_enum_value_error(tc, e_ty, &name);
             return null;
         }
@@ -1889,13 +1889,14 @@ def check_expr_scope_expect(
         }
 
         a_e.left = left;
+        let left_ty = a_e.left.ty;
 
         // TODO(#86): add a special message for pointers to pointers
         //  "Type 'pointer' cannot be accessed with '.' operator" does not
         //  make sense, when the actual pointer to a struct can be accessed with '.'
 
-        let value_scoped = lookup_kind == LookupKind.Values && ty.is_value_scoped(a_e.left.ty);
-        let type_scoped = lookup_kind == LookupKind.Types && ty.is_type_scoped(a_e.left.ty);
+        let value_scoped = lookup_kind == LookupKind.Values && ty.is_value_scoped(left_ty);
+        let type_scoped = lookup_kind == LookupKind.Types && ty.is_type_scoped(left_ty);
         if !(value_scoped || type_scoped) {
             // struct types are the types of the definition and not an actual
             // instance (basically class vs object of that class). There is currently
@@ -1907,19 +1908,14 @@ def check_expr_scope_expect(
             return null;
         }
 
-        let left_scope: *scope.Scope = null;
+        let name = &a_e.right.ident;
+        let right: *ty.Type = null;
         if lookup_kind == LookupKind.Values {
-            left_scope = ty.get_value_scope(a_e.left.ty);
+            right = ty.lookup_value_in(left_ty, name);
         } else {
-            left_scope = ty.get_type_scope(a_e.left.ty);
+            right = ty.lookup_type_in(left_ty, name);
         }
 
-        if left_scope == null {
-            push_internal_error(tc, a_e.left.span, "no scope for type found");
-            return null;
-        }
-
-        let right = scope.get_in(left_scope, &a_e.right.ident);
         if right == null {
             push_not_defined_error(tc, &a_e.right.ident, lookup_kind);
             return null;

@@ -28,4 +28,6 @@ def main() {
     io.printf("%d\n", WithInit.Second);
     io.printf("%d\n", WithInit.Third);
     io.printf("%d\n", WithInit.First == WithInit.First);
+
+    io.printf("%d %d\n", MyEnum.len, WithInit.len);
 }

@@ -316,11 +316,12 @@ def num_values(t: *Enum): i32 {
 }
 
 // returns true, if the value was already in the enum
-def push_value(t: *Type, name: ident.Ident, value: i32): bool {
+def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
     let e_ty = as_enum(t);
     let key = vmap.key_from_ident(&name);
 
-    if vmap.get_ptr(&e_ty.values, key) != null {
+    // TODO: instead of a fake "len" value, we should just have a len() compile time function
+    if vmap.get_ptr(&e_ty.values, key) != null || ident.eq_lit(&name, "len") {
         return true;
     }
 
@@ -337,9 +338,14 @@ def value_at(t: *Enum, i: i32): *EnumValue {
     return vmap.get_ptr_idx(&t.values, i) as *EnumValue;
 }
 
-def value_by_name(t: *Enum, name: ident.Ident): *EnumValue {
+def enum_value_by_name(t: *Enum, name: ident.Ident): i32 {
+    // since there is no Ident for "len", we just cheat a bit
+    if ident.eq_lit(&name, "len") {
+        return vmap.len(&t.values);
+    }
+
     let key = vmap.key_from_ident(&name);
-    return vmap.get_ptr(&t.values, key) as *EnumValue;
+    return (vmap.get_ptr(&t.values, key) as *EnumValue).value;
 }
 
 /////////// func type ///////////
@@ -579,6 +585,32 @@ def free_ty(t: *Type): void {
     }
 
     delete t;
+}
+
+def lookup_value_in(t: *Type, name: *ident.Ident): *Type {
+    if !is_value_scoped(t) {
+        return null;
+    }
+
+    if is_enum(t) && ident.eq_lit(name, "len") {
+        return as_enum(t).base_ty;
+    }
+
+    let value_scope = get_value_scope(t);
+    dbg.assert(value_scope != null, "null value scope on value_scoped type");
+
+    return scope.get_in(value_scope, name);
+}
+
+def lookup_type_in(t: *Type, name: *ident.Ident): *Type {
+    if !is_type_scoped(t) {
+        return null;
+    }
+
+    let type_scope = get_type_scope(t);
+    dbg.assert(type_scope != null, "null type scope on type_scoped type");
+
+    return scope.get_in(type_scope, name);
 }
 
 // looks for an ident in types with FLAG_VALUE_SCOPED

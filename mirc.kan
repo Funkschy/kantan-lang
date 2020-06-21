@@ -770,8 +770,8 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     if ty.is_enum(access.left.ty) {
         let e_ty = ty.as_enum(access.left.ty);
-        let enum_value = ty.value_by_name(e_ty, access.right.ident);
-        let const = mir.make_addr_const_value(e.ty, enum_value.value);
+        let enum_value = ty.enum_value_by_name(e_ty, access.right.ident);
+        let const = mir.make_addr_const_value(e.ty, enum_value);
         return mir.new_expr_copy(const);
     }
 
