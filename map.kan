@@ -1,6 +1,5 @@
 import "io";
 import "std";
-import "num";
 import "ident";
 import "span";
 
@@ -64,7 +63,7 @@ def with_cap(cap: i32): Map {
     }
 
     if cap % 2 != 0 {
-        cap = num.next_pow_of_2(cap);
+        cap = std.next_pow_of_2(cap);
     }
 
     let items = std.calloc(cap, sizeof Item) as *Item;
@@ -186,7 +185,7 @@ def load_factor(map: *Map): f32 {
         return 0.0;
     }
 
-    return num.int_to_float(map.len) / num.int_to_float(map.cap);
+    return map.len as f32 / (map.cap as f32);
 }
 
 def resize(map: *Map): void {

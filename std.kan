@@ -20,6 +20,7 @@ extern def strerror(err: i32): string;
 extern def getenv(name: string): string;
 
 // in lib.c
+extern def next_pow_of_2(i: i32): i32;
 extern def get_errno(): i32;
 extern def err2str(code: i32, ...): string;
 extern def format_str(fmt: string, ...): string;
