@@ -1061,7 +1061,10 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
 }
 
 def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
-    // when we support "import as" constructs, this will become more interesting
+    if ast.import_has_alias(imp) {
+        return imp.alias;
+    }
+
     let old_span = imp.mod.span;
     let p = path.empty();
     if path.from_str_len(ident.start(&imp.mod), ident.len(&imp.mod), &p) != 0 {

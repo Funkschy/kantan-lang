@@ -371,8 +371,17 @@ def parse_import_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
+    let alias = ident.empty();
+    if peek(p).ty == TOKEN_AS {
+        let alias_tok = lexer.empty_token();
+        if !consume(p, TOKEN_AS) || !consume_ident(p, &alias_tok) {
+            return null;
+        }
+        alias = ident.create(alias_tok);
+    }
+
     let import_span = span.merge(import_tok.span, mod_path.span);
-    return ast.new_import_stmt(import_span, ident.create(mod_path));
+    return ast.new_import_stmt(import_span, ident.create(mod_path), alias);
 }
 
 def parse_let_stmt(p: *Parser): *ast.Stmt {

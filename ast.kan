@@ -311,13 +311,15 @@ def as_enum_decl_stmt(s: *Stmt): *EnumDeclStmt {
 
 type ImportStmt struct {
     s: Stmt,
-    mod: ident.Ident
+    mod: ident.Ident,
+    alias: ident.Ident
 }
 
-def new_import_stmt(span: span.Span, mod_name: ident.Ident): *Stmt {
+def new_import_stmt(span: span.Span, mod_name: ident.Ident, alias: ident.Ident): *Stmt {
     return (new ImportStmt {
         s: Stmt { tag: STMT_IMPORT, span: span },
-        mod: mod_name
+        mod: mod_name,
+        alias: alias
     }) as *Stmt;
 }
 
@@ -327,6 +329,10 @@ def is_import_stmt(s: *Stmt): bool {
 
 def as_import_stmt(s: *Stmt): *ImportStmt {
     return s as *ImportStmt;
+}
+
+def import_has_alias(i_s: *ImportStmt): bool {
+    return !ident.is_empty(&i_s.alias);
 }
 
 /////////// let stmt ///////////
