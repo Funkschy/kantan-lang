@@ -116,3 +116,23 @@ def main(): void {
     io.printf(fmt, hans.name, hans.address.city, hans.address.hnr);
 }
 ```
+
+
+#### Enums
+```
+import "io";
+
+type MyEnum enum {
+    First, Second, Third
+}
+
+// Enums can also have a start value, after which they just continue to count up
+type MyOtherEnum enum {
+    First = 2, Second, Third
+}
+
+def main() {
+    io.printf("%d\n", MyEnum.Second); // prints 1
+    io.printf("%d\n", MyOtherEnum.Second); // prints 3
+}
+```
