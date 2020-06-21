@@ -50,21 +50,21 @@ def main() {
 
 #### Loops
 ```
-import "io";
+import "io" as stdout; // you can also alias imports
 
 def main() {
     for let i = 0; i < 3; i = i + 1 {
-        io.printf("Hello from for\n");
+        stdout.printf("Hello from for\n");
     }
 
     let i = 0;
     while i < 3 {
-        io.printf("Hello from while\n");
+        stdout.printf("Hello from while\n");
         i = i + 1;
     }
 
     let i = "It is actually possible to redeclare variables";
-    io.printf("%s\n", i);
+    stdout.printf("%s\n", i);
 }
 ```
 
@@ -134,5 +134,7 @@ type MyOtherEnum enum {
 def main() {
     io.printf("%d\n", MyEnum.Second); // prints 1
     io.printf("%d\n", MyOtherEnum.Second); // prints 3
+
+    let same_len = MyEnum.len == MyOtherEnum.len; // true
 }
 ```
