@@ -3,6 +3,7 @@ import "lexer" as l;
 type Precedence enum {
     None,
     Assign,
+    Or,
     And,
     Equality,
     Comparison,
@@ -14,11 +15,15 @@ type Precedence enum {
 }
 
 def get(token_type: l.TokenType): Precedence {
-    if token_type == l.TokenType.Eq {
+    if token_type >= l.TokenType.Eq && token_type <= l.TokenType.PercentEq {
         return Precedence.Assign;
     }
 
-    if token_type == l.TokenType.DoubleAmpersand || token_type == l.TokenType.DoublePipe {
+    if token_type == l.TokenType.DoublePipe {
+        return Precedence.Or;
+    }
+
+    if token_type == l.TokenType.DoubleAmpersand {
         return Precedence.And;
     }
 
@@ -26,10 +31,7 @@ def get(token_type: l.TokenType): Precedence {
         return Precedence.Equality;
     }
 
-    if token_type == l.TokenType.Smaller
-        || token_type == l.TokenType.SmallerEq
-        || token_type == l.TokenType.Greater
-        || token_type == l.TokenType.GreaterEq {
+    if token_type >= l.TokenType.Smaller && token_type <= l.TokenType.GreaterEq {
         return Precedence.Comparison;
     }
 
