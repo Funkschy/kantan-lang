@@ -553,15 +553,33 @@ def as_init_expr(e: *Expr): *InitExpr {
 
 /////////// assign expr ///////////
 
+type AssignType enum {
+    Normal, PlusEq, MinusEq, TimesEq, DivEq, RemEq
+}
+
 type AssignExpr struct {
     e: Expr,
+    assign_type: AssignType, // =, +=, -=, *=, /=, %=
+    assign_span: span.Span,
     left: *Expr,
     right: *Expr
 }
 
-def new_assign_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
+def new_assign_expr(
+    span: span.Span,
+    assign_token: lexer.Token,
+    left: *Expr,
+    right: *Expr
+): *Expr {
+    // TODO: remove this, when casting between enums and their base type is implemented
+    let eq = lexer.TokenType.Eq;
+    let normalized = *(&assign_token.ty as *i32) - *(&eq as *i32);
+    let assign_type = *(&normalized as *AssignType);
+
     return (new AssignExpr {
         e: create_expr(EXPR_ASSIGN, span),
+        assign_type: assign_type,
+        assign_span: assign_token.span,
         left: left,
         right: right
     }) as *Expr;
@@ -752,6 +770,7 @@ def as_char_expr(e: *Expr): *CharExpr {
 
 type BinaryExpr struct {
     e: Expr,
+    free_left: bool, // needed for transformation of +=, -= etc.
     left: *Expr,
     right: *Expr,
     kind: i32,
@@ -767,6 +786,7 @@ def new_binary_expr(
 ): *Expr {
     return (new BinaryExpr {
         e: create_expr(EXPR_BINARY, span),
+        dont_free_left: true,
         left: left,
         right: right,
         kind: kind,
@@ -852,7 +872,9 @@ def expr_free(e: *Expr): void {
 
     if is_binary_expr(e) {
         let b_expr = as_binary_expr(e);
-        expr_free(b_expr.left);
+        if b_expr.free_left {
+            expr_free(b_expr.left);
+        }
         expr_free(b_expr.right);
     } else if is_assign_expr(e) {
         let a_expr = as_assign_expr(e);

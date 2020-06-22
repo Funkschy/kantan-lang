@@ -1,0 +1,16 @@
+import "io";
+
+def main() {
+    let x = 5;
+
+    x += 1;
+    io.printf("%d\n", x);
+    x *= 2;
+    io.printf("%d\n", x);
+    x /= 2;
+    io.printf("%d\n", x);
+    x -= 3;
+    io.printf("%d\n", x);
+    x %= 2;
+    io.printf("%d\n", x);
+}

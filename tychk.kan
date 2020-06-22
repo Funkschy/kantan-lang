@@ -1794,6 +1794,7 @@ def check_expr_scope(
     return check_expr_scope_expect(tc, e, scope, null, lookup_kind);
 }
 
+#include "expr_types.h"
 def check_expr_scope_expect(
     tc: *TypeChecker,
     e: *ast.Expr,
@@ -1991,6 +1992,19 @@ def check_expr_scope_expect(
         if !ty.is_sized(right.ty) {
             push_type_not_assignable_error(tc, right);
             return null;
+        }
+
+        if a_e.assign_type != ast.AssignType.Normal {
+            // TODO: remove this, when casting between enums and their base type is implemented
+            let kind = *(&a_e.assign_type as *i32);
+
+            let new_rhs = ast.new_binary_expr(
+                right.span, kind, a_e.assign_span, left, right
+            );
+
+            ast.as_binary_expr(new_rhs).free_left = false;
+            new_rhs.ty = right.ty;
+            right = new_rhs;
         }
 
         a_e.left = left;
@@ -2204,7 +2218,6 @@ def check_expr_scope_expect(
     return null;
 }
 
-#include "expr_types.h"
 #include "error_code.h"
 
 def check_binary_expr(

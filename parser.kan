@@ -892,15 +892,16 @@ def parse_init_list(p: *Parser, closing_brace: *l.Token): ast.InitList {
 
 def expression(p: *Parser, no_struct: bool): *ast.Expr {
     LETCHECK(left, parse_expression(p, prec.Precedence.Assign, no_struct));
-    while peek(p).ty == l.TokenType.Eq {
-        consume(p, l.TokenType.Eq);
+    while l.is_assign(peek(p).ty) {
+        let assign_type: l.Token = undefined;
+        advance(p, &assign_type);
         let value = expression(p, no_struct);
         if value == null {
             ast.expr_free(left);
             return null;
         }
         let merged_span = span.merge(left.span, value.span);
-        left = ast.new_assign_expr(merged_span, left, value);
+        left = ast.new_assign_expr(merged_span, assign_type, left, value);
     }
 
     return left;

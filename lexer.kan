@@ -42,7 +42,6 @@ type TokenType enum {
     TripleDot,
     Bang,
     BangEq,
-    Eq,
     DoubleEq,
 
     Plus,
@@ -50,6 +49,13 @@ type TokenType enum {
     Star,
     Slash,
     Percent,
+
+    Eq,
+    PlusEq,
+    MinusEq,
+    StarEq,
+    SlashEq,
+    PercentEq,
 
     Smaller,
     SmallerEq,
@@ -116,6 +122,10 @@ def token_to_string(token: *Token, dest: *string): bool {
 
     *dest = tok2str(token.ty);
     return false;
+}
+
+def is_assign(ty: TokenType): bool {
+    return ty >= TokenType.Eq && ty <= TokenType.PercentEq;
 }
 
 // Lexer
@@ -478,14 +488,26 @@ def get_next_token(l: *Lexer): Token {
     }
 
     if c == std.char_to_int('+') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TokenType.PlusEq);
+        }
         return token_from_start(l, TokenType.Plus);
     }
 
     if c == std.char_to_int('-') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TokenType.MinusEq);
+        }
         return token_from_start(l, TokenType.Minus);
     }
 
     if c == std.char_to_int('*') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TokenType.StarEq);
+        }
         return token_from_start(l, TokenType.Star);
     }
 
@@ -506,6 +528,10 @@ def get_next_token(l: *Lexer): Token {
     }
 
     if c == std.char_to_int('%') {
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TokenType.PercentEq);
+        }
         return token_from_start(l, TokenType.Percent);
     }
 
@@ -523,6 +549,10 @@ def get_next_token(l: *Lexer): Token {
         if current(l) == std.char_to_int('/') {
             skip_until(l, std.char_to_int('\n'));
             return next_token(l);
+        }
+        if current(l) == std.char_to_int('=') {
+            advance(l);
+            return token_from_start(l, TokenType.SlashEq);
         }
         return token_from_start(l, TokenType.Slash);
     }

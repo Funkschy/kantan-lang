@@ -2,11 +2,11 @@ import "io";
 
 def main(): void {
     let i = 100;
-    for let i = 0; i < 3; i = i + 1 {
+    for let i = 0; i < 3; i += 1 {
         io.printf("%d", i+1);
     }
     io.printf("\n");
-    for let i = 3; i > 0; i = i - 1 {
+    for let i = 3; i > 0; i -= 1 {
         io.printf("%d", i);
     }
     io.printf("\n");
