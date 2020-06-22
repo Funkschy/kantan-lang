@@ -1,16 +1,15 @@
-#include "./token_types.h"
 #include "./expr_types.h"
 #include "./error_code.h"
 
 // the 0 at the end is to enable the use of a semicolon at the end
 #define LETCHECK(name, expr) let name = (expr); if (name) == null { return null; } 0
 #define CONSUME_RET_NULL(ty) if !consume(p, (ty)) { return null; } 0
-#define CONSUME_TOK_RET_NULL(name, ty) let name = lexer.empty_token(); \
+#define CONSUME_TOK_RET_NULL(name, ty) let name = l.empty_token(); \
     if !consume_token(p, (ty), &(name)) { return null; } 0
 
-import "lexer";
+import "lexer" as l;
 import "ast";
-import "precedence";
+import "precedence" as prec;
 import "span";
 import "vec";
 import "ptrvec";
@@ -38,14 +37,14 @@ def err_is_empty(err: *ParseError): bool {
 
 type Parser struct {
     in_panic_mode: bool,
-    lexer: lexer.Lexer,
+    lexer: l.Lexer,
     errors: vec.Vec // vector of ParseErrors
 }
 
 def create(source: *source.SourceFile): Parser {
     return Parser {
         in_panic_mode: false,
-        lexer: lexer.create(source),
+        lexer: l.create(source),
         errors: vec.create(sizeof ParseError)
     };
 }
@@ -81,16 +80,16 @@ def push_err(p: *Parser, error: ParseError): void {
 // advances to the next token and saves the new token into dest
 // dest: can be left empty if the result is to be ignored
 // returns: true, if no error occured, false otherwise
-def advance(p: *Parser, dest: *lexer.Token): bool {
-    let next = lexer.next_token(&p.lexer);
+def advance(p: *Parser, dest: *l.Token): bool {
+    let next = l.next_token(&p.lexer);
 
-    if next.ty == TOKEN_EOF {
+    if next.ty == l.TokenType.EOF {
         if !p.in_panic_mode {
             let error = create_error(next.span, std.err2str(ERROR_UNEXPECTED_EOF));
             vec.push(&p.errors, &error as *void);
         }
         return false;
-    } else if lexer.is_err(&next) && !p.in_panic_mode {
+    } else if l.is_err(&next) && !p.in_panic_mode {
         // advance should not care about lex errors while in panic mode
         let error = create_lex_error(p, &next);
         push_err(p, error);
@@ -107,20 +106,20 @@ def advance(p: *Parser, dest: *lexer.Token): bool {
     return true;
 }
 
-def consume(p: *Parser, ty: i32): bool {
+def consume(p: *Parser, ty: l.TokenType): bool {
     return consume_token(p, ty, null);
 }
 
-def consume_ident(p: *Parser, ident: *lexer.Token): bool {
-    if !consume_token(p, TOKEN_IDENT, ident) {
+def consume_ident(p: *Parser, ident: *l.Token): bool {
+    if !consume_token(p, l.TokenType.Ident, ident) {
         return false;
     }
 
     return true;
 }
 
-def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
-    let next = lexer.empty_token();
+def consume_token(p: *Parser, ty: l.TokenType, dest: *l.Token): bool {
+    let next = l.empty_token();
     if !advance(p, &next) {
         if dest != null {
             *dest = next;
@@ -141,25 +140,25 @@ def consume_token(p: *Parser, ty: i32, dest: *lexer.Token): bool {
     return false;
 }
 
-def consume_type_ident(p: *Parser, ident: *lexer.Token, err: *ParseError): bool {
-    if !consume_token(p, TOKEN_IDENT, ident) {
+def consume_type_ident(p: *Parser, ident: *l.Token, err: *ParseError): bool {
+    if !consume_token(p, l.TokenType.Ident, ident) {
         return false;
     }
 
     let dots = 0;
-    while peek(p).ty == TOKEN_DOT {
-        consume(p, TOKEN_DOT);
+    while peek(p).ty == l.TokenType.Dot {
+        consume(p, l.TokenType.Dot);
 
         let first_part = *ident;
-        if !consume_token(p, TOKEN_IDENT, ident) {
+        if !consume_token(p, l.TokenType.Ident, ident) {
             return false;
         }
 
         let merged_span = span.merge(first_part.span, ident.span);
-        *ident = lexer.create_token_from_span(
+        *ident = l.create_token_from_span(
             &p.lexer,
-            TOKEN_IDENT,
-            lexer.lexeme(&first_part),
+            l.TokenType.Ident,
+            l.lexeme(&first_part),
             merged_span
         );
         dots = dots + 1;
@@ -181,12 +180,12 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
     let prev_num_errs = num_errs(p);
 
     let pointer_count = 0;
-    while peek(p).ty == TOKEN_STAR {
-        consume(p, TOKEN_STAR);
+    while peek(p).ty == l.TokenType.Star {
+        consume(p, l.TokenType.Star);
         pointer_count = pointer_count + 1;
     }
 
-    let ty = lexer.empty_token();
+    let ty = l.empty_token();
     let illegal_type_err = empty_err();
     if !consume_type_ident(p, &ty, &illegal_type_err) {
         if num_errs(p) > prev_num_errs {
@@ -205,15 +204,15 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
     return true;
 }
 
-def peek(p: *Parser): lexer.Token {
-    return lexer.peek(&p.lexer);
+def peek(p: *Parser): l.Token {
+    return l.peek(&p.lexer);
 }
 
 def parse(p: *Parser): *mod.Module {
-    let src = lexer.source_file(&p.lexer);
+    let src = l.source_file(&p.lexer);
     let curr_mod = new mod.create(src);
 
-    while peek(p).ty != TOKEN_EOF {
+    while peek(p).ty != l.TokenType.EOF {
         let s = top_level(p);
         if s != null {
             mod.push_stmt(curr_mod, s);
@@ -227,20 +226,20 @@ def top_level(p: *Parser): *ast.Stmt {
     let peek = peek(p);
 
     let prev_num_errs = num_errs(p);
-    let start = lexer.current_ptr(&p.lexer);
+    let start = l.current_ptr(&p.lexer);
 
     let s: *ast.Stmt = null;
     let consume_semi = false;
 
-    if peek.ty == TOKEN_DEF {
+    if peek.ty == l.TokenType.Def {
         s = parse_func_def(p, false);
-    } else if peek.ty == TOKEN_EXTERN {
-        consume(p, TOKEN_EXTERN);
+    } else if peek.ty == l.TokenType.Extern {
+        consume(p, l.TokenType.Extern);
         s = parse_func_def(p, true);
         consume_semi = true;
-    } else if peek.ty == TOKEN_TYPE {
+    } else if peek.ty == l.TokenType.Type {
         s = parse_type_stmt(p);
-    } else if peek.ty == TOKEN_IMPORT {
+    } else if peek.ty == l.TokenType.Import {
         s = parse_import_stmt(p);
         consume_semi = true;
     }
@@ -259,7 +258,7 @@ def top_level(p: *Parser): *ast.Stmt {
     }
 
     if consume_semi {
-        if !consume(p, TOKEN_SEMI) {
+        if !consume(p, l.TokenType.Semi) {
             sync(p);
             ast.stmt_free(s);
             return null;
@@ -271,7 +270,7 @@ def top_level(p: *Parser): *ast.Stmt {
 
 def statement(p: *Parser): *ast.Stmt {
     let prev_num_errs = num_errs(p);
-    let start = lexer.current_ptr(&p.lexer);
+    let start = l.current_ptr(&p.lexer);
 
     let s = parse_statement(p);
 
@@ -294,24 +293,24 @@ def statement(p: *Parser): *ast.Stmt {
 def parse_statement(p: *Parser): *ast.Stmt {
     let peek = peek(p);
 
-    if peek.ty == TOKEN_IF {
+    if peek.ty == l.TokenType.If {
         return parse_if_stmt(p);
     }
 
-    if peek.ty == TOKEN_LBRACE {
+    if peek.ty == l.TokenType.LBrace {
         return parse_block(p);
     }
 
-    if peek.ty == TOKEN_WHILE {
+    if peek.ty == l.TokenType.While {
         return parse_while_stmt(p);
     }
 
-    if peek.ty == TOKEN_FOR {
+    if peek.ty == l.TokenType.For {
         return parse_for_stmt(p);
     }
 
     let simple = parse_simple_stmt(p);
-    if simple != null && !consume(p, TOKEN_SEMI) {
+    if simple != null && !consume(p, l.TokenType.Semi) {
         sync(p);
         ast.stmt_free(simple);
         return null;
@@ -323,15 +322,15 @@ def parse_statement(p: *Parser): *ast.Stmt {
 def parse_simple_stmt(p: *Parser): *ast.Stmt {
     let peek = peek(p);
 
-    if peek.ty == TOKEN_LET {
+    if peek.ty == l.TokenType.Let {
         return parse_let_stmt(p);
     }
 
-    if peek.ty == TOKEN_DELETE {
+    if peek.ty == l.TokenType.Delete {
         return parse_delete_stmt(p);
     }
 
-    if peek.ty == TOKEN_RETURN {
+    if peek.ty == l.TokenType.Return {
         return parse_return_stmt(p);
     }
 
@@ -344,7 +343,7 @@ def parse_simple_stmt(p: *Parser): *ast.Stmt {
 }
 
 def parse_delete_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(del_tok, TOKEN_DELETE);
+    CONSUME_TOK_RET_NULL(del_tok, l.TokenType.Delete);
 
     LETCHECK(expr, expression(p, false));
     let del_span = span.merge(del_tok.span, expr.span);
@@ -352,9 +351,9 @@ def parse_delete_stmt(p: *Parser): *ast.Stmt {
 }
 
 def parse_return_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(ret_tok, TOKEN_RETURN);
+    CONSUME_TOK_RET_NULL(ret_tok, l.TokenType.Return);
 
-    if peek(p).ty == TOKEN_SEMI {
+    if peek(p).ty == l.TokenType.Semi {
         return ast.new_return_stmt(ret_tok.span, null);
     }
 
@@ -364,17 +363,17 @@ def parse_return_stmt(p: *Parser): *ast.Stmt {
 }
 
 def parse_import_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(import_tok, TOKEN_IMPORT);
+    CONSUME_TOK_RET_NULL(import_tok, l.TokenType.Import);
 
-    let mod_path = lexer.empty_token();
-    if !consume_token(p, TOKEN_STRING, &mod_path) {
+    let mod_path = l.empty_token();
+    if !consume_token(p, l.TokenType.String, &mod_path) {
         return null;
     }
 
     let alias = ident.empty();
-    if peek(p).ty == TOKEN_AS {
-        let alias_tok = lexer.empty_token();
-        if !consume(p, TOKEN_AS) || !consume_ident(p, &alias_tok) {
+    if peek(p).ty == l.TokenType.As {
+        let alias_tok = l.empty_token();
+        if !consume(p, l.TokenType.As) || !consume_ident(p, &alias_tok) {
             return null;
         }
         alias = ident.create(alias_tok);
@@ -385,22 +384,22 @@ def parse_import_stmt(p: *Parser): *ast.Stmt {
 }
 
 def parse_let_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(let_tok, TOKEN_LET);
+    CONSUME_TOK_RET_NULL(let_tok, l.TokenType.Let);
 
-    let ident = lexer.empty_token();
+    let ident = l.empty_token();
     if !consume_ident(p, &ident) {
         return null;
     }
 
     let ty = tyid.empty();
-    if peek(p).ty == TOKEN_COLON {
-        CONSUME_RET_NULL(TOKEN_COLON);
+    if peek(p).ty == l.TokenType.Colon {
+        CONSUME_RET_NULL(l.TokenType.Colon);
         if !consume_type(p, &ty) {
             return null;
         }
     }
 
-    CONSUME_RET_NULL(TOKEN_EQ);
+    CONSUME_RET_NULL(l.TokenType.Eq);
 
     let e = expression(p, false);
     if e == null {
@@ -412,27 +411,27 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
 }
 import "io";
 def parse_type_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(type_tok, TOKEN_TYPE);
+    CONSUME_TOK_RET_NULL(type_tok, l.TokenType.Type);
 
-    let ident_token = lexer.empty_token();
+    let ident_token = l.empty_token();
     if !consume_ident(p, &ident_token) {
         return null;
     }
 
-    if peek(p).ty == TOKEN_ENUM {
+    if peek(p).ty == l.TokenType.Enum {
         return parse_enum_decl(p, ident_token, type_tok);
     }
 
     return parse_struct_decl(p, ident_token, type_tok);
 }
 
-def parse_struct_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Token): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_STRUCT);
-    CONSUME_RET_NULL(TOKEN_LBRACE);
+def parse_struct_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast.Stmt {
+    CONSUME_RET_NULL(l.TokenType.Struct);
+    CONSUME_RET_NULL(l.TokenType.LBrace);
 
-    let closing_brace = lexer.empty_token();
+    let closing_brace = l.empty_token();
     let fields = parse_field_list(p, &closing_brace);
-    if closing_brace.ty == TOKEN_UNKNOWN_ERR {
+    if closing_brace.ty == l.TokenType.UnknownErr {
         vec.free_v(&fields);
         return null;
     }
@@ -445,14 +444,14 @@ def parse_struct_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Toke
     );
 }
 
-def parse_enum_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Token): *ast.Stmt {
-    CONSUME_RET_NULL(TOKEN_ENUM);
-    CONSUME_RET_NULL(TOKEN_LBRACE);
+def parse_enum_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast.Stmt {
+    CONSUME_RET_NULL(l.TokenType.Enum);
+    CONSUME_RET_NULL(l.TokenType.LBrace);
 
-    let closing_brace = lexer.empty_token();
+    let closing_brace = l.empty_token();
     let start_value: *ast.Expr = null;
     let values = parse_enum_values(p, &closing_brace, &start_value);
-    if closing_brace.ty == TOKEN_UNKNOWN_ERR {
+    if closing_brace.ty == l.TokenType.UnknownErr {
         vec.free_v(&values);
         ast.expr_free(start_value);
         return null;
@@ -468,18 +467,18 @@ def parse_enum_decl(p: *Parser, ident_token: lexer.Token, type_tok: lexer.Token)
 }
 
 def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(def_tok, TOKEN_DEF);
+    CONSUME_TOK_RET_NULL(def_tok, l.TokenType.Def);
 
-    let ident = lexer.empty_token();
+    let ident = l.empty_token();
     if !consume_ident(p, &ident) {
         return null;
     }
 
-    CONSUME_RET_NULL(TOKEN_LPAREN);
-    let closing_paren = lexer.empty_token();
+    CONSUME_RET_NULL(l.TokenType.LParen);
+    let closing_paren = l.empty_token();
     let params = parse_param_list(p, &closing_paren, is_extern);
     // a parse error has occured during param parsing
-    if closing_paren.ty == TOKEN_UNKNOWN_ERR {
+    if closing_paren.ty == l.TokenType.UnknownErr {
         return null;
     }
 
@@ -488,8 +487,8 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     let end_span = closing_paren.span;
     let ret_ty = tyid.empty();
 
-    if peek(p).ty == TOKEN_COLON {
-        if !consume(p, TOKEN_COLON) {
+    if peek(p).ty == l.TokenType.Colon {
+        if !consume(p, l.TokenType.Colon) {
             func.free_pl(&param_list);
             return null;
         }
@@ -524,7 +523,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
 }
 
 def parse_while_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(while_tok, TOKEN_WHILE);
+    CONSUME_TOK_RET_NULL(while_tok, l.TokenType.While);
 
     let peeked = peek(p);
     let condition = expression(p, true);
@@ -546,17 +545,17 @@ def parse_while_stmt(p: *Parser): *ast.Stmt {
 }
 
 def parse_for_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(for_tok, TOKEN_FOR);
+    CONSUME_TOK_RET_NULL(for_tok, l.TokenType.For);
 
     let initializer: *ast.Stmt = null;
-    if peek(p).ty != TOKEN_SEMI {
+    if peek(p).ty != l.TokenType.Semi {
         initializer = parse_simple_stmt(p);
         if initializer == null {
             return null;
         }
     }
 
-    CONSUME_RET_NULL(TOKEN_SEMI);
+    CONSUME_RET_NULL(l.TokenType.Semi);
 
     let peeked = peek(p);
     let condition = expression(p, false);
@@ -567,10 +566,10 @@ def parse_for_stmt(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    CONSUME_RET_NULL(TOKEN_SEMI);
+    CONSUME_RET_NULL(l.TokenType.Semi);
 
     let increment: *ast.Stmt = null;
-    if peek(p).ty != TOKEN_LBRACE {
+    if peek(p).ty != l.TokenType.LBrace {
         let inc_expr = expression(p, true);
         if inc_expr == null {
             ast.stmt_free(initializer);
@@ -599,7 +598,7 @@ def parse_for_stmt(p: *Parser): *ast.Stmt {
 }
 
 def parse_if_stmt(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(if_tok, TOKEN_IF);
+    CONSUME_TOK_RET_NULL(if_tok, l.TokenType.If);
 
     let peeked = peek(p);
     let condition = expression(p, true);
@@ -618,16 +617,16 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
 
     let if_span = span.merge(if_tok.span, block.span);
     let if_stmt = ast.new_if_stmt(if_span, condition, ast.as_block_stmt(block), null);
-    if peek(p).ty != TOKEN_ELSE {
+    if peek(p).ty != l.TokenType.Else {
         return if_stmt;
     }
-    consume(p, TOKEN_ELSE);
+    consume(p, l.TokenType.Else);
 
     let else_stmt: *ast.Stmt = null;
     let peeked = peek(p);
-    if peeked.ty == TOKEN_IF {
+    if peeked.ty == l.TokenType.If {
         else_stmt = parse_if_stmt(p);
-    } else if peeked.ty == TOKEN_LBRACE {
+    } else if peeked.ty == l.TokenType.LBrace {
         else_stmt = parse_block(p);
     } else {
         let error = create_consume_error_text(p, &peeked, "either 'if' or '{' after else");
@@ -659,12 +658,12 @@ def free_statements(statements: *ptrvec.Vec): void {
 }
 
 def parse_block(p: *Parser): *ast.Stmt {
-    CONSUME_TOK_RET_NULL(open_brace_tok, TOKEN_LBRACE);
+    CONSUME_TOK_RET_NULL(open_brace_tok, l.TokenType.LBrace);
     let statements = ptrvec.create();
     let had_error = false;
 
     let peeked = peek(p);
-    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
+    while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RBrace {
         let s = statement(p);
         if s == null {
             sync(p);
@@ -681,8 +680,8 @@ def parse_block(p: *Parser): *ast.Stmt {
         return null;
     }
 
-    let closing_brace = lexer.empty_token();
-    if !consume_token(p, TOKEN_RBRACE, &closing_brace) {
+    let closing_brace = l.empty_token();
+    if !consume_token(p, l.TokenType.RBrace, &closing_brace) {
         free_statements(&statements);
         return null;
     }
@@ -691,20 +690,20 @@ def parse_block(p: *Parser): *ast.Stmt {
     return ast.new_block_stmt(block_span, statements);
 }
 
-def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
+def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
 #define FAIL() vec.free_v(&fields); return vec.create(0)
 
     let fields = vec.create(sizeof record.Field);
 
     let peeked = peek(p);
-    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
-        let ident_token = lexer.empty_token();
+    while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RBrace {
+        let ident_token = l.empty_token();
         if !consume_ident(p, &ident_token) {
             FAIL();
         }
         let ident = ident.create(ident_token);
 
-        if !consume(p, TOKEN_COLON) {
+        if !consume(p, l.TokenType.Colon) {
             FAIL();
         }
 
@@ -719,12 +718,12 @@ def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
         peeked = peek(p);
 
         // consume separator
-        if peeked.ty == TOKEN_COMMA {
-            consume(p, TOKEN_COMMA);
+        if peeked.ty == l.TokenType.Comma {
+            consume(p, l.TokenType.Comma);
         }
     }
 
-    if !consume_token(p, TOKEN_RBRACE, closing_brace) {
+    if !consume_token(p, l.TokenType.RBrace, closing_brace) {
         FAIL();
     }
 
@@ -733,23 +732,23 @@ def parse_field_list(p: *Parser, closing_brace: *lexer.Token): vec.Vec {
 #undef FAIL
 }
 
-def parse_enum_values(p: *Parser, closing_brace: *lexer.Token, start_value: **ast.Expr): vec.Vec {
+def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Expr): vec.Vec {
 #define FAIL() vec.free_v(&values); return vec.create(0)
 
     let values = vec.create(sizeof ident.Ident);
 
     let peeked = peek(p);
-    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
-        let ident_token = lexer.empty_token();
+    while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RBrace {
+        let ident_token = l.empty_token();
         if !consume_ident(p, &ident_token) {
             FAIL();
         }
         let ident = ident.create(ident_token);
 
         // The first enum value can be followed by a starting value
-        if values.len == 0 && peek(p).ty == TOKEN_EQ {
-            consume(p, TOKEN_EQ);
-            *start_value = parse_expression(p, precedence.assign(), false);
+        if values.len == 0 && peek(p).ty == l.TokenType.Eq {
+            consume(p, l.TokenType.Eq);
+            *start_value = parse_expression(p, prec.Precedence.Assign, false);
 
             if *start_value == null {
                 FAIL();
@@ -761,12 +760,12 @@ def parse_enum_values(p: *Parser, closing_brace: *lexer.Token, start_value: **as
         peeked = peek(p);
 
         // consume separator
-        if peek(p).ty != TOKEN_RBRACE && !consume(p, TOKEN_COMMA) {
+        if peek(p).ty != l.TokenType.RBrace && !consume(p, l.TokenType.Comma) {
             FAIL();
         }
     }
 
-    if !consume_token(p, TOKEN_RBRACE, closing_brace) {
+    if !consume_token(p, l.TokenType.RBrace, closing_brace) {
         FAIL();
     }
 
@@ -775,25 +774,25 @@ def parse_enum_values(p: *Parser, closing_brace: *lexer.Token, start_value: **as
 #undef FAIL
 }
 
-def parse_param_list(p: *Parser, closing_paren: *lexer.Token, allow_va: bool): vec.Vec {
+def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.Vec {
 #define FAIL() vec.free_v(&params); return vec.create(0)
 
     let params = vec.create(sizeof param.Param);
 
     let peeked = peek(p);
-    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RPAREN {
-        let ident_token = lexer.empty_token();
+    while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RParen {
+        let ident_token = l.empty_token();
         let ty = tyid.empty();
 
-        if allow_va && peek(p).ty == TOKEN_TRIPLE_DOT {
-            consume_token(p, TOKEN_TRIPLE_DOT, &ident_token);
+        if allow_va && peek(p).ty == l.TokenType.TripleDot {
+            consume_token(p, l.TokenType.TripleDot, &ident_token);
         } else {
-            ident_token = lexer.empty_token();
+            ident_token = l.empty_token();
             if !consume_ident(p, &ident_token) {
                 FAIL();
             }
 
-            if !consume(p, TOKEN_COLON) {
+            if !consume(p, l.TokenType.Colon) {
                 FAIL();
             }
 
@@ -809,12 +808,12 @@ def parse_param_list(p: *Parser, closing_paren: *lexer.Token, allow_va: bool): v
         peeked = peek(p);
 
         // consume separator
-        if peeked.ty == TOKEN_COMMA {
-            consume(p, TOKEN_COMMA);
+        if peeked.ty == l.TokenType.Comma {
+            consume(p, l.TokenType.Comma);
         }
     }
 
-    if !consume_token(p, TOKEN_RPAREN, closing_paren) {
+    if !consume_token(p, l.TokenType.RParen, closing_paren) {
         FAIL();
     }
 
@@ -829,7 +828,7 @@ def parse_arg_list(p: *Parser, out: *ast.ArgList): bool {
     let args = ast.create_arg_list();
 
     let peeked = peek(p);
-    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RPAREN {
+    while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RParen {
         let arg = expression(p, false);
         if arg == null {
             FAIL();
@@ -838,8 +837,8 @@ def parse_arg_list(p: *Parser, out: *ast.ArgList): bool {
 
         peeked = peek(p);
 
-        if peeked.ty != TOKEN_RPAREN {
-            if !consume(p, TOKEN_COMMA) {
+        if peeked.ty != l.TokenType.RParen {
+            if !consume(p, l.TokenType.Comma) {
                 FAIL();
             }
         }
@@ -851,18 +850,18 @@ def parse_arg_list(p: *Parser, out: *ast.ArgList): bool {
 }
 
 // TODO(#24): allow trailing commas
-def parse_init_list(p: *Parser, closing_brace: *lexer.Token): ast.InitList {
+def parse_init_list(p: *Parser, closing_brace: *l.Token): ast.InitList {
 #define FAIL() ast.free_il(&inits); return ast.create_init_list()
     let inits = ast.create_init_list();
 
     let peeked = peek(p);
-    while peeked.ty != TOKEN_EOF && peeked.ty != TOKEN_RBRACE {
-        let ident_token = lexer.empty_token();
+    while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RBrace {
+        let ident_token = l.empty_token();
         if !consume_ident(p, &ident_token) {
             FAIL();
         }
 
-        if !consume(p, TOKEN_COLON) {
+        if !consume(p, l.TokenType.Colon) {
             FAIL();
         }
 
@@ -876,14 +875,14 @@ def parse_init_list(p: *Parser, closing_brace: *lexer.Token): ast.InitList {
 
         peeked = peek(p);
 
-        if peeked.ty != TOKEN_RBRACE {
-            if !consume(p, TOKEN_COMMA) {
+        if peeked.ty != l.TokenType.RBrace {
+            if !consume(p, l.TokenType.Comma) {
                 FAIL();
             }
         }
     }
 
-    if !consume_token(p, TOKEN_RBRACE, closing_brace) {
+    if !consume_token(p, l.TokenType.RBrace, closing_brace) {
         FAIL();
     }
 
@@ -892,9 +891,9 @@ def parse_init_list(p: *Parser, closing_brace: *lexer.Token): ast.InitList {
 }
 
 def expression(p: *Parser, no_struct: bool): *ast.Expr {
-    LETCHECK(left, parse_expression(p, precedence.assign(), no_struct));
-    while peek(p).ty == TOKEN_EQ {
-        consume(p, TOKEN_EQ);
+    LETCHECK(left, parse_expression(p, prec.Precedence.Assign, no_struct));
+    while peek(p).ty == l.TokenType.Eq {
+        consume(p, l.TokenType.Eq);
         let value = expression(p, no_struct);
         if value == null {
             ast.expr_free(left);
@@ -907,11 +906,11 @@ def expression(p: *Parser, no_struct: bool): *ast.Expr {
     return left;
 }
 
-def parse_expression(p: *Parser, precedence: i32, no_struct: bool): *ast.Expr {
+def parse_expression(p: *Parser, precedence: prec.Precedence, no_struct: bool): *ast.Expr {
     LETCHECK(left, prefix(p, no_struct));
 
     while next_higher_precedence(p, precedence, no_struct) {
-        let token = lexer.empty_token();
+        let token = l.empty_token();
         if !advance(p, &token) {
             ast.expr_free(left);
             return null;
@@ -929,61 +928,61 @@ def parse_expression(p: *Parser, precedence: i32, no_struct: bool): *ast.Expr {
     return left;
 }
 
-def next_higher_precedence(p: *Parser, prec: i32, no_struct: bool): bool {
+def next_higher_precedence(p: *Parser, current: prec.Precedence, no_struct: bool): bool {
     let t = peek(p);
 
-    if lexer.is_err(&t) || t.ty == TOKEN_EOF {
+    if l.is_err(&t) || t.ty == l.TokenType.EOF {
         return false;
     }
 
-    if t.ty == TOKEN_LBRACE {
-        return !no_struct && precedence.get(t.ty) > prec;
+    if t.ty == l.TokenType.LBrace {
+        return !no_struct && prec.get(t.ty) > current;
     }
 
-    return precedence.get(t.ty) > prec;
+    return prec.get(t.ty) > current;
 }
 
 def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 #define UNARY(tok, unary_ty) if token.ty == (tok) { \
-        LETCHECK(expr, parse_expression(p, precedence.unary(), no_struct)); \
+        LETCHECK(expr, parse_expression(p, prec.Precedence.Unary, no_struct)); \
         let merged_span = span.merge(token.span, expr.span); \
         return ast.new_unary_expr(merged_span, (unary_ty), expr); \
     } 0
 
-    let token = lexer.empty_token();
+    let token = l.empty_token();
     if !advance(p, &token) {
         return null;
     }
 
-    if token.ty == TOKEN_INT {
-        return ast.new_int_expr(token.span, lexer.lexeme(&token));
+    if token.ty == l.TokenType.Int {
+        return ast.new_int_expr(token.span, l.lexeme(&token));
     }
 
-    if token.ty == TOKEN_FLOAT {
-        return ast.new_float_expr(token.span, lexer.lexeme(&token));
+    if token.ty == l.TokenType.Float {
+        return ast.new_float_expr(token.span, l.lexeme(&token));
     }
 
-    if token.ty == TOKEN_STRING {
+    if token.ty == l.TokenType.String {
         return ast.new_string_expr(token.span);
     }
 
-    if token.ty == TOKEN_CHAR {
-        return ast.new_char_expr(token.span, lexer.lexeme(&token));
+    if token.ty == l.TokenType.Char {
+        return ast.new_char_expr(token.span, l.lexeme(&token));
     }
 
-    if token.ty == TOKEN_IDENT {
+    if token.ty == l.TokenType.Ident {
         return ast.new_ident_expr(token);
     }
 
-    if token.ty == TOKEN_NULL {
+    if token.ty == l.TokenType.Null {
         return ast.new_null_expr(token.span);
     }
 
-    if token.ty == TOKEN_UNDEFINED {
+    if token.ty == l.TokenType.Undefined {
         return ast.new_undefined_expr(token.span);
     }
 
-    if token.ty == TOKEN_SIZEOF {
+    if token.ty == l.TokenType.Sizeof {
         let ty = tyid.empty();
         if !consume_type(p, &ty) {
             return null;
@@ -993,22 +992,22 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.new_sizeof_expr(merged_span, ty);
     }
 
-    if token.ty == TOKEN_NEW {
+    if token.ty == l.TokenType.New {
         LETCHECK(e, expression(p, no_struct));
         let merged_span = span.merge(token.span, e.span);
         return ast.new_new_expr(merged_span, e);
     }
 
-    UNARY(TOKEN_AMPERSAND, UNARY_REF);
-    UNARY(TOKEN_STAR, UNARY_DEREF);
-    UNARY(TOKEN_BANG, UNARY_NEG_BOOL);
-    UNARY(TOKEN_MINUS, UNARY_NEG_NUM);
+    UNARY(l.TokenType.Ampersand, UNARY_REF);
+    UNARY(l.TokenType.Star, UNARY_DEREF);
+    UNARY(l.TokenType.Bang, UNARY_NEG_BOOL);
+    UNARY(l.TokenType.Minus, UNARY_NEG_NUM);
 
-    if token.ty == TOKEN_LPAREN {
+    if token.ty == l.TokenType.LParen {
         // ignore no_struct, because it's in parens
         LETCHECK(e, expression(p, false));
 
-        if !consume(p, TOKEN_RPAREN) {
+        if !consume(p, l.TokenType.RParen) {
             ast.expr_free(e);
             return null;
         }
@@ -1020,10 +1019,10 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
 #undef UNARY
 }
 
-def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {
+def infix(p: *Parser, token: *l.Token, left: *ast.Expr, no_struct: bool): *ast.Expr {
     // access expr
-    if token.ty == TOKEN_DOT {
-        let right = lexer.empty_token();
+    if token.ty == l.TokenType.Dot {
+        let right = l.empty_token();
         if !consume_ident(p, &right) {
             return null;
         }
@@ -1034,14 +1033,14 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     }
 
     // call expr
-    if token.ty == TOKEN_LPAREN {
+    if token.ty == l.TokenType.LParen {
         let args = ast.create_arg_list();
         if !parse_arg_list(p, &args) {
             return null;
         }
 
-        let closing_paren = lexer.empty_token();
-        if !consume_token(p, TOKEN_RPAREN, &closing_paren) {
+        let closing_paren = l.empty_token();
+        if !consume_token(p, l.TokenType.RParen, &closing_paren) {
             ast.free_al(&args);
             return null;
         }
@@ -1051,11 +1050,11 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     }
 
     // init expr
-    if token.ty == TOKEN_LBRACE {
-        let closing_brace = lexer.empty_token();
+    if token.ty == l.TokenType.LBrace {
+        let closing_brace = l.empty_token();
         let inits = parse_init_list(p, &closing_brace);
 
-        if closing_brace.ty == TOKEN_UNKNOWN_ERR {
+        if closing_brace.ty == l.TokenType.UnknownErr {
             return null;
         }
 
@@ -1063,7 +1062,7 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
         return ast.new_init_expr(merged_span, left, inits);
     }
 
-    if token.ty == TOKEN_AS {
+    if token.ty == l.TokenType.As {
         let ty = tyid.empty();
         if !consume_type(p, &ty) {
             return null;
@@ -1078,50 +1077,50 @@ def infix(p: *Parser, token: *lexer.Token, left: *ast.Expr, no_struct: bool): *a
     let found = false;
     let ty = 0;
 
-    if token.ty == TOKEN_PLUS {
+    if token.ty == l.TokenType.Plus {
         found = true;
         ty = BINARY_ADD;
-    } else if token.ty == TOKEN_MINUS {
+    } else if token.ty == l.TokenType.Minus {
         found = true;
         ty = BINARY_SUB;
-    } else if token.ty == TOKEN_STAR {
+    } else if token.ty == l.TokenType.Star {
         found = true;
         ty = BINARY_MUL;
-    } else if token.ty == TOKEN_SLASH {
+    } else if token.ty == l.TokenType.Slash {
         found = true;
         ty = BINARY_DIV;
-    } else if token.ty == TOKEN_PERCENT {
+    } else if token.ty == l.TokenType.Percent {
         found = true;
         ty = BINARY_MOD;
-    } else if token.ty == TOKEN_SMALLER {
+    } else if token.ty == l.TokenType.Smaller {
         found = true;
         ty = BINARY_ST;
-    } else if token.ty == TOKEN_SMALLER_EQ {
+    } else if token.ty == l.TokenType.SmallerEq {
         found = true;
         ty = BINARY_SE;
-    } else if token.ty == TOKEN_GREATER {
+    } else if token.ty == l.TokenType.Greater {
         found = true;
         ty = BINARY_GT;
-    } else if token.ty == TOKEN_GREATER_EQ {
+    } else if token.ty == l.TokenType.GreaterEq {
         found = true;
         ty = BINARY_GE;
-    } else if token.ty == TOKEN_DOUBLE_AMPERSAND {
+    } else if token.ty == l.TokenType.DoubleAmpersand {
         found = true;
         ty = BINARY_LOG_AND;
-    } else if token.ty == TOKEN_DOUBLE_PIPE {
+    } else if token.ty == l.TokenType.DoublePipe {
         found = true;
         ty = BINARY_LOG_OR;
-    } else if token.ty == TOKEN_DOUBLE_EQ {
+    } else if token.ty == l.TokenType.DoubleEq {
         found = true;
         ty = BINARY_EQ;
-    } else if token.ty == TOKEN_BANG_EQ {
+    } else if token.ty == l.TokenType.BangEq {
         found = true;
         ty = BINARY_NE;
     }
 
     // a pattern matched
     if found {
-        let prec = precedence.get(token.ty);
+        let prec = prec.get(token.ty);
         LETCHECK(right, parse_expression(p, prec, no_struct));
         let merged_span = span.merge(left.span, right.span);
         return ast.new_binary_expr(merged_span, ty, token.span, left, right);
@@ -1139,20 +1138,20 @@ def sync(p: *Parser): string {
 
 // should only be called by sync function
 def inner_sync(p: *Parser): string {
-    let previous = lexer.empty_token();
+    let previous = l.empty_token();
     if !advance(p, &previous) {
-        return source.code(p.lexer.source) + lexer.end_pos(&p.lexer);
+        return source.code(p.lexer.source) + l.end_pos(&p.lexer);
     }
 
     let peeked = peek(p);
-    while peeked.ty != TOKEN_EOF {
+    while peeked.ty != l.TokenType.EOF {
         let merged_span = previous.span;
         let pos = merged_span.start;
-        if previous.ty == TOKEN_SEMI && peek(p).ty != TOKEN_RBRACE {
+        if previous.ty == l.TokenType.Semi && peek(p).ty != l.TokenType.RBrace {
             return pos;
         }
 
-        if peeked.ty == TOKEN_LET || peeked.ty == TOKEN_DEF {
+        if peeked.ty == l.TokenType.Let || peeked.ty == l.TokenType.Def {
             return pos;
         }
 
@@ -1160,7 +1159,7 @@ def inner_sync(p: *Parser): string {
             return pos;
         }
 
-        if previous.ty == TOKEN_RBRACE {
+        if previous.ty == l.TokenType.RBrace {
             return previous.span.start;
         }
 
@@ -1191,36 +1190,36 @@ def create_statement_error(p: *Parser, start: string, end: string): ParseError {
     );
 }
 
-def create_lex_error(p: *Parser, next: *lexer.Token): ParseError {
+def create_lex_error(p: *Parser, next: *l.Token): ParseError {
     // len for lexeme
-    let len = lexer.token_len(next);
+    let len = l.token_len(next);
     let err_ty = ERROR_UNKNOWN_SYMBOL;
 
-    if next.ty == TOKEN_CHAR_ERR {
+    if next.ty == l.TokenType.CharErr {
         err_ty = ERROR_CHAR_LIT_LEN;
     }
 
-    if next.ty == TOKEN_ESCAPE_ERR {
+    if next.ty == l.TokenType.EscapeErr {
         err_ty = ERROR_INVALID_ESCAPE_SEQUENCE;
     }
 
     return create_error(
         next.span,
-        std.err2str(err_ty, len, lexer.lexeme(next))
+        std.err2str(err_ty, len, l.lexeme(next))
     );
 }
 
-def create_consume_error(p: *Parser, peeked: *lexer.Token, expected_ty: i32): ParseError {
+def create_consume_error(p: *Parser, peeked: *l.Token, expected_ty: l.TokenType): ParseError {
     return create_consume_error_text(
         p,
         peeked,
-        lexer.token_ty_to_static_string(expected_ty)
+        l.token_ty_to_static_string(expected_ty)
     );
 }
 
-def create_consume_error_text(p: *Parser, peeked: *lexer.Token, text: string): ParseError {
+def create_consume_error_text(p: *Parser, peeked: *l.Token, text: string): ParseError {
     let peek_str: string = null;
-    let needs_free = lexer.token_to_string(peeked, &peek_str);
+    let needs_free = l.token_to_string(peeked, &peek_str);
 
     let err_str = std.err2str(
         ERROR_EXPECTED_BUT_GOT,

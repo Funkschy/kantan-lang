@@ -1,94 +1,56 @@
-#include "token_types.h"
+import "lexer" as l;
 
-#define PRECEDENCE_NONE       0
-#define PRECEDENCE_ASSIGN     1
-#define PRECEDENCE_AND        2
-#define PRECEDENCE_EQUALITY   3
-#define PRECEDENCE_COMPARISON 4
-#define PRECEDENCE_SUM        5
-#define PRECEDENCE_PRODUCT    6
-#define PRECEDENCE_UNARY      7
-#define PRECEDENCE_CALL       8
-#define PRECEDENCE_ACCESS     9
+type Precedence enum {
+    None,
+    Assign,
+    And,
+    Equality,
+    Comparison,
+    Sum,
+    Product,
+    Unary,
+    Call,
+    Access
+}
 
-def get(token_type: i32): i32 {
-    if token_type == TOKEN_EQ {
-        return PRECEDENCE_ASSIGN;
+def get(token_type: l.TokenType): Precedence {
+    if token_type == l.TokenType.Eq {
+        return Precedence.Assign;
     }
 
-    if token_type == TOKEN_DOUBLE_AMPERSAND || token_type == TOKEN_DOUBLE_PIPE {
-        return PRECEDENCE_AND;
+    if token_type == l.TokenType.DoubleAmpersand || token_type == l.TokenType.DoublePipe {
+        return Precedence.And;
     }
 
-    if token_type == TOKEN_DOUBLE_EQ || token_type == TOKEN_BANG_EQ {
-        return PRECEDENCE_EQUALITY;
+    if token_type == l.TokenType.DoubleEq || token_type == l.TokenType.BangEq {
+        return Precedence.Equality;
     }
 
-    if token_type == TOKEN_SMALLER
-        || token_type == TOKEN_SMALLER_EQ
-        || token_type == TOKEN_GREATER
-        || token_type == TOKEN_GREATER_EQ {
-        return PRECEDENCE_COMPARISON;
+    if token_type == l.TokenType.Smaller
+        || token_type == l.TokenType.SmallerEq
+        || token_type == l.TokenType.Greater
+        || token_type == l.TokenType.GreaterEq {
+        return Precedence.Comparison;
     }
 
-    if token_type == TOKEN_PLUS || token_type == TOKEN_MINUS {
-        return PRECEDENCE_SUM;
+    if token_type == l.TokenType.Plus || token_type == l.TokenType.Minus {
+        return Precedence.Sum;
     }
 
-    if token_type == TOKEN_STAR
-        || token_type == TOKEN_SLASH
-        || token_type == TOKEN_PERCENT
-        || token_type == TOKEN_AS {
-        return PRECEDENCE_PRODUCT;
+    if token_type == l.TokenType.Star
+        || token_type == l.TokenType.Slash
+        || token_type == l.TokenType.Percent
+        || token_type == l.TokenType.As {
+        return Precedence.Product;
     }
 
-    if token_type == TOKEN_LPAREN || token_type == TOKEN_LBRACE {
-        return PRECEDENCE_CALL;
+    if token_type == l.TokenType.LParen || token_type == l.TokenType.LBrace {
+        return Precedence.Call;
     }
 
-    if token_type == TOKEN_DOT {
-        return PRECEDENCE_ACCESS;
+    if token_type == l.TokenType.Dot {
+        return Precedence.Access;
     }
 
-    return PRECEDENCE_NONE;
-}
-
-def none(): i32 {
-    return PRECEDENCE_NONE;
-}
-
-def assign(): i32 {
-    return PRECEDENCE_ASSIGN;
-}
-
-def and(): i32 {
-    return PRECEDENCE_AND;
-}
-
-def equality(): i32 {
-    return PRECEDENCE_EQUALITY;
-}
-
-def comparison(): i32 {
-    return PRECEDENCE_COMPARISON;
-}
-
-def sum(): i32 {
-    return PRECEDENCE_SUM;
-}
-
-def product(): i32 {
-    return PRECEDENCE_PRODUCT;
-}
-
-def unary(): i32 {
-    return PRECEDENCE_UNARY;
-}
-
-def call(): i32 {
-    return PRECEDENCE_CALL;
-}
-
-def access(): i32 {
-    return PRECEDENCE_ACCESS;
+    return Precedence.None;
 }

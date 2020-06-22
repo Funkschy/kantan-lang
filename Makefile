@@ -39,7 +39,6 @@ K_FILES = ast.kan \
 C_SRC_FILES = lib.c modsort.c posixlink.c
 C_FILES = $(C_SRC_FILES) \
 		  lib.h \
-		  token_types.h \
 		  expr_types.h \
 		  stmt_types.h \
 		  error_code.h \
