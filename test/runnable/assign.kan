@@ -13,4 +13,7 @@ def main() {
     io.printf("%d\n", x);
     x %= 2;
     io.printf("%d\n", x);
+
+    let y = x += 1;
+    io.printf("%d %d\n", y, x);
 }
