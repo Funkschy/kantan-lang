@@ -1,0 +1,11 @@
+import "io";
+
+type Struct struct {
+    i: i32
+}
+
+def main() {
+    let s = Struct { i: 42 };
+    io.printf("%d\n", s.i /= 2);
+    io.printf("%d\n", s.i %= 2);
+}
