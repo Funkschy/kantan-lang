@@ -2318,7 +2318,8 @@ def check_unary_expr(
     }
 
     if kind == UNARY_REF {
-        if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr) {
+        if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr)
+            || ast.is_access_expr(expr) && ty.is_enum(ast.as_access_expr(expr).left.ty) {
             let text = std.err2str(ERROR_UNARY_REF_RVALUE);
             push_mk_err(tc, text, span);
             return null;
