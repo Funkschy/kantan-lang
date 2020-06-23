@@ -42,12 +42,12 @@ def parse(argc: i32, argv: *string): Config {
             let takes_argument = false;
 
             if *(arg + 1) != '-' {
-                takes_argument = parse_short(&config, arg + 1, &config.had_errors, &set_to_next);
+                takes_argument = parse_short(&config, arg + 1, &set_to_next);
             } else if std.strlen(arg) < 3 {
                 io.printf("ERROR: Invalid flag '--'\n");
                 config.had_errors = true;
             } else {
-                takes_argument = parse_long(&config, arg + 2, &config.had_errors, &set_to_next);
+                takes_argument = parse_long(&config, arg + 2, &set_to_next);
             }
 
             if takes_argument {
@@ -97,7 +97,7 @@ def parse(argc: i32, argv: *string): Config {
 // if this returns true, the following argument is interpreted as a value
 // set_to_next will be set to the field in config, which needs to be set to the next command line
 // argument (if available)
-def parse_short(config: *Config, arg: string, had_errors: *bool, set_to_next: **string): bool {
+def parse_short(config: *Config, arg: string, set_to_next: **string): bool {
     let len = std.strlen(arg);
 
     if len == 2 && *arg == 'O' {
@@ -105,7 +105,7 @@ def parse_short(config: *Config, arg: string, had_errors: *bool, set_to_next: **
 
         if num < 0 || num > 3 {
             io.printf("ERROR: Invalid optimization level: %d\n", num);
-            *had_errors = true;
+            config.had_errors = true;
         } else {
             config.opt_level = num;
         }
@@ -130,11 +130,11 @@ def parse_short(config: *Config, arg: string, had_errors: *bool, set_to_next: **
     }
 
     io.printf("ERROR: Invalid flag '%s'\n", arg);
-    *had_errors = true;
+    config.had_errors = true;
     return false;
 }
 
-def parse_long(config: *Config, arg: string, had_errors: *bool, set_to_next: **string): bool {
+def parse_long(config: *Config, arg: string, set_to_next: **string): bool {
     if std.strcmp(arg, "help") == 0 {
         print_usage();
         config.exit_immediately = true;
@@ -147,11 +147,15 @@ def parse_long(config: *Config, arg: string, had_errors: *bool, set_to_next: **s
     }
 
     io.printf("ERROR: Invalid flag '%s'\n", arg);
-    *had_errors = true;
+    config.had_errors = true;
     return false;
 }
 
 def error_in_config_values(config: *Config): bool {
+    if config.had_errors {
+        return true;
+    }
+
     if config.target_os != null {
         if std.strcmp(config.target_os, "win32") == 0 {}
         else if std.strcmp(config.target_os, "linux") == 0 {}
