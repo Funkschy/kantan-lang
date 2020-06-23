@@ -1794,7 +1794,6 @@ def check_expr_scope(
     return check_expr_scope_expect(tc, e, scope, null, lookup_kind);
 }
 
-#include "expr_types.h"
 def check_expr_scope_expect(
     tc: *TypeChecker,
     e: *ast.Expr,
@@ -1996,7 +1995,7 @@ def check_expr_scope_expect(
 
         if a_e.assign_type != ast.AssignType.Normal {
             // TODO: remove this, when casting between enums and their base type is implemented
-            let kind = *(&a_e.assign_type as *i32);
+            let kind = *(&a_e.assign_type as *ast.BinaryKind);
 
             let new_rhs = ast.new_binary_expr(
                 right.span, kind, a_e.assign_span, left, right
@@ -2222,7 +2221,7 @@ def check_expr_scope_expect(
 
 def check_binary_expr(
     tc: *TypeChecker,
-    kind: i32,
+    kind: ast.BinaryKind,
     op_span: span.Span,
     first: *ty.Type,
     second: *ty.Type,
@@ -2232,7 +2231,7 @@ def check_binary_expr(
             return null
 
     dbg.assert_fmt(
-        kind >= BINARY_ADD && kind <= BINARY_LOG_OR,
+        kind >= ast.BinaryKind.Add && kind <= ast.BinaryKind.LogOr,
         "Invalid binary expression: %d\n", kind
     );
 
@@ -2242,9 +2241,9 @@ def check_binary_expr(
     }
 
     if ty.equals(first, second) {
-        if kind == BINARY_EQ || kind == BINARY_NE
-            || kind == BINARY_ST || kind == BINARY_SE
-            || kind == BINARY_GT || kind == BINARY_GE
+        if kind == ast.BinaryKind.Eq || kind == ast.BinaryKind.NE
+            || kind == ast.BinaryKind.ST || kind == ast.BinaryKind.SE
+            || kind == ast.BinaryKind.GT || kind == ast.BinaryKind.GE
         {
             if ty.is_bool(first) {
                 return first;
@@ -2257,7 +2256,7 @@ def check_binary_expr(
             RET_INVALID_TYS();
         }
 
-        if kind == BINARY_LOG_OR || kind == BINARY_LOG_AND {
+        if kind == ast.BinaryKind.LogOr || kind == ast.BinaryKind.LogAnd {
             if ty.is_bool(first) {
                 return first;
             }
@@ -2275,7 +2274,7 @@ def check_binary_expr(
         }
 
         if ty.is_char(first) {
-            if kind == BINARY_ADD || kind == BINARY_SUB {
+            if kind == ast.BinaryKind.Add || kind == ast.BinaryKind.Sub {
                 return get_global_type(tc, 3, "i32");
             }
             return first;
@@ -2283,7 +2282,7 @@ def check_binary_expr(
 
         if ty.is_ptr(first) {
             // pointer subtraction is the only allowed operation
-            if kind == BINARY_SUB {
+            if kind == ast.BinaryKind.Sub {
                 return get_global_type(tc, 3, "i32");
             }
 
@@ -2295,7 +2294,7 @@ def check_binary_expr(
         RET_INVALID_TYS();
     }
 
-    if kind == BINARY_ADD {
+    if kind == ast.BinaryKind.Add {
         // both ptr + int and int + ptr are ok
         if ty.is_ptr(first) && ty.is_integer(second) {
             return first;
@@ -2304,7 +2303,7 @@ def check_binary_expr(
         if ty.is_ptr(second) && ty.is_integer(first) {
             return second;
         }
-    } else if kind == BINARY_SUB {
+    } else if kind == ast.BinaryKind.Sub {
         // only ptr - int is allowed, not the other way
         if ty.is_ptr(first) && ty.is_integer(second) {
             return first;
@@ -2316,12 +2315,12 @@ def check_binary_expr(
 
 def check_unary_expr(
     tc: *TypeChecker,
-    kind: i32,
+    kind: ast.UnaryKind,
     expr: *ast.Expr,
     span: span.Span
 ): *ty.Type {
     dbg.assert_fmt(
-        kind >= UNARY_REF && kind <= UNARY_NEG_NUM,
+        kind >= ast.UnaryKind.Ref && kind <= ast.UnaryKind.NegNum,
         "Invalid unary expression: %d\n", kind
     );
 
@@ -2330,7 +2329,7 @@ def check_unary_expr(
         return null;
     }
 
-    if kind == UNARY_REF {
+    if kind == ast.UnaryKind.Ref {
         if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr)
             || ast.is_access_expr(expr) && ty.is_enum(ast.as_access_expr(expr).left.ty) {
             let text = std.err2str(ERROR_UNARY_REF_RVALUE);
@@ -2350,7 +2349,7 @@ def check_unary_expr(
         return e_ty;
     }
 
-    if kind == UNARY_DEREF {
+    if kind == ast.UnaryKind.Deref {
         if !ty.is_ptr(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);
             let text = std.err2str(ERROR_UNARY_DEREF_NON_PTR, s_ty);
@@ -2377,7 +2376,7 @@ def check_unary_expr(
     }
 
     // TODO(#55): rewrite with function pointers
-    if kind == UNARY_NEG_BOOL {
+    if kind == ast.UnaryKind.NegBool {
         if !ty.is_bool(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);
             let text = std.err2str(ERROR_UNARY_OP_NOT_DEFINED, "!", s_ty);
@@ -2388,7 +2387,7 @@ def check_unary_expr(
         return expr.ty;
     }
 
-    if kind == UNARY_NEG_NUM {
+    if kind == ast.UnaryKind.NegNum {
         if !ty.is_num(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);
             let text = std.err2str(ERROR_UNARY_OP_NOT_DEFINED, "-", s_ty);

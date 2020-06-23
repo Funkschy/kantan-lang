@@ -654,7 +654,7 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let value_addr = expr_instruction(c, unary.right, rhs);
     let meta = get_meta(c, e.span);
 
-    if ast.unary_is_deref(unary) {
+    if unary.kind == ast.UnaryKind.Deref {
         // Expressions on the right side of an assignment have to be derefed twice
         // since a deref is just load instruction
         if rhs {
@@ -665,17 +665,17 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         return mir.new_expr_unary_deref(value_addr);
     }
 
-    if ast.unary_is_ref(unary) {
+    if unary.kind == ast.UnaryKind.Ref {
         let ref_name = mir.as_addr_name(&value_addr).value;
         let ref = mir.make_addr_ref(ref_name, e.ty);
         return mir.new_expr_copy(ref);
     }
 
-    if ast.unary_is_neg_bool(unary) {
+    if unary.kind == ast.UnaryKind.NegBool {
         return mir.new_expr_unary_bool_neg(value_addr);
     }
 
-    if ast.unary_is_neg_num(unary) {
+    if unary.kind == ast.UnaryKind.NegNum {
         return mir.new_expr_unary_num_neg(value_addr);
     }
 
@@ -1131,7 +1131,6 @@ def cast_kind(e: *ast.Expr): mir.CastKind {
 }
 
 #include "mir_types.h"
-#include "expr_types.h"
 
 // sets short circuit to 1 for && and 2 for ||
 def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32 {
@@ -1141,7 +1140,7 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
 
     // the binary kinds for ast and mir only differ for the scalar addition
     // and subtraction...
-    if k == BINARY_ADD {
+    if k == ast.BinaryKind.Add {
         // the following combinations are possible:
         // left | right
         //  num |  num
@@ -1152,7 +1151,7 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
         }
 
         return MIR_BIN_ADD_SCALAR;
-    } else if k == BINARY_SUB {
+    } else if k == ast.BinaryKind.Sub {
         // the following combinations are possible:
         // left | right
         //  num |  num
@@ -1167,12 +1166,12 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
         return MIR_BIN_SUB_SCALAR;
     }
 
-    if k == MIR_BIN_BOOL_AND {
+    if k == ast.BinaryKind.LogAnd {
         *short_circuit = 1;
-    } else if k == MIR_BIN_BOOL_OR {
+    } else if k == ast.BinaryKind.LogOr {
         *short_circuit = 2;
     }
 
     // ...everything else is identical
-    return k;
+    return *(&k as *i32);
 }

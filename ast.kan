@@ -1,4 +1,3 @@
-#include "expr_types.h"
 #include "stmt_types.h"
 
 import "std";
@@ -12,9 +11,56 @@ import "tyid";
 import "ty";
 import "lexer";
 
-extern def binary2str(op: i32): string;
-extern def unary2str(op: i32): string;
-extern def expr2str(op: i32): string;
+extern def binary2str(op: BinaryKind): string;
+extern def unary2str(op: UnaryKind): string;
+extern def expr2str(op: ExprKind): string;
+
+/////////// kinds ///////////
+
+type ExprKind enum {
+    IntLiteral = 1,
+    FloatLiteral,
+    NullLiteral,
+    Undefined,
+    StringLiteral,
+    CharLiteral,
+    Binary,
+    Unary,
+    Identifier,
+    Assignment,
+    Call,
+    StructLiteral,
+    Access,
+    As,
+    New,
+    SizeOf
+}
+
+// These have to match their respective MirBinaryKind
+type BinaryKind enum {
+    Add = 1, // these have to start from 1, for AssignType to work
+    Sub,
+    Mul,
+    Div,
+    Mod,
+
+    ST,
+    SE,
+    GT,
+    GE,
+
+    Eq,
+    NE,
+    LogAnd,
+    LogOr
+}
+
+type UnaryKind enum {
+    Ref = 1,
+    Deref,
+    NegBool,
+    NegNum
+}
 
 /////////// expr stmt ///////////
 
@@ -443,14 +489,14 @@ type AccessExpr struct {
 
 def new_access_expr(span: span.Span, left: *Expr, right: *IdentExpr): *Expr {
     return (new AccessExpr {
-        e: create_expr(EXPR_ACCESS, span),
+        e: create_expr(ExprKind.Access, span),
         left: left,
         right: right
     }) as *Expr;
 }
 
 def is_access_expr(e: *Expr): bool {
-    return e.tag == EXPR_ACCESS;
+    return e.kind == ExprKind.Access;
 }
 
 def as_access_expr(e: *Expr): *AccessExpr {
@@ -467,14 +513,14 @@ type AsExpr struct {
 
 def new_as_expr(span: span.Span, expr: *Expr, ty: tyid.Type): *Expr {
     return (new AsExpr {
-        e: create_expr(EXPR_AS, span),
+        e: create_expr(ExprKind.As, span),
         expr: expr,
         ty: ty
     }) as *Expr;
 }
 
 def is_as_expr(e: *Expr): bool {
-    return e.tag == EXPR_AS;
+    return e.kind == ExprKind.As;
 }
 
 def as_as_expr(e: *Expr): *AsExpr {
@@ -490,13 +536,13 @@ type NewExpr struct {
 
 def new_new_expr(span: span.Span, expr: *Expr): *Expr {
     return (new NewExpr {
-        e: create_expr(EXPR_NEW, span),
+        e: create_expr(ExprKind.New, span),
         expr: expr
     }) as *Expr;
 }
 
 def is_new_expr(e: *Expr): bool {
-    return e.tag == EXPR_NEW;
+    return e.kind == ExprKind.New;
 }
 
 def as_new_expr(e: *Expr): *NewExpr {
@@ -513,14 +559,14 @@ type CallExpr struct {
 
 def new_call_expr(span: span.Span, callee: *Expr, args: ArgList): *Expr {
     return (new CallExpr {
-        e: create_expr(EXPR_CALL, span),
+        e: create_expr(ExprKind.Call, span),
         callee: callee,
         args: args
     }) as *Expr;
 }
 
 def is_call_expr(e: *Expr): bool {
-    return e.tag == EXPR_CALL;
+    return e.kind == ExprKind.Call;
 }
 
 def as_call_expr(e: *Expr): *CallExpr {
@@ -537,14 +583,14 @@ type InitExpr struct {
 
 def new_init_expr(span: span.Span, struct_ty: *Expr, inits: InitList): *Expr {
     return (new InitExpr {
-        e: create_expr(EXPR_INIT, span),
+        e: create_expr(ExprKind.StructLiteral, span),
         struct_ty: struct_ty,
         inits: inits
     }) as *Expr;
 }
 
 def is_init_expr(e: *Expr): bool {
-    return e.tag == EXPR_INIT;
+    return e.kind == ExprKind.StructLiteral;
 }
 
 def as_init_expr(e: *Expr): *InitExpr {
@@ -577,7 +623,7 @@ def new_assign_expr(
     let assign_type = *(&normalized as *AssignType);
 
     return (new AssignExpr {
-        e: create_expr(EXPR_ASSIGN, span),
+        e: create_expr(ExprKind.Assignment, span),
         assign_type: assign_type,
         assign_span: assign_token.span,
         left: left,
@@ -586,7 +632,7 @@ def new_assign_expr(
 }
 
 def is_assign_expr(e: *Expr): bool {
-    return e.tag == EXPR_ASSIGN;
+    return e.kind == ExprKind.Assignment;
 }
 
 def as_assign_expr(e: *Expr): *AssignExpr {
@@ -602,13 +648,13 @@ type IdentExpr struct {
 
 def new_ident_expr(ident_token: lexer.Token): *Expr {
     return (new IdentExpr {
-        e: create_expr(EXPR_IDENT, ident_token.span),
+        e: create_expr(ExprKind.Identifier, ident_token.span),
         ident: ident.create(ident_token)
     }) as *Expr;
 }
 
 def is_ident_expr(e: *Expr): bool {
-    return e.tag == EXPR_IDENT;
+    return e.kind == ExprKind.Identifier;
 }
 
 def as_ident_expr(e: *Expr): *IdentExpr {
@@ -625,13 +671,13 @@ type IntExpr struct {
 
 def new_int_expr(span: span.Span, ptr: string): *Expr {
     return (new IntExpr {
-        e: create_expr(EXPR_INT, span),
+        e: create_expr(ExprKind.IntLiteral, span),
         ptr: ptr
     }) as *Expr;
 }
 
 def is_int_expr(e: *Expr): bool {
-    return e.tag == EXPR_INT;
+    return e.kind == ExprKind.IntLiteral;
 }
 
 def as_int_expr(e: *Expr): *IntExpr {
@@ -647,13 +693,13 @@ type FloatExpr struct {
 
 def new_float_expr(span: span.Span, ptr: string): *Expr {
     return (new FloatExpr {
-        e: create_expr(EXPR_FLOAT, span),
+        e: create_expr(ExprKind.FloatLiteral, span),
         ptr: ptr
     }) as *Expr;
 }
 
 def is_float_expr(e: *Expr): bool {
-    return e.tag == EXPR_FLOAT;
+    return e.kind == ExprKind.FloatLiteral;
 }
 
 def as_float_expr(e: *Expr): *FloatExpr {
@@ -668,12 +714,12 @@ type NullExpr struct {
 
 def new_null_expr(span: span.Span): *Expr {
     return (new NullExpr {
-        e: create_expr(EXPR_NULL, span)
+        e: create_expr(ExprKind.NullLiteral, span)
     }) as *Expr;
 }
 
 def is_null_expr(e: *Expr): bool {
-    return e.tag == EXPR_NULL;
+    return e.kind == ExprKind.NullLiteral;
 }
 
 def as_null_expr(e: *Expr): *NullExpr {
@@ -688,12 +734,12 @@ type UndefinedExpr struct {
 
 def new_undefined_expr(span: span.Span): *Expr {
     return (new UndefinedExpr {
-        e: create_expr(EXPR_UNDEFINED, span)
+        e: create_expr(ExprKind.Undefined, span)
     }) as *Expr;
 }
 
 def is_undefined_expr(e: *Expr): bool {
-    return e.tag == EXPR_UNDEFINED;
+    return e.kind == ExprKind.Undefined;
 }
 
 def as_undefined_expr(e: *Expr): *UndefinedExpr {
@@ -710,14 +756,14 @@ type SizeOfExpr struct {
 
 def new_sizeof_expr(span: span.Span, ty: tyid.Type): *Expr {
     return (new SizeOfExpr {
-        e: create_expr(EXPR_SIZEOF, span),
+        e: create_expr(ExprKind.SizeOf, span),
         ty: ty,
         actual_ty: null
     }) as *Expr;
 }
 
 def is_sizeof_expr(e: *Expr): bool {
-    return e.tag == EXPR_SIZEOF;
+    return e.kind == ExprKind.SizeOf;
 }
 
 def as_sizeof_expr(e: *Expr): *SizeOfExpr {
@@ -732,12 +778,12 @@ type StringExpr struct {
 
 def new_string_expr(span: span.Span): *Expr {
     return (new StringExpr {
-        e: create_expr(EXPR_STRING, span)
+        e: create_expr(ExprKind.StringLiteral, span)
     }) as *Expr;
 }
 
 def is_string_expr(e: *Expr): bool {
-    return e.tag == EXPR_STRING;
+    return e.kind == ExprKind.StringLiteral;
 }
 
 def as_string_expr(e: *Expr): *StringExpr {
@@ -753,13 +799,13 @@ type CharExpr struct {
 
 def new_char_expr(span: span.Span, ptr: string): *Expr {
     return (new CharExpr {
-        e: create_expr(EXPR_CHAR, span),
+        e: create_expr(ExprKind.CharLiteral, span),
         ptr: ptr
     }) as *Expr;
 }
 
 def is_char_expr(e: *Expr): bool {
-    return e.tag == EXPR_CHAR;
+    return e.kind == ExprKind.CharLiteral;
 }
 
 def as_char_expr(e: *Expr): *CharExpr {
@@ -770,32 +816,32 @@ def as_char_expr(e: *Expr): *CharExpr {
 
 type BinaryExpr struct {
     e: Expr,
+    kind: BinaryKind,
     free_left: bool, // needed for transformation of +=, -= etc.
     left: *Expr,
     right: *Expr,
-    kind: i32,
     op_span: span.Span
 }
 
 def new_binary_expr(
     span: span.Span,
-    kind: i32,
+    kind: BinaryKind,
     op_span: span.Span,
     left: *Expr,
     right: *Expr
 ): *Expr {
     return (new BinaryExpr {
-        e: create_expr(EXPR_BINARY, span),
+        e: create_expr(ExprKind.Binary, span),
+        kind: kind,
         dont_free_left: true,
         left: left,
         right: right,
-        kind: kind,
         op_span: op_span
     }) as *Expr;
 }
 
 def is_binary_expr(e: *Expr): bool {
-    return e.tag == EXPR_BINARY;
+    return e.kind == ExprKind.Binary;
 }
 
 def as_binary_expr(e: *Expr): *BinaryExpr {
@@ -806,52 +852,36 @@ def as_binary_expr(e: *Expr): *BinaryExpr {
 
 type UnaryExpr struct {
     e: Expr,
-    kind: i32,
+    kind: UnaryKind,
     right: *Expr
 }
 
-def new_unary_expr(span: span.Span, kind: i32, right: *Expr): *Expr {
+def new_unary_expr(span: span.Span, kind: UnaryKind, right: *Expr): *Expr {
     return (new UnaryExpr {
-        e: create_expr(EXPR_UNARY, span),
+        e: create_expr(ExprKind.Unary, span),
         kind: kind,
         right: right
     }) as *Expr;
 }
 
 def is_unary_expr(e: *Expr): bool {
-    return e.tag == EXPR_UNARY;
+    return e.kind == ExprKind.Unary;
 }
 
 def as_unary_expr(e: *Expr): *UnaryExpr {
     return e as *UnaryExpr;
 }
 
-def unary_is_ref(u: *UnaryExpr): bool {
-    return u.kind == UNARY_REF;
-}
-
-def unary_is_deref(u: *UnaryExpr): bool {
-    return u.kind == UNARY_DEREF;
-}
-
-def unary_is_neg_bool(u: *UnaryExpr): bool {
-    return u.kind == UNARY_NEG_BOOL;
-}
-
-def unary_is_neg_num(u: *UnaryExpr): bool {
-    return u.kind == UNARY_NEG_NUM;
-}
-
 /////////// base expr ///////////
 
 type Expr struct {
-    tag: i32,
+    kind: ExprKind,
     ty: *ty.Type,
     span: span.Span
 }
 
-def create_expr(tag: i32, span: span.Span): Expr {
-    return Expr { tag: tag, ty: null, span: span };
+def create_expr(kind: ExprKind, span: span.Span): Expr {
+    return Expr { kind: kind, ty: null, span: span };
 }
 
 def is_assignable(e: *Expr): bool {
@@ -859,7 +889,7 @@ def is_assignable(e: *Expr): bool {
         || is_ident_expr(e);
 
     if is_unary_expr(e) {
-        assignable = unary_is_deref(as_unary_expr(e));
+        assignable = as_unary_expr(e).kind == UnaryKind.Deref;
     }
 
     return assignable;

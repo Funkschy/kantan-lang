@@ -1,4 +1,3 @@
-#include "./expr_types.h"
 #include "./error_code.h"
 
 // the 0 at the end is to enable the use of a semicolon at the end
@@ -999,10 +998,10 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
         return ast.new_new_expr(merged_span, e);
     }
 
-    UNARY(l.TokenType.Ampersand, UNARY_REF);
-    UNARY(l.TokenType.Star, UNARY_DEREF);
-    UNARY(l.TokenType.Bang, UNARY_NEG_BOOL);
-    UNARY(l.TokenType.Minus, UNARY_NEG_NUM);
+    UNARY(l.TokenType.Ampersand, ast.UnaryKind.Ref);
+    UNARY(l.TokenType.Star, ast.UnaryKind.Deref);
+    UNARY(l.TokenType.Bang, ast.UnaryKind.NegBool);
+    UNARY(l.TokenType.Minus, ast.UnaryKind.NegNum);
 
     if token.ty == l.TokenType.LParen {
         // ignore no_struct, because it's in parens
@@ -1076,47 +1075,47 @@ def infix(p: *Parser, token: *l.Token, left: *ast.Expr, no_struct: bool): *ast.E
     // binary expression
 
     let found = false;
-    let ty = 0;
+    let ty: ast.BinaryKind = undefined;
 
     if token.ty == l.TokenType.Plus {
         found = true;
-        ty = BINARY_ADD;
+        ty = ast.BinaryKind.Add;
     } else if token.ty == l.TokenType.Minus {
         found = true;
-        ty = BINARY_SUB;
+        ty = ast.BinaryKind.Sub;
     } else if token.ty == l.TokenType.Star {
         found = true;
-        ty = BINARY_MUL;
+        ty = ast.BinaryKind.Mul;
     } else if token.ty == l.TokenType.Slash {
         found = true;
-        ty = BINARY_DIV;
+        ty = ast.BinaryKind.Div;
     } else if token.ty == l.TokenType.Percent {
         found = true;
-        ty = BINARY_MOD;
+        ty = ast.BinaryKind.Mod;
     } else if token.ty == l.TokenType.Smaller {
         found = true;
-        ty = BINARY_ST;
+        ty = ast.BinaryKind.ST;
     } else if token.ty == l.TokenType.SmallerEq {
         found = true;
-        ty = BINARY_SE;
+        ty = ast.BinaryKind.SE;
     } else if token.ty == l.TokenType.Greater {
         found = true;
-        ty = BINARY_GT;
+        ty = ast.BinaryKind.GT;
     } else if token.ty == l.TokenType.GreaterEq {
         found = true;
-        ty = BINARY_GE;
+        ty = ast.BinaryKind.GE;
     } else if token.ty == l.TokenType.DoubleAmpersand {
         found = true;
-        ty = BINARY_LOG_AND;
+        ty = ast.BinaryKind.LogAnd;
     } else if token.ty == l.TokenType.DoublePipe {
         found = true;
-        ty = BINARY_LOG_OR;
+        ty = ast.BinaryKind.LogOr;
     } else if token.ty == l.TokenType.DoubleEq {
         found = true;
-        ty = BINARY_EQ;
+        ty = ast.BinaryKind.Eq;
     } else if token.ty == l.TokenType.BangEq {
         found = true;
-        ty = BINARY_NE;
+        ty = ast.BinaryKind.NE;
     }
 
     // a pattern matched
