@@ -16,8 +16,6 @@ def inner_sort(values: *i32, indices: *i32, len: i32) {
         return;
     }
 
-    // last element as pivot
-    // TODO: pick better pivot element
     let pivot_idx = len / 2;
     let pivot = values + pivot_idx;
 
