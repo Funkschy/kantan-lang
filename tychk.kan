@@ -1,25 +1,25 @@
+import "ty";
 import "ast";
-import "ptrvec";
 import "vec";
-import "span";
 import "mod";
 import "map";
-import "scope";
-import "path";
-import "ident";
-import "record";
-import "func";
-import "ty";
-import "tyid";
-import "param";
-import "name";
 import "dbg";
+import "span";
+import "tyid";
+import "name";
+import "path";
+import "func";
+import "scope";
+import "ident";
+import "param";
+import "record";
+import "ptrvec";
+import "modsort" as ms;
 
 import "std";
 // TODO(#21): only for debug purposes
 import "io";
 
-extern def isort(arr: *i32, len: i32): *i32;
 extern def stmt2str(kind: i32): string;
 
 #define OK                  0
@@ -562,7 +562,7 @@ def sorted_mods(mods: *mod.Map): *i32 {
         i = i + 1;
     }
 
-    let sorted_mods = isort(import_nums, num_mods);
+    let sorted_mods = ms.sort(import_nums, num_mods);
     delete import_nums;
 
     return sorted_mods;

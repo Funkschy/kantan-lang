@@ -14,6 +14,7 @@ K_FILES = ast.kan \
 		  mir.kan \
 		  mirc.kan \
 		  mod.kan \
+		  modsort.kan \
 		  name.kan \
 		  nt.kan \
 		  opt.kan \
@@ -36,7 +37,7 @@ K_FILES = ast.kan \
 		  tyid.kan \
 		  vec.kan \
 		  vmap.kan
-C_SRC_FILES = lib.c modsort.c posixlink.c
+C_SRC_FILES = lib.c posixlink.c
 C_FILES = $(C_SRC_FILES) \
 		  lib.h \
 		  stmt_types.h \
