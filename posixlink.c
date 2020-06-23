@@ -35,8 +35,9 @@ bool find_single(
 
 bool find_linux_crt(struct paths *paths) {
     char const *const possible_dirs[] = {
-        "/usr/lib/",
+        "/usr/lib64/",
         "/usr/lib/x86_64-linux-gnu/",
+        "/usr/lib/",
     };
     size_t num_possible = sizeof(possible_dirs) / sizeof(const char *const);
 
