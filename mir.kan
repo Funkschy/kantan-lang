@@ -20,8 +20,7 @@ extern def mir_unary2str(kind: i32): string;
 type Module struct {
     globals: map.Map, // map.Map<name.Ref, *GlobalConst>
     functions: map.Map, // map.Map<name.Ref, *Func>
-    structs: map.Map, // map.Map<name.Ref, *Struct>
-    enums: map.Map, // map.Map<name.Ref, *Enum>
+    user_defined_types: map.Map, // map.Map<name.Ref, *UserDefinedType>
     scopes: vec.Vec, // vec.Vec<Scope>
     actual: *mod.Module
 }
@@ -29,16 +28,14 @@ type Module struct {
 def create_mod(
     globals: map.Map,
     funcs: map.Map,
-    structs: map.Map,
-    enums: map.Map,
+    user_defined_types: map.Map,
     scopes: vec.Vec,
     actual: *mod.Module
 ): Module {
     return Module {
         globals: globals,
         functions: funcs,
-        structs: structs,
-        enums: enums,
+        user_defined_types: user_defined_types,
         scopes: scopes,
         actual: actual
     };
@@ -56,20 +53,12 @@ def free_mod(m: *Module): void {
         item = map.iter_next(&f_iter);
     }
 
-    // free struct values
-    let s_iter = map.iter(&m.structs);
-    let item = map.iter_next(&s_iter);
+    // free user defined types
+    let t_iter = map.iter(&m.user_defined_types);
+    let item = map.iter_next(&t_iter);
     while item != null {
         delete item.value;
-        item = map.iter_next(&s_iter);
-    }
-
-    // free enum values
-    let e_iter = map.iter(&m.enums);
-    let item = map.iter_next(&e_iter);
-    while item != null {
-        delete item.value;
-        item = map.iter_next(&e_iter);
+        item = map.iter_next(&t_iter);
     }
 
     // free globals
@@ -84,78 +73,62 @@ def free_mod(m: *Module): void {
     }
 
     map.free_m(&m.functions);
-    map.free_m(&m.structs);
-    map.free_m(&m.enums);
+    map.free_m(&m.user_defined_types);
     map.free_m(&m.globals);
 
     vec.free_v(&m.scopes);
 }
 
 def dump_module(m: *Module): void {
-    let s_iter = map.iter(&m.structs);
-    let item = map.iter_next(&s_iter);
+    let t_iter = map.iter(&m.user_defined_types);
+    let item = map.iter_next(&t_iter);
     while item != null {
-        let s = item.value as *Struct;
+        let t = item.value as *UserDefinedType;
 
         let s_extern = "";
-        if s.is_extern {
+        if t.is_extern {
             s_extern = "extern ";
         }
 
-        let s_ty = ty.as_struct(s.ty);
-        io.printf("%s%.*s { ", s_extern, s.name.len, s.name.data);
+        io.printf("%s%.*s { ", s_extern, t.name.len, t.name.data);
 
-        let i = 0;
-        while i < ty.num_fields(s_ty) {
-            if i > 0 {
-                io.printf(", ");
+        if ty.is_struct(t.ty) {
+            let s_ty = ty.as_struct(t.ty);
+            for let i = 0; i < ty.num_fields(s_ty); i += 1 {
+                if i > 0 {
+                    io.printf(", ");
+                }
+
+                let field = ty.field_at(s_ty, i);
+
+                let ty_s = "";
+                let free_ty_s = ty.to_string(field.ty, &ty_s);
+                io.printf(
+                    "%.*s: %s",
+                    ident.len(&field.name),
+                    ident.start(&field.name),
+                    ty_s
+                );
+
+                if free_ty_s {
+                    delete ty_s;
+                }
             }
+        } else if ty.is_enum(t.ty) {
+            let e_ty = ty.as_enum(t.ty);
 
-            let field = ty.field_at(s_ty, i);
+            for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
+                if i > 0 {
+                    io.printf(", ");
+                }
 
-            let ty_s = "";
-            let free_ty_s = ty.to_string(field.ty, &ty_s);
-            io.printf(
-                "%.*s: %s",
-                ident.len(&field.name),
-                ident.start(&field.name),
-                ty_s
-            );
-
-            if free_ty_s {
-                delete ty_s;
+                let value = ty.value_at(e_ty, i);
+                io.printf("%.*s", ident.len(&value.name), ident.start(&value.name));
             }
-
-            i = i + 1;
         }
 
         io.printf(" }\n");
-        item = map.iter_next(&s_iter);
-    }
-
-    let e_iter = map.iter(&m.enums);
-    let item = map.iter_next(&e_iter);
-    while item != null {
-        let e = item.value as *Enum;
-        let e_ty = ty.as_enum(e.ty);
-
-        let s_extern = "";
-        if e.is_extern {
-            s_extern = "extern ";
-        }
-
-        io.printf("%s%.*s { ", s_extern, e.name.len, e.name.data);
-        for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
-            if i > 0 {
-                io.printf(", ");
-            }
-
-            let value = ty.value_at(e_ty, i);
-            io.printf("%.*s", ident.len(&value.name), ident.start(&value.name));
-        }
-        io.printf(" }\n");
-
-        item = map.iter_next(&e_iter);
+        item = map.iter_next(&t_iter);
     }
 
     let g_iter = map.iter(&m.globals);
@@ -241,35 +214,22 @@ def func_push_instr(f: *Func, inst: *Inst): void {
     bm_push_instr(&f.blocks, inst);
 }
 
-type Struct struct {
+type UserDefinedType struct {
     name: name.Ref,
     ty: *ty.Type,
     meta: MetaData,
     is_extern: bool
 }
 
-def create_struct(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern: bool): Struct {
-    dbg.assert(ty.is_struct(t), "struct type was not struct");
-
-    return Struct {
-        name: mangled_name,
-        ty: t,
-        meta: meta,
-        is_extern: is_extern
-    };
-}
-
-type Enum struct {
-    name: name.Ref,
-    ty: *ty.Type,
+def create_user_defined_type(
+    t: *ty.Type,
+    mangled_name: name.Ref,
     meta: MetaData,
     is_extern: bool
-}
+): UserDefinedType {
+    dbg.assert(ty.is_user_defined(t), "UserDefinedType type was not user defined");
 
-def create_enum(t: *ty.Type, mangled_name: name.Ref, meta: MetaData, is_extern: bool): Enum {
-    dbg.assert(ty.is_enum(t), "enum type was not enum");
-
-    return Enum {
+    return UserDefinedType {
         name: mangled_name,
         ty: t,
         meta: meta,

@@ -127,12 +127,14 @@ def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleCon
 
 def add_forward_declarations(c: *ModuleCompiler): void {
     // add struct declarations
-    let s_iter = map.iter(&c.irmod.structs);
-    let item = map.iter_next(&s_iter);
+    let t_iter = map.iter(&c.irmod.user_defined_types);
+    let item = map.iter_next(&t_iter);
     while item != null {
-        let s = item.value as *mir.Struct;
-        lookup_or_declare_struct(c, s.ty);
-        item = map.iter_next(&s_iter);
+        let t = item.value as *mir.UserDefinedType;
+        if ty.is_struct(t.ty) {
+            lookup_or_declare_struct(c, t.ty);
+        }
+        item = map.iter_next(&t_iter);
     }
 
     // add globals
@@ -202,15 +204,15 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     dbg.assert(ty.is_struct(t), "non struct type passed");
     let s_ty = ty.as_struct(t);
 
-    let key = map.create_key(s_ty.mangled_name.len, s_ty.mangled_name.data);
+    let name = s_ty.super.mangled_name;
+    let key = map.create_key(name.len, name.data);
     let struct_decl = map.get(&c.structs, key) as *llvm.Type;
 
     if struct_decl == null {
         let num_fields = ty.num_fields(s_ty);
         let fields = ptrvec.with_cap(num_fields);
 
-        let name = s_ty.mangled_name.data;
-        struct_decl = llvm.struct_create_named(c.context.ctx, name);
+        struct_decl = llvm.struct_create_named(c.context.ctx, name.data);
         map.insert(&c.structs, key, struct_decl as *void);
 
         let i = 0;
@@ -992,8 +994,7 @@ type DebugInfo struct {
     cu: *llvm.MetaData,
     file: *llvm.MetaData,
     std_dir: string,
-    structs: map.Map, // map.Map<mir.Refname, *llvm.MetaData>
-    enums: map.Map, // map.Map<mir.Refname, *llvm.MetaData>
+    types: map.Map, // map.Map<mir.Refname, *llvm.MetaData>
     functions: map.Map // map.Map<mir.Refname, *llvm.MetaData>
 }
 
@@ -1040,8 +1041,7 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
         cu: cu,
         file: llfile,
         std_dir: std_dir,
-        structs: map.create(),
-        enums: map.create(),
+        types: map.create(),
         functions: map.create()
     };
 }
@@ -1100,27 +1100,28 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         );
     }
 
-    if ty.is_struct(t) {
-        let s_ty = ty.as_struct(t);
-        let key = map.create_key(s_ty.mangled_name.len, s_ty.mangled_name.data);
+    if ty.is_user_defined(t) {
+        let type_data = ty.get_user_defined(t);
+        let name = type_data.mangled_name;
+        let key = map.create_key(name.len, name.data);
 
-        let cached = map.get(&c.dbg.structs, key) as *llvm.MetaData;
+        let cached = map.get(&c.dbg.types, key) as *llvm.MetaData;
         if cached != null {
             return cached;
         }
 
-        let s = map.get(&c.irmod.structs, key) as *mir.Struct;
-        dbg.assert_fmt(s != null, "struct %s does not exist", s_ty.mangled_name.data);
+        let definition = map.get(&c.irmod.user_defined_types, key) as *mir.UserDefinedType;
+        dbg.assert_fmt(definition != null, "user defined type %s does not exist", name.data);
 
         let scope: *llvm.MetaData = null;
         let file = c.dbg.file;
 
-        if s.is_extern {
-            let mod_path = mod.get_path(s_ty.declared_in);
+        if definition.is_extern {
+            let mod_path = mod.get_path(type_data.declared_in);
             let dir = path.parent(&mod_path);
             let filename = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
 
-            if mod.is_std_lib(s_ty.declared_in) {
+            if mod.is_std_lib(type_data.declared_in) {
                 filename = dir;
                 dir = path.create(c.dbg.std_dir, std.strlen(c.dbg.std_dir));
             }
@@ -1132,115 +1133,85 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             );
             scope = file;
         } else {
-            scope = dbg_get_scope(c.dbg, s.meta);
+            scope = dbg_get_scope(c.dbg, definition.meta);
         }
 
-        let tag = 19; // dwarf_tag_structure_type
-        let placeholder = llvm.di_builder_create_forward_decl(
-            c.dbg.builder, tag,
-            s.name.data, s.name.len,
-            scope, file, s.meta.pos.lnr,
-            0, t.width * 8, t.align * 8,
-            s.name.data, s.name.len
-        );
-        map.insert(&c.dbg.structs, key, placeholder as *void);
+        if ty.is_struct(t) {
+            let s_ty = ty.as_struct(t);
+            let tag = 19; // dwarf_tag_structure_type
+            let placeholder = llvm.di_builder_create_forward_decl(
+                c.dbg.builder, tag,
+                definition.name.data, definition.name.len,
+                scope, file, definition.meta.pos.lnr,
+                0, t.width * 8, t.align * 8,
+                definition.name.data, definition.name.len
+            );
+            map.insert(&c.dbg.types, key, placeholder as *void);
 
-        let field_types = ptrvec.with_cap(ty.num_fields(s_ty));
-        for let i = 0; i < ty.num_fields(s_ty); i = i + 1 {
-            let field = ty.field_at(s_ty, i);
-            let width_bits = field.ty.width * 8;
-            let offset_in_bits = field.offset * 8;
+            let field_types = ptrvec.with_cap(ty.num_fields(s_ty));
+            for let i = 0; i < ty.num_fields(s_ty); i = i + 1 {
+                let field = ty.field_at(s_ty, i);
+                let width_bits = field.ty.width * 8;
+                let offset_in_bits = field.offset * 8;
 
-            let member = llvm.di_builder_create_member_type(
+                let member = llvm.di_builder_create_member_type(
+                    c.dbg.builder, scope,
+                    ident.start(&field.name), ident.len(&field.name),
+                    file, definition.meta.pos.lnr, // TODO(#97): line number of field
+                    width_bits, field.ty.align * 8, offset_in_bits,
+                    0, dbg_translate_type(c, field.ty)
+                );
+
+                ptrvec.push_ptr(&field_types, member as *void);
+            }
+
+            let llvm_struct_ty = llvm.di_builder_create_struct_type(
                 c.dbg.builder, scope,
-                ident.start(&field.name), ident.len(&field.name),
-                file, s.meta.pos.lnr, // TODO(#97): line number of field
-                width_bits, field.ty.align * 8, offset_in_bits,
-                0, dbg_translate_type(c, field.ty)
+                definition.name.data, definition.name.len,
+                file, definition.meta.pos.lnr,
+                t.width * 8, t.align * 8, 0, placeholder,
+                field_types.elements as **llvm.MetaData, field_types.len,
+                0, null,
+                definition.name.data, definition.name.len
             );
 
-            ptrvec.push_ptr(&field_types, member as *void);
+            ptrvec.free_v(&field_types);
+            map.insert(&c.dbg.types, key, llvm_struct_ty as *void);
+
+            return llvm_struct_ty;
         }
 
-        let llvm_struct_ty = llvm.di_builder_create_struct_type(
-            c.dbg.builder, scope,
-            s.name.data, s.name.len,
-            file, s.meta.pos.lnr,
-            t.width * 8, t.align * 8, 0, placeholder,
-            field_types.elements as **llvm.MetaData, field_types.len,
-            0, null,
-            s.name.data, s.name.len
-        );
+        if ty.is_enum(t) {
+            let e_ty = ty.as_enum(t);
 
-        ptrvec.free_v(&field_types);
-        map.insert(&c.dbg.structs, key, llvm_struct_ty as *void);
+            let enumerators = ptrvec.with_cap(ty.num_values(e_ty));
+            for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
+                let enum_value = ty.value_at(e_ty, i);
 
-        return llvm_struct_ty;
-    }
+                let enumerator = llvm.di_builder_create_enumerator(
+                    c.dbg.builder,
+                    ident.start(&enum_value.name),
+                    ident.len(&enum_value.name),
+                    enum_value.value,
+                    true // are there signed enum values?
+                );
 
-    if ty.is_enum(t) {
-        let e_ty = ty.as_enum(t);
-        let key = map.create_key(e_ty.mangled_name.len, e_ty.mangled_name.data);
-
-        let cached = map.get(&c.dbg.enums, key) as *llvm.MetaData;
-        if cached != null {
-            return cached;
-        }
-
-        let e = map.get(&c.irmod.enums, key) as *mir.Enum;
-        dbg.assert_fmt(e != null, "enum %s does not exist", e_ty.mangled_name.data);
-
-        let scope: *llvm.MetaData = null;
-        let file = c.dbg.file;
-
-        if e.is_extern {
-            let mod_path = mod.get_path(e_ty.declared_in);
-            let dir = path.parent(&mod_path);
-            let filename = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
-
-            if mod.is_std_lib(e_ty.declared_in) {
-                filename = dir;
-                dir = path.create(c.dbg.std_dir, std.strlen(c.dbg.std_dir));
+                ptrvec.push_ptr(&enumerators, enumerator as *void);
             }
 
-            file = llvm.di_builder_create_file(
+            let enumeration = llvm.di_builder_create_enumeration_type(
                 c.dbg.builder,
-                filename.inner, filename.len,
-                dir.inner, dir.len - 1 // -1 to remove trailing '/'
-            );
-            scope = file;
-        } else {
-            scope = dbg_get_scope(c.dbg, e.meta);
-        }
-
-        let enumerators = ptrvec.with_cap(ty.num_values(e_ty));
-        for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
-            let enum_value = ty.value_at(e_ty, i);
-
-            let enumerator = llvm.di_builder_create_enumerator(
-                c.dbg.builder,
-                ident.start(&enum_value.name),
-                ident.len(&enum_value.name),
-                enum_value.value,
-                true // are there signed enum values?
+                scope,
+                definition.name.data, definition.name.len,
+                file, definition.meta.pos.lnr,
+                t.width * 8, t.align * 8,
+                enumerators.elements as **llvm.MetaData, enumerators.len,
+                null // class ty
             );
 
-            ptrvec.push_ptr(&enumerators, enumerator as *void);
+            ptrvec.free_v(&enumerators);
+            return enumeration;
         }
-
-        let enumeration = llvm.di_builder_create_enumeration_type(
-            c.dbg.builder,
-            scope,
-            e_ty.mangled_name.data,
-            e_ty.mangled_name.len,
-            file, e.meta.pos.lnr,
-            t.width * 8, t.align * 8,
-            enumerators.elements as **llvm.MetaData, enumerators.len,
-            null // class ty
-        );
-
-        ptrvec.free_v(&enumerators);
-        return enumeration;
     }
 
     if ty.is_ptr(t) {
@@ -1480,7 +1451,6 @@ def finalize(info: *DebugInfo) {
 def free_dbg_info(info: *DebugInfo) {
     llvm.dispose_di_builder(info.builder);
     ptrvec.free_v(&info.scopes);
-    map.free_m(&info.structs);
-    map.free_m(&info.enums);
+    map.free_m(&info.types);
     map.free_m(&info.functions);
 }

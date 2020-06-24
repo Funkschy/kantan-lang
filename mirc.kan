@@ -41,8 +41,7 @@ type MirCompiler struct {
     data: *CompilationData,
     names: nt.NameTable,
     functions: map.Map, // map.Map<name.Ref, *mir.Func>
-    structs: map.Map, // map.Map<name.Ref, *mir.Struct>
-    enums: map.Map, // map.Map<name.Ref, *mir.Enum>
+    user_defined_types: map.Map, // map.Map<name.Ref, *mir.UserDefinedType>
     globals: map.Map, // map.Map<name.Ref, *mir.GlobalConst>
     current_func: *mir.Func,
     scopes: vec.Vec,
@@ -56,8 +55,7 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
         data: data,
         names: nt.create(),
         functions: map.create(),
-        structs: map.create(),
-        enums: map.create(),
+        user_defined_types: map.create(),
         globals: map.create(),
         current_func: null,
         scopes: vec.create(sizeof mir.Scope),
@@ -83,7 +81,7 @@ def compile(c: *MirCompiler): mir.Module {
 
     close_scope(c);
 
-    return mir.create_mod(c.globals, c.functions, c.structs, c.enums, c.scopes, c.mod);
+    return mir.create_mod(c.globals, c.functions, c.user_defined_types, c.scopes, c.mod);
 }
 
 def add_function(c: *MirCompiler, f: *mir.Func): void {
@@ -91,24 +89,14 @@ def add_function(c: *MirCompiler, f: *mir.Func): void {
     map.insert(&c.functions, key, f as *void);
 }
 
-def add_struct(c: *MirCompiler, s: *mir.Struct): void {
-    let key = map.create_key(s.name.len, s.name.data);
-    map.insert(&c.structs, key, s as *void);
+def add_user_defined_type(c: *MirCompiler, t: *mir.UserDefinedType): void {
+    let key = map.create_key(t.name.len, t.name.data);
+    map.insert(&c.user_defined_types, key, t as *void);
 }
 
-def add_enum(c: *MirCompiler, s: *mir.Enum): void {
-    let key = map.create_key(s.name.len, s.name.data);
-    map.insert(&c.enums, key, s as *void);
-}
-
-def lookup_struct(c: *MirCompiler, mangled_name: name.Ref): *mir.Struct {
+def lookup_user_defined_type(c: *MirCompiler, mangled_name: name.Ref): *mir.UserDefinedType {
     let key = map.create_key(mangled_name.len, mangled_name.data);
-    return map.get(&c.structs, key) as *mir.Struct;
-}
-
-def lookup_enum(c: *MirCompiler, mangled_name: name.Ref): *mir.Enum {
-    let key = map.create_key(mangled_name.len, mangled_name.data);
-    return map.get(&c.enums, key) as *mir.Enum;
+    return map.get(&c.user_defined_types, key) as *mir.UserDefinedType;
 }
 
 def lookup_function(c: *MirCompiler, mangled_name: name.Ref): *mir.Func {
@@ -181,48 +169,31 @@ def lookup_global_type(c: *MirCompiler, len: i32, name: string): *ty.Type {
     return map.get(&c.data.global_types, key) as *ty.Type;
 }
 
-def lookup_or_declare_struct(c: *MirCompiler, t: *ty.Type): *mir.Struct {
-    dbg.assert(ty.is_struct(t), "non struct type passed to lookup");
+def lookup_or_declare_type(c: *MirCompiler, t: *ty.Type): *mir.UserDefinedType {
+    dbg.assert(ty.is_user_defined(t), "non user defined type passed to lookup");
 
-    let s_ty = ty.as_struct(t);
-    let mangled_name = name.ref(s_ty.mangled_name);
-    let mir_struct = lookup_struct(c, mangled_name);
+    let defined = ty.get_user_defined(t);
+    let mangled_name = name.ref(defined.mangled_name);
+    let mir_type = lookup_user_defined_type(c, mangled_name);
 
-    if mir_struct == null {
-        let is_extern = s_ty.declared_in != c.mod;
+    if mir_type == null {
+        let is_extern = defined.declared_in != c.mod;
 
-        // we may override this, in compile_stmt, if the struct was used, before
+        // we may override this, in compile_stmt, if the type was used, before
         // it was declared
-        let meta = get_meta_mod(c, s_ty.name.span, s_ty.declared_in);
-        mir_struct = new mir.create_struct(t, mangled_name, meta, is_extern);
-        add_struct(c, mir_struct);
+        let meta = get_meta_mod(c, defined.original_name.span, defined.declared_in);
+        mir_type = new mir.create_user_defined_type(t, mangled_name, meta, is_extern);
+        add_user_defined_type(c, mir_type);
 
-        for let i = 0; i < s_ty.fields.len; i = i + 1 {
-            declare_type(c, ty.field_at(s_ty, i).ty);
+        if ty.is_struct(t) {
+            let s_ty = ty.as_struct(t);
+            for let i = 0; i < s_ty.fields.len; i = i + 1 {
+                declare_type(c, ty.field_at(s_ty, i).ty);
+            }
         }
     }
 
-    return mir_struct;
-}
-
-def lookup_or_declare_enum(c: *MirCompiler, t: *ty.Type): *mir.Enum {
-    dbg.assert(ty.is_enum(t), "non enum type passed to lookup");
-
-    let e_ty = ty.as_enum(t);
-    let mangled_name = name.ref(e_ty.mangled_name);
-    let mir_enum = lookup_enum(c, mangled_name);
-
-    if mir_enum == null {
-        let is_extern = e_ty.declared_in != c.mod;
-
-        // we may override this, in compile_stmt, if the enum was used, before
-        // it was declared
-        let meta = get_meta_mod(c, e_ty.name.span, e_ty.declared_in);
-        mir_enum = new mir.create_enum(t, mangled_name, meta, is_extern);
-        add_enum(c, mir_enum);
-    }
-
-    return mir_enum;
+    return mir_type;
 }
 
 def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
@@ -254,27 +225,24 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 // everything, that uses an explicit type identifier (tyid.Type), needs to be declared,
 // since the type could be from another module
 def declare_type(c: *MirCompiler, t: *ty.Type) {
-    if ty.is_struct(t) {
-        lookup_or_declare_struct(c, t);
+    if ty.is_user_defined(t) {
+        lookup_or_declare_type(c, t);
     }
 
-    if ty.is_enum(t) {
-        lookup_or_declare_enum(c, t);
-    }
-
-    if ty.is_ptr(t) && ty.is_struct(ty.as_ptr(t).inner) {
-        lookup_or_declare_struct(c, ty.as_ptr(t).inner);
+    if ty.is_ptr(t) && ty.is_user_defined(ty.as_ptr(t).inner) {
+        lookup_or_declare_type(c, ty.as_ptr(t).inner);
     }
 }
 
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
+    // TODO: remove duplicate code
     if ast.is_struct_decl_stmt(s) {
         let decl_stmt = ast.as_struct_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
         // override the meta information, since it could be wrong, if the struct
         // was used before it was declared
-        let mir_struct = lookup_or_declare_struct(c, decl.struct_ty);
+        let mir_struct = lookup_or_declare_type(c, decl.struct_ty);
         let meta = get_meta(c, decl.name.span);
         mir_struct.meta = meta;
 
@@ -287,7 +255,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
         // override the meta information, since it could be wrong, if the enum
         // was used before it was declared
-        let mir_enum = lookup_or_declare_enum(c, decl.enum_ty);
+        let mir_enum = lookup_or_declare_type(c, decl.enum_ty);
         let meta = get_meta(c, decl.name.span);
         mir_enum.meta = meta;
 
@@ -821,7 +789,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let struct_init = ast.as_init_expr(e);
 
-    let mir_struct = lookup_or_declare_struct(c, e.ty);
+    let mir_struct = lookup_or_declare_type(c, e.ty);
 
     let i = 0;
     let n = ast.num_inits(&struct_init.inits);

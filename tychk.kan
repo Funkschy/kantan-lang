@@ -391,7 +391,7 @@ def check(tc: *TypeChecker): CheckResult {
                 dbg.assert(ty.is_struct(incomplete_ty), "incomplete_ty wasn't a struct");
 
                 let s_ty = ty.as_struct(incomplete_ty);
-                push_incomplete_ty_error(tc, &s_ty.name);
+                push_incomplete_ty_error(tc, &s_ty.super.original_name);
                 error = true;
             } else {
                 let idx = std.ptr_to_int(next.value) - 1;
@@ -847,7 +847,7 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
         // io.printf("DBG: %s has a width of %d, align of %d\n", s, t.width, t.align);
         // delete s;
 
-        update_all_waiting(tc, tc.ctx.mod, t, &s_ty.name);
+        update_all_waiting(tc, tc.ctx.mod, t, &s_ty.super.original_name);
         return;
     }
 }
@@ -968,7 +968,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
 
     if req.kind == WAITING_TYPE || req.kind == WAITING_TYPE_PTR {
         let waiting_s_ty = ty.as_struct(waiting_ty);
-        let waiting_ident = &waiting_s_ty.name;
+        let waiting_ident = &waiting_s_ty.super.original_name;
 
         // ----- DBG -----
         // let resolved_name: string = null;
@@ -1201,7 +1201,7 @@ def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
         }
     }
 
-    update_all_waiting(tc, tc.ctx.mod, decl, &e_ty.name);
+    update_all_waiting(tc, tc.ctx.mod, decl, &e_ty.super.original_name);
     return decl;
 }
 
@@ -2507,7 +2507,7 @@ def push_duplicate_enum_value_error(tc: *TypeChecker, e: *ty.Enum, value_name: *
     let text = std.err2str(
         ERROR_DUPLICATE_ENUM_VALUE,
         len, ident.start(value_name),
-        e.mangled_name.len, e.mangled_name.data
+        e.super.mangled_name.len, e.super.mangled_name.data
     );
     push_mk_err(tc, text, value_name.span);
 }
@@ -2519,7 +2519,7 @@ def push_invalid_enum_start_value_error(tc: *TypeChecker, e: *ty.Enum, start_val
     let text = std.err2str(
         ERROR_INVALID_ENUM_START_VALUE,
         s_start_ty,
-        e.mangled_name.len, e.mangled_name.data
+        e.super.mangled_name.len, e.super.mangled_name.data
     );
 
     if free_s_start_ty {

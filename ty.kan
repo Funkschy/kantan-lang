@@ -181,6 +181,21 @@ def is_string(t: *Type): bool {
     return is_ptr(t) && as_ptr(t).count == 1 && is_char(as_ptr(t).inner);
 }
 
+type UserDefinedType struct {
+    original_name: ident.Ident,
+    mangled_name: name.Owned,
+    scope: scope.Scope,
+    declared_in: *mod.Module
+}
+
+def is_user_defined(t: *Type): bool {
+    return is_struct(t) || is_enum(t);
+}
+
+def get_user_defined(t: *Type): *UserDefinedType {
+    return t.data as *UserDefinedType;
+}
+
 /////////// struct type ///////////
 
 type StructField struct {
@@ -190,10 +205,7 @@ type StructField struct {
 }
 
 type Struct struct {
-    name: ident.Ident,
-    mangled_name: name.Owned,
-    scope: scope.Scope,
-    declared_in: *mod.Module,
+    super: UserDefinedType,
     fields: vec.Vec // <StructField>
 }
 
@@ -205,10 +217,12 @@ def init_struct(
     declared_in: *mod.Module
 ): void {
     let s = new Struct {
-        name: name,
-        mangled_name: mangled_name,
-        scope: scope.create(),
-        declared_in: declared_in,
+        super: UserDefinedType {
+            name: name,
+            mangled_name: mangled_name,
+            scope: scope.create(),
+            declared_in: declared_in
+        },
         fields: vec.create(sizeof StructField)
     };
 
@@ -224,7 +238,7 @@ def is_struct(t: *Type): bool {
 def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
     let field = StructField { name: name, ty: ty, offset: 0 };
     vec.push(&t.fields, &field as *void);
-    scope.bind_in(&t.scope, &name, ty);
+    scope.bind_in(&t.super.scope, &name, ty);
 }
 
 def field_at(t: *Struct, i: i32): *StructField {
@@ -252,7 +266,7 @@ def field_idx(t: *Struct, name: ident.Ident, out_field_ty: **Type): i32 {
 }
 
 def update_field_ty(t: *Struct, field: *StructField): void {
-    scope.bind_in(&t.scope, &field.name, field.ty);
+    scope.bind_in(&t.super.scope, &field.name, field.ty);
 }
 
 def num_fields(t: *Struct): i32 {
@@ -271,10 +285,7 @@ type EnumValue struct {
 }
 
 type Enum struct {
-    name: ident.Ident,
-    mangled_name: name.Owned,
-    scope: scope.Scope,
-    declared_in: *mod.Module,
+    super: UserDefinedType,
     base_ty: *Type, // currently only i32
     values: vmap.Map // vmap.Map<ident.Ident, EnumValue>
 }
@@ -290,10 +301,12 @@ def init_enum(
     dbg.assert(base_ty != null, "base_ty was null");
 
     let s = new Enum {
-        name: name,
-        mangled_name: mangled_name,
-        scope: scope.create(),
-        declared_in: declared_in,
+        super: UserDefinedType {
+            name: name,
+            mangled_name: mangled_name,
+            scope: scope.create(),
+            declared_in: declared_in
+        },
         base_ty: base_ty,
         values: vmap.create(sizeof EnumValue)
     };
@@ -330,7 +343,7 @@ def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
 
     let field_type = t;
     // all enum values have the enum itself as their type
-    scope.bind_in(&e_ty.scope, &name, field_type);
+    scope.bind_in(&e_ty.super.scope, &name, field_type);
     return false;
 }
 
@@ -543,6 +556,11 @@ def is_value_scoped(t: *Type): bool {
     return std.flag_get(&t.flags, FLAG_VALUE_SCOPED);
 }
 
+def free_user_defined_type(user_defined: *UserDefinedType) {
+    name.free_owned(&user_defined.mangled_name);
+    scope.free_s(&user_defined.scope);
+}
+
 def free_ty(t: *Type): void {
     if t == null {
         return;
@@ -558,18 +576,16 @@ def free_ty(t: *Type): void {
 
     if is_struct(t) {
         let s_ty = as_struct(t);
-        name.free_owned(&s_ty.mangled_name);
+        free_user_defined_type(&s_ty.super);
         // the inner types are garbage collected by tychk
         vec.free_v(&s_ty.fields);
-        scope.free_s(&s_ty.scope);
         delete t.data;
     }
 
     if is_enum(t) {
         let e_ty = as_enum(t);
-        name.free_owned(&e_ty.mangled_name);
+        free_user_defined_type(&e_ty.super);
         vmap.free_m(&e_ty.values);
-        scope.free_s(&e_ty.scope);
         delete t.data;
     }
 
@@ -615,16 +631,12 @@ def lookup_type_in(t: *Type, name: *ident.Ident): *Type {
 
 // looks for an ident in types with FLAG_VALUE_SCOPED
 def get_value_scope(t: *Type): *scope.Scope {
+    if is_user_defined(t) {
+        return &get_user_defined(t).scope;
+    }
+
     if is_mod(t) {
         return &as_mod(t).values;
-    }
-
-    if is_struct(t) {
-        return &as_struct(t).scope;
-    }
-
-    if is_enum(t) {
-        return &as_enum(t).scope;
     }
 
     if is_ptr(t) {
@@ -813,25 +825,13 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         return true;
     }
 
-    if is_struct(t) {
-        let s_ty = as_struct(t);
+    if is_user_defined(t) {
         if use_mangled {
-            *out = s_ty.mangled_name.data;
+            *out = get_user_defined(t).mangled_name.data;
             return false;
         }
 
-        *out = ident.to_string(&s_ty.name);
-        return true;
-    }
-
-    if is_enum(t) {
-        let e_ty = as_enum(t);
-        if use_mangled {
-            *out = e_ty.mangled_name.data;
-            return false;
-        }
-
-        *out = ident.to_string(&e_ty.name);
+        *out = ident.to_string(&get_user_defined(t).original_name);
         return true;
     }
 
