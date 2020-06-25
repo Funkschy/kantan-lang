@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Temporary test runner, until kantanc has commandline arguments and this
 # can be properly integrated into kantan-test
 

@@ -197,10 +197,19 @@ def bind_method(t: *Type, name: ident.Ident, method: *Type) {
 }
 
 def is_user_defined(t: *Type): bool {
+    if is_ptr(t) {
+        let ptr = as_ptr(t);
+        return ptr.count == 1 && is_user_defined(ptr.inner);
+    }
+
     return is_struct(t) || is_enum(t);
 }
 
 def get_user_defined(t: *Type): *UserDefinedType {
+    if is_ptr(t) {
+        return get_user_defined(as_ptr(t).inner);
+    }
+
     return t.data as *UserDefinedType;
 }
 
@@ -428,6 +437,10 @@ def patch_receiver_into_params(t: *Func) {
     }
 
     vec.push_front(&t.params, &t.receiver as *void);
+}
+
+def should_auto_ref_receiver(t: *Func): bool {
+    return is_ptr(t.receiver.ty) && as_ptr(t.receiver.ty).count == 1;
 }
 
 // TODO(#33): this is inefficient
@@ -849,16 +862,6 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         return true;
     }
 
-    if is_user_defined(t) {
-        if use_mangled {
-            *out = get_user_defined(t).mangled_name.data;
-            return false;
-        }
-
-        *out = ident.to_string(&get_user_defined(t).original_name);
-        return true;
-    }
-
     if is_ptr(t) {
         let p_ty = as_ptr(t);
         let count = p_ty.count;
@@ -883,6 +886,16 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         delete asterisks;
 
         *out = s;
+        return true;
+    }
+
+    if is_user_defined(t) {
+        if use_mangled {
+            *out = get_user_defined(t).mangled_name.data;
+            return false;
+        }
+
+        *out = ident.to_string(&get_user_defined(t).original_name);
         return true;
     }
 

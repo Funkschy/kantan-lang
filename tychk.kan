@@ -2184,8 +2184,7 @@ def check_expr_scope_expect(
             }
         }
 
-        let i = 0;
-        while i < actual_num_args {
+        for let i = 0; i < actual_num_args; i += 1 {
             let arg = ast.get_arg_at(&c_e.args, i);
 
             if !func.is_varargs {
@@ -2212,8 +2211,6 @@ def check_expr_scope_expect(
                 ast.set_arg_at(&c_e.args, i, checked_arg);
 
             }
-
-            i = i + 1;
         }
 
         c_e.callee = callee;
@@ -2574,14 +2571,6 @@ def push_invalid_expr_error(tc: *TypeChecker, e: *ast.Expr) {
     push_mk_err(tc, text, e.span);
 }
 
-def push_primitive_receiver_type_error(tc: *TypeChecker, recv: *ty.Type, span: span.Span) {
-    // this error is only emitted for methods on primitive types, so using the static_string
-    // function should be fine
-    let ty_s = ty.to_static_string(recv);
-    let text = std.err2str(ERROR_PRIMITIVE_RECEIVER_TYPE, ty_s);
-    push_mk_err(tc, text, span);
-}
-
 def push_receiver_different_module_error(tc: *TypeChecker, span: span.Span) {
     let text = std.err2str(ERROR_RECEIVER_FROM_OTHER_MOD);
     push_mk_err(tc, text, span);
@@ -2773,6 +2762,10 @@ def push_unsized_sizeof_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void
 
 def push_deref_unsized_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
     push_simple_error(tc, ERROR_DEREF_OF_UNSIZED_TYPE, t, s);
+}
+
+def push_primitive_receiver_type_error(tc: *TypeChecker, recv: *ty.Type, span: span.Span) {
+    push_simple_error(tc, ERROR_PRIMITIVE_RECEIVER_TYPE, recv, span);
 }
 
 def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {

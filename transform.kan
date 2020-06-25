@@ -1,6 +1,6 @@
 #define USE_LLVM 1
 #define LLVM_DUMP 0
-#define MIR_DUMP 1
+#define MIR_DUMP 0
 #define ENABLE_THREADS 0
 
 import "io";

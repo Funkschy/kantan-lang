@@ -11,7 +11,7 @@ def (s: Struct) method(i: i32) {
 
 type Other struct {}
 
-def (s: Other) method(i: i32) {
+def (s: *Other) method(i: i32) {
     io.printf("%d\n", i);
 }
 
