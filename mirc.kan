@@ -278,10 +278,12 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
             c.current_func = mir_func;
 
-            declare_type(c, ty.as_func(decl.func_ty).ret);
+            let f_ty = ty.as_func(decl.func_ty);
+            declare_type(c, f_ty.ret);
+
+            ty.patch_receiver_into_params(f_ty);
 
             // Declare arguments
-            let f_ty = ty.as_func(decl.func_ty);
             for let i = 0; i < f_ty.params.len; i = i + 1 {
                 let p = ty.param_at(f_ty, i);
                 let meta = get_meta(c, p.name.span);
@@ -718,15 +720,27 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let call = ast.as_call_expr(e);
     let func_addr = expr_instruction(c, call.callee, rhs);
     let varargs = ty.callable_as_func(call.callee.ty).is_varargs;
+    let is_method = ty.as_func(call.callee.ty).is_method;
 
-    let i = 0;
     let n = ast.num_args(&call.args);
+    let recv_addr: mir.Address = undefined;
+    if is_method {
+        let access = ast.as_access_expr(call.callee);
+        let recv_expr = access.left; // receiver should be lhs of the callee access
+        recv_addr = expr_instruction(c, recv_expr, rhs);
+        n += 1;
+    }
+
     let args = vec.with_cap(sizeof mir.Address, n);
-    while i < n {
+    if is_method {
+        vec.push(&args, &recv_addr as *void);
+    }
+
+
+    for let i = 0; i < ast.num_args(&call.args); i += 1 {
         let arg = ast.get_arg_at(&call.args, i);
         let arg_addr = expr_instruction(c, arg, true);
         vec.push(&args, &arg_addr as *void);
-        i = i + 1;
     }
 
     return mir.new_expr_call(func_addr, args, varargs);

@@ -188,6 +188,14 @@ type UserDefinedType struct {
     declared_in: *mod.Module
 }
 
+def bind_method(t: *Type, name: ident.Ident, method: *Type) {
+    dbg.assert(is_user_defined(t), "Trying to bind method on non user defined type");
+    dbg.assert(is_func(method), "Trying to bind non func type as method");
+
+    let value_scope = get_value_scope(t);
+    scope.bind_in(value_scope, &name, method);
+}
+
 def is_user_defined(t: *Type): bool {
     return is_struct(t) || is_enum(t);
 }
@@ -375,7 +383,9 @@ def create_param(name: ident.Ident, ty: *Type): Param {
 type Func struct {
     is_extern: bool,
     is_varargs: bool,
+    is_method: bool,
     declared_in: *mod.Module,
+    receiver: Param,
     ret: *Type,
     params: vec.Vec, // <Param>
     name: ident.Ident,
@@ -395,7 +405,9 @@ def init_func(
         // the way that tychk currently works, is that this is set lazily, while
         // checking the parameters types
         is_varargs: false,
+        is_method: false,
         declared_in: declared_in,
+        receiver: Param { name: ident.empty(), ty: null },
         ret: null,
         params: vec.create(sizeof Param),
         name: name,
@@ -404,6 +416,18 @@ def init_func(
     std.flag_set(&t.flags, FLAG_UNSIZED);
 
     t.data = f as *void;
+}
+
+// it is better to treat the receiver type differently during typechecking, since it has
+// different restrictions than normal parameters. However we don't want to check is_method all
+// the time during code generation, so we just push the receiver as the first argument during
+// ir compilation
+def patch_receiver_into_params(t: *Func) {
+    if !t.is_method {
+        return;
+    }
+
+    vec.push_front(&t.params, &t.receiver as *void);
 }
 
 // TODO(#33): this is inefficient

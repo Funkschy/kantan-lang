@@ -289,7 +289,23 @@ def new_func_decl_stmt(
 ): *Stmt {
     return (new FuncDeclStmt {
         s: Stmt { tag: STMT_FUNC_DECL, span: span },
-        decl: func.create(ident, params, ret_ty, is_extern),
+        decl: func.create_func(ident, params, ret_ty, is_extern),
+        block: block
+    }) as *Stmt;
+}
+
+def new_method_decl_stmt(
+    span: span.Span,
+    ident: lexer.Token,
+    receiver: func.Param,
+    params: func.ParamList,
+    ret_ty: tyid.Type,
+    is_extern: bool,
+    block: *BlockStmt
+): *Stmt {
+    return (new FuncDeclStmt {
+        s: Stmt { tag: STMT_FUNC_DECL, span: span },
+        decl: func.create_method(ident, receiver, params, ret_ty, is_extern),
         block: block
     }) as *Stmt;
 }

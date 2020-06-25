@@ -1,0 +1,30 @@
+import "io";
+
+type Struct struct {
+    name: string
+}
+
+def (s: Struct) method(i: i32) {
+    io.printf("%s\n", s.name);
+    io.printf("%d\n", i);
+}
+
+type Other struct {}
+
+def (s: Other) method(i: i32) {
+    io.printf("%d\n", i);
+}
+
+def constructor(): Struct {
+    io.printf("...\n");
+    return Struct {name: "constructed"};
+}
+
+def main() {
+    Struct{name: "hello"}.method(1);
+    constructor().method(2);
+    let s = constructor();
+    s.method(3);
+
+    Other{}.method(4);
+}
