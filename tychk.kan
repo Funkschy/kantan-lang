@@ -2168,6 +2168,21 @@ def check_expr_scope_expect(
             if checked_recv == null {
                 return null;
             }
+
+            let expected = func.receiver.ty;
+
+            // a receiver cannot be a pointer to a pointer, so this check is sufficient
+            if ty.is_ptr(expected) && !ty.is_ptr(checked_recv.ty) {
+                // we allow auto upgrading a non pointer to a simple pointer, nothing else
+                expected = ty.as_ptr(expected).inner;
+            }
+
+            if !ty.equals(expected, checked_recv.ty) {
+                push_wrong_arg_type_error(
+                    tc, func.receiver.ty, checked_recv.ty, recv_expr.span
+                );
+                return null;
+            }
         }
 
         let expected_num_args = func.params.len;
