@@ -13,21 +13,21 @@ def create(): Vec {
 
 def with_cap(cap: i32): Vec {
     let vec = create();
-    resize_s(&vec, cap);
+    vec.resize_s(cap);
     return vec;
 }
 
-def zero(v: *Vec) {
+def (v: *Vec) zero() {
     std.memset(v.elements as *void, 0, v.len * sizeof *void);
 }
 
-def is_empty(v: *Vec): bool {
+def (v: *Vec) is_empty(): bool {
     return v.len <= 0;
 }
 
-def pop(v: *Vec): *void {
-    if !is_empty(v) {
-        let elem = get(v, 0);
+def (v: *Vec) pop(): *void {
+    if !v.is_empty() {
+        let elem = v.get(0);
         v.len = v.len - 1;
         std.memmove(
             v.elements as *void,
@@ -39,13 +39,13 @@ def pop(v: *Vec): *void {
     return null;
 }
 
-def append(v: *Vec, other: *Vec): void {
-    if is_empty(other) {
+def (v: *Vec) append(other: *Vec): void {
+    if other.is_empty() {
         return;
     }
 
     let new_len = v.len + other.len;
-    resize_s(v, new_len);
+    v.resize_s(new_len);
     std.memcpy(
         (v.elements + v.len) as *void,
         other.elements as *void,
@@ -54,16 +54,16 @@ def append(v: *Vec, other: *Vec): void {
     v.len = new_len;
 }
 
-def push_ptr(v: *Vec, elem: *void): void {
+def (v: *Vec) push_ptr(elem: *void): void {
     if v.len + 1 > v.cap {
-        resize(v);
+        v.resize();
     }
 
     *(v.elements + v.len) = elem;
     v.len = v.len + 1;
 }
 
-def get(v: *Vec, i: i32): *void {
+def (v: *Vec) get(i: i32): *void {
     if i < v.len {
         return *(v.elements + i);
     }
@@ -71,11 +71,11 @@ def get(v: *Vec, i: i32): *void {
     return null;
 }
 
-def unsafe_get(v: *Vec, i: i32): *void {
+def (v: *Vec) unsafe_get(i: i32): *void {
     return *(v.elements + i);
 }
 
-def set(v: *Vec, i: i32, elem: *void): void {
+def (v: *Vec) set(i: i32, elem: *void): void {
     dbg.assert_fmt(i >= 0 && i < v.cap, "out of bounds set: %d", i);
 
     // sizeof(*v.elements) is already 8, so we don't need to multiply
@@ -86,7 +86,7 @@ def set(v: *Vec, i: i32, elem: *void): void {
     }
 }
 
-def resize_s(v: *Vec, size: i32): void {
+def (v: *Vec) resize_s(size: i32): void {
     if size <= v.cap {
         return;
     }
@@ -100,15 +100,15 @@ def resize_s(v: *Vec, size: i32): void {
     }
 }
 
-def resize(v: *Vec): void {
+def (v: *Vec) resize(): void {
     if v.elements == null {
-        resize_s(v, 2);
+        v.resize_s(2);
     } else {
-        resize_s(v, v.cap * 2);
+        v.resize_s(v.cap * 2);
     }
 }
 
-def free_v(v: *Vec): void {
+def (v: *Vec) free(): void {
     if v.elements == null {
         return;
     }

@@ -687,12 +687,12 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
 def free_statements(statements: *ptrvec.Vec): void {
     let i = 0;
     while i < statements.len {
-        let s = ptrvec.get(statements, i) as *ast.Stmt;
+        let s = statements.get(i) as *ast.Stmt;
         ast.stmt_free(s);
         i = i + 1;
     }
 
-    ptrvec.free_v(statements);
+    statements.free();
 }
 
 def parse_block(p: *Parser): *ast.Stmt {
@@ -707,7 +707,7 @@ def parse_block(p: *Parser): *ast.Stmt {
             sync(p);
             had_error = true;
         } else {
-            ptrvec.push_ptr(&statements, s as *void);
+            statements.push_ptr(s as *void);
         }
 
         peeked = peek(p);

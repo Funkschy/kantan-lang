@@ -73,7 +73,7 @@ def free_stack(s: *ScopeStack, start_idx: i32): void {
         delete scope;
         i = i + 1;
     }
-    ptrvec.free_v(&s.scopes);
+    s.scopes.free();
 }
 
 def open_scope(s: *ScopeStack): void {
@@ -82,7 +82,7 @@ def open_scope(s: *ScopeStack): void {
 }
 
 def push_scope(s: *ScopeStack, scope: *Scope): void {
-    ptrvec.push_ptr(&s.scopes, scope as *void);
+    s.scopes.push_ptr(scope as *void);
 }
 
 def close_scope(s: *ScopeStack): void {
@@ -97,7 +97,7 @@ def close_scope_no_free(s: *ScopeStack): void {
 }
 
 def scope_at(s: *ScopeStack, i: i32): *Scope {
-    return ptrvec.get(&s.scopes, i) as *Scope;
+    return s.scopes.get(i) as *Scope;
 }
 
 def top(s: *ScopeStack): *Scope {

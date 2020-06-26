@@ -55,11 +55,11 @@ def s_lookup_value(m: *Module, key_len: i32, key: string): *ty.Type {
 }
 
 def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {
-    return ptrvec.get(&mod.statements, i) as *ast.Stmt;
+    return mod.statements.get(i) as *ast.Stmt;
 }
 
 def set_stmt_at(mod: *Module, i: i32, s: *ast.Stmt): void {
-    ptrvec.set(&mod.statements, i, s as *void);
+    mod.statements.set(i, s as *void);
 }
 
 def num_stmts(mod: *Module): i32 {
@@ -89,11 +89,11 @@ def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
         mod.num_imports += 1;
     }
 
-    ptrvec.push_ptr(&mod.statements, stmt as *void);
+    mod.statements.push_ptr(stmt as *void);
 }
 
 def get_stmt(mod: *Module, i: i32): *ast.Stmt {
-    return ptrvec.get(&mod.statements, i) as *ast.Stmt;
+    return mod.statements.get(i) as *ast.Stmt;
 }
 
 def free_m(mod: *Module): void {
@@ -103,7 +103,7 @@ def free_m(mod: *Module): void {
         i = i + 1;
     }
 
-    ptrvec.free_v(&mod.statements);
+    mod.statements.free();
     ty.free_ty(mod.ty);
 
     name.free_owned(&mod.name);
@@ -130,7 +130,7 @@ def num_mods(mm: *Map): i32 {
 
 def add_mod(mm: *Map, mod: *Module): void {
     let idx = mm.mods.len;
-    ptrvec.push_ptr(&mm.mods, mod as *void);
+    mm.mods.push_ptr(mod as *void);
     mod.idx = idx;
 
     // add one, to be able to tell null apart from 0
@@ -141,7 +141,7 @@ def add_mod(mm: *Map, mod: *Module): void {
 }
 
 def get_mod(mm: *Map, idx: i32): *Module {
-    return ptrvec.get(&mm.mods, idx) as *Module;
+    return mm.mods.get(idx) as *Module;
 }
 
 // returns -1 if not found
@@ -171,7 +171,7 @@ def map_free(mm: *Map): void {
         delete m;
         i = i + 1;
     }
-    ptrvec.free_v(&mm.mods);
+    mm.mods.free();
     map.free_m(&mm.mod_paths);
 }
 

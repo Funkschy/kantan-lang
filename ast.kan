@@ -260,15 +260,15 @@ def as_block_stmt(s: *Stmt): *BlockStmt {
 }
 
 def stmt_at(b: *BlockStmt, i: i32): *Stmt {
-    return ptrvec.get(&b.stmts, i) as *Stmt;
+    return b.stmts.get(i) as *Stmt;
 }
 
 def set_stmt_at(b: *BlockStmt, i: i32, s: *Stmt): void {
-    return ptrvec.set(&b.stmts, i, s as *void);
+    return b.stmts.set(i, s as *void);
 }
 
 def push_stmt(b: *BlockStmt, s: *Stmt): void {
-    ptrvec.push_ptr(&b.stmts, s as *void);
+    b.stmts.push_ptr(s as *void);
 }
 
 /////////// Func Decl stmt ///////////
@@ -457,14 +457,14 @@ def stmt_free(s: *Stmt): void {
 
         let i = 0;
         while i < stmts.len {
-            let s = ptrvec.get(&stmts, i);
+            let s = stmts.get(i);
             if s != null {
                 stmt_free(s as *Stmt);
             }
             i = i + 1;
         }
 
-        ptrvec.free_v(&stmts);
+        stmts.free();
     } else if is_if_stmt(s) {
         let if_stmt = as_if_stmt(s);
         expr_free(if_stmt.condition);
@@ -1117,26 +1117,26 @@ def num_args(al: *ArgList): i32 {
 }
 
 def get_arg_at(al: *ArgList, i: i32): *Expr {
-    return ptrvec.get(&al.args, i) as *Expr;
+    return al.args.get(i) as *Expr;
 }
 
 def set_arg_at(al: *ArgList, i: i32, expr: *Expr): void {
-    ptrvec.set(&al.args, i, expr as *void);
+    al.args.set(i, expr as *void);
 }
 
 def push_arg(al: *ArgList, arg: *Expr): void {
-    ptrvec.push_ptr(&al.args, arg as *void);
+    al.args.push_ptr(arg as *void);
 }
 
 def free_al(al: *ArgList): void {
     let i = 0;
     while i < al.args.len {
-        let e = ptrvec.get(&al.args, i) as *Expr;
+        let e = al.args.get(i) as *Expr;
         expr_free(e);
         i = i + 1;
     }
 
-    ptrvec.free_v(&al.args);
+    al.args.free();
 }
 
 def arg_list_to_string(al: *ArgList): string {

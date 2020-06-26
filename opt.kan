@@ -17,7 +17,7 @@ type Config struct {
 }
 
 def free_config(c: *Config) {
-    ptrvec.free_v(&c.files);
+    c.files.free();
 }
 
 def parse(argc: i32, argv: *string): Config {
@@ -36,7 +36,7 @@ def parse(argc: i32, argv: *string): Config {
         let arg = *(argv + i);
 
         if *arg != '-' {
-            ptrvec.push_ptr(&config.files, arg as *void);
+            config.files.push_ptr(arg as *void);
         } else {
             let set_to_next: *string = null;
             let takes_argument = false;

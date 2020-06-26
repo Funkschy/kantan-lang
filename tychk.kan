@@ -282,11 +282,11 @@ def create_result(
 def free_result(r: *CheckResult): void {
     let i = 0;
     while i < r.types.len {
-        ty.free_ty(ptrvec.get(&r.types, i) as *ty.Type);
+        ty.free_ty(r.types.get(i) as *ty.Type);
         i = i + 1;
     }
 
-    ptrvec.free_v(&r.types);
+    r.types.free();
     scope.free_s(&r.global_types);
 }
 
@@ -322,7 +322,7 @@ def create(mods: *mod.Map): TypeChecker {
 }
 
 def get_ctx(tc: *TypeChecker, idx: i32): *Ctx {
-    return ptrvec.unsafe_get(&tc.contexts, idx) as *Ctx;
+    return tc.contexts.unsafe_get(idx) as *Ctx;
 }
 
 def check(tc: *TypeChecker): CheckResult {
@@ -441,7 +441,7 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     m.ty = ty;
 
     let ctx = create_ctx(m, &tc.global_types, &tc.global_values);
-    ptrvec.set(&tc.contexts, idx, ctx as *void);
+    tc.contexts.set(idx, ctx as *void);
     tc.ctx = ctx;
 
     return false;
@@ -776,7 +776,7 @@ def fill_func_def(
 }
 
 def push_tmp_ty(tc: *TypeChecker, ty: *ty.Type): *ty.Type {
-    ptrvec.push_ptr(&tc.types, ty as *void);
+    tc.types.push_ptr(ty as *void);
     return ty;
 }
 
@@ -1795,9 +1795,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         let statements = ptrvec.with_cap(2);
         if init != null {
-            ptrvec.push_ptr(&statements, init as *void);
+            statements.push_ptr(init as *void);
         }
-        ptrvec.push_ptr(&statements, w_s as *void);
+        statements.push_ptr(w_s as *void);
 
         let original_span = s.span;
         ast.stmt_free(s);
@@ -2530,7 +2530,7 @@ def free_tc(tc: *TypeChecker): void {
         free_ctx(get_ctx(tc, i));
         i = i + 1;
     }
-    ptrvec.free_v(&tc.contexts);
+    tc.contexts.free();
 
     scope.free_s(&tc.global_values);
 }
