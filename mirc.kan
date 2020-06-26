@@ -200,6 +200,7 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     dbg.assert(ty.is_func(t), "non function type passed to lookup");
 
     let f_ty = ty.as_func(t);
+    ty.patch_receiver_into_params(f_ty);
     let mangled_name = name.ref(f_ty.mangled_name);
     let mir_func = lookup_function(c, mangled_name);
 

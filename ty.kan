@@ -394,6 +394,7 @@ type Func struct {
     is_extern: bool,
     is_varargs: bool,
     is_method: bool,
+    receiver_patched: bool,
     declared_in: *mod.Module,
     receiver: Param,
     ret: *Type,
@@ -416,6 +417,7 @@ def init_func(
         // checking the parameters types
         is_varargs: false,
         is_method: false,
+        receiver_patched: false,
         declared_in: declared_in,
         receiver: Param { name: ident.empty(), ty: null },
         ret: null,
@@ -433,11 +435,13 @@ def init_func(
 // the time during code generation, so we just push the receiver as the first argument during
 // ir compilation
 def patch_receiver_into_params(t: *Func) {
-    if !t.is_method {
+    if !t.is_method || t.receiver_patched {
         return;
     }
 
     vec.push_front(&t.params, &t.receiver as *void);
+    // only do this once
+    t.receiver_patched = true;
 }
 
 def should_auto_ref_receiver(t: *Func): bool {
