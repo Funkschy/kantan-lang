@@ -700,16 +700,24 @@ def fill_func_def(
     let receiver_ty: *ty.Type = null;
     if f_decl.is_method {
         f_ty.is_method = true;
+
+        let recv_waiting = false;
         error = check_func_tyid(
-            tc, t, &f_decl.receiver.ty, OFFSET_RECEIVER_TYPE, &waiting, &receiver_ty
+            tc, t, &f_decl.receiver.ty, OFFSET_RECEIVER_TYPE, &recv_waiting, &receiver_ty
         );
 
-        // You can only declare methods on user defined types (not on stuff like i32, char...)
-        if receiver_ty != null && !ty.is_user_defined(receiver_ty) {
-            let span = tyid.ident_span(&f_decl.receiver.ty);
-            push_primitive_receiver_type_error(tc, receiver_ty, span);
-            error = true;
+        if !(error || recv_waiting) {
+            // You can only declare methods on user defined types (not on stuff like i32, char...)
+            if !ty.is_user_defined(receiver_ty) {
+                let span = tyid.ident_span(&f_decl.receiver.ty);
+                push_primitive_receiver_type_error(tc, receiver_ty, span);
+                error = true;
+            } else {
+                ty.bind_method(receiver_ty, f_decl.name, t);
+            }
         }
+
+        waiting = waiting || recv_waiting;
     }
 
     let num_params = func.num_params(f_decl);
@@ -1050,12 +1058,18 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 // inner type into the existing one
                 if ty.is_ptr(*to_update) {
                     ty.update_inner(*to_update, resolved_ty);
+                    if req.offset == OFFSET_RECEIVER_TYPE {
+                        ty.bind_method(*to_update, waiting_f_ty.name, waiting_ty);
+                    }
                 } else {
                     push_internal_error(tc, waiting_ident.span, "type is not a ptr");
                     return;
                 }
             } else {
                 *to_update = resolved_ty;
+                if req.offset == OFFSET_RECEIVER_TYPE {
+                    ty.bind_method(*to_update, waiting_f_ty.name, waiting_ty);
+                }
             }
         } else {
             let p = ty.param_at(waiting_f_ty, req.offset);
@@ -1267,8 +1281,7 @@ def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
 }
 
 def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
-    let prev = lookup_value(tc, &fd.name);
-    if prev != null {
+    if !fd.is_method && lookup_value(tc, &fd.name) != null {
         push_duplicate_def_error(tc, &fd.name);
         return null;
     }
@@ -1518,14 +1531,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
                 push_receiver_different_module_error(tc, tyid.ident_span(&fd.receiver.ty));
                 return null;
             }
-
-            let prev_definition = ty.lookup_value_in(receiver_ty, &fd.name);
-            if prev_definition != null {
-                push_duplicate_def_error(tc, &fd.name);
-                return null;
-            }
-
-            ty.bind_method(receiver_ty, fd.name, fd.func_ty);
         }
 
         // only resolve the block in the actual pass
