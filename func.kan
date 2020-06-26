@@ -28,11 +28,11 @@ def pl_from_vec(params: vec.Vec): ParamList {
 }
 
 def free_pl(pl: *ParamList): void {
-    vec.free_v(&pl.params);
+    pl.params.free();
 }
 
 def add_param(pl: *ParamList, p: *Param): void {
-    vec.push(&pl.params, p as *void);
+    pl.params.push(p as *void);
 }
 
 type FuncDef struct {
@@ -81,7 +81,7 @@ def create_method(
 }
 
 def get_param_ptr(f: *FuncDef, i: i32): *Param {
-    return vec.get_ptr(&f.params.params, i) as *Param;
+    return f.params.params.get_ptr(i) as *Param;
 }
 
 def num_params(f: *FuncDef): i32 {

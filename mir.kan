@@ -76,7 +76,7 @@ def free_mod(m: *Module): void {
     map.free_m(&m.user_defined_types);
     map.free_m(&m.globals);
 
-    vec.free_v(&m.scopes);
+    m.scopes.free();
 }
 
 def dump_module(m: *Module): void {
@@ -336,20 +336,20 @@ def create_inst_block(): InstBlock {
 }
 
 def push_instr(b: *InstBlock, inst: *Inst): void {
-    vec.push(&b.instructions, inst as *void);
+    b.instructions.push(inst as *void);
 }
 
 def get_instr(b: *InstBlock, idx: i32): *Inst {
-    return vec.get_ptr(&b.instructions, idx) as *Inst;
+    return b.instructions.get_ptr(idx) as *Inst;
 }
 
 def free_inst_block(b: *InstBlock): void {
     let i = 0;
     while i < b.instructions.len {
-        free_inst(vec.get_ptr(&b.instructions, i) as *Inst);
+        free_inst(b.instructions.get_ptr(i) as *Inst);
         i = i + 1;
     }
-    vec.free_v(&b.instructions);
+    b.instructions.free();
 }
 
 type BasicBlock struct {
@@ -734,7 +734,7 @@ def new_expr_call(callee: Address, args: vec.Vec, varargs: bool): Expression {
 }
 
 def call_arg_at(call: *ExprCall, idx: i32): *Address {
-    return vec.get_ptr(&call.args, idx) as *Address;
+    return call.args.get_ptr(idx) as *Address;
 }
 
 def as_expr_call(e: *Expression): *ExprCall {
@@ -774,7 +774,7 @@ def new_expr_struct_init(name: name.Ref, args: vec.Vec): Expression {
 }
 
 def init_arg_at(init: *ExprStructInit, idx: i32): *Address {
-    return vec.get_ptr(&init.args, idx) as *Address;
+    return init.args.get_ptr(idx) as *Address;
 }
 
 def as_expr_struct_init(e: *Expression): *ExprStructInit {
@@ -888,10 +888,10 @@ def empty_expr(): Expression {
 def free_expr(e: *Expression): void {
     if is_expr_call(e) {
         let c_expr = as_expr_call(e);
-        vec.free_v(&c_expr.args);
+        c_expr.args.free();
     } else if is_expr_struct_init(e) {
         let i_expr = as_expr_struct_init(e);
-        vec.free_v(&i_expr.args);
+        i_expr.args.free();
     }
 
     if e.data != null {
@@ -1481,11 +1481,11 @@ def free_block_map(bm: *BlockMap): void {
 
     i = 0;
     while i < bm.decls.len {
-        free_inst(vec.get_ptr(&bm.decls, i) as *Inst);
+        free_inst(bm.decls.get_ptr(i) as *Inst);
         i = i + 1;
     }
 
-    vec.free_v(&bm.decls);
+    bm.decls.free();
 }
 
 def bm_num_blocks(bm: *BlockMap): i32 {
@@ -1501,7 +1501,7 @@ def bm_last_bb_ptr(bm: *BlockMap): *BasicBlock {
 }
 
 def bm_decl_at(bm: *BlockMap, idx: i32): Inst {
-    return *(vec.get_ptr(&bm.decls, idx) as *Inst);
+    return *(bm.decls.get_ptr(idx) as *Inst);
 }
 
 def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {
@@ -1526,7 +1526,7 @@ def bm_push_instr(bm: *BlockMap, inst: *Inst): void {
     // the last blocks was already closed, so we need to open a new one
 
     if is_inst_decl(inst) {
-        vec.push(&bm.decls, inst as *void);
+        bm.decls.push(inst as *void);
         return;
     }
 
@@ -1567,7 +1567,7 @@ def bm_dump(bm: *BlockMap): void {
 
     let i = 0;
     while i < bm.decls.len {
-        let decl = vec.get_ptr(&bm.decls, i) as *Inst;
+        let decl = bm.decls.get_ptr(i) as *Inst;
         let n = inst_to_name(decl);
         io.printf("  %.*s\n", n.len, n.data);
         name.free_owned(&n);

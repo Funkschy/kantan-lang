@@ -1208,15 +1208,15 @@ def init_expr_at(il: *InitList, i: i32): *Expr {
 }
 
 def set_init_expr_at(il: *InitList, i: i32, value: *Expr): void {
-    (vec.get_ptr(&il.inits, i) as *Init).expr = value;
+    (il.inits.get_ptr(i) as *Init).expr = value;
 }
 
 def init_at(il: *InitList, i: i32, dest: *Init): bool {
-    return vec.get(&il.inits, i, dest as *void);
+    return il.inits.get(i, dest as *void);
 }
 
 def push_init(il: *InitList, init: Init): void {
-    vec.push(&il.inits, &init as *void);
+    il.inits.push(&init as *void);
 }
 
 def free_il(il: *InitList): void {
@@ -1228,7 +1228,7 @@ def free_il(il: *InitList): void {
         i = i + 1;
     }
 
-    vec.free_v(&il.inits);
+    il.inits.free();
 }
 
 def init_list_to_string(il: *InitList): string {

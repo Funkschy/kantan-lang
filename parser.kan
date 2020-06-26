@@ -49,14 +49,14 @@ def create(source: *source.SourceFile): Parser {
 
 def free_p(p: *Parser): void {
     free_errs_from(p, 0);
-    vec.free_v(&p.errors);
+    p.errors.free();
 }
 
 def free_errs_from(p: *Parser, start: i32): void {
     let i = start;
     let elem = empty_err();
     while i < p.errors.len {
-        vec.get(&p.errors, i, &elem as *void);
+        p.errors.get(i, &elem as *void);
         delete elem.text;
         i = i + 1;
     }
@@ -68,11 +68,11 @@ def num_errs(p: *Parser): i32 {
 }
 
 def get_err(p: *Parser, idx: i32): *ParseError {
-    return vec.get_ptr(&p.errors, idx) as *ParseError;
+    return p.errors.get_ptr(idx) as *ParseError;
 }
 
 def push_err(p: *Parser, error: ParseError): void {
-    vec.push(&p.errors, &error as *void);
+    p.errors.push(&error as *void);
 }
 
 // advances to the next token and saves the new token into dest
@@ -84,7 +84,7 @@ def advance(p: *Parser, dest: *l.Token): bool {
     if next.ty == l.TokenType.EOF {
         if !p.in_panic_mode {
             let error = create_error(next.span, std.err2str(ERROR_UNEXPECTED_EOF));
-            vec.push(&p.errors, &error as *void);
+            p.errors.push(&error as *void);
         }
         return false;
     } else if l.is_err(&next) && !p.in_panic_mode {
@@ -430,7 +430,7 @@ def parse_struct_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast
     let closing_brace = l.empty_token();
     let fields = parse_field_list(p, &closing_brace);
     if closing_brace.ty == l.TokenType.UnknownErr {
-        vec.free_v(&fields);
+        fields.free();
         return null;
     }
 
@@ -450,7 +450,7 @@ def parse_enum_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast.S
     let start_value: *ast.Expr = null;
     let values = parse_enum_values(p, &closing_brace, &start_value);
     if closing_brace.ty == l.TokenType.UnknownErr {
-        vec.free_v(&values);
+        values.free();
         ast.expr_free(start_value);
         return null;
     }
@@ -484,15 +484,15 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
 
         // There can only be one receiver param
         if receiver_list.len != 1 {
-            vec.free_v(&receiver_list);
+            receiver_list.free();
             let error = create_invalid_recv_count_error(p, &l_paren, receiver_list.len);
             push_err(p, error);
             return null;
         }
 
-        receiver = *(vec.get_ptr(&receiver_list, 0) as *func.Param);
+        receiver = *(receiver_list.get_ptr(0) as *func.Param);
         has_receiver = true;
-        vec.free_v(&receiver_list);
+        receiver_list.free();
     }
 
     let ident = l.empty_token();
@@ -729,7 +729,7 @@ def parse_block(p: *Parser): *ast.Stmt {
 }
 
 def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
-#define FAIL() vec.free_v(&fields); return vec.create(0)
+#define FAIL() fields.free(); return vec.create(0)
 
     let fields = vec.create(sizeof record.Field);
 
@@ -751,7 +751,7 @@ def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
         }
 
         let field = record.create_field(ident, ty);
-        vec.push(&fields, &field as *void);
+        fields.push(&field as *void);
 
         peeked = peek(p);
 
@@ -771,7 +771,7 @@ def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
 }
 
 def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Expr): vec.Vec {
-#define FAIL() vec.free_v(&values); return vec.create(0)
+#define FAIL() values.free(); return vec.create(0)
 
     let values = vec.create(sizeof ident.Ident);
 
@@ -793,7 +793,7 @@ def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Ex
             }
         }
 
-        vec.push(&values, &ident as *void);
+        values.push(&ident as *void);
 
         peeked = peek(p);
 
@@ -813,7 +813,7 @@ def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Ex
 }
 
 def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.Vec {
-#define FAIL() vec.free_v(&params); return vec.create(0)
+#define FAIL() params.free(); return vec.create(0)
 
     let params = vec.create(sizeof func.Param);
 
@@ -841,7 +841,7 @@ def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.V
 
         let ident = ident.create(ident_token);
         let param = func.create_param(ident, ty);
-        vec.push(&params, &param as *void);
+        params.push(&param as *void);
 
         peeked = peek(p);
 

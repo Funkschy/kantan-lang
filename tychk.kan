@@ -149,7 +149,7 @@ def add_request(wrm: *WaitingRequestMap, request: WaitingRequest): void {
         // create new vector
         idx = wrm.requests.len;
         let v = vec.create(sizeof WaitingRequest);
-        vec.push(&wrm.requests, &v as *void);
+        wrm.requests.push(&v as *void);
 
         // TODO(#83): replace with vmap.Map
         // push its idx into the map
@@ -160,8 +160,8 @@ def add_request(wrm: *WaitingRequestMap, request: WaitingRequest): void {
         idx = std.ptr_to_int(request_idx) - 1;
     }
 
-    requests = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
-    vec.push(requests, &request as *void);
+    requests = wrm.requests.get_ptr(idx) as *vec.Vec;
+    requests.push(&request as *void);
 }
 
 def get_waiting(wrm: *WaitingRequestMap, ident: *ident.Ident): *vec.Vec {
@@ -173,16 +173,16 @@ def get_waiting(wrm: *WaitingRequestMap, ident: *ident.Ident): *vec.Vec {
     }
 
     let idx = std.ptr_to_int(request_idx) - 1;
-    return vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
+    return wrm.requests.get_ptr(idx) as *vec.Vec;
 }
 
 def free_wait_map(wrm: *WaitingRequestMap): void {
     for let i = 0; i < wrm.requests.len; i = i + 1 {
-        let v = vec.get_ptr(&wrm.requests, i) as *vec.Vec;
-        vec.free_v(v);
+        let v = wrm.requests.get_ptr(i) as *vec.Vec;
+        v.free();
     }
 
-    vec.free_v(&wrm.requests);
+    wrm.requests.free();
     map.free_m(&wrm.request_map);
 }
 
@@ -314,7 +314,7 @@ def create(mods: *mod.Map): TypeChecker {
         requests: vec.with_cap(sizeof WaitingRequestMap, num_mods),
         contexts: ptrvec.with_cap(num_mods)
     };
-    vec.init_zero(&tc.requests);
+    tc.requests.init_zero();
 
     tc.global_types = create_global_types_scope(&tc);
     tc.global_values = create_global_values_scope(&tc, &tc.global_types);
@@ -395,12 +395,12 @@ def check(tc: *TypeChecker): CheckResult {
                 error = true;
             } else {
                 let idx = std.ptr_to_int(next.value) - 1;
-                let pending = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
+                let pending = wrm.requests.get_ptr(idx) as *vec.Vec;
                 dbg.assert(pending != null, "pending was null");
 
                 let j = 0;
                 while j < pending.len {
-                    let req = vec.get_ptr(pending, j) as *WaitingRequest;
+                    let req = pending.get_ptr(j) as *WaitingRequest;
                     push_not_defined_error(tc, &req.waiting_for, LookupKind.Types);
                     error = true;
                     j = j + 1;
@@ -476,7 +476,7 @@ def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
 
 def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
     let idx = req.waiting_for_mod.idx;
-    let map = vec.get_ptr(&tc.requests, idx) as *WaitingRequestMap;
+    let map = tc.requests.get_ptr(idx) as *WaitingRequestMap;
 
     if map.init_flag == 0 {
         *map = create_waiting_request_map();
@@ -486,7 +486,7 @@ def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
 }
 
 def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
-    return vec.get_ptr(&tc.requests, mod.idx) as *WaitingRequestMap;
+    return tc.requests.get_ptr(mod.idx) as *WaitingRequestMap;
 }
 
 def create_global_types_scope(tc: *TypeChecker): scope.Scope {
@@ -526,16 +526,16 @@ def num_errs(tc: *TypeChecker): i32 {
 }
 
 def push_err(tc: *TypeChecker, error: TypeError): void {
-    vec.push(&tc.errors, &error as *void);
+    tc.errors.push(&error as *void);
 }
 
 def push_mk_err(tc: *TypeChecker, text: string, span: span.Span): void {
     let error = err(tc, text, span);
-    vec.push(&tc.errors, &error as *void);
+    tc.errors.push(&error as *void);
 }
 
 def get_err(tc: *TypeChecker, i: i32): *TypeError {
-    return vec.get_ptr(&tc.errors, i) as *TypeError;
+    return tc.errors.get_ptr(i) as *TypeError;
 }
 
 def add_import_alias(tc: *TypeChecker, ident: *ident.Ident, mod: *mod.Module): void {
@@ -752,7 +752,7 @@ def fill_func_def(
                 }
 
                 let f_param = ty.create_param(p.name, p_ty);
-                vec.push(&params, &f_param as *void);
+                params.push(&f_param as *void);
             } else {
                 error = true;
             }
@@ -768,7 +768,7 @@ def fill_func_def(
         f_ty.ret = ret_ty;
         f_ty.receiver = ty.Param{ name: f_decl.receiver.name, ty: receiver_ty };
     } else {
-        vec.free_v(&params);
+        params.free();
         return ERROR;
     }
 
@@ -981,7 +981,7 @@ def update_all_waiting(
     // delete name;
 
     for let i = 0; i < waiting.len; i = i + 1 {
-        let req = vec.get_ptr(waiting, i) as *WaitingRequest;
+        let req = waiting.get_ptr(i) as *WaitingRequest;
         update_waiting(tc, req, resolved_ty);
     }
 
@@ -1234,7 +1234,7 @@ def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
 
     for let i = 0; i < ed.values.len; i = i + 1 {
         let name: ident.Ident = undefined;
-        vec.get(&ed.values, i, &name as *void);
+        ed.values.get(i, &name as *void);
         if ty.push_enum_value(decl, name, start_value + i) {
             push_duplicate_enum_value_error(tc, e_ty, &name);
             return null;
@@ -2516,14 +2516,14 @@ def free_tc(tc: *TypeChecker): void {
         free_err(get_err(tc, i));
         i = i + 1;
     }
-    vec.free_v(&tc.errors);
+    tc.errors.free();
 
     i = 0;
     while i < tc.requests.len {
-        free_wait_map(vec.get_ptr(&tc.requests, i) as *WaitingRequestMap);
+        free_wait_map(tc.requests.get_ptr(i) as *WaitingRequestMap);
         i = i + 1;
     }
-    vec.free_v(&tc.requests);
+    tc.requests.free();
 
     i = 0;
     while i < tc.contexts.len {

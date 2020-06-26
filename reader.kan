@@ -40,7 +40,7 @@ def num_files(m: *FileMap): i32 {
 }
 
 def get_ptr_by_idx(m: *FileMap, idx: i32): *source.SourceFile {
-    return vec.get_ptr(&m.files, idx) as *source.SourceFile;
+    return m.files.get_ptr(idx) as *source.SourceFile;
 }
 
 def get_ptr_from_span(m: *FileMap, span: span.Span): *source.SourceFile {
@@ -65,13 +65,13 @@ def free_fm(m: *FileMap): void {
     let i = 0;
     while i < m.files.len {
         let s: source.SourceFile = undefined;
-        if vec.get(&m.files, i, &s as *void) {
+        if m.files.get(i, &s as *void) {
             source.free_sf(&s);
         }
         i = i + 1;
     }
 
-    vec.free_v(&m.files);
+    m.files.free();
     path.free_pb(&m.proj_root);
 }
 
@@ -141,7 +141,7 @@ def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool):
         return res;
     }
 
-    vec.push(&m.files, &sf as *void);
+    m.files.push(&sf as *void);
     if !is_std_lib {
         update_root(m, abs_path.inner);
     }

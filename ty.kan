@@ -255,12 +255,12 @@ def is_struct(t: *Type): bool {
 
 def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
     let field = StructField { name: name, ty: ty, offset: 0 };
-    vec.push(&t.fields, &field as *void);
+    t.fields.push(&field as *void);
     scope.bind_in(&t.super.scope, &name, ty);
 }
 
 def field_at(t: *Struct, i: i32): *StructField {
-    return vec.get_ptr(&t.fields, i) as *StructField;
+    return t.fields.get_ptr(i) as *StructField;
 }
 
 // get the index of the field with name 'name'
@@ -439,7 +439,7 @@ def patch_receiver_into_params(t: *Func) {
         return;
     }
 
-    vec.push_front(&t.params, &t.receiver as *void);
+    t.params.push_front(&t.receiver as *void);
     // only do this once
     t.receiver_patched = true;
 }
@@ -482,7 +482,7 @@ def find_param_idx(t: *Func, name: *ident.Ident): i32 {
 }
 
 def param_at(t: *Func, i: i32): *Param {
-    return vec.get_ptr(&t.params, i) as *Param;
+    return t.params.get_ptr(i) as *Param;
 }
 
 def is_func(t: *Type): bool {
@@ -612,7 +612,7 @@ def free_ty(t: *Type): void {
         let f_ty = as_func(t);
         name.free_owned(&f_ty.mangled_name);
         // the inner types are garbage collected by tychk
-        vec.free_v(&f_ty.params);
+        f_ty.params.free();
         delete t.data;
     }
 
@@ -620,7 +620,7 @@ def free_ty(t: *Type): void {
         let s_ty = as_struct(t);
         free_user_defined_type(&s_ty.super);
         // the inner types are garbage collected by tychk
-        vec.free_v(&s_ty.fields);
+        s_ty.fields.free();
         delete t.data;
     }
 

@@ -114,7 +114,7 @@ def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData 
 }
 
 def scope_at(c: *MirCompiler, id: i32): mir.Scope {
-    let s = vec.get_ptr(&c.scopes, id) as *mir.Scope;
+    let s = c.scopes.get_ptr(id) as *mir.Scope;
     dbg.assert_fmt(s != null, "no scope at %d", id);
     return *s;
 }
@@ -130,7 +130,7 @@ def open_scope(c: *MirCompiler) {
 
     let s = mir.Scope { id: c.scopes.len, parent: c.current_scope, num_decls: 0 };
     c.current_scope = s.id;
-    vec.push(&c.scopes, &s as *void);
+    c.scopes.push(&s as *void);
 }
 
 // open_var_scope opens a local variable scope
@@ -148,7 +148,7 @@ def open_var_scope(c: *MirCompiler) {
         num_decls: current.num_decls + 1
     };
     c.current_scope = s.id;
-    vec.push(&c.scopes, &s as *void);
+    c.scopes.push(&s as *void);
 }
 
 def close_scope(c: *MirCompiler) {
@@ -744,14 +744,14 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     let args = vec.with_cap(sizeof mir.Address, n);
     if is_method {
-        vec.push(&args, &recv_addr as *void);
+        args.push(&recv_addr as *void);
     }
 
 
     for let i = 0; i < ast.num_args(&call.args); i += 1 {
         let arg = ast.get_arg_at(&call.args, i);
         let arg_addr = expr_instruction(c, arg, true);
-        vec.push(&args, &arg_addr as *void);
+        args.push(&arg_addr as *void);
     }
 
     return mir.new_expr_call(func_addr, args, varargs);
@@ -823,7 +823,7 @@ def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     while i < n {
         let init = ast.init_expr_at(&struct_init.inits, i);
         let init_addr = expr_instruction(c, init, true);
-        vec.push(&inits, &init_addr as *void);
+        inits.push(&init_addr as *void);
         i = i + 1;
     }
 
