@@ -26,6 +26,10 @@ def make_copied(len: i32, data: string): Owned {
     return make_owned(len, std.strndup(data, len));
 }
 
+def (n: *Owned) clone(): Owned {
+    return make_copied(n.len, n.data);
+}
+
 type Ref struct {
     len: i32,
     data: string

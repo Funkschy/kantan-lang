@@ -430,6 +430,33 @@ def init_func(
     t.data = f as *void;
 }
 
+def (old_method: *Func) as_normal_function(): *Type {
+    let new_type = new_type(Kind.Func, null);
+
+    init_func(
+        new_type,
+        old_method.name,
+        old_method.mangled_name.clone(),
+        old_method.declared_in,
+        old_method.is_extern // TODO: can we declare extern methods?
+    );
+
+    let new_func = as_func(new_type);
+
+    let params = vec.with_cap(sizeof Param, old_method.params.len + 1);
+    params.push(&old_method.receiver as *void);
+    for let i = 0; i < old_method.params.len; i += 1 {
+        params.push(param_at(old_method, i) as *void);
+    }
+
+    new_func.params = params;
+    new_func.is_method = false;
+    new_func.is_varargs = old_method.is_varargs;
+
+    new_func.ret = old_method.ret;
+    return new_type;
+}
+
 // it is better to treat the receiver type differently during typechecking, since it has
 // different restrictions than normal parameters. However we don't want to check is_method all
 // the time during code generation, so we just push the receiver as the first argument during

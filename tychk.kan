@@ -2076,13 +2076,21 @@ def check_expr_scope_expect(
             return null;
         }
 
-        let ty = check_unary_expr(tc, u_e.kind, expr, e.span);
-        if ty == null {
+        let result_ty = check_unary_expr(tc, u_e.kind, expr, e.span);
+        if result_ty == null {
             return null;
         }
 
+        // TODO: Method references should be declared with &Typename.method, not &obj.method
+        // method reference
+        if u_e.kind == ast.UnaryKind.Ref && ty.is_func(expr.ty) && ty.as_func(expr.ty).is_method {
+            let new_func_type = ty.as_func(expr.ty).as_normal_function();
+            push_tmp_ty(tc, new_func_type);
+            result_ty = push_tmp_ty(tc, ty.new_ptr(1, new_func_type));
+        }
+
         u_e.right = expr;
-        e.ty = ty;
+        e.ty = result_ty;
         return e;
     }
 
