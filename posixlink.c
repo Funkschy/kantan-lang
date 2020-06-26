@@ -7,7 +7,7 @@
 
 #if defined (__linux__)
 
-#define BUF_LEN sizeof("usr/lib/x86_64-linux-gnu/") + 6 + 1
+#define BUF_LEN sizeof("/usr/lib/x86_64-linux-gnu/") + 6
 #define OBJ_NAME_LEN 6
 
 struct paths {
