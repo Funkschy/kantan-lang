@@ -401,7 +401,7 @@ def check(tc: *TypeChecker): CheckResult {
                 let j = 0;
                 while j < pending.len {
                     let req = pending.get_ptr(j) as *WaitingRequest;
-                    push_not_defined_error(tc, &req.waiting_for, LookupKind.Types);
+                    push_not_defined_error(tc, &req.waiting_for, LookupKind.Types.to_string());
                     error = true;
                     j = j + 1;
                 }
@@ -618,7 +618,7 @@ def checked_type_lookup(
 
     if *out_mod == null {
         // TODO(#35): should just be module name
-        push_not_defined_error(tc, name, LookupKind.Types);
+        push_not_defined_error(tc, name, LookupKind.Types.to_string());
         return ERROR;
     }
 
@@ -635,7 +635,7 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
             return out_ty;
         }
     } else {
-        push_not_defined_error(tc, &name.ident, LookupKind.Types);
+        push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string());
     }
 
     return null;
@@ -1316,7 +1316,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     let f_ty = f_s.decl.func_ty;
 
     if f_ty == null {
-        push_not_defined_error(tc, f_name, LookupKind.Values);
+        push_not_defined_error(tc, f_name, LookupKind.Values.to_string());
         return null;
     }
 
@@ -1829,36 +1829,136 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 }
 
 type LookupKind enum {
-    Types, Values
+    Types, Values, Both
+}
+
+def (kind: LookupKind) to_string(): string {
+    if kind == LookupKind.Types {
+        return "type";
+    }
+    if kind == LookupKind.Types {
+        return "value";
+    }
+    return "value or type";
+}
+
+// used for resolving access and ident expressions
+type LookupData struct {
+    kind: LookupKind,
+    scope: *scope.Scope,
+    was_type: bool
+}
+
+def create_lookup_data(kind: LookupKind, scope: *scope.Scope): LookupData {
+    return LookupData {
+        kind: kind, scope: scope, was_type: false
+    };
+}
+
+def (d: *LookupData) copy(): LookupData {
+    if d == null {
+        return create_lookup_data(LookupKind.Values, null);
+    }
+    return *d;
+}
+
+def (d: *LookupData) to_string(): string {
+    if d == null || d.kind == LookupKind.Values {
+        return "value";
+    }
+    if d.kind == LookupKind.Types {
+        return "type";
+    }
+
+    return "value of type";
+}
+
+def (d: *LookupData) lookup_ident(tc: *TypeChecker, name: *ident.Ident): *ty.Type {
+    if d == null {
+        return lookup_value(tc, name);
+    }
+
+    if d.scope != null {
+        return scope.get_in(d.scope, name);
+    }
+
+    if d.kind == LookupKind.Types {
+        d.was_type = true;
+        return lookup_type(tc, name);
+    }
+
+    let value = lookup_value(tc, name);
+    if d.kind == LookupKind.Values {
+        return value;
+    }
+
+    if value == null {
+        d.was_type = true;
+        value = lookup_type(tc, name);
+    }
+
+    return value;
+}
+
+def (d: *LookupData) lookup_ident_in(t: *ty.Type, name: *ident.Ident): *ty.Type {
+    if d == null {
+        return ty.lookup_value_in(t, name);
+    }
+
+    if d.kind == LookupKind.Types {
+        d.was_type = true;
+        return ty.lookup_type_in(t, name);
+    }
+
+    let value = ty.lookup_value_in(t, name);
+    if d.kind == LookupKind.Values {
+        return value;
+    }
+
+    if value == null {
+        d.was_type = true;
+        value = ty.lookup_type_in(t, name);
+    }
+
+    return value;
+}
+
+def (d: *LookupData) was_type_decl(): bool {
+    return d != null && d.was_type;
+}
+
+def (d: *LookupData) is_type_accessible(t: *ty.Type): bool {
+    if d == null {
+        return ty.is_value_scoped(t);
+    }
+
+    let kind = d.kind;
+    let is_value_lookup = kind == LookupKind.Values || kind == LookupKind.Both;
+    let is_type_lookup = kind == LookupKind.Types || kind == LookupKind.Both;
+
+    let value_scoped = is_value_lookup && ty.is_value_scoped(t);
+    let type_scoped = is_type_lookup && ty.is_type_scoped(t);
+    return value_scoped || type_scoped;
 }
 
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
-    return check_expr_scope(tc, e, null, LookupKind.Values);
-}
-
-def check_expr_with_kind(tc: *TypeChecker, e: *ast.Expr, lookup_kind: LookupKind): *ast.Expr {
-    return check_expr_scope(tc, e, null, lookup_kind);
+    return check_expr_data(tc, e, null);
 }
 
 def check_expr_expect(tc: *TypeChecker, e: *ast.Expr, expected: *ty.Type): *ast.Expr {
-    return check_expr_scope_expect(tc, e, null, expected, LookupKind.Values);
+    return check_expr_scope_expect(tc, e, expected, null);
 }
 
-def check_expr_scope(
-    tc: *TypeChecker,
-    e: *ast.Expr,
-    scope: *scope.Scope,
-    lookup_kind: LookupKind
-): *ast.Expr {
-    return check_expr_scope_expect(tc, e, scope, null, lookup_kind);
+def check_expr_data(tc: *TypeChecker, e: *ast.Expr, data: *LookupData): *ast.Expr {
+    return check_expr_scope_expect(tc, e, null, data);
 }
 
+// if data == null, LookupKind.Values is assumed
 def check_expr_scope_expect(
     tc: *TypeChecker,
     e: *ast.Expr,
-    lookup_scope: *scope.Scope,
     expected: *ty.Type,
-    lookup_kind: LookupKind
+    data: *LookupData
 ): *ast.Expr {
     // EXPR_INT
     if ast.is_int_expr(e) {
@@ -1916,18 +2016,10 @@ def check_expr_scope_expect(
     // EXPR_IDENT
     if ast.is_ident_expr(e) {
         let ident = &ast.as_ident_expr(e).ident;
-        if lookup_scope == null {
-            if lookup_kind == LookupKind.Values {
-                e.ty = lookup_value(tc, ident);
-            } else {
-                e.ty = lookup_type(tc, ident);
-            }
-        } else {
-            e.ty = scope.get_in(lookup_scope, ident);
-        }
+        e.ty = data.lookup_ident(tc, ident);
 
         if e.ty == null {
-            push_not_defined_error(tc, ident, lookup_kind);
+            push_not_defined_error(tc, ident, data.to_string());
             return null;
         }
 
@@ -1945,7 +2037,7 @@ def check_expr_scope_expect(
     if ast.is_access_expr(e) {
         let a_e = ast.as_access_expr(e);
 
-        let left = check_expr_scope(tc, a_e.left, lookup_scope, LookupKind.Values);
+        let left = check_expr_data(tc, a_e.left, data);
         if left == null {
             return null;
         }
@@ -1957,9 +2049,7 @@ def check_expr_scope_expect(
         //  "Type 'pointer' cannot be accessed with '.' operator" does not
         //  make sense, when the actual pointer to a struct can be accessed with '.'
 
-        let value_scoped = lookup_kind == LookupKind.Values && ty.is_value_scoped(left_ty);
-        let type_scoped = lookup_kind == LookupKind.Types && ty.is_type_scoped(left_ty);
-        if !(value_scoped || type_scoped) {
+        if !data.is_type_accessible(left_ty) {
             // TODO(#52): the span here is the span of the entire left access, which
             //  is probably not what we want...
             push_not_accessible_with_error(tc, a_e.left);
@@ -1967,15 +2057,9 @@ def check_expr_scope_expect(
         }
 
         let name = &a_e.right.ident;
-        let right: *ty.Type = null;
-        if lookup_kind == LookupKind.Values {
-            right = ty.lookup_value_in(left_ty, name);
-        } else {
-            right = ty.lookup_type_in(left_ty, name);
-        }
-
+        let right = data.lookup_ident_in(left_ty, name);
         if right == null {
-            push_not_defined_error(tc, &a_e.right.ident, lookup_kind);
+            push_not_defined_error(tc, &a_e.right.ident, data.to_string());
             return null;
         }
 
@@ -2070,23 +2154,18 @@ def check_expr_scope_expect(
     // EXPR_UNARY
     if ast.is_unary_expr(e) {
         let u_e = ast.as_unary_expr(e);
-        let expr = check_expr(tc, u_e.right);
 
+        let lookup_data = data.copy();
+        lookup_data.kind = LookupKind.Both; // needed for method pointers
+
+        let expr = check_expr_data(tc, u_e.right, &lookup_data);
         if expr == null {
             return null;
         }
 
-        let result_ty = check_unary_expr(tc, u_e.kind, expr, e.span);
+        let result_ty = check_unary_expr(tc, u_e.kind, expr, e.span, &lookup_data);
         if result_ty == null {
             return null;
-        }
-
-        // TODO: Method references should be declared with &Typename.method, not &obj.method
-        // method reference
-        if u_e.kind == ast.UnaryKind.Ref && ty.is_func(expr.ty) && ty.as_func(expr.ty).is_method {
-            let new_func_type = ty.as_func(expr.ty).as_normal_function();
-            push_tmp_ty(tc, new_func_type);
-            result_ty = push_tmp_ty(tc, ty.new_ptr(1, new_func_type));
         }
 
         u_e.right = expr;
@@ -2249,7 +2328,8 @@ def check_expr_scope_expect(
     // EXPR_INIT
     if ast.is_init_expr(e) {
         let i_e = ast.as_init_expr(e);
-        let left = check_expr_with_kind(tc, i_e.struct_ty, LookupKind.Types);
+        let data = create_lookup_data(LookupKind.Types, null);
+        let left = check_expr_data(tc, i_e.struct_ty, &data);
         if left == null {
             return null;
         }
@@ -2399,7 +2479,8 @@ def check_unary_expr(
     tc: *TypeChecker,
     kind: ast.UnaryKind,
     expr: *ast.Expr,
-    span: span.Span
+    span: span.Span,
+    lookup_data: *LookupData
 ): *ty.Type {
     dbg.assert_fmt(
         kind >= ast.UnaryKind.Ref && kind <= ast.UnaryKind.NegNum,
@@ -2414,8 +2495,25 @@ def check_unary_expr(
     if kind == ast.UnaryKind.Ref {
         if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr)
             || ast.is_access_expr(expr) && ty.is_enum(ast.as_access_expr(expr).left.ty) {
-            let text = std.err2str(ERROR_UNARY_REF_RVALUE);
-            push_mk_err(tc, text, span);
+                let text = std.err2str(ERROR_UNARY_REF_RVALUE);
+                push_mk_err(tc, text, span);
+                return null;
+            }
+
+        let is_method_ptr = ty.is_func(expr.ty) && ty.as_func(expr.ty).is_method;
+        if lookup_data.was_type_decl() && is_method_ptr {
+            let new_func_type = ty.as_func(expr.ty).as_normal_function();
+            push_tmp_ty(tc, new_func_type);
+            return push_tmp_ty(tc, ty.new_ptr(1, new_func_type));
+        }
+
+        if is_method_ptr {
+            push_method_ptr_from_instance_error(tc, ty.as_func(expr.ty).receiver.ty, span);
+            return null;
+        }
+
+        if lookup_data.was_type_decl() {
+            push_cannot_take_address_of_error(tc, span);
             return null;
         }
 
@@ -2429,6 +2527,11 @@ def check_unary_expr(
 
         push_tmp_ty(tc, e_ty);
         return e_ty;
+    }
+
+    if lookup_data.was_type_decl() {
+        push_illegal_unary_expr(tc, span);
+        return null;
     }
 
     if kind == ast.UnaryKind.Deref {
@@ -2543,6 +2646,10 @@ def free_tc(tc: *TypeChecker): void {
     scope.free_s(&tc.global_values);
 }
 
+def (tc: *TypeChecker) ty_to_string(t: *ty.Type, out: *string): bool {
+    return ty.to_string_mangled(t, !t.is_declared_in(tc.ctx.mod), out);
+}
+
 def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
     let text = std.err2str(ERROR_INTERNAL, text);
     push_mk_err(tc, text, span);
@@ -2563,14 +2670,7 @@ def push_duplicate_def_error(tc: *TypeChecker, name: *ident.Ident) {
     push_ident_error(tc, ERROR_DUPLICATE_DEFINTION, name);
 }
 
-def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident, kind: LookupKind) {
-    let kind_s = "";
-    if kind == LookupKind.Values {
-        kind_s = "value";
-    } else {
-        kind_s = "type";
-    }
-
+def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident, kind_s: string) {
     let len = ident.len(name);
     let text = std.err2str(ERROR_NOT_DEFINED, kind_s, len, ident.start(name));
 
@@ -2604,6 +2704,16 @@ def push_receiver_different_module_error(tc: *TypeChecker, span: span.Span) {
     push_mk_err(tc, text, span);
 }
 
+def push_cannot_take_address_of_error(tc: *TypeChecker, span: span.Span): void {
+    let text = std.err2str(ERROR_CANNOT_TAKE_ADDR_OF);
+    push_mk_err(tc, text, span);
+}
+
+def push_illegal_unary_expr(tc: *TypeChecker, span: span.Span): void {
+    let text = std.err2str(ERROR_ILLEGAL_EXPR_FOR_UNARY);
+    push_mk_err(tc, text, span);
+}
+
 def push_duplicate_enum_value_error(tc: *TypeChecker, e: *ty.Enum, value_name: *ident.Ident) {
     let len = ident.len(value_name);
     let text = std.err2str(
@@ -2616,7 +2726,7 @@ def push_duplicate_enum_value_error(tc: *TypeChecker, e: *ty.Enum, value_name: *
 
 def push_invalid_enum_start_value_error(tc: *TypeChecker, e: *ty.Enum, start_value: *ast.Expr) {
     let s_start_ty = "";
-    let free_s_start_ty = ty.to_string(start_value.ty, &s_start_ty);
+    let free_s_start_ty = tc.ty_to_string(start_value.ty, &s_start_ty);
 
     let text = std.err2str(
         ERROR_INVALID_ENUM_START_VALUE,
@@ -2638,9 +2748,9 @@ def push_bin_invalid_types_error(
     span: span.Span
 ): void {
     let s_first = "";
-    let free_s_first = ty.to_string(first, &s_first);
+    let free_s_first = tc.ty_to_string(first, &s_first);
     let s_second = "";
-    let free_s_second = ty.to_string(second, &s_second);
+    let free_s_second = tc.ty_to_string(second, &s_second);
 
     let text = std.err2str(ERROR_BIN_INVALID_TYPES, s_first, s_second);
 
@@ -2681,9 +2791,9 @@ def push_wrong_type_error(
     span: span.Span
 ): void {
     let expected_ty_s: string = null;
-    let free_expected_ty_s = ty.to_string(expected, &expected_ty_s);
+    let free_expected_ty_s = tc.ty_to_string(expected, &expected_ty_s);
     let actual_ty_s: string = null;
-    let free_actual_ty_s = ty.to_string(actual, &actual_ty_s);
+    let free_actual_ty_s = tc.ty_to_string(actual, &actual_ty_s);
 
     if actual_ty_s == null {
         actual_ty_s = "unknown type";
@@ -2709,9 +2819,9 @@ def push_wrong_type_error(
 
 def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
     let ret_ty_s = "";
-    let free_ret_ty_s = ty.to_string(tc.ctx.current_func.ret, &ret_ty_s);
+    let free_ret_ty_s = tc.ty_to_string(tc.ctx.current_func.ret, &ret_ty_s);
     let ty_s = "";
-    let free_ty_s = ty.to_string(expr.ty, &ty_s);
+    let free_ty_s = tc.ty_to_string(expr.ty, &ty_s);
 
     let text = std.err2str(ERROR_WRONG_RETURN_TYPE, ret_ty_s, ty_s);
     if free_ty_s {
@@ -2747,9 +2857,9 @@ def push_invalid_cast_error(
     span: span.Span
 ): void {
     let src_ty_s = "";
-    let free_src_ty_s = ty.to_string(src, &src_ty_s);
+    let free_src_ty_s = tc.ty_to_string(src, &src_ty_s);
     let dest_ty_s = "";
-    let free_dest_ty_s = ty.to_string(dest, &dest_ty_s);
+    let free_dest_ty_s = tc.ty_to_string(dest, &dest_ty_s);
 
     let text = std.err2str(ERROR_INVALID_CAST, src_ty_s, dest_ty_s);
     if free_dest_ty_s {
@@ -2762,9 +2872,9 @@ def push_invalid_cast_error(
     push_mk_err(tc, text, span);
 }
 
-def push_simple_error(tc: *TypeChecker, kind: i32, t: *ty.Type, s: span.Span): void {
+def push_simple_error(tc: *TypeChecker, kind: i32, t: *ty.Type, s: span.Span) {
     let ty_s = "";
-    let free_ty_s = ty.to_string(t, &ty_s);
+    let free_ty_s = tc.ty_to_string(t, &ty_s);
     let text = std.err2str(kind, ty_s);
     if free_ty_s {
         delete ty_s;
@@ -2772,23 +2882,23 @@ def push_simple_error(tc: *TypeChecker, kind: i32, t: *ty.Type, s: span.Span): v
     push_mk_err(tc, text, s);
 }
 
-def push_expr_type_error(tc: *TypeChecker, kind: i32, e: *ast.Expr): void {
+def push_expr_type_error(tc: *TypeChecker, kind: i32, e: *ast.Expr) {
     push_simple_error(tc, kind, e.ty, e.span);
 }
 
-def push_unsized_field_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+def push_unsized_field_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
     push_simple_error(tc, ERROR_UNSIZED_STRUCT_FIELD, t, s);
 }
 
-def push_unsized_param_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+def push_unsized_param_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
     push_simple_error(tc, ERROR_UNSIZED_PARAMETER, t, s);
 }
 
-def push_unsized_sizeof_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+def push_unsized_sizeof_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
     push_simple_error(tc, ERROR_UNSIZED_SIZEOF, t, s);
 }
 
-def push_deref_unsized_error(tc: *TypeChecker, t: *ty.Type, s: span.Span): void {
+def push_deref_unsized_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
     push_simple_error(tc, ERROR_DEREF_OF_UNSIZED_TYPE, t, s);
 }
 
@@ -2796,21 +2906,27 @@ def push_primitive_receiver_type_error(tc: *TypeChecker, recv: *ty.Type, span: s
     push_simple_error(tc, ERROR_PRIMITIVE_RECEIVER_TYPE, recv, span);
 }
 
-def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr): void {
+def push_method_ptr_from_instance_error(tc: *TypeChecker, instanceof: *ty.Type, span: span.Span) {
+    // TODO: implement proper hint system
+    // TODO: use import alias for mangling
+    push_simple_error(tc, ERROR_METHOD_PTR_FROM_INSTANCE, instanceof, span);
+}
+
+def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr) {
     push_expr_type_error(tc, ERROR_INVALID_TYPE_IN_CONDITION, e);
 }
 
-def push_type_not_assignable_error(tc: *TypeChecker, e: *ast.Expr): void {
+def push_type_not_assignable_error(tc: *TypeChecker, e: *ast.Expr) {
     push_expr_type_error(tc, ERROR_TYPE_NOT_ASSIGNABLE, e);
 }
 
-def push_expr_not_assignable_error(tc: *TypeChecker, e: *ast.Expr): void {
+def push_expr_not_assignable_error(tc: *TypeChecker, e: *ast.Expr) {
     push_expr_type_error(tc, ERROR_EXPR_NOT_ASSIGNABLE, e);
 }
 
-def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr): void {
+def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr) {
     let ty_s = "";
-    let free_ty_s = ty.to_string(e.ty, &ty_s);
+    let free_ty_s = tc.ty_to_string(e.ty, &ty_s);
     let text = std.err2str(ERROR_DELETE_NON_PTR, ty_s);
     if free_ty_s {
         delete ty_s;

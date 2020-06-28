@@ -221,6 +221,9 @@ static char const *const error_texts[] = {
     "Invalid enum start value type '%s' in enum '%.*s'",
     "Cannot declare method on primitive type '%s'",
     "Methods can only be declare on types from the same module",
+    "Cannot take method pointer from instance. Use '&%s' instead",
+    "Cannot take the address of a type",
+    "Illegal expression for unary operand",
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

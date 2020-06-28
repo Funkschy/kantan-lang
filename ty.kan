@@ -630,6 +630,18 @@ def free_user_defined_type(user_defined: *UserDefinedType) {
     scope.free_s(&user_defined.scope);
 }
 
+def (t: *Type) is_declared_in(m: *mod.Module): bool {
+    if is_user_defined(t) || is_ptr(t) && is_user_defined(as_ptr(t).inner) {
+        return get_user_defined(t).declared_in == m;
+    }
+
+    if is_func(t) {
+        return as_func(t).declared_in == m;
+    }
+
+    return false;
+}
+
 def free_ty(t: *Type): void {
     if t == null {
         return;
