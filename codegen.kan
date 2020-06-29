@@ -822,16 +822,16 @@ def compile_unary(
     let unary = mir.as_expr_unary(e);
     let value = translate_addr(c, func, &unary.addr);
 
-    if mir.is_unary_deref(unary) {
+    if unary.kind == mir.UnaryKind.Deref {
         // was already loaded
         return value;
     }
 
-    if mir.is_unary_num_neg(unary) {
+    if unary.kind == mir.UnaryKind.NumNeg {
         return llvm.build_neg(c.builder, value, "");
     }
 
-    if mir.is_unary_bool_neg(unary) {
+    if unary.kind == mir.UnaryKind.BoolNeg {
         return llvm.build_not(c.builder, value, "");
     }
 
@@ -839,7 +839,6 @@ def compile_unary(
     return null;
 }
 
-#include "mir_types.h"
 def compile_binary(
     c: *ModuleCompiler,
     func: *FunctionData,
@@ -854,10 +853,10 @@ def compile_binary(
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
 
-    if binary.kind == MIR_BIN_ADD {
+    if binary.kind == mir.BinaryKind.Add {
         return llvm.build_add(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_SUB {
-        // pointer subtraction (both types have to be equal for MIR_BIN_SUB)
+    } else if binary.kind == mir.BinaryKind.Sub {
+        // pointer subtraction (both types have to be equal for mir.BinaryKind.Sub)
         if ty.is_ptr(binary.left.ty) {
             let int64_ty = llvm.int64_type_in_context(c.context.ctx);
             left = llvm.build_ptr_to_int(c.builder, left, int64_ty, "");
@@ -871,30 +870,30 @@ def compile_binary(
         }
 
         return llvm.build_sub(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MUL {
+    } else if binary.kind == mir.BinaryKind.Mul {
         return llvm.build_mul(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_DIV {
+    } else if binary.kind == mir.BinaryKind.Div {
         return llvm.build_s_div(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MOD {
+    } else if binary.kind == mir.BinaryKind.Mod {
         // TODO(#90): this is actually a remainder operation, not modulo
         //  same for floats
         return llvm.build_s_rem(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_ST {
+    } else if binary.kind == mir.BinaryKind.ST {
         // TODO(#96): unsigned integer types
         return llvm.build_i_cmp(c.builder, 40, left, right, "");
-    } else if binary.kind == MIR_BIN_SE {
+    } else if binary.kind == mir.BinaryKind.SE {
         return llvm.build_i_cmp(c.builder, 41, left, right, "");
-    } else if binary.kind == MIR_BIN_GT {
+    } else if binary.kind == mir.BinaryKind.GT {
         return llvm.build_i_cmp(c.builder, 38, left, right, "");
-    } else if binary.kind == MIR_BIN_GE {
+    } else if binary.kind == mir.BinaryKind.GE {
         return llvm.build_i_cmp(c.builder, 39, left, right, "");
-    } else if binary.kind == MIR_BIN_EQ {
+    } else if binary.kind == mir.BinaryKind.EQ {
         return llvm.build_i_cmp(c.builder, 32, left, right, "");
-    } else if binary.kind == MIR_BIN_NE {
+    } else if binary.kind == mir.BinaryKind.NE {
         return llvm.build_i_cmp(c.builder, 33, left, right, "");
-    } else if binary.kind == MIR_BIN_BOOL_AND {
+    } else if binary.kind == mir.BinaryKind.BoolAnd {
         return llvm.build_and(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_BOOL_OR {
+    } else if binary.kind == mir.BinaryKind.BoolOr {
         return llvm.build_or(c.builder, left, right, "");
     } else {
         let ptr = left;
@@ -905,7 +904,7 @@ def compile_binary(
         }
 
         // for ptr - scalar, just negate the scalar value
-        if binary.kind == MIR_BIN_SUB_SCALAR {
+        if binary.kind == mir.BinaryKind.SubScalar {
             scalar = llvm.build_neg(c.builder, scalar, "");
         }
 
@@ -924,27 +923,27 @@ def compile_binary_float(
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
 
-    if binary.kind == MIR_BIN_ADD {
+    if binary.kind == mir.BinaryKind.Add {
         return llvm.build_f_add(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_SUB {
+    } else if binary.kind == mir.BinaryKind.Sub {
         return llvm.build_f_sub(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MUL {
+    } else if binary.kind == mir.BinaryKind.Mul {
         return llvm.build_f_mul(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_DIV {
+    } else if binary.kind == mir.BinaryKind.Div {
         return llvm.build_f_div(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MOD {
+    } else if binary.kind == mir.BinaryKind.Mod {
         return llvm.build_f_rem(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_ST {
+    } else if binary.kind == mir.BinaryKind.ST {
         return llvm.build_f_cmp(c.builder, 4, left, right, "");
-    } else if binary.kind == MIR_BIN_SE {
+    } else if binary.kind == mir.BinaryKind.SE {
         return llvm.build_f_cmp(c.builder, 5, left, right, "");
-    } else if binary.kind == MIR_BIN_GT {
+    } else if binary.kind == mir.BinaryKind.GT {
         return llvm.build_f_cmp(c.builder, 2, left, right, "");
-    } else if binary.kind == MIR_BIN_GE {
+    } else if binary.kind == mir.BinaryKind.GE {
         return llvm.build_f_cmp(c.builder, 3, left, right, "");
-    } else if binary.kind == MIR_BIN_EQ {
+    } else if binary.kind == mir.BinaryKind.EQ {
         return llvm.build_f_cmp(c.builder, 1, left, right, "");
-    } else if binary.kind == MIR_BIN_NE {
+    } else if binary.kind == mir.BinaryKind.NE {
         return llvm.build_f_cmp(c.builder, 6, left, right, "");
     }
 

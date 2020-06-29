@@ -1123,10 +1123,8 @@ def cast_kind(e: *ast.Expr): mir.CastKind {
     return mir.CastKind.Bit;
 }
 
-#include "mir_types.h"
-
 // sets short circuit to 1 for && and 2 for ||
-def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32 {
+def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): mir.BinaryKind {
     let k = binary.kind;
     let left = binary.left;
     let right = binary.right;
@@ -1140,10 +1138,10 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
         //  int |  ptr
         //  ptr |  int
         if ty.equals(left.ty, right.ty) {
-            return MIR_BIN_ADD;
+            return mir.BinaryKind.Add;
         }
 
-        return MIR_BIN_ADD_SCALAR;
+        return mir.BinaryKind.AddScalar;
     } else if k == ast.BinaryKind.Sub {
         // the following combinations are possible:
         // left | right
@@ -1153,10 +1151,10 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
         //  ptr |  ptr   <- this is not allowed for addtion
 
         if ty.equals(left.ty, right.ty) {
-            return MIR_BIN_SUB;
+            return mir.BinaryKind.Sub;
         }
 
-        return MIR_BIN_SUB_SCALAR;
+        return mir.BinaryKind.SubScalar;
     }
 
     if k == ast.BinaryKind.LogAnd {
@@ -1166,5 +1164,5 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
     }
 
     // ...everything else is identical
-    return *(&k as *i32);
+    return *(&k as *mir.BinaryKind);
 }

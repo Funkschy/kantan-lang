@@ -1,5 +1,3 @@
-#include "mir_types.h"
-
 import "io";
 import "ty";
 import "std";
@@ -14,8 +12,8 @@ import "name";
 import "ident";
 import "source";
 
-extern def mir_binary2str(kind: i32): string;
-extern def mir_unary2str(kind: i32): string;
+extern def mir_binary2str(kind: BinaryKind): string;
+extern def mir_unary2str(kind: UnaryKind): string;
 
 type Module struct {
     globals: map.Map, // map.Map<name.Ref, *GlobalConst>
@@ -412,7 +410,7 @@ type AddressName struct {
 def make_addr_name(value: name.Ref, ty: *ty.Type): Address {
     let hi = std.int_to_ptr(value.len);
     let lo = value.data as *void;
-    return create_addr(MIR_ADDR_NAME, ty, hi, lo);
+    return create_addr(AddrKind.Name, ty, hi, lo);
 }
 
 def clone_addr_name(a: *Address): Address {
@@ -429,7 +427,7 @@ def as_addr_name(a: *Address): AddressName {
 }
 
 def is_addr_name(a: *Address): bool {
-    return a.kind == MIR_ADDR_NAME;
+    return a.kind == AddrKind.Name;
 }
 
 type AddressConst struct {
@@ -443,7 +441,7 @@ def make_addr_const(ty: *ty.Type, s: span.Span): Address {
 
 def make_addr_const_strings(ty: *ty.Type, start: string, end: string): Address {
     dbg.assert(start < end, "start was larger than end");
-    return create_addr(MIR_ADDR_CONST, ty, start as *void, end as *void);
+    return create_addr(AddrKind.Const, ty, start as *void, end as *void);
 }
 
 def as_addr_const(a: *Address): AddressConst {
@@ -451,7 +449,7 @@ def as_addr_const(a: *Address): AddressConst {
 }
 
 def is_addr_const(a: *Address): bool {
-    return a.kind == MIR_ADDR_CONST;
+    return a.kind == AddrKind.Const;
 }
 
 def const_len(c: *AddressConst): i32 {
@@ -463,7 +461,7 @@ type AddressConstValue struct {
 }
 
 def make_addr_const_value(ty: *ty.Type, value: i32): Address {
-    return create_addr(MIR_ADDR_CONST_VALUE, ty, std.int_to_ptr(value), null);
+    return create_addr(AddrKind.ConstValue, ty, std.int_to_ptr(value), null);
 }
 
 def as_addr_const_value(a: *Address): AddressConstValue {
@@ -471,7 +469,7 @@ def as_addr_const_value(a: *Address): AddressConstValue {
 }
 
 def is_addr_const_value(a: *Address): bool {
-    return a.kind == MIR_ADDR_CONST_VALUE;
+    return a.kind == AddrKind.ConstValue;
 }
 
 type AddressGlobal struct {
@@ -481,7 +479,7 @@ type AddressGlobal struct {
 def make_addr_global(name: name.Ref, ty: *ty.Type): Address {
     let hi = std.int_to_ptr(name.len);
     let lo = name.data as *void;
-    return create_addr(MIR_ADDR_GLOBAL, ty, hi, lo);
+    return create_addr(AddrKind.Global, ty, hi, lo);
 }
 
 def as_addr_global(a: *Address): AddressGlobal {
@@ -492,7 +490,7 @@ def as_addr_global(a: *Address): AddressGlobal {
 }
 
 def is_addr_global(a: *Address): bool {
-    return a.kind == MIR_ADDR_GLOBAL;
+    return a.kind == AddrKind.Global;
 }
 
 type AddressRef struct {
@@ -502,7 +500,7 @@ type AddressRef struct {
 def make_addr_ref(name: name.Ref, ty: *ty.Type): Address {
     let hi = std.int_to_ptr(name.len);
     let lo = name.data as *void;
-    return create_addr(MIR_ADDR_REF, ty, hi, lo);
+    return create_addr(AddrKind.Ref, ty, hi, lo);
 }
 
 def as_addr_ref(a: *Address): AddressRef {
@@ -513,7 +511,7 @@ def as_addr_ref(a: *Address): AddressRef {
 }
 
 def is_addr_ref(a: *Address): bool {
-    return a.kind == MIR_ADDR_REF;
+    return a.kind == AddrKind.Ref;
 }
 
 type AddressArg struct {
@@ -522,7 +520,7 @@ type AddressArg struct {
 
 def make_addr_arg(idx: i32, ty: *ty.Type): Address {
     let hi = std.int_to_ptr(idx);
-    return create_addr(MIR_ADDR_ARG, ty, hi, null);
+    return create_addr(AddrKind.Arg, ty, hi, null);
 }
 
 def as_addr_arg(a: *Address): AddressArg {
@@ -531,35 +529,47 @@ def as_addr_arg(a: *Address): AddressArg {
 }
 
 def is_addr_arg(a: *Address): bool {
-    return a.kind == MIR_ADDR_ARG;
+    return a.kind == AddrKind.Arg;
 }
 
 def create_addr_empty(): Address {
-    return create_addr(MIR_ADDR_EMPTY, null, null, null);
+    return create_addr(AddrKind.Empty, null, null, null);
 }
 
 def is_addr_empty(a: *Address): bool {
-    return a.kind == MIR_ADDR_EMPTY;
+    return a.kind == AddrKind.Empty;
 }
 
 def create_addr_null(ty: *ty.Type): Address {
-    return create_addr(MIR_ADDR_NULL, ty, null, null);
+    return create_addr(AddrKind.Null, ty, null, null);
 }
 
 def is_addr_null(a: *Address): bool {
-    return a.kind == MIR_ADDR_NULL;
+    return a.kind == AddrKind.Null;
 }
 
 def create_addr_undefined(ty: *ty.Type): Address {
-    return create_addr(MIR_ADDR_UNDEFINED, ty, null, null);
+    return create_addr(AddrKind.Undefined, ty, null, null);
 }
 
 def is_addr_undefined(a: *Address): bool {
-    return a.kind == MIR_ADDR_UNDEFINED;
+    return a.kind == AddrKind.Undefined;
+}
+
+type AddrKind enum {
+    Empty = 1,
+    Null,
+    Undefined,
+    Name,
+    Const,
+    ConstValue,
+    Global,
+    Ref,
+    Arg
 }
 
 type Address struct {
-    kind: i32,
+    kind: AddrKind,
     ty: *ty.Type,
     // this is basically a poor mans union, since the current compiler
     // implementation does not support unions
@@ -568,7 +578,7 @@ type Address struct {
     data_lo: *void
 }
 
-def create_addr(kind: i32, ty: *ty.Type, data_hi: *void, data_lo: *void): Address {
+def create_addr(kind: AddrKind, ty: *ty.Type, data_hi: *void, data_lo: *void): Address {
     return Address {
         kind: kind, ty: ty, data_hi: data_hi, data_lo: data_lo
     };
@@ -638,18 +648,39 @@ def addr_to_name(a: *Address): name.Owned {
     return name.make_owned(0, null);
 }
 
+type BinaryKind enum {
+    Add = 1,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+
+    ST,
+    SE,
+    GT,
+    GE,
+    EQ,
+    NE,
+
+    BoolAnd,
+    BoolOr,
+
+    AddScalar,
+    SubScalar
+}
+
 type ExprBinary struct {
-    kind: i32,
+    kind: BinaryKind,
     left: Address,
     right: Address
 }
 
-def new_expr_binary(kind: i32, left: Address, right: Address): Expression {
+def new_expr_binary(kind: BinaryKind, left: Address, right: Address): Expression {
     let binary = (new ExprBinary { kind: kind, left: left, right: right }) as *void;
-    return create_expr(MIR_EXPR_BINARY, binary);
+    return create_expr(ExprKind.Binary, binary);
 }
 
-def binary_kind_to_static_string(kind: i32): string {
+def binary_kind_to_static_string(kind: BinaryKind): string {
     return mir_binary2str(kind);
 }
 
@@ -658,30 +689,36 @@ def as_expr_binary(e: *Expression): *ExprBinary {
 }
 
 def is_expr_binary(e: *Expression): bool {
-    return e.kind == MIR_EXPR_BINARY;
+    return e.kind == ExprKind.Binary;
+}
+
+type UnaryKind enum {
+    BoolNeg = 1,
+    NumNeg,
+    Deref
 }
 
 type ExprUnary struct {
-    kind: i32,
+    kind: UnaryKind,
     addr: Address
 }
 
 def new_expr_unary_deref(addr: Address): Expression {
-    let unary = (new ExprUnary { kind: MIR_UNARY_DEREF, addr: addr }) as *void;
-    return create_expr(MIR_EXPR_UNARY, unary);
+    let unary = (new ExprUnary { kind: UnaryKind.Deref, addr: addr }) as *void;
+    return create_expr(ExprKind.Unary, unary);
 }
 
 def new_expr_unary_num_neg(addr: Address): Expression {
-    let unary = (new ExprUnary { kind: MIR_UNARY_NUM_NEG, addr: addr }) as *void;
-    return create_expr(MIR_EXPR_UNARY, unary);
+    let unary = (new ExprUnary { kind: UnaryKind.NumNeg, addr: addr }) as *void;
+    return create_expr(ExprKind.Unary, unary);
 }
 
 def new_expr_unary_bool_neg(addr: Address): Expression {
-    let unary = (new ExprUnary { kind: MIR_UNARY_BOOL_NEG, addr: addr }) as *void;
-    return create_expr(MIR_EXPR_UNARY, unary);
+    let unary = (new ExprUnary { kind: UnaryKind.BoolNeg, addr: addr }) as *void;
+    return create_expr(ExprKind.Unary, unary);
 }
 
-def unary_kind_to_static_string(kind: i32): string {
+def unary_kind_to_static_string(kind: UnaryKind): string {
     return mir_unary2str(kind);
 }
 
@@ -690,19 +727,7 @@ def as_expr_unary(e: *Expression): *ExprUnary {
 }
 
 def is_expr_unary(e: *Expression): bool {
-    return e.kind == MIR_EXPR_UNARY;
-}
-
-def is_unary_deref(u: *ExprUnary): bool {
-    return u.kind == MIR_UNARY_DEREF;
-}
-
-def is_unary_num_neg(u: *ExprUnary): bool {
-    return u.kind == MIR_UNARY_NUM_NEG;
-}
-
-def is_unary_bool_neg(u: *ExprUnary): bool {
-    return u.kind == MIR_UNARY_BOOL_NEG;
+    return e.kind == ExprKind.Unary;
 }
 
 type ExprCopy struct {
@@ -711,7 +736,7 @@ type ExprCopy struct {
 
 def new_expr_copy(addr: Address): Expression {
     let cpy = (new ExprCopy { addr: addr }) as *void;
-    return create_expr(MIR_EXPR_COPY, cpy);
+    return create_expr(ExprKind.Copy, cpy);
 }
 
 def as_expr_copy(e: *Expression): *ExprCopy {
@@ -719,7 +744,7 @@ def as_expr_copy(e: *Expression): *ExprCopy {
 }
 
 def is_expr_copy(e: *Expression): bool {
-    return e.kind == MIR_EXPR_COPY;
+    return e.kind == ExprKind.Copy;
 }
 
 type ExprCall struct {
@@ -730,7 +755,7 @@ type ExprCall struct {
 
 def new_expr_call(callee: Address, args: vec.Vec, varargs: bool): Expression {
     let call = (new ExprCall { callee: callee, args: args, varargs: varargs });
-    return create_expr(MIR_EXPR_CALL, call as *void);
+    return create_expr(ExprKind.Call, call as *void);
 }
 
 def call_arg_at(call: *ExprCall, idx: i32): *Address {
@@ -742,7 +767,7 @@ def as_expr_call(e: *Expression): *ExprCall {
 }
 
 def is_expr_call(e: *Expression): bool {
-    return e.kind == MIR_EXPR_CALL;
+    return e.kind == ExprKind.Call;
 }
 
 type ExprGep struct {
@@ -752,7 +777,7 @@ type ExprGep struct {
 
 def new_expr_gep(addr: Address, idx: i32): Expression {
     let gep = (new ExprGep { addr: addr, idx: idx }) as *void;
-    return create_expr(MIR_EXPR_GEP, gep);
+    return create_expr(ExprKind.Gep, gep);
 }
 
 def as_expr_gep(e: *Expression): *ExprGep {
@@ -760,7 +785,7 @@ def as_expr_gep(e: *Expression): *ExprGep {
 }
 
 def is_expr_gep(e: *Expression): bool {
-    return e.kind == MIR_EXPR_GEP;
+    return e.kind == ExprKind.Gep;
 }
 
 type ExprStructInit struct {
@@ -770,7 +795,7 @@ type ExprStructInit struct {
 
 def new_expr_struct_init(name: name.Ref, args: vec.Vec): Expression {
     let init = (new ExprStructInit { name: name, args: args }) as *void;
-    return create_expr(MIR_EXPR_STRUCTINIT, init);
+    return create_expr(ExprKind.StructInit, init);
 }
 
 def init_arg_at(init: *ExprStructInit, idx: i32): *Address {
@@ -782,7 +807,7 @@ def as_expr_struct_init(e: *Expression): *ExprStructInit {
 }
 
 def is_expr_struct_init(e: *Expression): bool {
-    return e.kind == MIR_EXPR_STRUCTINIT;
+    return e.kind == ExprKind.StructInit;
 }
 
 type ExprNew struct {
@@ -791,7 +816,7 @@ type ExprNew struct {
 
 def new_expr_new(addr: Address): Expression {
     let new_e = (new ExprNew { addr: addr }) as *void;
-    return create_expr(MIR_EXPR_NEW, new_e);
+    return create_expr(ExprKind.New, new_e);
 }
 
 def as_expr_new(e: *Expression): *ExprNew {
@@ -799,7 +824,7 @@ def as_expr_new(e: *Expression): *ExprNew {
 }
 
 def is_expr_new(e: *Expression): bool {
-    return e.kind == MIR_EXPR_NEW;
+    return e.kind == ExprKind.New;
 }
 
 type ExprSizeOf struct {
@@ -808,7 +833,7 @@ type ExprSizeOf struct {
 
 def new_expr_sizeof(t: *ty.Type): Expression {
     let so = (new ExprSizeOf { ty: t }) as *void;
-    return create_expr(MIR_EXPR_SIZEOF, so);
+    return create_expr(ExprKind.SizeOf, so);
 }
 
 def as_expr_sizeof(e: *Expression): *ExprSizeOf {
@@ -816,7 +841,7 @@ def as_expr_sizeof(e: *Expression): *ExprSizeOf {
 }
 
 def is_expr_sizeof(e: *Expression): bool {
-    return e.kind == MIR_EXPR_SIZEOF;
+    return e.kind == ExprKind.SizeOf;
 }
 
 type ExprCast struct {
@@ -831,7 +856,7 @@ type CastKind enum {
 
 def new_expr_cast(kind: CastKind, addr: Address, into: *ty.Type): Expression {
     let cast = (new ExprCast { kind: kind, addr: addr, into: into });
-    return create_expr(MIR_EXPR_CAST, cast as *void);
+    return create_expr(ExprKind.Cast, cast as *void);
 }
 
 def new_expr_intptr_cast(addr: Address, into: *ty.Type): Expression {
@@ -843,7 +868,20 @@ def as_expr_cast(e: *Expression): *ExprCast {
 }
 
 def is_expr_cast(e: *Expression): bool {
-    return e.kind == MIR_EXPR_CAST;
+    return e.kind == ExprKind.Cast;
+}
+
+type ExprKind enum {
+    Error,
+    Binary,
+    Unary,
+    Copy,
+    Call,
+    Gep,
+    StructInit,
+    New,
+    SizeOf,
+    Cast
 }
 
 // An expression is always on the right side of an assignment instruction
@@ -873,16 +911,16 @@ def is_expr_cast(e: *Expression): bool {
 // x = cast e to ty2:
 //  Cast(i32, Address, Type),
 type Expression struct {
-    kind: i32,
+    kind: ExprKind,
     data: *void
 }
 
-def create_expr(kind: i32, data: *void): Expression {
+def create_expr(kind: ExprKind, data: *void): Expression {
     return Expression {kind: kind, data: data};
 }
 
 def empty_expr(): Expression {
-    return create_expr(0, null);
+    return create_expr(ExprKind.Error, null);
 }
 
 def free_expr(e: *Expression): void {
@@ -1067,14 +1105,14 @@ type InstDecl struct {
 
 def new_inst_decl(meta: MetaData, name: name.Ref, ty: *ty.Type): Inst {
     return Inst {
-        kind: MIR_INST_DECL,
+        kind: InstKind.Decl,
         meta: meta,
         data: (new InstDecl {name: name, ty: ty}) as *void
     };
 }
 
 def is_inst_decl(inst: *Inst): bool {
-    return inst.kind == MIR_INST_DECL;
+    return inst.kind == InstKind.Decl;
 }
 
 def as_inst_decl(inst: *Inst): *InstDecl {
@@ -1106,7 +1144,7 @@ def new_inst_assign_param(
     param_idx: i32
 ): Inst {
     return Inst {
-        kind: MIR_INST_ASSIGN,
+        kind: InstKind.Assign,
         meta: meta,
         data: (new InstAssign {
             dest: dest,
@@ -1127,7 +1165,7 @@ def new_inst_assign_decl(
     original_ident: ident.Ident
 ): Inst {
     return Inst {
-        kind: MIR_INST_ASSIGN,
+        kind: InstKind.Assign,
         meta: meta,
         data: (new InstAssign {
             dest: dest,
@@ -1140,7 +1178,7 @@ def new_inst_assign_decl(
 }
 
 def is_inst_assign(inst: *Inst): bool {
-    return inst.kind == MIR_INST_ASSIGN;
+    return inst.kind == InstKind.Assign;
 }
 
 def as_inst_assign(inst: *Inst): *InstAssign {
@@ -1153,14 +1191,14 @@ type InstJmp struct {
 
 def new_inst_jmp(meta: MetaData, target: Label): Inst {
     return Inst {
-        kind: MIR_INST_JMP,
+        kind: InstKind.Jmp,
         meta: meta,
         data: (new InstJmp {target: target}) as *void
     };
 }
 
 def is_inst_jmp(inst: *Inst): bool {
-    return inst.kind == MIR_INST_JMP;
+    return inst.kind == InstKind.Jmp;
 }
 
 def as_inst_jmp(inst: *Inst): *InstJmp {
@@ -1180,7 +1218,7 @@ def new_inst_jmpif(
     else_target: Label
 ): Inst {
     return Inst {
-        kind: MIR_INST_JMPIF,
+        kind: InstKind.JmpIf,
         meta: meta,
         data: (new InstJmpIf {
             condition: condition, if_target: if_target, else_target: else_target
@@ -1190,7 +1228,7 @@ def new_inst_jmpif(
 
 
 def is_inst_jmpif(inst: *Inst): bool {
-    return inst.kind == MIR_INST_JMPIF;
+    return inst.kind == InstKind.JmpIf;
 }
 
 def as_inst_jmpif(inst: *Inst): *InstJmpIf {
@@ -1198,7 +1236,7 @@ def as_inst_jmpif(inst: *Inst): *InstJmpIf {
 }
 
 type InstReturn struct {
-    value: Address // MIR_ADDR_EMPTY if empty return: 'return;'
+    value: Address // AddrKind.Empty if empty return: 'return;'
 }
 
 def new_inst_return(meta: MetaData): Inst {
@@ -1207,14 +1245,14 @@ def new_inst_return(meta: MetaData): Inst {
 
 def new_inst_return_value(meta: MetaData, value: Address): Inst {
     return Inst {
-        kind: MIR_INST_RETURN,
+        kind: InstKind.Return,
         meta: meta,
         data: (new InstReturn { value: value }) as *void
     };
 }
 
 def is_inst_return(inst: *Inst): bool {
-    return inst.kind == MIR_INST_RETURN;
+    return inst.kind == InstKind.Return;
 }
 
 def as_inst_return(inst: *Inst): *InstReturn {
@@ -1227,14 +1265,14 @@ type InstLabel struct {
 
 def new_inst_label(meta: MetaData, value: Label): Inst {
     return Inst {
-        kind: MIR_INST_LABEL,
+        kind: InstKind.Label,
         meta: meta,
         data: (new InstLabel { value: value }) as *void
     };
 }
 
 def is_inst_label(inst: *Inst): bool {
-    return inst.kind == MIR_INST_LABEL;
+    return inst.kind == InstKind.Label;
 }
 
 def as_inst_label(inst: *Inst): *InstLabel {
@@ -1247,14 +1285,14 @@ type InstDelete struct {
 
 def new_inst_delete(meta: MetaData, target: Address): Inst {
     return Inst {
-        kind: MIR_INST_DELETE,
+        kind: InstKind.Delete,
         meta: meta,
         data: (new InstDelete { addr: target }) as *void
     };
 }
 
 def is_inst_delete(inst: *Inst): bool {
-    return inst.kind == MIR_INST_DELETE;
+    return inst.kind == InstKind.Delete;
 }
 
 def as_inst_delete(inst: *Inst): *InstDelete {
@@ -1263,14 +1301,25 @@ def as_inst_delete(inst: *Inst): *InstDelete {
 
 def create_inst_nop(): Inst {
     return Inst {
-        kind: MIR_INST_NOP,
+        kind: InstKind.NOP,
         meta: create_meta(source.empty_pos(), Scope { id: -1, parent: -1, num_decls: 0 }),
         data: null
     };
 }
 
 def is_inst_nop(inst: *Inst): bool {
-    return inst.kind == MIR_INST_NOP;
+    return inst.kind == InstKind.NOP;
+}
+
+type InstKind enum {
+    Decl = 1,
+    Assign,
+    Jmp,
+    JmpIf,
+    Return,
+    Label,
+    Delete,
+    NOP
 }
 
 // A single MIR instruction
@@ -1293,7 +1342,7 @@ def is_inst_nop(inst: *Inst): bool {
 // No operation:
 //  Nop,
 type Inst struct {
-    kind: i32,
+    kind: InstKind,
     meta: MetaData,
     data: *void
 }
