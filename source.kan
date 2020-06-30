@@ -146,7 +146,7 @@ def map_from_source(code: string, len: i32): SourceMap {
     let end = code + len;
 
     while pos != null && pos != end {
-        ptrvec.push_ptr(&vec, pos as *void);
+        vec.push_ptr(pos as *void);
         pos = std.find_char(pos, '\n');
         if pos != null {
             pos = pos + 1;
@@ -189,9 +189,9 @@ def find_line_in_srcmap(m: *SourceMap, span: span.Span): i32 {
 }
 
 def line_at(m: *SourceMap, idx: i32): string {
-    return ptrvec.get(&m.line_starts, idx) as string;
+    return m.line_starts.get(idx) as string;
 }
 
 def free_srcmap(m: *SourceMap): void {
-    ptrvec.free_v(&m.line_starts);
+    m.line_starts.free();
 }

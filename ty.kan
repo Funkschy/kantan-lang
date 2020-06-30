@@ -188,11 +188,29 @@ type UserDefinedType struct {
     declared_in: *mod.Module
 }
 
+def bind_method(t: *Type, name: ident.Ident, method: *Type) {
+    dbg.assert(is_user_defined(t), "Trying to bind method on non user defined type");
+    dbg.assert(method != null, "Trying to bind null method");
+    dbg.assert(is_func(method), "Trying to bind non func type as method");
+
+    let value_scope = get_value_scope(t);
+    scope.bind_in(value_scope, &name, method);
+}
+
 def is_user_defined(t: *Type): bool {
+    if is_ptr(t) {
+        let ptr = as_ptr(t);
+        return ptr.count == 1 && is_user_defined(ptr.inner);
+    }
+
     return is_struct(t) || is_enum(t);
 }
 
 def get_user_defined(t: *Type): *UserDefinedType {
+    if is_ptr(t) {
+        return get_user_defined(as_ptr(t).inner);
+    }
+
     return t.data as *UserDefinedType;
 }
 
@@ -237,12 +255,12 @@ def is_struct(t: *Type): bool {
 
 def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
     let field = StructField { name: name, ty: ty, offset: 0 };
-    vec.push(&t.fields, &field as *void);
+    t.fields.push(&field as *void);
     scope.bind_in(&t.super.scope, &name, ty);
 }
 
 def field_at(t: *Struct, i: i32): *StructField {
-    return vec.get_ptr(&t.fields, i) as *StructField;
+    return t.fields.get_ptr(i) as *StructField;
 }
 
 // get the index of the field with name 'name'
@@ -375,7 +393,10 @@ def create_param(name: ident.Ident, ty: *Type): Param {
 type Func struct {
     is_extern: bool,
     is_varargs: bool,
+    is_method: bool,
+    receiver_patched: bool,
     declared_in: *mod.Module,
+    receiver: Param,
     ret: *Type,
     params: vec.Vec, // <Param>
     name: ident.Ident,
@@ -395,7 +416,10 @@ def init_func(
         // the way that tychk currently works, is that this is set lazily, while
         // checking the parameters types
         is_varargs: false,
+        is_method: false,
+        receiver_patched: false,
         declared_in: declared_in,
+        receiver: Param { name: ident.empty(), ty: null },
         ret: null,
         params: vec.create(sizeof Param),
         name: name,
@@ -404,6 +428,51 @@ def init_func(
     std.flag_set(&t.flags, FLAG_UNSIZED);
 
     t.data = f as *void;
+}
+
+def (old_method: *Func) as_normal_function(): *Type {
+    let new_type = new_type(Kind.Func, null);
+
+    init_func(
+        new_type,
+        old_method.name,
+        old_method.mangled_name.clone(),
+        old_method.declared_in,
+        old_method.is_extern // TODO: can we declare extern methods?
+    );
+
+    let new_func = as_func(new_type);
+
+    let params = vec.with_cap(sizeof Param, old_method.params.len + 1);
+    params.push(&old_method.receiver as *void);
+    for let i = 0; i < old_method.params.len; i += 1 {
+        params.push(param_at(old_method, i) as *void);
+    }
+
+    new_func.params = params;
+    new_func.is_method = false;
+    new_func.is_varargs = old_method.is_varargs;
+
+    new_func.ret = old_method.ret;
+    return new_type;
+}
+
+// it is better to treat the receiver type differently during typechecking, since it has
+// different restrictions than normal parameters. However we don't want to check is_method all
+// the time during code generation, so we just push the receiver as the first argument during
+// ir compilation
+def patch_receiver_into_params(t: *Func) {
+    if !t.is_method || t.receiver_patched {
+        return;
+    }
+
+    t.params.push_front(&t.receiver as *void);
+    // only do this once
+    t.receiver_patched = true;
+}
+
+def should_auto_ref_receiver(t: *Func): bool {
+    return is_ptr(t.receiver.ty) && as_ptr(t.receiver.ty).count == 1;
 }
 
 // TODO(#33): this is inefficient
@@ -440,7 +509,7 @@ def find_param_idx(t: *Func, name: *ident.Ident): i32 {
 }
 
 def param_at(t: *Func, i: i32): *Param {
-    return vec.get_ptr(&t.params, i) as *Param;
+    return t.params.get_ptr(i) as *Param;
 }
 
 def is_func(t: *Type): bool {
@@ -561,6 +630,18 @@ def free_user_defined_type(user_defined: *UserDefinedType) {
     scope.free_s(&user_defined.scope);
 }
 
+def (t: *Type) is_declared_in(m: *mod.Module): bool {
+    if is_user_defined(t) || is_ptr(t) && is_user_defined(as_ptr(t).inner) {
+        return get_user_defined(t).declared_in == m;
+    }
+
+    if is_func(t) {
+        return as_func(t).declared_in == m;
+    }
+
+    return false;
+}
+
 def free_ty(t: *Type): void {
     if t == null {
         return;
@@ -570,7 +651,7 @@ def free_ty(t: *Type): void {
         let f_ty = as_func(t);
         name.free_owned(&f_ty.mangled_name);
         // the inner types are garbage collected by tychk
-        vec.free_v(&f_ty.params);
+        f_ty.params.free();
         delete t.data;
     }
 
@@ -578,7 +659,7 @@ def free_ty(t: *Type): void {
         let s_ty = as_struct(t);
         free_user_defined_type(&s_ty.super);
         // the inner types are garbage collected by tychk
-        vec.free_v(&s_ty.fields);
+        s_ty.fields.free();
         delete t.data;
     }
 
@@ -825,16 +906,6 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         return true;
     }
 
-    if is_user_defined(t) {
-        if use_mangled {
-            *out = get_user_defined(t).mangled_name.data;
-            return false;
-        }
-
-        *out = ident.to_string(&get_user_defined(t).original_name);
-        return true;
-    }
-
     if is_ptr(t) {
         let p_ty = as_ptr(t);
         let count = p_ty.count;
@@ -859,6 +930,16 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         delete asterisks;
 
         *out = s;
+        return true;
+    }
+
+    if is_user_defined(t) {
+        if use_mangled {
+            *out = get_user_defined(t).mangled_name.data;
+            return false;
+        }
+
+        *out = ident.to_string(&get_user_defined(t).original_name);
         return true;
     }
 

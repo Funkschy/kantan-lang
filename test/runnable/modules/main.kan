@@ -21,13 +21,13 @@ def main(): void {
     }
 
     let tree = new bintree.Tree { root: null };
-    bintree.insert(tree, *p5);
-    bintree.insert(tree, *p4);
-    bintree.insert(tree, p3);
+    tree.insert(*p5);
+    tree.insert(*p4);
+    tree.insert(p3);
 
-    bintree.traverse(tree);
+    tree.traverse();
 
-    bintree.delete_tree(tree);
+    tree.free();
     delete tree;
 
     delete p;

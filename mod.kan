@@ -16,10 +16,7 @@ type Module struct {
     name: name.Owned, // injected after parsing
     source: *source.SourceFile,
     statements: ptrvec.Vec,
-     // the following vecs just contain indices into the statements ptrvec
-    imports: vec.Vec,
-    functions: vec.Vec,
-    structs: vec.Vec,
+    num_imports: i32,
     ty: *ty.Type // the Type containing the bindings
 }
 
@@ -29,9 +26,7 @@ def create(src: *source.SourceFile): Module {
         name: name.make_owned(0, null),
         source: src,
         statements: ptrvec.create(),
-        imports: vec.create(sizeof i32),
-        functions: vec.create(sizeof i32),
-        structs: vec.create(sizeof i32),
+        num_imports: 0,
         ty: null
     };
 }
@@ -60,11 +55,11 @@ def s_lookup_value(m: *Module, key_len: i32, key: string): *ty.Type {
 }
 
 def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {
-    return ptrvec.get(&mod.statements, i) as *ast.Stmt;
+    return mod.statements.get(i) as *ast.Stmt;
 }
 
 def set_stmt_at(mod: *Module, i: i32, s: *ast.Stmt): void {
-    ptrvec.set(&mod.statements, i, s as *void);
+    mod.statements.set(i, s as *void);
 }
 
 def num_stmts(mod: *Module): i32 {
@@ -73,7 +68,7 @@ def num_stmts(mod: *Module): i32 {
 
 def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: i32): *ast.Stmt {
     let idx = 0;
-    if !vec.get(indices, i, &idx as *void) {
+    if !indices.get(i, &idx as *void) {
         return null;
     }
 
@@ -85,47 +80,20 @@ def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: i32): *ast.Stmt {
     return s;
 }
 
-def get_import_at(mod: *Module, i: i32): *ast.ImportStmt {
-    return ast.as_import_stmt(get_special_stmt_at(mod, &mod.imports, i));
-}
-
 def num_imports(mod: *Module): i32 {
-    return mod.imports.len;
-}
-
-def get_function_at(mod: *Module, i: i32): *ast.FuncDeclStmt {
-    return ast.as_func_decl_stmt(get_special_stmt_at(mod, &mod.functions, i));
-}
-
-def num_functions(mod: *Module): i32 {
-    return mod.functions.len;
-}
-
-def get_struct_at(mod: *Module, i: i32): *ast.StructDeclStmt {
-    return ast.as_struct_decl_stmt(get_special_stmt_at(mod, &mod.structs, i));
-}
-
-def num_structs(mod: *Module): i32 {
-    return mod.structs.len;
+    return mod.num_imports;
 }
 
 def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
     if ast.is_import_stmt(stmt) {
-        let idx = mod.statements.len;
-        vec.push(&mod.imports, &idx as *void);
-    } else if ast.is_func_decl_stmt(stmt) {
-        let idx = mod.statements.len;
-        vec.push(&mod.functions, &idx as *void);
-    } else if ast.is_struct_decl_stmt(stmt) {
-        let idx = mod.statements.len;
-        vec.push(&mod.structs, &idx as *void);
+        mod.num_imports += 1;
     }
 
-    ptrvec.push_ptr(&mod.statements, stmt as *void);
+    mod.statements.push_ptr(stmt as *void);
 }
 
 def get_stmt(mod: *Module, i: i32): *ast.Stmt {
-    return ptrvec.get(&mod.statements, i) as *ast.Stmt;
+    return mod.statements.get(i) as *ast.Stmt;
 }
 
 def free_m(mod: *Module): void {
@@ -135,10 +103,7 @@ def free_m(mod: *Module): void {
         i = i + 1;
     }
 
-    ptrvec.free_v(&mod.statements);
-    vec.free_v(&mod.imports);
-    vec.free_v(&mod.functions);
-    vec.free_v(&mod.structs);
+    mod.statements.free();
     ty.free_ty(mod.ty);
 
     name.free_owned(&mod.name);
@@ -165,7 +130,7 @@ def num_mods(mm: *Map): i32 {
 
 def add_mod(mm: *Map, mod: *Module): void {
     let idx = mm.mods.len;
-    ptrvec.push_ptr(&mm.mods, mod as *void);
+    mm.mods.push_ptr(mod as *void);
     mod.idx = idx;
 
     // add one, to be able to tell null apart from 0
@@ -176,7 +141,7 @@ def add_mod(mm: *Map, mod: *Module): void {
 }
 
 def get_mod(mm: *Map, idx: i32): *Module {
-    return ptrvec.get(&mm.mods, idx) as *Module;
+    return mm.mods.get(idx) as *Module;
 }
 
 // returns -1 if not found
@@ -206,7 +171,7 @@ def map_free(mm: *Map): void {
         delete m;
         i = i + 1;
     }
-    ptrvec.free_v(&mm.mods);
+    mm.mods.free();
     map.free_m(&mm.mod_paths);
 }
 

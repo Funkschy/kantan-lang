@@ -77,18 +77,18 @@ def create(): NameTable {
 def free_nt(nt: *NameTable): void {
     dbg.assert_fmt(nt.scopes.len == 0, "%d open scopes left", nt.scopes.len);
 
-    vec.free_v(&nt.scopes);
+    nt.scopes.free();
 
     let i = 0;
     while i < nt.mangled_names.len {
-        let n = vec.get_ptr(&nt.mangled_names, i) as *name.Owned;
+        let n = nt.mangled_names.get_ptr(i) as *name.Owned;
         dbg.assert(n != null, "name was null");
 
         name.free_owned(n);
         i = i + 1;
     }
 
-    vec.free_v(&nt.mangled_names);
+    nt.mangled_names.free();
     map.free_m(&nt.in_scope);
 }
 
@@ -97,7 +97,7 @@ def top(nt: *NameTable): *NameScope {
 }
 
 def scope_at(nt: *NameTable, i: i32): *NameScope {
-    return vec.get_ptr(&nt.scopes, i) as *NameScope;
+    return nt.scopes.get_ptr(i) as *NameScope;
 }
 
 def bind(nt: *NameTable, to_bind: name.Ref): name.Ref {
@@ -121,7 +121,7 @@ def bind(nt: *NameTable, to_bind: name.Ref): name.Ref {
 
     let idx = nt.mangled_names.len;
     bind_in(top, to_bind, idx);
-    vec.push(&nt.mangled_names, &mangled as *void);
+    nt.mangled_names.push(&mangled as *void);
 
     set_in_scope(nt, to_bind, value + 1);
 
@@ -151,7 +151,7 @@ def close_scope(nt: *NameTable): void {
 }
 
 def push_scope(s: *NameTable, scope: *NameScope): void {
-    vec.push(&s.scopes, scope as *void);
+    s.scopes.push(scope as *void);
 }
 
 def lookup(nt: *NameTable, needle: name.Ref, out: *name.Ref): bool {
@@ -160,7 +160,7 @@ def lookup(nt: *NameTable, needle: name.Ref, out: *name.Ref): bool {
         let scope = scope_at(nt, i);
         let idx = 0;
         if get_in(scope, needle, &idx) {
-            let mangled = vec.get_ptr(&nt.mangled_names, idx) as *name.Owned;
+            let mangled = nt.mangled_names.get_ptr(idx) as *name.Owned;
 
             *out = name.ref(*mangled);
             return true;

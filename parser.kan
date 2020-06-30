@@ -6,20 +6,19 @@
 #define CONSUME_TOK_RET_NULL(name, ty) let name = l.empty_token(); \
     if !consume_token(p, (ty), &(name)) { return null; } 0
 
-import "lexer" as l;
 import "ast";
-import "precedence" as prec;
-import "span";
 import "vec";
-import "ptrvec";
 import "std";
 import "mod";
-import "param";
+import "span";
 import "tyid";
+import "func";
+import "ident";
+import "ptrvec";
 import "source";
 import "record";
-import "ident";
-import "func";
+import "lexer" as l;
+import "precedence" as prec;
 
 type ParseError struct {
     span: span.Span,
@@ -50,14 +49,14 @@ def create(source: *source.SourceFile): Parser {
 
 def free_p(p: *Parser): void {
     free_errs_from(p, 0);
-    vec.free_v(&p.errors);
+    p.errors.free();
 }
 
 def free_errs_from(p: *Parser, start: i32): void {
     let i = start;
     let elem = empty_err();
     while i < p.errors.len {
-        vec.get(&p.errors, i, &elem as *void);
+        p.errors.get(i, &elem as *void);
         delete elem.text;
         i = i + 1;
     }
@@ -69,11 +68,11 @@ def num_errs(p: *Parser): i32 {
 }
 
 def get_err(p: *Parser, idx: i32): *ParseError {
-    return vec.get_ptr(&p.errors, idx) as *ParseError;
+    return p.errors.get_ptr(idx) as *ParseError;
 }
 
 def push_err(p: *Parser, error: ParseError): void {
-    vec.push(&p.errors, &error as *void);
+    p.errors.push(&error as *void);
 }
 
 // advances to the next token and saves the new token into dest
@@ -85,7 +84,7 @@ def advance(p: *Parser, dest: *l.Token): bool {
     if next.ty == l.TokenType.EOF {
         if !p.in_panic_mode {
             let error = create_error(next.span, std.err2str(ERROR_UNEXPECTED_EOF));
-            vec.push(&p.errors, &error as *void);
+            p.errors.push(&error as *void);
         }
         return false;
     } else if l.is_err(&next) && !p.in_panic_mode {
@@ -431,7 +430,7 @@ def parse_struct_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast
     let closing_brace = l.empty_token();
     let fields = parse_field_list(p, &closing_brace);
     if closing_brace.ty == l.TokenType.UnknownErr {
-        vec.free_v(&fields);
+        fields.free();
         return null;
     }
 
@@ -451,7 +450,7 @@ def parse_enum_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast.S
     let start_value: *ast.Expr = null;
     let values = parse_enum_values(p, &closing_brace, &start_value);
     if closing_brace.ty == l.TokenType.UnknownErr {
-        vec.free_v(&values);
+        values.free();
         ast.expr_free(start_value);
         return null;
     }
@@ -468,12 +467,40 @@ def parse_enum_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast.S
 def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     CONSUME_TOK_RET_NULL(def_tok, l.TokenType.Def);
 
+    let has_receiver = false;
+    let receiver: func.Param = undefined;
+
+    // Receivers are only allow on non extern functions
+    if peek(p).ty == l.TokenType.LParen && !is_extern {
+        CONSUME_TOK_RET_NULL(l_paren, l.TokenType.LParen);
+        let closing_paren = l.empty_token();
+        // don't allow varargs as receivers
+        let receiver_list = parse_param_list(p, &closing_paren, false);
+
+        // a parse error has occured during param parsing
+        if closing_paren.ty == l.TokenType.UnknownErr {
+            return null;
+        }
+
+        // There can only be one receiver param
+        if receiver_list.len != 1 {
+            receiver_list.free();
+            let error = create_invalid_recv_count_error(p, &l_paren, receiver_list.len);
+            push_err(p, error);
+            return null;
+        }
+
+        receiver = *(receiver_list.get_ptr(0) as *func.Param);
+        has_receiver = true;
+        receiver_list.free();
+    }
+
     let ident = l.empty_token();
     if !consume_ident(p, &ident) {
         return null;
     }
 
-    CONSUME_RET_NULL(l.TokenType.LParen);
+    CONSUME_TOK_RET_NULL(l_paren, l.TokenType.LParen);
     let closing_paren = l.empty_token();
     let params = parse_param_list(p, &closing_paren, is_extern);
     // a parse error has occured during param parsing
@@ -482,7 +509,6 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     }
 
     let param_list = func.pl_from_vec(params);
-
     let end_span = closing_paren.span;
     let ret_ty = tyid.empty();
 
@@ -511,6 +537,19 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     }
 
     let func_span = span.merge(def_tok.span, end_span);
+
+    if has_receiver {
+        return ast.new_method_decl_stmt(
+            func_span,
+            ident,
+            receiver,
+            param_list,
+            ret_ty,
+            is_extern,
+            ast.as_block_stmt(block)
+        );
+    }
+
     return ast.new_func_decl_stmt(
         func_span,
         ident,
@@ -648,12 +687,12 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
 def free_statements(statements: *ptrvec.Vec): void {
     let i = 0;
     while i < statements.len {
-        let s = ptrvec.get(statements, i) as *ast.Stmt;
+        let s = statements.get(i) as *ast.Stmt;
         ast.stmt_free(s);
         i = i + 1;
     }
 
-    ptrvec.free_v(statements);
+    statements.free();
 }
 
 def parse_block(p: *Parser): *ast.Stmt {
@@ -668,7 +707,7 @@ def parse_block(p: *Parser): *ast.Stmt {
             sync(p);
             had_error = true;
         } else {
-            ptrvec.push_ptr(&statements, s as *void);
+            statements.push_ptr(s as *void);
         }
 
         peeked = peek(p);
@@ -690,7 +729,7 @@ def parse_block(p: *Parser): *ast.Stmt {
 }
 
 def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
-#define FAIL() vec.free_v(&fields); return vec.create(0)
+#define FAIL() fields.free(); return vec.create(0)
 
     let fields = vec.create(sizeof record.Field);
 
@@ -712,7 +751,7 @@ def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
         }
 
         let field = record.create_field(ident, ty);
-        vec.push(&fields, &field as *void);
+        fields.push(&field as *void);
 
         peeked = peek(p);
 
@@ -732,7 +771,7 @@ def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
 }
 
 def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Expr): vec.Vec {
-#define FAIL() vec.free_v(&values); return vec.create(0)
+#define FAIL() values.free(); return vec.create(0)
 
     let values = vec.create(sizeof ident.Ident);
 
@@ -754,7 +793,7 @@ def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Ex
             }
         }
 
-        vec.push(&values, &ident as *void);
+        values.push(&ident as *void);
 
         peeked = peek(p);
 
@@ -774,9 +813,9 @@ def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Ex
 }
 
 def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.Vec {
-#define FAIL() vec.free_v(&params); return vec.create(0)
+#define FAIL() params.free(); return vec.create(0)
 
-    let params = vec.create(sizeof param.Param);
+    let params = vec.create(sizeof func.Param);
 
     let peeked = peek(p);
     while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RParen {
@@ -801,8 +840,8 @@ def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.V
         }
 
         let ident = ident.create(ident_token);
-        let param = param.create(ident, ty);
-        vec.push(&params, &param as *void);
+        let param = func.create_param(ident, ty);
+        params.push(&param as *void);
 
         peeked = peek(p);
 
@@ -1187,6 +1226,13 @@ def create_statement_error(p: *Parser, start: string, end: string): ParseError {
     return create_error(
         err_span,
         std.err2str(ERROR_COULD_NOT_PARSE_STMT)
+    );
+}
+
+def create_invalid_recv_count_error(p: *Parser, l_paren: *l.Token, count: i32): ParseError {
+    return create_error(
+        l_paren.span,
+        std.err2str(ERROR_INVALID_RECEIVER_COUNT, count)
     );
 }
 

@@ -114,7 +114,7 @@ def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData 
 }
 
 def scope_at(c: *MirCompiler, id: i32): mir.Scope {
-    let s = vec.get_ptr(&c.scopes, id) as *mir.Scope;
+    let s = c.scopes.get_ptr(id) as *mir.Scope;
     dbg.assert_fmt(s != null, "no scope at %d", id);
     return *s;
 }
@@ -130,7 +130,7 @@ def open_scope(c: *MirCompiler) {
 
     let s = mir.Scope { id: c.scopes.len, parent: c.current_scope, num_decls: 0 };
     c.current_scope = s.id;
-    vec.push(&c.scopes, &s as *void);
+    c.scopes.push(&s as *void);
 }
 
 // open_var_scope opens a local variable scope
@@ -148,7 +148,7 @@ def open_var_scope(c: *MirCompiler) {
         num_decls: current.num_decls + 1
     };
     c.current_scope = s.id;
-    vec.push(&c.scopes, &s as *void);
+    c.scopes.push(&s as *void);
 }
 
 def close_scope(c: *MirCompiler) {
@@ -200,6 +200,7 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
     dbg.assert(ty.is_func(t), "non function type passed to lookup");
 
     let f_ty = ty.as_func(t);
+    ty.patch_receiver_into_params(f_ty);
     let mangled_name = name.ref(f_ty.mangled_name);
     let mir_func = lookup_function(c, mangled_name);
 
@@ -225,12 +226,14 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 // everything, that uses an explicit type identifier (tyid.Type), needs to be declared,
 // since the type could be from another module
 def declare_type(c: *MirCompiler, t: *ty.Type) {
-    if ty.is_user_defined(t) {
-        lookup_or_declare_type(c, t);
-    }
-
     if ty.is_ptr(t) && ty.is_user_defined(ty.as_ptr(t).inner) {
         lookup_or_declare_type(c, ty.as_ptr(t).inner);
+    }
+
+    // the order here is important, since lookup_or_declare_type does an
+    // explicit check for is_struct
+    if ty.is_user_defined(t) {
+        lookup_or_declare_type(c, t);
     }
 }
 
@@ -278,10 +281,12 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
             c.current_func = mir_func;
 
-            declare_type(c, ty.as_func(decl.func_ty).ret);
+            let f_ty = ty.as_func(decl.func_ty);
+            declare_type(c, f_ty.ret);
+
+            ty.patch_receiver_into_params(f_ty);
 
             // Declare arguments
-            let f_ty = ty.as_func(decl.func_ty);
             for let i = 0; i < f_ty.params.len; i = i + 1 {
                 let p = ty.param_at(f_ty, i);
                 let meta = get_meta(c, p.name.span);
@@ -718,15 +723,35 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let call = ast.as_call_expr(e);
     let func_addr = expr_instruction(c, call.callee, rhs);
     let varargs = ty.callable_as_func(call.callee.ty).is_varargs;
+    let f_ty = ty.as_func(call.callee.ty);
+    let is_method = f_ty.is_method;
 
-    let i = 0;
     let n = ast.num_args(&call.args);
+    let recv_addr: mir.Address = undefined;
+    if is_method {
+        let access = ast.as_access_expr(call.callee);
+        let recv_expr = access.left; // receiver should be lhs of the callee access
+        recv_addr = expr_instruction(c, recv_expr, rhs);
+
+        if ty.should_auto_ref_receiver(f_ty) && !ty.is_ptr(recv_addr.ty) {
+            let ref_name = mir.as_addr_name(&recv_addr).value;
+            // the recv_addr.ty is alredy a pointer, so this should be correct
+            recv_addr = mir.make_addr_ref(ref_name, recv_addr.ty);
+        }
+
+        n += 1;
+    }
+
     let args = vec.with_cap(sizeof mir.Address, n);
-    while i < n {
+    if is_method {
+        args.push(&recv_addr as *void);
+    }
+
+
+    for let i = 0; i < ast.num_args(&call.args); i += 1 {
         let arg = ast.get_arg_at(&call.args, i);
         let arg_addr = expr_instruction(c, arg, true);
-        vec.push(&args, &arg_addr as *void);
-        i = i + 1;
+        args.push(&arg_addr as *void);
     }
 
     return mir.new_expr_call(func_addr, args, varargs);
@@ -798,7 +823,7 @@ def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     while i < n {
         let init = ast.init_expr_at(&struct_init.inits, i);
         let init_addr = expr_instruction(c, init, true);
-        vec.push(&inits, &init_addr as *void);
+        inits.push(&init_addr as *void);
         i = i + 1;
     }
 
@@ -1098,10 +1123,8 @@ def cast_kind(e: *ast.Expr): mir.CastKind {
     return mir.CastKind.Bit;
 }
 
-#include "mir_types.h"
-
 // sets short circuit to 1 for && and 2 for ||
-def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32 {
+def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): mir.BinaryKind {
     let k = binary.kind;
     let left = binary.left;
     let right = binary.right;
@@ -1115,10 +1138,10 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
         //  int |  ptr
         //  ptr |  int
         if ty.equals(left.ty, right.ty) {
-            return MIR_BIN_ADD;
+            return mir.BinaryKind.Add;
         }
 
-        return MIR_BIN_ADD_SCALAR;
+        return mir.BinaryKind.AddScalar;
     } else if k == ast.BinaryKind.Sub {
         // the following combinations are possible:
         // left | right
@@ -1128,10 +1151,10 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
         //  ptr |  ptr   <- this is not allowed for addtion
 
         if ty.equals(left.ty, right.ty) {
-            return MIR_BIN_SUB;
+            return mir.BinaryKind.Sub;
         }
 
-        return MIR_BIN_SUB_SCALAR;
+        return mir.BinaryKind.SubScalar;
     }
 
     if k == ast.BinaryKind.LogAnd {
@@ -1141,5 +1164,5 @@ def mir_binary_kind_from_expr(binary: *ast.BinaryExpr, short_circuit: *i32): i32
     }
 
     // ...everything else is identical
-    return *(&k as *i32);
+    return *(&k as *mir.BinaryKind);
 }

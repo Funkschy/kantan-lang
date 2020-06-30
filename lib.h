@@ -187,6 +187,7 @@ static char const *const error_texts[] = {
     "Could not parse statement",
     "Illegal type identifier '%.*s': %s",
     "Invalid escape sequence '%.*s'",
+    "Expected 1 receiver for Method, but got %d",
     // type errors
     "Duplicate definition of '%.*s'",
     "No %s called '%.*s' in scope",
@@ -218,6 +219,11 @@ static char const *const error_texts[] = {
     "Unsized type '%s' cannot be dereferenced",
     "Duplicate entry '%.*s' in enum '%.*s'",
     "Invalid enum start value type '%s' in enum '%.*s'",
+    "Cannot declare method on primitive type '%s'",
+    "Methods can only be declare on types from the same module",
+    "Cannot take method pointer from instance. Use '&%s' instead",
+    "Cannot take the address of a type",
+    "Illegal expression for unary operand",
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

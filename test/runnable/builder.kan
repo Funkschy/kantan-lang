@@ -1,0 +1,87 @@
+import "io";
+
+type MyComplexType struct {
+    field1: string,
+    field2: string,
+    field3: string,
+    field4: string
+}
+
+def (c: *MyComplexType) print() {
+    io.printf("{ %s, %s, %s, %s }\n", c.field1, c.field2, c.field3, c.field4);
+}
+
+type Builder struct {
+    inner: MyComplexType
+}
+
+def builder(): Builder {
+    return Builder {
+        inner: MyComplexType {
+            field1: null,
+            field2: null,
+            field3: null,
+            field4: null
+        }
+    };
+}
+
+def (b: *Builder) field1(value: string): *Builder {
+    b.inner.field1 = value;
+    return b;
+}
+
+def (b: *Builder) field2(value: string): *Builder {
+    b.inner.field2 = value;
+    return b;
+}
+
+def (b: *Builder) field3(value: string): *Builder {
+    b.inner.field3 = value;
+    return b;
+}
+
+def (b: *Builder) field4(value: string): *Builder {
+    b.inner.field4 = value;
+    return b;
+}
+
+type CopyBuilder struct {
+    inner: MyComplexType
+}
+
+def copy_builder(): CopyBuilder {
+    return CopyBuilder {
+        inner: MyComplexType {
+            field1: null,
+            field2: null,
+            field3: null,
+            field4: null
+        }
+    };
+}
+
+def (b: CopyBuilder) field1(value: string): CopyBuilder {
+    b.inner.field1 = value;
+    return b;
+}
+
+def (b: CopyBuilder) field2(value: string): CopyBuilder {
+    b.inner.field2 = value;
+    return b;
+}
+
+def (b: CopyBuilder) field3(value: string): CopyBuilder {
+    b.inner.field3 = value;
+    return b;
+}
+
+def (b: CopyBuilder) field4(value: string): CopyBuilder {
+    b.inner.field4 = value;
+    return b;
+}
+
+def main() {
+    builder().field3("3").field2("2").inner.print();
+    copy_builder().field1("1").field4("4").inner.print();
+}

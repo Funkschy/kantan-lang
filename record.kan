@@ -27,7 +27,7 @@ type Fields struct {
 
 def free_fields(fs: *Fields): void {
     map.free_m(&fs.field_map);
-    vec.free_v(&fs.fields);
+    fs.fields.free();
 }
 
 def create_fields(fields: vec.Vec): Fields {
@@ -36,7 +36,7 @@ def create_fields(fields: vec.Vec): Fields {
     let i = 0;
     while i < fields.len {
         let field = empty_field();
-        vec.get(&fields, i, &field as *void);
+        fields.get(i, &field as *void);
 
         let s = tyid.to_string(&field.ty);
         delete s;
@@ -53,7 +53,7 @@ def create_fields(fields: vec.Vec): Fields {
 }
 
 def fields_get_field_at(fs: *Fields, i: i32, dest: *Field): bool {
-    return vec.get(&fs.fields, i, dest as *void);
+    return fs.fields.get(i, dest as *void);
 }
 
 def fields_to_string(fs: *Fields): string {
@@ -152,7 +152,7 @@ def create_enum(name: ident.Ident, values: vec.Vec): EnumDecl {
 }
 
 def free_enum(e: *EnumDecl): void {
-    vec.free_v(&e.values);
+    e.values.free();
 }
 
 def num_values(e: *EnumDecl): i32 {
@@ -160,6 +160,6 @@ def num_values(e: *EnumDecl): i32 {
 }
 
 def value_at(e: *EnumDecl, i: i32, dest: *ident.Ident): bool {
-    return vec.get(&e.values, i, dest as *void);
+    return e.values.get(i, dest as *void);
 }
 

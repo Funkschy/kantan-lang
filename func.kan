@@ -1,10 +1,23 @@
-import "lexer";
-import "span";
-import "ident";
-import "vec";
-import "param";
-import "tyid";
 import "ty";
+import "vec";
+import "std";
+import "span";
+import "tyid";
+import "ident";
+import "lexer";
+
+type Param struct {
+    name: ident.Ident,
+    ty: tyid.Type
+}
+
+def create_param(name: ident.Ident, ty: tyid.Type): Param {
+    return Param { name: name, ty: ty };
+}
+
+def is_varargs_param(p: *Param): bool {
+    return std.memcmp(ident.start(&p.name) as *void, "..." as *void, 3) == 0;
+}
 
 type ParamList struct {
     params: vec.Vec
@@ -15,33 +28,60 @@ def pl_from_vec(params: vec.Vec): ParamList {
 }
 
 def free_pl(pl: *ParamList): void {
-    vec.free_v(&pl.params);
+    pl.params.free();
 }
 
-def add_param(pl: *ParamList, p: *param.Param): void {
-    vec.push(&pl.params, p as *void);
+def add_param(pl: *ParamList, p: *Param): void {
+    pl.params.push(p as *void);
 }
 
 type FuncDef struct {
     is_extern: bool,
+    is_method: bool,
     name: ident.Ident,
+    receiver: Param,
     ret_ty: tyid.Type,
     params: ParamList,
     func_ty: *ty.Type
 }
 
-def create(name: lexer.Token, params: ParamList, ret_ty: tyid.Type, is_extern: bool): FuncDef {
+def create_func(
+    name: lexer.Token,
+    params: ParamList,
+    ret_ty: tyid.Type,
+    is_extern: bool
+): FuncDef {
     return FuncDef {
         is_extern: is_extern,
+        is_method: false,
         name: ident.create(name),
+        receiver: undefined,
         ret_ty: ret_ty,
         params: params,
         func_ty: null
     };
 }
 
-def get_param_ptr(f: *FuncDef, i: i32): *param.Param {
-    return vec.get_ptr(&f.params.params, i) as *param.Param;
+def create_method(
+    name: lexer.Token,
+    receiver: Param,
+    params: ParamList,
+    ret_ty: tyid.Type,
+    is_extern: bool
+): FuncDef {
+    return FuncDef {
+        is_extern: is_extern,
+        is_method: true,
+        name: ident.create(name),
+        receiver: receiver,
+        ret_ty: ret_ty,
+        params: params,
+        func_ty: null
+    };
+}
+
+def get_param_ptr(f: *FuncDef, i: i32): *Param {
+    return f.params.params.get_ptr(i) as *Param;
 }
 
 def num_params(f: *FuncDef): i32 {

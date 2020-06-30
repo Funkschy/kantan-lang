@@ -29,7 +29,7 @@ def len(m: *Map): i32 {
 
 def free_m(m: *Map): void {
     map.free_m(&m.mappings);
-    vec.free_v(&m.values);
+    m.values.free();
 }
 
 // inserts value into map at key
@@ -37,7 +37,7 @@ def insert(m: *Map, key: map.Key, value: *void): void {
     let idx = m.values.len + 1;
     map.insert(&m.mappings, key, std.int_to_ptr(idx));
 
-    vec.push(&m.values, value);
+    m.values.push(value);
 }
 
 def get_ptr(m: *Map, key: map.Key): *void {
@@ -47,11 +47,11 @@ def get_ptr(m: *Map, key: map.Key): *void {
     }
 
     let idx = std.ptr_to_int(idx_p) - 1;
-    return vec.get_ptr(&m.values, idx);
+    return m.values.get_ptr(idx);
 }
 
 def get_ptr_idx(m: *Map, idx: i32): *void {
-    return vec.get_ptr(&m.values, idx);
+    return m.values.get_ptr(idx);
 }
 
 def dump(m: *Map): void {

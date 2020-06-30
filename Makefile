@@ -18,7 +18,6 @@ K_FILES = ast.kan \
 		  name.kan \
 		  nt.kan \
 		  opt.kan \
-		  param.kan \
 		  parser.kan \
 		  path.kan \
 		  precedence.kan \
@@ -41,8 +40,7 @@ C_SRC_FILES = lib.c posixlink.c
 C_FILES = $(C_SRC_FILES) \
 		  lib.h \
 		  stmt_types.h \
-		  error_code.h \
-		  mir_types.h
+		  error_code.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))
@@ -64,7 +62,7 @@ KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(
 KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
 
 $(BIN_NAME) : $(K_FILES) $(C_FILES)
-	mkdir $(BUILD_FOLDER) ;
+	mkdir -p $(BUILD_FOLDER) ;
 	for file in $(K_FILES) ; do \
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
@@ -76,7 +74,7 @@ $(BIN_NAME) : $(K_FILES) $(C_FILES)
 		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
 		mv $(BIN_NAME) $(START_FOLDER) ; \
 		popd ; \
-		rm -r $(BUILD_FOLDER) ; \
+		#rm -r $(BUILD_FOLDER) ; \
 	else \
 		pwd ; \
 		popd ; \
@@ -84,7 +82,7 @@ $(BIN_NAME) : $(K_FILES) $(C_FILES)
 	fi
 
 self : $(BIN_NAME) $(K_FILES) $(C_FILES)
-	mkdir $(BUILD_FOLDER) ;
+	mkdir -p $(BUILD_FOLDER) ;
 	for file in $(K_FILES) ; do \
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done

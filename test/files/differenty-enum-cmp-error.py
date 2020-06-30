@@ -27,7 +27,7 @@ class Test(Code):
             return self.create_error('wrong column')
 
         error = output.errors[1]
-        expected_rsn = "Invalid operator for types 'differenty-enum-cmp-error.First' and 'differenty-enum-cmp-error.Second'"
+        expected_rsn = "Invalid operator for types 'First' and 'Second'"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)

@@ -220,14 +220,14 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
             let field = ty.field_at(s_ty, i);
 
             let field_ty = translate_type(c, field.ty);
-            ptrvec.push_ptr(&fields, field_ty as *void);
+            fields.push_ptr(field_ty as *void);
 
             i = i + 1;
         }
 
         let field_types = fields.elements as **llvm.Type;
         llvm.struct_set_body(struct_decl, field_types, num_fields, false);
-        ptrvec.free_v(&fields);
+        fields.free();
     }
 
     return struct_decl;
@@ -295,7 +295,7 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
             let param = ty.param_at(f_ty, i);
 
             let param_ty = translate_type(c, param.ty);
-            ptrvec.push_ptr(&params, param_ty as *void);
+            params.push_ptr(param_ty as *void);
 
             i = i + 1;
         }
@@ -306,7 +306,7 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         let func_type = llvm.function_type(
             ret_ty, param_types, num_params, f_ty.is_varargs
         );
-        ptrvec.free_v(&params);
+        params.free();
 
         return func_type;
     }
@@ -822,16 +822,16 @@ def compile_unary(
     let unary = mir.as_expr_unary(e);
     let value = translate_addr(c, func, &unary.addr);
 
-    if mir.is_unary_deref(unary) {
+    if unary.kind == mir.UnaryKind.Deref {
         // was already loaded
         return value;
     }
 
-    if mir.is_unary_num_neg(unary) {
+    if unary.kind == mir.UnaryKind.NumNeg {
         return llvm.build_neg(c.builder, value, "");
     }
 
-    if mir.is_unary_bool_neg(unary) {
+    if unary.kind == mir.UnaryKind.BoolNeg {
         return llvm.build_not(c.builder, value, "");
     }
 
@@ -839,7 +839,6 @@ def compile_unary(
     return null;
 }
 
-#include "mir_types.h"
 def compile_binary(
     c: *ModuleCompiler,
     func: *FunctionData,
@@ -854,10 +853,10 @@ def compile_binary(
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
 
-    if binary.kind == MIR_BIN_ADD {
+    if binary.kind == mir.BinaryKind.Add {
         return llvm.build_add(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_SUB {
-        // pointer subtraction (both types have to be equal for MIR_BIN_SUB)
+    } else if binary.kind == mir.BinaryKind.Sub {
+        // pointer subtraction (both types have to be equal for mir.BinaryKind.Sub)
         if ty.is_ptr(binary.left.ty) {
             let int64_ty = llvm.int64_type_in_context(c.context.ctx);
             left = llvm.build_ptr_to_int(c.builder, left, int64_ty, "");
@@ -871,30 +870,30 @@ def compile_binary(
         }
 
         return llvm.build_sub(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MUL {
+    } else if binary.kind == mir.BinaryKind.Mul {
         return llvm.build_mul(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_DIV {
+    } else if binary.kind == mir.BinaryKind.Div {
         return llvm.build_s_div(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MOD {
+    } else if binary.kind == mir.BinaryKind.Mod {
         // TODO(#90): this is actually a remainder operation, not modulo
         //  same for floats
         return llvm.build_s_rem(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_ST {
+    } else if binary.kind == mir.BinaryKind.ST {
         // TODO(#96): unsigned integer types
         return llvm.build_i_cmp(c.builder, 40, left, right, "");
-    } else if binary.kind == MIR_BIN_SE {
+    } else if binary.kind == mir.BinaryKind.SE {
         return llvm.build_i_cmp(c.builder, 41, left, right, "");
-    } else if binary.kind == MIR_BIN_GT {
+    } else if binary.kind == mir.BinaryKind.GT {
         return llvm.build_i_cmp(c.builder, 38, left, right, "");
-    } else if binary.kind == MIR_BIN_GE {
+    } else if binary.kind == mir.BinaryKind.GE {
         return llvm.build_i_cmp(c.builder, 39, left, right, "");
-    } else if binary.kind == MIR_BIN_EQ {
+    } else if binary.kind == mir.BinaryKind.EQ {
         return llvm.build_i_cmp(c.builder, 32, left, right, "");
-    } else if binary.kind == MIR_BIN_NE {
+    } else if binary.kind == mir.BinaryKind.NE {
         return llvm.build_i_cmp(c.builder, 33, left, right, "");
-    } else if binary.kind == MIR_BIN_BOOL_AND {
+    } else if binary.kind == mir.BinaryKind.BoolAnd {
         return llvm.build_and(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_BOOL_OR {
+    } else if binary.kind == mir.BinaryKind.BoolOr {
         return llvm.build_or(c.builder, left, right, "");
     } else {
         let ptr = left;
@@ -905,7 +904,7 @@ def compile_binary(
         }
 
         // for ptr - scalar, just negate the scalar value
-        if binary.kind == MIR_BIN_SUB_SCALAR {
+        if binary.kind == mir.BinaryKind.SubScalar {
             scalar = llvm.build_neg(c.builder, scalar, "");
         }
 
@@ -924,27 +923,27 @@ def compile_binary_float(
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
 
-    if binary.kind == MIR_BIN_ADD {
+    if binary.kind == mir.BinaryKind.Add {
         return llvm.build_f_add(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_SUB {
+    } else if binary.kind == mir.BinaryKind.Sub {
         return llvm.build_f_sub(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MUL {
+    } else if binary.kind == mir.BinaryKind.Mul {
         return llvm.build_f_mul(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_DIV {
+    } else if binary.kind == mir.BinaryKind.Div {
         return llvm.build_f_div(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_MOD {
+    } else if binary.kind == mir.BinaryKind.Mod {
         return llvm.build_f_rem(c.builder, left, right, "");
-    } else if binary.kind == MIR_BIN_ST {
+    } else if binary.kind == mir.BinaryKind.ST {
         return llvm.build_f_cmp(c.builder, 4, left, right, "");
-    } else if binary.kind == MIR_BIN_SE {
+    } else if binary.kind == mir.BinaryKind.SE {
         return llvm.build_f_cmp(c.builder, 5, left, right, "");
-    } else if binary.kind == MIR_BIN_GT {
+    } else if binary.kind == mir.BinaryKind.GT {
         return llvm.build_f_cmp(c.builder, 2, left, right, "");
-    } else if binary.kind == MIR_BIN_GE {
+    } else if binary.kind == mir.BinaryKind.GE {
         return llvm.build_f_cmp(c.builder, 3, left, right, "");
-    } else if binary.kind == MIR_BIN_EQ {
+    } else if binary.kind == mir.BinaryKind.EQ {
         return llvm.build_f_cmp(c.builder, 1, left, right, "");
-    } else if binary.kind == MIR_BIN_NE {
+    } else if binary.kind == mir.BinaryKind.NE {
         return llvm.build_f_cmp(c.builder, 6, left, right, "");
     }
 
@@ -978,13 +977,13 @@ def compile_call(
             }
         }
 
-        ptrvec.push_ptr(&args, value as *void);
+        args.push_ptr(value as *void);
         i = i + 1;
     }
 
     let arg_values = args.elements as **llvm.Value;
     let call = llvm.build_call(c.builder, llvm_func, arg_values, args.len, "");
-    ptrvec.free_v(&args);
+    args.free();
     return call;
 }
 
@@ -1031,9 +1030,9 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
     );
 
     let scopes = ptrvec.with_cap(c.irmod.scopes.len);
-    ptrvec.zero(&scopes);
+    scopes.zero();
     // the scope at index 0 is the file
-    ptrvec.push_ptr(&scopes, llfile as *void);
+    scopes.push_ptr(llfile as *void);
 
     return DebugInfo {
         builder: builder,
@@ -1162,7 +1161,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                     0, dbg_translate_type(c, field.ty)
                 );
 
-                ptrvec.push_ptr(&field_types, member as *void);
+                field_types.push_ptr(member as *void);
             }
 
             let llvm_struct_ty = llvm.di_builder_create_struct_type(
@@ -1175,7 +1174,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 definition.name.data, definition.name.len
             );
 
-            ptrvec.free_v(&field_types);
+            field_types.free();
             map.insert(&c.dbg.types, key, llvm_struct_ty as *void);
 
             return llvm_struct_ty;
@@ -1196,7 +1195,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                     true // are there signed enum values?
                 );
 
-                ptrvec.push_ptr(&enumerators, enumerator as *void);
+                enumerators.push_ptr(enumerator as *void);
             }
 
             let enumeration = llvm.di_builder_create_enumeration_type(
@@ -1209,7 +1208,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 null // class ty
             );
 
-            ptrvec.free_v(&enumerators);
+            enumerators.free();
             return enumeration;
         }
     }
@@ -1266,13 +1265,13 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
         return info.cu;
     }
 
-    let metadata = ptrvec.get(&info.scopes, scope.id) as *llvm.MetaData;
+    let metadata = info.scopes.get(scope.id) as *llvm.MetaData;
     if metadata == null {
         // Empty scopes (scopes without statements) might not have been initialized,
         // so we just look for the next smallest scope for parent
         let parent: *llvm.MetaData = null;
         for let i = scope.parent; parent == null && i >= 0; i = i - 1 {
-            parent = ptrvec.get(&info.scopes, i) as *llvm.MetaData;
+            parent = info.scopes.get(i) as *llvm.MetaData;
         }
 
         dbg.assert_fmt(
@@ -1286,7 +1285,7 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
             info.builder, parent, info.file, meta.pos.lnr, meta.pos.col
         );
 
-        ptrvec.set(&info.scopes, scope.id, metadata as *void);
+        info.scopes.set(scope.id, metadata as *void);
     }
 
     return metadata;
@@ -1296,20 +1295,20 @@ def dbg_create_subroutine_type(c: *ModuleCompiler, f_ty: *ty.Func): *llvm.MetaDa
     let types = ptrvec.with_cap(f_ty.params.len + 1); // +1 for return type
     for let i = 0; i < f_ty.params.len; i = i + 1 {
         let param = ty.param_at(f_ty, i);
-        ptrvec.push_ptr(&types, dbg_translate_type(c, param.ty) as *void);
+        types.push_ptr(dbg_translate_type(c, param.ty) as *void);
     }
-    ptrvec.push_ptr(&types, dbg_translate_type(c, f_ty.ret) as *void);
+    types.push_ptr(dbg_translate_type(c, f_ty.ret) as *void);
 
     let ll_ty = llvm.di_builder_create_subroutine_type(
         c.dbg.builder, c.dbg.file, types.elements as **llvm.MetaData, types.len, 0
     );
-    ptrvec.free_v(&types);
+    types.free();
 
     return ll_ty;
 }
 
 def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): *llvm.MetaData {
-    let surrounding = ptrvec.get(&c.dbg.scopes, ir_f.meta.scope.parent) as *llvm.MetaData;
+    let surrounding = c.dbg.scopes.get(ir_f.meta.scope.parent) as *llvm.MetaData;
 
     let f_ty = ty.as_func(ir_f.ty);
     let ll_ty = dbg_create_subroutine_type(c, f_ty);
@@ -1329,7 +1328,7 @@ def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): 
     let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
     map.insert(&c.dbg.functions, key, ll_ty as *void);
 
-    ptrvec.set(&c.dbg.scopes, ir_f.meta.scope.id, sub_program as *void);
+    c.dbg.scopes.set(ir_f.meta.scope.id, sub_program as *void);
     return sub_program;
 }
 
@@ -1450,7 +1449,7 @@ def finalize(info: *DebugInfo) {
 
 def free_dbg_info(info: *DebugInfo) {
     llvm.dispose_di_builder(info.builder);
-    ptrvec.free_v(&info.scopes);
+    info.scopes.free();
     map.free_m(&info.types);
     map.free_m(&info.functions);
 }

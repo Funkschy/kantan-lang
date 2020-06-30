@@ -1,5 +1,13 @@
 import "io";
 
+def (p: Person) test() {
+    *p.name; // name should not be null
+}
+
+def x() {
+    Person {name: "test", age: 5}.test();
+}
+
 type Person struct {
     name: string,
     age: i32
@@ -11,24 +19,25 @@ type Node struct {
     right: *Node
 }
 
-type Tree struct {
-    root: *Node
-}
-
-def insert(tree: *Tree, person: Person): void {
-    if tree.root == null {
-        tree.root = new_node(person);
-        return;
-    } 
-
-    insert_node(tree.root, person);
-}
-
 def new_node(person: Person): *Node {
     return new Node { data: person, left: null, right: null };
 }
 
-def insert_node(node: *Node, person: Person): void {
+def (tree: *Tree) insert(person: Person) {
+    x(); // just for test purposes
+    if tree.root == null {
+        tree.root = new_node(person);
+        return;
+    }
+
+    tree.root.insert(person);
+}
+
+type Tree struct {
+    root: *Node
+}
+
+def (node: *Node) insert(person: Person) {
     if node.data.age == person.age {
         return;
     }
@@ -37,49 +46,45 @@ def insert_node(node: *Node, person: Person): void {
         if node.left == null {
             node.left = new_node(person);
         } else {
-            insert_node(node.left, person);
+            node.left.insert(person);
         }
     } else {
         if node.right == null {
             node.right = new_node(person);
         } else {
-            insert_node(node.right, person);
+            node.right.insert(person);
         }
     }
 }
 
-def traverse(tree: *Tree): void {
+def (tree: *Tree) traverse() {
     if tree.root == null {
         return;
     }
 
-    traverse_node(tree.root);
+    tree.root.traverse();
 }
 
-def traverse_node(node: *Node): void {
+def (node: *Node) traverse() {
     if node == null {
         return;
     }
 
-    traverse_node(node.left);
+    node.left.traverse();
     io.printf("%s is %d years old\n", node.data.name, node.data.age);
-    traverse_node(node.right);
+    node.right.traverse();
 }
 
-def delete_tree(tree: *Tree): void {
-    if tree.root == null {
-        return;
-    }
-
-    delete_node(tree.root);
+def (tree: *Tree) free() {
+    tree.root.free();
 }
 
-def delete_node(node: *Node): void {
+def (node: *Node) free() {
     if node == null {
         return;
     }
 
-    delete_node(node.left);
-    delete_node(node.right);
+    node.left.free();
+    node.right.free();
     delete node;
 }

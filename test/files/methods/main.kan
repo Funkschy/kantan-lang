@@ -1,0 +1,9 @@
+import "lib";
+
+def (t: lib.Type) method() {
+
+}
+
+def main() {
+
+}

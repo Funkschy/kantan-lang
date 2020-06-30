@@ -166,6 +166,9 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
 
 #if USE_LLVM
         let llvm_context = codegen.compile_mir_mod(&mir_mod, &options);
+#if LLVM_DUMP
+        llvm.dump_module(llvm_context.llmod);
+#endif
         llvm.verify_module(llvm_context.llmod, 0, null);
         optimize_single(llvm_context.llmod, comp_data.config.opt_level);
 
