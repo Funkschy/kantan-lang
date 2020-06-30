@@ -1,5 +1,3 @@
-#include "stmt_types.h"
-
 import "std";
 import "span";
 import "ident";
@@ -16,6 +14,21 @@ extern def unary2str(op: UnaryKind): string;
 extern def expr2str(op: ExprKind): string;
 
 /////////// kinds ///////////
+
+type StmtKind enum {
+    Expr = 1,
+    Let,
+    Import,
+    FuncDecl,
+    StructDecl,
+    EnumDecl,
+    Block,
+    If,
+    While,
+    Delete,
+    Return,
+    For
+}
 
 type ExprKind enum {
     IntLiteral = 1,
@@ -70,11 +83,11 @@ type ExprStmt struct {
 }
 
 def new_expr_stmt(e: *Expr): *Stmt {
-    return (new ExprStmt { s: Stmt { tag: STMT_EXPR, span: e.span }, expr: e }) as *Stmt;
+    return (new ExprStmt { s: Stmt { tag: StmtKind.Expr, span: e.span }, expr: e }) as *Stmt;
 }
 
 def is_expr_stmt(s: *Stmt): bool {
-    return s.tag == STMT_EXPR;
+    return s.tag == StmtKind.Expr;
 }
 
 def as_expr_stmt(s: *Stmt): *ExprStmt {
@@ -90,13 +103,13 @@ type DeleteStmt struct {
 
 def new_delete_stmt(span: span.Span, expr: *Expr): *Stmt {
     return (new DeleteStmt {
-        s: Stmt { tag: STMT_DELETE, span: span },
+        s: Stmt { tag: StmtKind.Delete, span: span },
         expr: expr
     }) as *Stmt;
 }
 
 def is_delete_stmt(s: *Stmt): bool {
-    return s.tag == STMT_DELETE;
+    return s.tag == StmtKind.Delete;
 }
 
 def as_delete_stmt(s: *Stmt): *DeleteStmt {
@@ -112,13 +125,13 @@ type ReturnStmt struct {
 
 def new_return_stmt(span: span.Span, expr: *Expr): *Stmt {
     return (new ReturnStmt {
-        s: Stmt { tag: STMT_RETURN, span: span },
+        s: Stmt { tag: StmtKind.Return, span: span },
         expr: expr
     }) as *Stmt;
 }
 
 def is_return_stmt(s: *Stmt): bool {
-    return s.tag == STMT_RETURN;
+    return s.tag == StmtKind.Return;
 }
 
 def as_return_stmt(s: *Stmt): *ReturnStmt {
@@ -135,14 +148,14 @@ type WhileStmt struct {
 
 def new_while_stmt(span: span.Span, condition: *Expr, block: *BlockStmt): *Stmt {
     return (new WhileStmt {
-        s: Stmt { tag: STMT_WHILE, span: span },
+        s: Stmt { tag: StmtKind.While, span: span },
         condition: condition,
         block: block
     }) as *Stmt;
 }
 
 def is_while_stmt(s: *Stmt): bool {
-    return s.tag == STMT_WHILE;
+    return s.tag == StmtKind.While;
 }
 
 def as_while_stmt(s: *Stmt): *WhileStmt {
@@ -167,7 +180,7 @@ def new_for_stmt(
     block: *BlockStmt
 ): *Stmt {
     return (new ForStmt {
-        s: Stmt { tag: STMT_FOR, span: span },
+        s: Stmt { tag: StmtKind.For, span: span },
         initializer: initializer,
         condition: condition,
         increment: increment,
@@ -176,7 +189,7 @@ def new_for_stmt(
 }
 
 def is_for_stmt(s: *Stmt): bool {
-    return s.tag == STMT_FOR;
+    return s.tag == StmtKind.For;
 }
 
 def as_for_stmt(s: *Stmt): *ForStmt {
@@ -194,7 +207,7 @@ type IfStmt struct {
 
 def new_if_stmt(span: span.Span, condition: *Expr, block: *BlockStmt, else_stmt: *Stmt): *Stmt {
     return (new IfStmt {
-        s: Stmt { tag: STMT_IF, span: span },
+        s: Stmt { tag: StmtKind.If, span: span },
         condition: condition,
         block: block,
         else_stmt: else_stmt
@@ -202,39 +215,11 @@ def new_if_stmt(span: span.Span, condition: *Expr, block: *BlockStmt, else_stmt:
 }
 
 def is_if_stmt(s: *Stmt): bool {
-    return s.tag == STMT_IF;
+    return s.tag == StmtKind.If;
 }
 
 def as_if_stmt(s: *Stmt): *IfStmt {
     return s as *IfStmt;
-}
-
-def else_type(s: *IfStmt): i32 {
-    if s.else_stmt == null {
-        return type_no_else();
-    }
-
-    if is_block_stmt(s.else_stmt) {
-        return type_else_block();
-    }
-
-    if is_if_stmt(s.else_stmt) {
-        return type_else_if();
-    }
-
-    return type_no_else();
-}
-
-def type_no_else(): i32 {
-    return 0;
-}
-
-def type_else_block(): i32 {
-    return 1;
-}
-
-def type_else_if(): i32 {
-    return 2;
 }
 
 /////////// Block stmt ///////////
@@ -246,13 +231,13 @@ type BlockStmt struct {
 
 def new_block_stmt(span: span.Span, statements: ptrvec.Vec): *Stmt {
     return (new BlockStmt{
-        s: Stmt { tag: STMT_BLOCK, span: span },
+        s: Stmt { tag: StmtKind.Block, span: span },
         stmts: statements
     }) as *Stmt;
 }
 
 def is_block_stmt(s: *Stmt): bool {
-    return s.tag == STMT_BLOCK;
+    return s.tag == StmtKind.Block;
 }
 
 def as_block_stmt(s: *Stmt): *BlockStmt {
@@ -288,7 +273,7 @@ def new_func_decl_stmt(
     block: *BlockStmt
 ): *Stmt {
     return (new FuncDeclStmt {
-        s: Stmt { tag: STMT_FUNC_DECL, span: span },
+        s: Stmt { tag: StmtKind.FuncDecl, span: span },
         decl: func.create_func(ident, params, ret_ty, is_extern),
         block: block
     }) as *Stmt;
@@ -304,14 +289,14 @@ def new_method_decl_stmt(
     block: *BlockStmt
 ): *Stmt {
     return (new FuncDeclStmt {
-        s: Stmt { tag: STMT_FUNC_DECL, span: span },
+        s: Stmt { tag: StmtKind.FuncDecl, span: span },
         decl: func.create_method(ident, receiver, params, ret_ty, is_extern),
         block: block
     }) as *Stmt;
 }
 
 def is_func_decl_stmt(s: *Stmt): bool {
-    return s.tag == STMT_FUNC_DECL;
+    return s.tag == StmtKind.FuncDecl;
 }
 
 def as_func_decl_stmt(s: *Stmt): *FuncDeclStmt {
@@ -327,13 +312,13 @@ type StructDeclStmt struct {
 
 def new_struct_decl_stmt(span: span.Span, name: ident.Ident, fields: vec.Vec): *Stmt {
     return (new StructDeclStmt {
-        s: Stmt { tag: STMT_STRUCT_DECL, span: span },
+        s: Stmt { tag: StmtKind.StructDecl, span: span },
         decl: record.create_struct(name, fields)
     }) as *Stmt;
 }
 
 def is_struct_decl_stmt(s: *Stmt): bool {
-    return s.tag == STMT_STRUCT_DECL;
+    return s.tag == StmtKind.StructDecl;
 }
 
 def as_struct_decl_stmt(s: *Stmt): *StructDeclStmt {
@@ -355,14 +340,14 @@ def new_enum_decl_stmt(
     start_value: *Expr
 ): *Stmt {
     return (new EnumDeclStmt {
-        s: Stmt { tag: STMT_ENUM_DECL, span: span },
+        s: Stmt { tag: StmtKind.EnumDecl, span: span },
         decl: record.create_enum(name, values),
         start_value: start_value
     }) as *Stmt;
 }
 
 def is_enum_decl_stmt(s: *Stmt): bool {
-    return s.tag == STMT_ENUM_DECL;
+    return s.tag == StmtKind.EnumDecl;
 }
 
 def as_enum_decl_stmt(s: *Stmt): *EnumDeclStmt {
@@ -379,14 +364,14 @@ type ImportStmt struct {
 
 def new_import_stmt(span: span.Span, mod_name: ident.Ident, alias: ident.Ident): *Stmt {
     return (new ImportStmt {
-        s: Stmt { tag: STMT_IMPORT, span: span },
+        s: Stmt { tag: StmtKind.Import, span: span },
         mod: mod_name,
         alias: alias
     }) as *Stmt;
 }
 
 def is_import_stmt(s: *Stmt): bool {
-    return s.tag == STMT_IMPORT;
+    return s.tag == StmtKind.Import;
 }
 
 def as_import_stmt(s: *Stmt): *ImportStmt {
@@ -408,7 +393,7 @@ type LetStmt struct {
 
 def new_let_stmt(span: span.Span, ident_token: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
     return (new LetStmt {
-        s: Stmt { tag: STMT_LET, span: span },
+        s: Stmt { tag: StmtKind.Let, span: span },
         value: value,
         ident: ident.create(ident_token),
         ty: ty
@@ -416,7 +401,7 @@ def new_let_stmt(span: span.Span, ident_token: lexer.Token, ty: tyid.Type, value
 }
 
 def is_let_stmt(s: *Stmt): bool {
-    return s.tag == STMT_LET;
+    return s.tag == StmtKind.Let;
 }
 
 def as_let_stmt(s: *Stmt): *LetStmt {
@@ -430,7 +415,7 @@ def has_type_decl(s: *LetStmt): bool {
 /////////// base stmt ///////////
 
 type Stmt struct {
-    tag: i32,
+    tag: StmtKind,
     span: span.Span
 }
 

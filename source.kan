@@ -1,7 +1,8 @@
+import "std";
 import "path";
 import "file";
 import "span";
-import "std";
+import "error";
 import "ptrvec";
 
 import "dbg";
@@ -49,13 +50,13 @@ def code(sf: *SourceFile): string {
     return sf.code;
 }
 
-def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): i32 {
+def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): error.CompileError {
     let new_file = file.create(p);
     let s: string = null;
     let len = 0;
     let res = file.read_to_string(&new_file, &s, &len);
 
-    if res != 0 {
+    if res != error.CompileError.OK {
         return res;
     }
 
@@ -68,7 +69,7 @@ def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): i32 {
         map: map
     };
 
-    return 0;
+    return error.CompileError.OK;
 }
 
 def line_info(

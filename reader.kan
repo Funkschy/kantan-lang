@@ -1,18 +1,18 @@
 import "vec";
+import "std";
+import "dbg";
 import "path";
+import "span";
 import "file";
 import "source";
-import "std";
-import "span";
-import "io";
-import "dbg";
+import "error" as err;
 
 extern def num_builtin_files(): i32;
 extern def get_builtin_files(): *string;
 
 type FileAddResult struct {
     file_name: string,
-    err_code: i32
+    err_code: err.CompileError
 }
 
 type FileMap struct {
@@ -84,8 +84,8 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path, std_dir: string): FileAddResu
         let file_name = *(file_names + i);
         let full_file_name = std.format_str("%s/%s", std_dir, file_name);
 
-        let res = 0;
-        if (res = add_file(m, rel_path, full_file_name, true)) != 0 {
+        let res = add_file(m, rel_path, full_file_name, true);
+        if res.is_not_ok() {
             delete full_file_name;
             return FileAddResult { file_name: file_name, err_code: res };
         }
@@ -104,7 +104,7 @@ def add_std_lib(m: *FileMap, rel_path: *path.Path, std_dir: string): FileAddResu
         i = i + 1;
     }
 
-    return FileAddResult { file_name: null, err_code: 0 };
+    return FileAddResult { file_name: null, err_code: err.CompileError.OK };
 }
 
 def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): FileAddResult {
@@ -112,31 +112,31 @@ def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): F
     let i = 0;
     while i < len {
         let file_name = *(file_names + i);
-        let res = 0;
-        if (res = add_file(m, rel_path, file_name, false)) != 0 {
+        let res = add_file(m, rel_path, file_name, false);
+        if res.is_not_ok() {
             return FileAddResult { file_name: file_name, err_code: res };
         }
         i = i + 1;
     }
 
-    return FileAddResult { file_name: null, err_code: 0 };
+    return FileAddResult { file_name: null, err_code: err.CompileError.OK };
 }
 
-def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool): i32 {
+def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool): err.CompileError {
     let p = path.empty();
-    let res = 0;
-    if (res = path.from_str(name, &p)) != 0 {
+    let res = path.from_str(name, &p);
+    if res.is_not_ok() {
         return res;
     }
 
     let abs_path = path.buf_from(path.empty());
-    let error = path.merge_abs_rel(rel_path, &p, &abs_path);
-    if error != 0 {
-        return error;
+    let ret_val = path.merge_abs_rel(rel_path, &p, &abs_path);
+    if ret_val.is_not_ok() {
+        return ret_val;
     }
 
     let sf: source.SourceFile = undefined;
-    if (res = source.read(abs_path, &sf, is_std_lib)) != 0 {
+    if (res = source.read(abs_path, &sf, is_std_lib)).is_not_ok() {
         path.free_pb(&abs_path);
         return res;
     }
@@ -146,7 +146,7 @@ def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool):
         update_root(m, abs_path.inner);
     }
 
-    return 0;
+    return err.CompileError.OK;
 }
 
 def update_root(m: *FileMap, p: path.Path): void {

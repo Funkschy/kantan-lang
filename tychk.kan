@@ -9,6 +9,7 @@ import "tyid";
 import "name";
 import "path";
 import "func";
+import "error";
 import "scope";
 import "ident";
 import "record";
@@ -1107,7 +1108,7 @@ def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
 
     let old_span = imp.mod.span;
     let p = path.empty();
-    if path.from_str_len(ident.start(&imp.mod), ident.len(&imp.mod), &p) != 0 {
+    if path.from_str_len(ident.start(&imp.mod), ident.len(&imp.mod), &p).is_not_ok() {
         return ident.empty();
     }
 
@@ -2379,8 +2380,6 @@ def check_expr_scope_expect(
     return null;
 }
 
-#include "error_code.h"
-
 def check_binary_expr(
     tc: *TypeChecker,
     kind: ast.BinaryKind,
@@ -2448,7 +2447,7 @@ def check_binary_expr(
                 return get_global_type(tc, 3, "i32");
             }
 
-            let text = std.err2str(ERROR_BIN_PTR_INVALID);
+            let text = error.err2str(error.CompileError.BinPtrInvalid);
             push_mk_err(tc, text, op_span);
             return null;
         }
@@ -2495,7 +2494,7 @@ def check_unary_expr(
     if kind == ast.UnaryKind.Ref {
         if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr)
             || ast.is_access_expr(expr) && ty.is_enum(ast.as_access_expr(expr).left.ty) {
-                let text = std.err2str(ERROR_UNARY_REF_RVALUE);
+                let text = error.err2str(error.CompileError.UnaryRefRValue);
                 push_mk_err(tc, text, span);
                 return null;
             }
@@ -2537,7 +2536,7 @@ def check_unary_expr(
     if kind == ast.UnaryKind.Deref {
         if !ty.is_ptr(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);
-            let text = std.err2str(ERROR_UNARY_DEREF_NON_PTR, s_ty);
+            let text = error.err2str(error.CompileError.UnaryDerefNonPtr, s_ty);
             push_mk_err(tc, text, span);
             return null;
         }
@@ -2564,7 +2563,7 @@ def check_unary_expr(
     if kind == ast.UnaryKind.NegBool {
         if !ty.is_bool(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);
-            let text = std.err2str(ERROR_UNARY_OP_NOT_DEFINED, "!", s_ty);
+            let text = error.err2str(error.CompileError.UnaryOpNotDefined, "!", s_ty);
             push_mk_err(tc, text, span);
             return null;
         }
@@ -2575,7 +2574,7 @@ def check_unary_expr(
     if kind == ast.UnaryKind.NegNum {
         if !ty.is_num(expr.ty) {
             let s_ty = ty.to_static_string(expr.ty);
-            let text = std.err2str(ERROR_UNARY_OP_NOT_DEFINED, "-", s_ty);
+            let text = error.err2str(error.CompileError.UnaryOpNotDefined, "-", s_ty);
             push_mk_err(tc, text, span);
             return null;
         }
@@ -2651,73 +2650,73 @@ def (tc: *TypeChecker) ty_to_string(t: *ty.Type, out: *string): bool {
 }
 
 def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
-    let text = std.err2str(ERROR_INTERNAL, text);
+    let text = error.err2str(error.CompileError.Internal, text);
     push_mk_err(tc, text, span);
 }
 
-def push_ident_error(tc: *TypeChecker, code: i32, i: *ident.Ident): void {
+def push_ident_error(tc: *TypeChecker, code: error.CompileError, i: *ident.Ident): void {
     let len = ident.len(i);
-    let text = std.err2str(code, len, ident.start(i));
+    let text = error.err2str(code, len, ident.start(i));
 
     push_mk_err(tc, text, i.span);
 }
 
 def push_incomplete_ty_error(tc: *TypeChecker, name: *ident.Ident) {
-    push_ident_error(tc, ERROR_INCOMPLETE_TYPE, name);
+    push_ident_error(tc, error.CompileError.IncompleteType, name);
 }
 
 def push_duplicate_def_error(tc: *TypeChecker, name: *ident.Ident) {
-    push_ident_error(tc, ERROR_DUPLICATE_DEFINTION, name);
+    push_ident_error(tc, error.CompileError.DuplicateDefintion, name);
 }
 
 def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident, kind_s: string) {
     let len = ident.len(name);
-    let text = std.err2str(ERROR_NOT_DEFINED, kind_s, len, ident.start(name));
+    let text = error.err2str(error.CompileError.NotDefined, kind_s, len, ident.start(name));
 
     push_mk_err(tc, text, name.span);
 }
 
 def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr) {
     let ty_s = ty.to_static_string(e.ty);
-    let error = std.err2str(ERROR_NOT_ACCESSIBLE_WITH_OP, ty_s, ".");
+    let error = error.err2str(error.CompileError.NotAccessibleWithOp, ty_s, ".");
 
     push_mk_err(tc, error, e.span);
 }
 
 def push_not_callable_error(tc: *TypeChecker, span: span.Span, actual_ty: *ty.Type): void {
-    let text = std.err2str(ERROR_CALLING_NON_FUNCTION, ty.to_static_string(actual_ty));
+    let text = error.err2str(error.CompileError.CallingNonFunction, ty.to_static_string(actual_ty));
     push_mk_err(tc, text, span);
 }
 
 def push_wrong_num_args_error(tc: *TypeChecker, expected: i32, actual: i32, span: span.Span) {
-    let text = std.err2str(ERROR_WRONG_NUMBER_OF_ARGS, expected, actual);
+    let text = error.err2str(error.CompileError.WrongNumberOfArgs, expected, actual);
     push_mk_err(tc, text, span);
 }
 
 def push_invalid_expr_error(tc: *TypeChecker, e: *ast.Expr) {
-    let text = std.err2str(ERROR_INVALID_EXPRESSION);
+    let text = error.err2str(error.CompileError.InvalidExpression);
     push_mk_err(tc, text, e.span);
 }
 
 def push_receiver_different_module_error(tc: *TypeChecker, span: span.Span) {
-    let text = std.err2str(ERROR_RECEIVER_FROM_OTHER_MOD);
+    let text = error.err2str(error.CompileError.ReceiverFromOtherMod);
     push_mk_err(tc, text, span);
 }
 
 def push_cannot_take_address_of_error(tc: *TypeChecker, span: span.Span): void {
-    let text = std.err2str(ERROR_CANNOT_TAKE_ADDR_OF);
+    let text = error.err2str(error.CompileError.CannotTakeAddrOf);
     push_mk_err(tc, text, span);
 }
 
 def push_illegal_unary_expr(tc: *TypeChecker, span: span.Span): void {
-    let text = std.err2str(ERROR_ILLEGAL_EXPR_FOR_UNARY);
+    let text = error.err2str(error.CompileError.IllegalExprForUnary);
     push_mk_err(tc, text, span);
 }
 
 def push_duplicate_enum_value_error(tc: *TypeChecker, e: *ty.Enum, value_name: *ident.Ident) {
     let len = ident.len(value_name);
-    let text = std.err2str(
-        ERROR_DUPLICATE_ENUM_VALUE,
+    let text = error.err2str(
+        error.CompileError.DuplicateEnumValue,
         len, ident.start(value_name),
         e.super.mangled_name.len, e.super.mangled_name.data
     );
@@ -2728,8 +2727,8 @@ def push_invalid_enum_start_value_error(tc: *TypeChecker, e: *ty.Enum, start_val
     let s_start_ty = "";
     let free_s_start_ty = tc.ty_to_string(start_value.ty, &s_start_ty);
 
-    let text = std.err2str(
-        ERROR_INVALID_ENUM_START_VALUE,
+    let text = error.err2str(
+        error.CompileError.InvalidEnumStartValue,
         s_start_ty,
         e.super.mangled_name.len, e.super.mangled_name.data
     );
@@ -2752,7 +2751,7 @@ def push_bin_invalid_types_error(
     let s_second = "";
     let free_s_second = tc.ty_to_string(second, &s_second);
 
-    let text = std.err2str(ERROR_BIN_INVALID_TYPES, s_first, s_second);
+    let text = error.err2str(error.CompileError.BinInvalidTypes, s_first, s_second);
 
     if free_s_first {
         delete s_first;
@@ -2771,7 +2770,7 @@ def push_wrong_arg_type_error(
     actual: *ty.Type,
     span: span.Span
 ): void {
-    push_wrong_type_error(tc, ERROR_WRONG_ARG_TYPE, expected, actual, span);
+    push_wrong_type_error(tc, error.CompileError.WrongArgType, expected, actual, span);
 }
 
 def push_wrong_let_type_error(
@@ -2780,12 +2779,12 @@ def push_wrong_let_type_error(
     actual: *ty.Type,
     span: span.Span
 ): void {
-    push_wrong_type_error(tc, ERROR_LET_DIFFERENT_TYPES, expected, actual, span);
+    push_wrong_type_error(tc, error.CompileError.LetDifferentTypes, expected, actual, span);
 }
 
 def push_wrong_type_error(
     tc: *TypeChecker,
-    err_kind: i32,
+    err_kind: error.CompileError,
     expected: *ty.Type,
     actual: *ty.Type,
     span: span.Span
@@ -2805,7 +2804,7 @@ def push_wrong_type_error(
         free_expected_ty_s = false;
     }
 
-    let text = std.err2str(err_kind, expected_ty_s, actual_ty_s);
+    let text = error.err2str(err_kind, expected_ty_s, actual_ty_s);
     if free_expected_ty_s {
         delete expected_ty_s;
     }
@@ -2823,7 +2822,7 @@ def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
     let ty_s = "";
     let free_ty_s = tc.ty_to_string(expr.ty, &ty_s);
 
-    let text = std.err2str(ERROR_WRONG_RETURN_TYPE, ret_ty_s, ty_s);
+    let text = error.err2str(error.CompileError.WrongReturnType, ret_ty_s, ty_s);
     if free_ty_s {
         delete ty_s;
     }
@@ -2835,18 +2834,18 @@ def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr): void {
 }
 
 def push_missing_return_error(tc: *TypeChecker, span: span.Span): void {
-    let text = std.err2str(ERROR_MISSING_RETURN);
+    let text = error.err2str(error.CompileError.MissingReturn);
     push_mk_err(tc, text, span);
 }
 
 def push_init_non_struct_error(tc: *TypeChecker, actual_ty: *ty.Type, span: span.Span): void {
     let ty_s = ty.to_static_string(actual_ty);
-    let text = std.err2str(ERROR_INIT_NON_STRUCT_TYPE, ty_s);
+    let text = error.err2str(error.CompileError.InitNonStructType, ty_s);
     push_mk_err(tc, text, span);
 }
 
 def push_could_not_infer_error(tc: *TypeChecker, span: span.Span): void {
-    let text = std.err2str(ERROR_COULD_NOT_INFER_TYPE);
+    let text = error.err2str(error.CompileError.CouldNotInferType);
     push_mk_err(tc, text, span);
 }
 
@@ -2861,7 +2860,7 @@ def push_invalid_cast_error(
     let dest_ty_s = "";
     let free_dest_ty_s = tc.ty_to_string(dest, &dest_ty_s);
 
-    let text = std.err2str(ERROR_INVALID_CAST, src_ty_s, dest_ty_s);
+    let text = error.err2str(error.CompileError.InvalidCast, src_ty_s, dest_ty_s);
     if free_dest_ty_s {
         delete dest_ty_s;
     }
@@ -2872,62 +2871,62 @@ def push_invalid_cast_error(
     push_mk_err(tc, text, span);
 }
 
-def push_simple_error(tc: *TypeChecker, kind: i32, t: *ty.Type, s: span.Span) {
+def push_simple_error(tc: *TypeChecker, kind: error.CompileError, t: *ty.Type, s: span.Span) {
     let ty_s = "";
     let free_ty_s = tc.ty_to_string(t, &ty_s);
-    let text = std.err2str(kind, ty_s);
+    let text = error.err2str(kind, ty_s);
     if free_ty_s {
         delete ty_s;
     }
     push_mk_err(tc, text, s);
 }
 
-def push_expr_type_error(tc: *TypeChecker, kind: i32, e: *ast.Expr) {
+def push_expr_type_error(tc: *TypeChecker, kind: error.CompileError, e: *ast.Expr) {
     push_simple_error(tc, kind, e.ty, e.span);
 }
 
 def push_unsized_field_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
-    push_simple_error(tc, ERROR_UNSIZED_STRUCT_FIELD, t, s);
+    push_simple_error(tc, error.CompileError.UnsizedStructField, t, s);
 }
 
 def push_unsized_param_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
-    push_simple_error(tc, ERROR_UNSIZED_PARAMETER, t, s);
+    push_simple_error(tc, error.CompileError.UnsizedParameter, t, s);
 }
 
 def push_unsized_sizeof_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
-    push_simple_error(tc, ERROR_UNSIZED_SIZEOF, t, s);
+    push_simple_error(tc, error.CompileError.UnsizedSizeof, t, s);
 }
 
 def push_deref_unsized_error(tc: *TypeChecker, t: *ty.Type, s: span.Span) {
-    push_simple_error(tc, ERROR_DEREF_OF_UNSIZED_TYPE, t, s);
+    push_simple_error(tc, error.CompileError.DerefOfUnsizedType, t, s);
 }
 
 def push_primitive_receiver_type_error(tc: *TypeChecker, recv: *ty.Type, span: span.Span) {
-    push_simple_error(tc, ERROR_PRIMITIVE_RECEIVER_TYPE, recv, span);
+    push_simple_error(tc, error.CompileError.PrimitiveReceiverType, recv, span);
 }
 
 def push_method_ptr_from_instance_error(tc: *TypeChecker, instanceof: *ty.Type, span: span.Span) {
     // TODO: implement proper hint system
     // TODO: use import alias for mangling
-    push_simple_error(tc, ERROR_METHOD_PTR_FROM_INSTANCE, instanceof, span);
+    push_simple_error(tc, error.CompileError.MethodPtrFromInstance, instanceof, span);
 }
 
 def push_invalid_condition_error(tc: *TypeChecker, e: *ast.Expr) {
-    push_expr_type_error(tc, ERROR_INVALID_TYPE_IN_CONDITION, e);
+    push_expr_type_error(tc, error.CompileError.InvalidTypeInCondition, e);
 }
 
 def push_type_not_assignable_error(tc: *TypeChecker, e: *ast.Expr) {
-    push_expr_type_error(tc, ERROR_TYPE_NOT_ASSIGNABLE, e);
+    push_expr_type_error(tc, error.CompileError.TypeNotAssignable, e);
 }
 
 def push_expr_not_assignable_error(tc: *TypeChecker, e: *ast.Expr) {
-    push_expr_type_error(tc, ERROR_EXPR_NOT_ASSIGNABLE, e);
+    push_expr_type_error(tc, error.CompileError.ExprNotAssignable, e);
 }
 
 def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr) {
     let ty_s = "";
     let free_ty_s = tc.ty_to_string(e.ty, &ty_s);
-    let text = std.err2str(ERROR_DELETE_NON_PTR, ty_s);
+    let text = error.err2str(error.CompileError.DeleteNonPtr, ty_s);
     if free_ty_s {
         delete ty_s;
     }

@@ -22,7 +22,6 @@ extern def getenv(name: string): string;
 // in lib.c
 extern def next_pow_of_2(i: i32): i32;
 extern def get_errno(): i32;
-extern def err2str(code: i32, ...): string;
 extern def format_str(fmt: string, ...): string;
 extern def l_format_str(len: *i32, fmt: string, ...): string;
 extern def read_char(s: string, s_len: i32, dest: *i32): i32;

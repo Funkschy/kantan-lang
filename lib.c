@@ -7,7 +7,6 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#include "./error_code.h"
 #include "./lib.h"
 
 #define HASH_NUM 65599
@@ -172,6 +171,11 @@ bool is_file(char const *path) {
     }
     return false;
 }
+
+// these have to match error.kan
+#define ERROR_COULD_NOT_OPEN_FILE       3
+#define ERROR_COULD_NOT_ALLOCATE_BUFFER 4
+#define ERROR_COULD_NOT_READ_FILE       5
 
 int32_t read_file(char const *path, char const **content, int32_t *len) {
     if (!is_file(path)) {

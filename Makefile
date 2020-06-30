@@ -4,6 +4,7 @@ BIN_NAME = compiler
 K_FILES = ast.kan \
 		  codegen.kan \
 		  dbg.kan \
+		  error.kan \
 		  file.kan \
 		  func.kan \
 		  ident.kan \
@@ -37,10 +38,7 @@ K_FILES = ast.kan \
 		  vec.kan \
 		  vmap.kan
 C_SRC_FILES = lib.c posixlink.c
-C_FILES = $(C_SRC_FILES) \
-		  lib.h \
-		  stmt_types.h \
-		  error_code.h
+C_FILES = $(C_SRC_FILES) lib.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))

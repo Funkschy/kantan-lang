@@ -1,5 +1,3 @@
-#include "./error_code.h"
-
 // the 0 at the end is to enable the use of a semicolon at the end
 #define LETCHECK(name, expr) let name = (expr); if (name) == null { return null; } 0
 #define CONSUME_RET_NULL(ty) if !consume(p, (ty)) { return null; } 0
@@ -14,6 +12,7 @@ import "span";
 import "tyid";
 import "func";
 import "ident";
+import "error";
 import "ptrvec";
 import "source";
 import "record";
@@ -83,7 +82,7 @@ def advance(p: *Parser, dest: *l.Token): bool {
 
     if next.ty == l.TokenType.EOF {
         if !p.in_panic_mode {
-            let error = create_error(next.span, std.err2str(ERROR_UNEXPECTED_EOF));
+            let error = create_error(next.span, error.err2str(error.CompileError.UnexpectedEof));
             p.errors.push(&error as *void);
         }
         return false;
@@ -1216,7 +1215,7 @@ def create_type_ident_error(p: *Parser, err_span: span.Span, reason: string): Pa
     let len = span.len(err_span);
     return create_error(
         err_span,
-        std.err2str(ERROR_INVALID_TYPE_IDENT, len, err_span.start, reason)
+        error.err2str(error.CompileError.InvalidTypeIdent, len, err_span.start, reason)
     );
 }
 
@@ -1225,33 +1224,33 @@ def create_statement_error(p: *Parser, start: string, end: string): ParseError {
 
     return create_error(
         err_span,
-        std.err2str(ERROR_COULD_NOT_PARSE_STMT)
+        error.err2str(error.CompileError.CouldNotParseStmt)
     );
 }
 
 def create_invalid_recv_count_error(p: *Parser, l_paren: *l.Token, count: i32): ParseError {
     return create_error(
         l_paren.span,
-        std.err2str(ERROR_INVALID_RECEIVER_COUNT, count)
+        error.err2str(error.CompileError.InvalidReceiverCount, count)
     );
 }
 
 def create_lex_error(p: *Parser, next: *l.Token): ParseError {
     // len for lexeme
     let len = l.token_len(next);
-    let err_ty = ERROR_UNKNOWN_SYMBOL;
+    let err_ty = error.CompileError.UnknownSymbol;
 
     if next.ty == l.TokenType.CharErr {
-        err_ty = ERROR_CHAR_LIT_LEN;
+        err_ty = error.CompileError.CharLitLen;
     }
 
     if next.ty == l.TokenType.EscapeErr {
-        err_ty = ERROR_INVALID_ESCAPE_SEQUENCE;
+        err_ty = error.CompileError.InvalidEscapeSequence;
     }
 
     return create_error(
         next.span,
-        std.err2str(err_ty, len, l.lexeme(next))
+        error.err2str(err_ty, len, l.lexeme(next))
     );
 }
 
@@ -1267,8 +1266,8 @@ def create_consume_error_text(p: *Parser, peeked: *l.Token, text: string): Parse
     let peek_str: string = null;
     let needs_free = l.token_to_string(peeked, &peek_str);
 
-    let err_str = std.err2str(
-        ERROR_EXPECTED_BUT_GOT,
+    let err_str = error.err2str(
+        error.CompileError.ExpectedButGot,
         text,
         peek_str
     );

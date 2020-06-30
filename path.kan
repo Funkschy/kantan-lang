@@ -1,10 +1,9 @@
-#include "error_code.h"
-
 // TODO(#8): should be platform dependant
 #define SYSTEM_SEPARATOR '/'
 
 import "std";
 import "dbg";
+import "error";
 
 extern def getcwd(buf: string, buf_size: i32): string;
 extern def realpath(path: string, resolved: string): string;
@@ -26,23 +25,23 @@ def sys_separator(): char {
     return SYSTEM_SEPARATOR;
 }
 
-def from_str(s: string, p: *Path): i32 {
+def from_str(s: string, p: *Path): error.CompileError {
     let len = std.strlen(s);
     if len <= 0 {
-        return ERROR_PATH_EMTPY;
+        return error.CompileError.PathEmpty;
     }
 
     *p = Path { len: len, inner: s };
-    return 0;
+    return error.CompileError.OK;
 }
 
-def from_str_len(s: string, len: i32, p: *Path): i32 {
+def from_str_len(s: string, len: i32, p: *Path): error.CompileError {
     if len <= 0 {
-        return ERROR_PATH_EMTPY;
+        return error.CompileError.PathEmpty;
     }
 
     *p = Path { len: len, inner: s };
-    return 0;
+    return error.CompileError.OK;
 }
 
 def ends_with(p: *Path, s: string): bool {
@@ -99,19 +98,19 @@ def count_overlap(first: *Path, second: *Path): i32 {
 // TODO(#16): windows support
 //  this functions uses the posix only "realpath" function
 // this function resolves stuff like .. or . in place
-def canonicalize(p: *Path, dest: *PathBuf): i32 {
+def canonicalize(p: *Path, dest: *PathBuf): error.CompileError {
     let buf = std.strndup(p.inner, p.len);
     let real = realpath(buf, null);
     delete buf;
 
     if real == null {
-        return ERROR_COULD_NOT_OPEN_FILE;
+        return error.CompileError.CouldNotOpenFile;
     }
 
     free_pb(dest);
     *dest = create_path_buf(real);
 
-    return 0;
+    return error.CompileError.OK;
 }
 
 def is_abs(p: *Path): bool {
@@ -156,7 +155,7 @@ def new_path_buf_l(len: i32, path: string): PathBuf {
 
 def create_path_buf(path: string): PathBuf {
     let p = empty();
-    if from_str(path, &p) != 0 {
+    if from_str(path, &p) != error.CompileError.OK {
         delete path;
         return PathBuf { inner: empty() };
     }
@@ -170,21 +169,26 @@ def buf_from(path: Path): PathBuf {
     return PathBuf { inner: path };
 }
 
-def merge_abs_rel(base: *Path, child: *Path, dest: *PathBuf): i32 {
+def merge_abs_rel(base: *Path, child: *Path, dest: *PathBuf): error.CompileError {
     return merge_abs_rel_suffix(base, child, null, dest);
 }
 
-def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathBuf): i32 {
+def merge_abs_rel_suffix(
+    base: *Path,
+    child: *Path,
+    suffix: string,
+    dest: *PathBuf
+): error.CompileError {
     if base.len == 0 || is_abs(child) {
         *dest = new_path_buf(child.inner);
 
-        let error = canonicalize(&dest.inner, dest);
-        if error != 0 {
+        let ret_val = canonicalize(&dest.inner, dest);
+        if ret_val != error.CompileError.OK {
             free_pb(dest);
-            return error;
+            return ret_val;
         }
 
-        return 0;
+        return error.CompileError.OK;
     }
 
     let combined: string = null;
@@ -210,16 +214,16 @@ def merge_abs_rel_suffix(base: *Path, child: *Path, suffix: string, dest: *PathB
     }
 
     let pb = create_path_buf(combined);
-    let error = canonicalize(&pb.inner, &pb);
+    let ret_val = canonicalize(&pb.inner, &pb);
 
-    if error != 0 {
+    if ret_val != error.CompileError.OK {
         free_pb(&pb);
-        return error;
+        return ret_val;
     }
 
     *dest = pb;
 
-    return 0;
+    return error.CompileError.OK;
 }
 
 // the largest shared path of the 2 paths

@@ -1,15 +1,16 @@
-import "ptrvec";
+import "ty";
 import "vec";
 import "ast";
 import "path";
 import "map";
 import "std";
-import "ty";
 import "span";
 import "name";
+import "error";
 import "ident";
 import "scope";
 import "source";
+import "ptrvec";
 
 type Module struct {
     idx: i32, // index in modmap used for faster access
@@ -179,7 +180,7 @@ def get_abs_import_path(
     current: *Module,
     imp: *ast.ImportStmt,
     dest: *path.PathBuf
-): i32 {
+): error.CompileError {
     let len = ident.len(&imp.mod);
     let imp_path = path.create(ident.start(&imp.mod), len);
     let current_path = get_path(current);
@@ -215,9 +216,9 @@ def try_get_mod_from_import(
 
     // if not in stdlib, try absolute path
     let abs = path.buf_from(path.empty());
-    let error = get_abs_import_path(mod, imp, &abs);
+    let ret_val = get_abs_import_path(mod, imp, &abs);
 
-    if error != 0 {
+    if ret_val != error.CompileError.OK {
         let mod_path = get_path(mod);
         let p = path.parent(&mod_path);
         let mod_s = path.to_string(&p);
@@ -228,7 +229,8 @@ def try_get_mod_from_import(
             //  is 'no such process, which is confusing'
             let err = std.format_str(
                 "%s: %s%s%s",
-                std.strerror(error),
+                // TODO: handle file errors in a platform independent way
+                std.strerror(*(&ret_val as *i32)),
                 mod_s,
                 imp_s,
                 file_ending

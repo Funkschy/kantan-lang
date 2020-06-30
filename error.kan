@@ -1,0 +1,68 @@
+type CompileError enum {
+    OK,
+    Internal,
+
+    // file errors
+    // these are used in lib.c, so they have to keep their values
+    PathEmpty,
+    CouldNotOpenFile,
+    CouldNotAllocateBuffer,
+    CouldNotReadFile,
+
+    // parse errors
+    UnexpectedEof,
+    ExpectedButGot,
+    UnknownSymbol,
+    CharLitLen,
+    CouldNotParseStmt,
+    InvalidTypeIdent,
+    InvalidEscapeSequence,
+    InvalidReceiverCount,
+
+    // type errors
+    DuplicateDefintion,
+    NotDefined,
+    NotAccessibleWithOp,
+    IncompleteType,
+    BinInvalidTypes,
+    BinPtrInvalid,
+    UnaryRefRValue,
+    UnaryDerefNonPtr,
+    UnaryOpNotDefined,
+    WrongReturnType,
+    MissingReturn,
+    UsingOpOnTy_decl,
+    CallingNonFunction,
+    WrongNumberOfArgs,
+    WrongArgType,
+    InitNonStructType,
+    CouldNotInferType,
+    InvalidCast,
+    InvalidTypeInCondition,
+    DeleteNonPtr,
+    LetDifferentTypes,
+    TypeNotAssignable,
+    ExprNotAssignable,
+    InvalidExpression,
+    UnsizedStructField,
+    UnsizedParameter,
+    UnsizedSizeof,
+    DerefOfUnsizedType,
+    DuplicateEnumValue,
+    InvalidEnumStartValue,
+    PrimitiveReceiverType,
+    ReceiverFromOtherMod,
+    MethodPtrFromInstance,
+    CannotTakeAddrOf,
+    IllegalExprForUnary
+}
+
+extern def err2str(code: CompileError, ...): string;
+
+def (e: CompileError) is_ok(): bool {
+    return e == CompileError.OK;
+}
+
+def (e: CompileError) is_not_ok(): bool {
+    return !e.is_ok();
+}

@@ -3,6 +3,7 @@ import "std";
 import "dbg";
 import "opt";
 
+import "error";
 import "parser";
 import "ast";
 import "reader";
@@ -64,8 +65,8 @@ def main(argc: i32, argv: *string): i32 {
 
     let file_map = reader.create();
     let res = reader.add_std_lib(&file_map, &cwd, std_dir);
-    if res.err_code != 0 {
-        let err_msg = std.err2str(res.err_code, res.file_name);
+    if res.err_code != error.CompileError.OK {
+        let err_msg = error.err2str(res.err_code, res.file_name);
         io.printf("ERROR: %s\n", err_msg);
         delete err_msg;
 
@@ -78,8 +79,8 @@ def main(argc: i32, argv: *string): i32 {
     }
 
     let res = reader.add_all(&file_map, &cwd, config.files.len, files);
-    if res.err_code != 0 {
-        let err_msg = std.err2str(res.err_code, res.file_name);
+    if res.err_code != error.CompileError.OK {
+        let err_msg = error.err2str(res.err_code, res.file_name);
         io.printf("ERROR: %s\n", err_msg);
         delete err_msg;
 
