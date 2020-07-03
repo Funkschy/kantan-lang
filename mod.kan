@@ -33,11 +33,11 @@ def create(src: *source.SourceFile): Module {
     };
 }
 
-def mangle_mod_name(m: *Module, proj_root: path.Path): name.Owned {
+def (m: *Module) set_mangled_mod_name(proj_root: path.Path) {
     let mangled = name.s_mangle(proj_root, 0, null, m);
     mangled.len = mangled.len - 1;
     *(mangled.data + mangled.len) = '\0';
-    return mangled;
+    m.name = mangled;
 }
 
 def get_path(m: *Module): path.Path {

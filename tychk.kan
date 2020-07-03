@@ -1458,7 +1458,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         // since types and/or values could be imported, imports live in both namespaces
         bind_type(tc, &alias, ty);
-        bind_value_public(tc, &alias, ty);
+        bind_value_private(tc, &alias, ty);
         return s;
     }
 
