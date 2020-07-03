@@ -73,7 +73,6 @@ $(BIN_NAME) : $(K_FILES) $(C_FILES)
 		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
 		mv $(BIN_NAME) $(START_FOLDER) ; \
 		popd ; \
-		#rm -r $(BUILD_FOLDER) ; \
 	else \
 		pwd ; \
 		popd ; \
@@ -93,7 +92,6 @@ self : $(BIN_NAME) $(K_FILES) $(C_FILES)
 	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
 	mv self-hosted $(START_FOLDER)/self-hosted ; \
 	popd ; \
-	rm -r $(BUILD_FOLDER) ; \
 
 clean :
 	rm $(BIN_NAME) ; \

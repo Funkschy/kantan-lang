@@ -1176,6 +1176,36 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         );
     }
 
+    // pointers have to checked before user_defined, since pointers to user_defined are also
+    // user defined, but they need to be translated differently here.
+    if ty.is_ptr(t) {
+        let ptr = ty.as_ptr(t);
+        let inner = dbg_translate_type(c, ptr.inner);
+        let inner_name = "";
+        let free_inner_name = ty.to_string(ptr.inner, &inner_name);
+        let inner_len = std.strlen(inner_name);
+
+        for let i = 0; i < ptr.count; i = i + 1 {
+            let star_count = i + 1;
+            let name = std.malloc(star_count + inner_len);
+            std.memset(name, std.char_to_int('*'), star_count);
+            std.memcpy(name + star_count, inner_name as *void, inner_len);
+
+            // TODO(#99): determine pointer size based on target pointer width
+            inner = llvm.di_builder_create_pointer_type(
+                c.dbg.builder, inner, t.width * 8, t.align * 8, 0, name as string, star_count + inner_len
+            );
+
+            delete name;
+        }
+
+        if free_inner_name {
+            delete inner_name;
+        }
+
+        return inner;
+    }
+
     if ty.is_user_defined(t) {
         let type_data = ty.get_user_defined(t);
         let name = type_data.mangled_name;
@@ -1288,34 +1318,6 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             enumerators.free();
             return enumeration;
         }
-    }
-
-    if ty.is_ptr(t) {
-        let ptr = ty.as_ptr(t);
-        let inner = dbg_translate_type(c, ptr.inner);
-        let inner_name = "";
-        let free_inner_name = ty.to_string(ptr.inner, &inner_name);
-        let inner_len = std.strlen(inner_name);
-
-        for let i = 0; i < ptr.count; i = i + 1 {
-            let star_count = i + 1;
-            let name = std.malloc(star_count + inner_len);
-            std.memset(name, std.char_to_int('*'), star_count);
-            std.memcpy(name + star_count, inner_name as *void, inner_len);
-
-            // TODO(#99): determine pointer size based on target pointer width
-            inner = llvm.di_builder_create_pointer_type(
-                c.dbg.builder, inner, t.width * 8, t.align * 8, 0, name as string, star_count + inner_len
-            );
-
-            delete name;
-        }
-
-        if free_inner_name {
-            delete inner_name;
-        }
-
-        return inner;
     }
 
     if ty.is_callable(t) {
