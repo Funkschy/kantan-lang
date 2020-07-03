@@ -30,6 +30,10 @@ def (n: *Owned) clone(): Owned {
     return make_copied(n.len, n.data);
 }
 
+def (n: *Owned) ref(): Ref {
+    return ref(*n);
+}
+
 type Ref struct {
     len: i32,
     data: string
@@ -41,6 +45,17 @@ def make_ref(len: i32, data: string): Ref {
 
 def ref(owned: Owned): Ref {
     return make_ref(owned.len, owned.data);
+}
+
+def (n: *Ref) clone(): Owned {
+    return make_copied(n.len, n.data);
+}
+
+def (n: *Ref) or_else(static: Ref): Ref {
+    if n.data == null {
+        return static;
+    }
+    return *n;
 }
 
 def empty(): Ref {

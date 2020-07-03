@@ -1,52 +1,73 @@
-import "map";
-import "ptrvec";
 import "ty";
-import "ident";
+import "map";
 import "span";
+import "vmap";
+import "ident";
+import "symbol";
+import "ptrvec";
+import "name" as n;
 
 type Scope struct {
-    bindings: map.Map // ident to *Type
+    scope_name: n.Ref,
+    bindings: vmap.Map // vmap.Map<ident.Ident, symbol.WithVisibility>
 }
 
 def create(): Scope {
-    return Scope { bindings: map.create() };
+    return with_name(n.empty());
+}
+
+def with_name(name: n.Ref): Scope {
+    return Scope { scope_name: name, bindings: vmap.create(sizeof symbol.WithVisibility) };
+}
+
+def (s: *Scope) name(): n.Ref {
+    let static = n.make_ref(5, "scope");
+
+    if s == null {
+        return static;
+    }
+
+    return s.scope_name.or_else(static);
 }
 
 def free_s(s: *Scope): void {
-    map.free_m(&s.bindings);
+    vmap.free_m(&s.bindings);
 }
 
-def bind_in(
-    s: *Scope,
+def (s: *Scope) bind_public_ident(ident: *ident.Ident, ty: *ty.Type): symbol.WithVisibility {
+    return s.bind(ident.len(), ident.start(), ty, symbol.Visibility.Public);
+}
+
+def (s: *Scope) bind_ident(
     ident: *ident.Ident,
-    value: *ty.Type
-): *ty.Type {
-    return map.insert(
-        &s.bindings,
-        map.key_from_ident(ident),
-        value as *void
-    ) as *ty.Type;
+    ty: *ty.Type,
+    visibility: symbol.Visibility
+): symbol.WithVisibility {
+    return s.bind(ident.len(), ident.start(), ty, visibility);
 }
 
-def s_bind_in(
-    s: *Scope,
+def (s: *Scope) bind(
     ident_len: i32,
     ident: string,
-    value: *ty.Type
-): *ty.Type {
-    return map.insert(
+    ty: *ty.Type,
+    visibility: symbol.Visibility
+): symbol.WithVisibility {
+    let value = symbol.create(ty, visibility);
+    vmap.insert(
         &s.bindings,
         map.create_key(ident_len, ident),
-        value as *void
-    ) as *ty.Type;
+        &value as *void
+    );
+    return value;
 }
 
-def get_in(s: *Scope, ident: *ident.Ident): *ty.Type {
-    return map.get(&s.bindings, map.key_from_ident(ident)) as *ty.Type;
+def (s: *Scope) get_ident(ident: *ident.Ident): symbol.Data {
+    return s.get(ident.len(), ident.start());
 }
 
-def s_get_in(s: *Scope, key_len: i32, key: string): *ty.Type {
-    return map.get(&s.bindings, map.create_key(key_len, key)) as *ty.Type;
+def (s: *Scope) get(key_len: i32, key: string): symbol.Data {
+    let ptr = vmap.get_ptr(&s.bindings, map.create_key(key_len, key)) as *symbol.WithVisibility;
+    return ptr.or_empty().with_scope(s);
 }
 
 type ScopeStack struct {
@@ -104,24 +125,26 @@ def top(s: *ScopeStack): *Scope {
     return scope_at(s, s.scopes.len - 1);
 }
 
-def bind(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): *ty.Type {
-    return bind_in(top(s), ident, value);
+def bind_public(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): symbol.WithVisibility {
+    return top(s).bind_public_ident(ident, value);
+}
+
+def bind_private(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): symbol.WithVisibility {
+    return top(s).bind_ident(ident, value, symbol.Visibility.Private);
 }
 
 def num_scopes(s: *ScopeStack): i32 {
     return s.scopes.len;
 }
 
-def lookup(s: *ScopeStack, ident: *ident.Ident): *ty.Type {
-    let i = num_scopes(s) - 1;
-    while i >= 0 {
+def lookup(s: *ScopeStack, ident: *ident.Ident): symbol.Data {
+    for let i = num_scopes(s) - 1; i >= 0; i -= 1 {
         let scope = scope_at(s, i);
-        let ty: *ty.Type = null;
-        if (ty = get_in(scope, ident)) != null {
-            return ty;
+        let bound = scope.get_ident(ident);
+        if bound.present() {
+            return bound;
         }
-        i = i - 1;
     }
 
-    return null;
+    return symbol.empty();
 }

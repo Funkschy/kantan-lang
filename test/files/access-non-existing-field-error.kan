@@ -1,0 +1,6 @@
+type Test struct {}
+
+def main() {
+    let t = Test{};
+    t.test;
+}

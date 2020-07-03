@@ -54,7 +54,9 @@ type CompileError enum {
     ReceiverFromOtherMod,
     MethodPtrFromInstance,
     CannotTakeAddrOf,
-    IllegalExprForUnary
+    IllegalExprForUnary,
+    NonConstExpressionInConstContext,
+    AccessingPrivateSymbol
 }
 
 extern def err2str(code: CompileError, ...): string;

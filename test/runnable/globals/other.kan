@@ -1,0 +1,9 @@
+let x = "other.kan";
+
+def set_x(value: string) {
+    x = value;
+}
+
+def get_x(): string {
+    return x;
+}

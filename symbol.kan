@@ -1,0 +1,58 @@
+import "ty";
+import "scope";
+
+type Data struct {
+    sym: WithVisibility,
+    scope: *scope.Scope
+}
+
+def (data: *Data) present(): bool {
+    return data != null && data.sym.present();
+}
+
+def empty(): Data {
+    return create(null, Visibility.Private).with_scope(null);
+}
+
+def (data: *Data) ty_or_null(): *ty.Type {
+    if data == null || !data.sym.present() {
+        return null;
+    }
+    return data.sym.ty;
+}
+
+def (data: *Data) is_private(): bool {
+    return data.sym.visibility == Visibility.Private;
+}
+
+type Visibility enum {
+    Private, Public
+}
+
+type WithVisibility struct {
+    visibility: Visibility
+    ty: *ty.Type
+}
+
+def create_public(ty: *ty.Type): WithVisibility {
+    return create(ty, Visibility.Public);
+}
+
+def create(ty: *ty.Type, visibility: Visibility): WithVisibility {
+    return WithVisibility { visibility: visibility, ty: ty };
+}
+
+def (sym: WithVisibility) with_scope(s: *scope.Scope): Data {
+    return Data { sym: sym, scope: s };
+}
+
+def (sym: *WithVisibility) present(): bool {
+    return sym != null && sym.ty != null;
+}
+
+def (sym: *WithVisibility) or_empty(): WithVisibility {
+    if sym == null {
+        return empty().sym;
+    }
+    return create(sym.ty, sym.visibility);
+}

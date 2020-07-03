@@ -239,6 +239,9 @@ def top_level(p: *Parser): *ast.Stmt {
     } else if peek.ty == l.TokenType.Import {
         s = parse_import_stmt(p);
         consume_semi = true;
+    } else if peek.ty == l.TokenType.Let {
+        s = parse_let_stmt(p);
+        consume_semi = true;
     }
 
     if s == null {

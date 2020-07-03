@@ -14,10 +14,11 @@ import "vec";
 import "map";
 import "mirc";
 import "path";
-import "llvm-bindings" as llvm;
+import "scope";
 import "target";
 import "ptrvec";
 import "codegen";
+import "llvm-bindings" as llvm;
 
 extern def link_obj_file(obj_name: string, exe_name: string): i32;
 
@@ -30,7 +31,7 @@ type CompilationData struct {
     mods: *mod.Map,
     main_func: *ty.Type,
     proj_root: path.Path,
-    global_types: map.Map, // map.Map<ident.Ident, *ty.Type>
+    global_types: scope.Scope,
     config: *opt.Config,
     std_dir: string
 }

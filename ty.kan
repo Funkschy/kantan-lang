@@ -8,6 +8,7 @@ import "span";
 import "name";
 import "scope";
 import "ident";
+import "symbol";
 import "ptrvec";
 
 extern def type2str(kind: Kind): string;
@@ -194,7 +195,7 @@ def bind_method(t: *Type, name: ident.Ident, method: *Type) {
     dbg.assert(is_func(method), "Trying to bind non func type as method");
 
     let value_scope = get_value_scope(t);
-    scope.bind_in(value_scope, &name, method);
+    value_scope.bind_public_ident(&name, method);
 }
 
 def is_user_defined(t: *Type): bool {
@@ -238,7 +239,7 @@ def init_struct(
         super: UserDefinedType {
             name: name,
             mangled_name: mangled_name,
-            scope: scope.create(),
+            scope: scope.with_name(name.ref()),
             declared_in: declared_in
         },
         fields: vec.create(sizeof StructField)
@@ -256,7 +257,7 @@ def is_struct(t: *Type): bool {
 def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
     let field = StructField { name: name, ty: ty, offset: 0 };
     t.fields.push(&field as *void);
-    scope.bind_in(&t.super.scope, &name, ty);
+    t.super.scope.bind_public_ident(&name, ty);
 }
 
 def field_at(t: *Struct, i: i32): *StructField {
@@ -284,7 +285,7 @@ def field_idx(t: *Struct, name: ident.Ident, out_field_ty: **Type): i32 {
 }
 
 def update_field_ty(t: *Struct, field: *StructField): void {
-    scope.bind_in(&t.super.scope, &field.name, field.ty);
+    t.super.scope.bind_public_ident(&field.name, field.ty);
 }
 
 def num_fields(t: *Struct): i32 {
@@ -322,7 +323,7 @@ def init_enum(
         super: UserDefinedType {
             name: name,
             mangled_name: mangled_name,
-            scope: scope.create(),
+            scope: scope.with_name(name.ref()),
             declared_in: declared_in
         },
         base_ty: base_ty,
@@ -361,7 +362,7 @@ def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
 
     let field_type = t;
     // all enum values have the enum itself as their type
-    scope.bind_in(&e_ty.super.scope, &name, field_type);
+    e_ty.super.scope.bind_public_ident(&name, field_type);
     return false;
 }
 
@@ -539,10 +540,10 @@ type Mod struct {
     values: scope.Scope
 }
 
-def new_mod(): *Type {
+def new_mod(name: name.Ref): *Type {
     let m = new Mod {
-        types: scope.create(),
-        values: scope.create()
+        types: scope.with_name(name),
+        values: scope.with_name(name)
     };
 
     let t = new_type(Kind.Mod, m as *void);
@@ -684,30 +685,31 @@ def free_ty(t: *Type): void {
     delete t;
 }
 
-def lookup_value_in(t: *Type, name: *ident.Ident): *Type {
+def lookup_value_in(t: *Type, name: *ident.Ident): symbol.Data {
     if !is_value_scoped(t) {
-        return null;
+        return symbol.empty();
     }
 
     if is_enum(t) && ident.eq_lit(name, "len") {
-        return as_enum(t).base_ty;
+        let e_ty = as_enum(t);
+        return symbol.create_public(e_ty.base_ty).with_scope(&e_ty.super.scope);
     }
 
     let value_scope = get_value_scope(t);
     dbg.assert(value_scope != null, "null value scope on value_scoped type");
 
-    return scope.get_in(value_scope, name);
+    return value_scope.get_ident(name);
 }
 
-def lookup_type_in(t: *Type, name: *ident.Ident): *Type {
+def lookup_type_in(t: *Type, name: *ident.Ident): symbol.Data {
     if !is_type_scoped(t) {
-        return null;
+        return symbol.empty();
     }
 
     let type_scope = get_type_scope(t);
     dbg.assert(type_scope != null, "null type scope on type_scoped type");
 
-    return scope.get_in(type_scope, name);
+    return type_scope.get_ident(name);
 }
 
 // looks for an ident in types with FLAG_VALUE_SCOPED

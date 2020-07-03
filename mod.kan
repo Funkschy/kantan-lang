@@ -9,6 +9,7 @@ import "name";
 import "error";
 import "ident";
 import "scope";
+import "symbol";
 import "source";
 import "ptrvec";
 
@@ -47,12 +48,12 @@ def is_std_lib(m: *Module): bool {
     return m.source.is_std_lib;
 }
 
-def s_lookup_type(m: *Module, key_len: i32, key: string): *ty.Type {
-    return scope.s_get_in(ty.get_type_scope(m.ty), key_len, key);
+def (m: *Module) lookup_type(key_len: i32, key: string): symbol.Data {
+    return ty.get_type_scope(m.ty).get(key_len, key);
 }
 
-def s_lookup_value(m: *Module, key_len: i32, key: string): *ty.Type {
-    return scope.s_get_in(ty.get_value_scope(m.ty), key_len, key);
+def (m: *Module) lookup_value(key_len: i32, key: string): symbol.Data {
+    return ty.get_value_scope(m.ty).get(key_len, key);
 }
 
 def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {

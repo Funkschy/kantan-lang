@@ -33,6 +33,15 @@ def create(start: string, end: string): Span {
     return Span { start: start, end: end };
 }
 
+// deprecated
 def len(span: Span): i32 {
     return span.end - span.start;
+}
+
+def (s: Span) len(): i32 {
+    return s.end - s.start;
+}
+
+def (s: Span) merge(other: Span): Span {
+    return merge(s, other);
 }

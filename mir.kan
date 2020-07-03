@@ -16,7 +16,7 @@ extern def mir_binary2str(kind: BinaryKind): string;
 extern def mir_unary2str(kind: UnaryKind): string;
 
 type Module struct {
-    globals: map.Map, // map.Map<name.Ref, *GlobalConst>
+    globals: map.Map, // map.Map<name.Ref, *GlobalVar>
     functions: map.Map, // map.Map<name.Ref, *Func>
     user_defined_types: map.Map, // map.Map<name.Ref, *UserDefinedType>
     scopes: vec.Vec, // vec.Vec<Scope>
@@ -63,9 +63,9 @@ def free_mod(m: *Module): void {
     let g_iter = map.iter(&m.globals);
     let item = map.iter_next(&g_iter);
     while item != null {
-        let gc = item.value as *GlobalConst;
-        free_global_const(gc);
-        delete gc;
+        let gv = item.value as *GlobalVar;
+        gv.free();
+        delete gv;
 
         item = map.iter_next(&g_iter);
     }
@@ -132,7 +132,7 @@ def dump_module(m: *Module): void {
     let g_iter = map.iter(&m.globals);
     let item = map.iter_next(&g_iter);
     while item != null {
-        let g = item.value as *GlobalConst;
+        let g = item.value as *GlobalVar;
 
         let ty_s: string = null;
         let free_ty_s = ty.to_string(g.ty, &ty_s);
@@ -140,7 +140,7 @@ def dump_module(m: *Module): void {
         let quote = "";
         let quote_len = 0;
 
-        if ty.is_string(g.ty) {
+        if ty.is_string(g.ty) && !g.value.is_name {
             let c = '"';
             quote = &c as string;
             quote_len = 1;
@@ -148,7 +148,7 @@ def dump_module(m: *Module): void {
 
         io.printf(
             "%.*s: %s = %.*s%.*s%.*s\n",
-            g.name.len, g.name.data,
+            g.mangled_name.len, g.mangled_name.data,
             ty_s,
             quote_len, quote,
             g.value.len, g.value.data,
@@ -250,20 +250,50 @@ def create_meta(pos: source.SourcePos, scope: Scope): MetaData {
     return MetaData { pos: pos, scope: scope };
 }
 
-type GlobalConst struct {
-    name: name.Owned,
-    meta: MetaData,
-    ty: *ty.Type,
-    value: name.Owned // not really a name...
+type ValueBuffer struct {
+    is_name: bool, // is this just a reference to another global variable
+    len: i32,
+    data: *void
 }
 
-def create_const(
+def buffer_from_name(n: name.Owned, is_name: bool): ValueBuffer {
+    return ValueBuffer { is_name: is_name, len: n.len, data: n.data as *void };
+}
+
+def (buf: *ValueBuffer) as_ref(): name.Ref {
+    return name.make_ref(buf.len, buf.data as string);
+}
+
+def (buf: *ValueBuffer) free() {
+    delete buf.data;
+}
+
+type GlobalVar struct {
+    original_name: ident.Ident,
     mangled_name: name.Owned,
     meta: MetaData,
     ty: *ty.Type,
-    s: span.Span
-): GlobalConst {
-    let value = name.make_copied(span.len(s), s.start);
+    value: ValueBuffer
+}
+
+def create_global_var(
+    original_name: ident.Ident,
+    mangled_name: name.Owned,
+    meta: MetaData,
+    ty: *ty.Type,
+    value: ValueBuffer
+): GlobalVar {
+    return GlobalVar {
+        original_name: original_name,
+        mangled_name: mangled_name,
+        meta: meta,
+        ty: ty,
+        value: value
+    };
+}
+
+def escape_string(start: string, end: string): name.Owned {
+    let value = name.make_copied(end - start, start);
     let actual_len = value.len;
 
     let backslash = 92;
@@ -272,14 +302,15 @@ def create_const(
     let out_pos = 0;
     let in_pos = 0;
 
-    while in_pos < span.len(s) {
-        let c = *(s.start + in_pos);
+    let n = end - start;
+    while in_pos < n {
+        let c = *(start + in_pos);
         let inc = 1;
 
         if std.char_to_int(c) == backslash {
             // \x are 2 chars, but we replace it with 1 escaped byte
             actual_len = actual_len - 1;
-            let next = *(s.start + in_pos + 1);
+            let next = *(start + in_pos + 1);
 
             if next == '0' {
                 c = std.int_to_char(0);
@@ -307,22 +338,31 @@ def create_const(
     }
 
     value.len = actual_len;
+    return value;
+}
 
-    return GlobalConst {
+def create_string_literal(
+    mangled_name: name.Owned,
+    meta: MetaData,
+    t: *ty.Type,
+    s: span.Span
+): GlobalVar {
+    dbg.assert(ty.is_string(t), "trying to create_const_string for non string");
+
+    let value = escape_string(s.start, s.end);
+
+    return GlobalVar {
+        original_name: ident.empty(),
         name: mangled_name,
         meta: meta,
-        ty: ty,
-        value: value
+        ty: t,
+        value: buffer_from_name(value, false)
     };
 }
 
-def free_global_const(gc: *GlobalConst): void {
-    name.free_owned(&gc.name);
-    name.free_owned(&gc.value);
-}
-
-def const_name(c: *GlobalConst): name.Ref {
-    return name.ref(c.name);
+def (gc: *GlobalVar) free() {
+    name.free_owned(&gc.mangled_name);
+    gc.value.free();
 }
 
 type InstBlock struct {

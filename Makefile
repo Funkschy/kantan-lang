@@ -30,6 +30,7 @@ K_FILES = ast.kan \
 		  span.kan \
 		  std.kan \
 		  str.kan \
+		  symbol.kan \
 		  target.kan \
 		  transform.kan \
 		  ty.kan \

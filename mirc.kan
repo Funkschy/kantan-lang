@@ -13,6 +13,7 @@ import "name";
 import "path";
 import "scope";
 import "ident";
+import "scope";
 import "source";
 
 type CharacterLiterals struct {
@@ -30,7 +31,7 @@ type CompilationData struct {
     config: *opt.Config,
     mods: *mod.Map,
     proj_root: path.Path,
-    global_types: map.Map, // map.Map<ident.Ident, *ty.Type>
+    global_types: scope.Scope,
     char_lits: CharacterLiterals
 }
 
@@ -42,7 +43,8 @@ type MirCompiler struct {
     names: nt.NameTable,
     functions: map.Map, // map.Map<name.Ref, *mir.Func>
     user_defined_types: map.Map, // map.Map<name.Ref, *mir.UserDefinedType>
-    globals: map.Map, // map.Map<name.Ref, *mir.GlobalConst>
+    globals: map.Map, // map.Map<name.Ref, *mir.GlobalVar>
+    global_names: map.Map, // map.Map<ident.Ident, *mir.GlobalVar>
     current_func: *mir.Func,
     scopes: vec.Vec,
     current_scope: i32
@@ -57,6 +59,7 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
         functions: map.create(),
         user_defined_types: map.create(),
         globals: map.create(),
+        global_names: map.create(),
         current_func: null,
         scopes: vec.create(sizeof mir.Scope),
         current_scope: -1
@@ -65,6 +68,7 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
 
 def free_compiler(c: *MirCompiler): void {
     nt.free_nt(&c.names);
+    map.free_m(&c.global_names);
 }
 
 def compile(c: *MirCompiler): mir.Module {
@@ -165,8 +169,7 @@ def close_scope(c: *MirCompiler) {
 }
 
 def lookup_global_type(c: *MirCompiler, len: i32, name: string): *ty.Type {
-    let key = map.create_key(len, name);
-    return map.get(&c.data.global_types, key) as *ty.Type;
+    return c.data.global_types.get(len, name).sym.ty;
 }
 
 def lookup_or_declare_type(c: *MirCompiler, t: *ty.Type): *mir.UserDefinedType {
@@ -340,6 +343,13 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let ty = let_stmt.value.ty;
         declare_type(c, ty);
 
+        // TODO(#73): implement logic for global variables
+        // global variable
+        if c.current_func == null {
+            c.global_variable(let_stmt.ident, let_stmt.value);
+            return;
+        }
+
         let a = mir.create_addr_empty();
         let mir_expr = mir.empty_expr();
 
@@ -350,17 +360,9 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         }
 
         let name = bind_ident(c, &let_stmt.ident);
-
-        // TODO(#73): implement logic for global variables
-        if c.current_func != null {
-            let meta = get_meta(c, let_stmt.ident.span);
-            push_decl(c, name, ty, meta);
-        } else {
-            mir.free_expr(&mir_expr);
-            return;
-        }
-
         let meta = get_meta(c, let_stmt.ident.span);
+
+        push_decl(c, name, ty, meta);
         let target = mir.make_addr_name(name, ty);
         push_assign_decl(c, target, mir_expr, meta, let_stmt.ident);
 
@@ -597,6 +599,10 @@ def bind_ident(c: *MirCompiler, i: *ident.Ident): name.Ref {
 
 def bind_s(c: *MirCompiler, len: i32, s: string): name.Ref {
     return nt.bind(&c.names, name.make_ref(len, s));
+}
+
+def (c: *MirCompiler) bind(name: name.Ref): name.Ref {
+    return nt.bind(&c.names, name);
 }
 
 def mod_at(c: *MirCompiler, i: i32): *mod.Module {
@@ -994,6 +1000,13 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
             }
         }
 
+        let key = map.create_key(id.len(), id.start());
+        let global = map.get(&c.global_names, key) as *mir.GlobalVar;
+        if global != null {
+            *out = mir.make_addr_global(global.mangled_name.ref(), e.ty);
+            return true;
+        }
+
         dbg.assert_fmt(false, "undefined: %.*s", ref_name.len, ref_name.data);
     }
 
@@ -1065,23 +1078,48 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
 }
 
 def string_lit(c: *MirCompiler, e: *ast.Expr): name.Ref {
-    return add_global(c, e.span, e.ty);
-}
-
-def add_global(c: *MirCompiler, span: span.Span, ty: *ty.Type): name.Ref {
-    let meta = get_meta(c, span);
-
     let idx = c.globals.len;
     let s_len = 0;
     let s = std.l_format_str(&s_len, "_g%d", idx);
     let mangled_name = s_mangle(c, s_len, s);
 
-    let key = map.create_key(mangled_name.len, mangled_name.data);
-    let const = new mir.create_const(mangled_name, meta, ty, span);
-    map.insert(&c.globals, key, const as *void);
-
+    let meta = get_meta(c, e.span);
+    let lit = new mir.create_string_literal(mangled_name, meta, e.ty, e.span);
+    c.add_global(lit);
     delete s;
-    return name.make_ref(mangled_name.len, mangled_name.data);
+
+    return mangled_name.ref();
+}
+
+def (c: *MirCompiler) eval_expr(e: *ast.Expr): mir.ValueBuffer {
+    // TODO: this should be a real vm
+    if ast.is_string_expr(e) {
+        let lit_name = string_lit(c, e);
+        return mir.buffer_from_name(lit_name.clone(), true);
+    }
+
+    dbg.assert(false, "invalid expression for compile time evaluation");
+    return undefined;
+}
+
+def (c: *MirCompiler) global_variable(n: ident.Ident, init: *ast.Expr): name.Ref {
+    let mangled_name = c.mangle_ident(n);
+
+    let meta = get_meta(c, n.span.merge(init.span));
+    let value = c.eval_expr(init);
+
+    let global = new mir.create_global_var(n, mangled_name, meta, init.ty, value);
+    c.add_global(global);
+
+    return mangled_name.ref();
+}
+
+def (c: *MirCompiler) add_global(global: *mir.GlobalVar) {
+    let key = map.create_key(global.mangled_name.len, global.mangled_name.data);
+    map.insert(&c.globals, key, global as *void);
+
+    key = map.create_key(global.original_name.len(), global.original_name.start());
+    map.insert(&c.global_names, key, global as *void);
 }
 
 def label(c: *MirCompiler): mir.Label {
@@ -1097,6 +1135,10 @@ def label(c: *MirCompiler): mir.Label {
 
 def s_mangle(c: *MirCompiler, len: i32, s: string): name.Owned {
     return name.s_mangle(c.data.proj_root, len, s, c.mod);
+}
+
+def (c: *MirCompiler) mangle_ident(id: ident.Ident): name.Owned {
+    return name.mangle_ident(c.data.proj_root, &id, c.mod);
 }
 
 def name_from_ident(i: *ident.Ident): name.Ref {

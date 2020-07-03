@@ -190,7 +190,7 @@ static char const *const error_texts[] = {
     "Expected 1 receiver for Method, but got %d",
     // type errors
     "Duplicate definition of '%.*s'",
-    "No %s called '%.*s' in scope",
+    "No %s called '%.*s' in %.*s",
     "Type '%s' cannot be accessed with '%s' operator",
     "Incomplete type '%.*s'",
     "Invalid operator for types '%s' and '%s'",
@@ -224,6 +224,8 @@ static char const *const error_texts[] = {
     "Cannot take method pointer from instance. Use '&%s' instead",
     "Cannot take the address of a type",
     "Illegal expression for unary operand",
+    "Expression cannot be evaluated at compile time",
+    "Trying to access private symbol '%.*s' from '%.*s'",
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

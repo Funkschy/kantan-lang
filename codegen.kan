@@ -138,13 +138,33 @@ def add_forward_declarations(c: *ModuleCompiler): void {
     }
 
     // add globals
+
+    // global variables, which reference other globals
+    let ref_globals = ptrvec.with_cap(c.irmod.globals.len);
+
     let g_iter = map.iter(&c.irmod.globals);
     let item = map.iter_next(&g_iter);
     while item != null {
-        let gc = item.value as *mir.GlobalConst;
-        add_global_const(c, gc);
+        let var = item.value as *mir.GlobalVar;
+
+        if var.value.is_name {
+            ref_globals.push_ptr(item.value);
+        } else {
+            let storage = c.add_global(var);
+            c.init_global(var, storage);
+        }
+
         item = map.iter_next(&g_iter);
     }
+
+    // TODO: keep global order
+    // globals, which reference other globals have to be initialized after the others
+    for let i = 0; i < ref_globals.len; i += 1 {
+        let var = ref_globals.get(i) as *mir.GlobalVar;
+        let storage = c.add_global(var);
+        c.init_global(var, storage);
+    }
+    ref_globals.free();
 
     // add function declarations
     let f_iter = map.iter(&c.irmod.functions);
@@ -156,27 +176,59 @@ def add_forward_declarations(c: *ModuleCompiler): void {
     }
 }
 
-def add_global_const(c: *ModuleCompiler, gc: *mir.GlobalConst): void {
-    dbg.assert(ty.is_string(gc.ty), "we currently only support string literals");
-    let len = gc.value.len + 1; // 1 for null terminator
-    let ty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
+type ValueTuple struct {
+    first: *llvm.Value,
+    second: *llvm.Value
+}
 
-    let global_storage = llvm.add_global(c.context.llmod, ty, gc.name.data);
-    llvm.set_global_constant(global_storage, true);
+def (c: *ModuleCompiler) add_global(global: *mir.GlobalVar): *llvm.Value {
+    dbg.assert(ty.is_string(global.ty), "we currently only support string literals");
+
+    let ty: *llvm.Type = null;
+    if global.value.is_name {
+        ty = translate_type(c, global.ty);
+    } else {
+        let len = global.value.len + 1; // 1 for null terminator
+        ty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
+    }
+
+    let storage = llvm.add_global(c.context.llmod, ty, global.mangled_name.data);
     let private_linkage = 15;
-    llvm.set_linkage(global_storage, private_linkage);
-    // Address of the string is globally insignificant
-    let global_unnamed_address = 2;
-    llvm.set_unnamed_address(global_storage, global_unnamed_address);
+    llvm.set_linkage(storage, private_linkage);
 
-    let null_terminate = true;
-    let const_string = llvm.const_string_in_context(
-        c.context.ctx,
-        gc.value.data,
-        gc.value.len,
-        !null_terminate
-    );
-    llvm.set_initializer(global_storage, const_string);
+    return storage;
+}
+
+def (c: *ModuleCompiler) init_global(ir: *mir.GlobalVar, storage: *llvm.Value) {
+    let value: *llvm.Value = null;
+
+    if ir.value.is_name {
+        value = c.get_global(ir.value.as_ref(), true);
+    } else {
+        // Address of the string is globally insignificant
+        let global_unnamed_address = 2;
+        llvm.set_unnamed_address(storage, global_unnamed_address);
+        llvm.set_global_constant(storage, true);
+        value = c.create_global_value(ir);
+    }
+
+    llvm.set_initializer(storage, value);
+}
+
+def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Value {
+    if ty.is_string(global.ty) {
+        let null_terminate = true;
+        let const_string = llvm.const_string_in_context(
+            c.context.ctx,
+            global.value.data as string,
+            global.value.len,
+            !null_terminate
+        );
+        return const_string;
+    }
+
+    dbg.assert(false, "non string global");
+    return null;
 }
 
 def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): LLVMFunction {
@@ -322,7 +374,7 @@ def translate_addr(
 ): *llvm.Value {
     return translate_addr_load(c, curr_func, a, true);
 }
-
+import "io";
 def translate_addr_load(
     c: *ModuleCompiler,
     curr_func: *FunctionData,
@@ -362,11 +414,7 @@ def translate_addr_load(
 
     if mir.is_addr_global(a) {
         let name = mir.as_addr_global(a).name;
-        let global = llvm.get_named_global(c.context.llmod, name.data);
-
-        let gep = llvm.build_gep(c.builder, global, null, 0, "");
-        let ty = translate_type(c, a.ty);
-        return llvm.build_pointer_cast(c.builder, gep, ty, "");
+        return c.get_global(name, load);
     }
 
     if mir.is_addr_arg(a) {
@@ -384,6 +432,30 @@ def translate_addr_load(
 
     dbg.assert_fmt(false, "invalid address kind %d", a.kind);
     return null;
+}
+
+def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
+    let global = llvm.get_named_global(c.context.llmod, name.data);
+
+    let num_indices = 1;
+    if load {
+        let key = map.create_key(name.len, name.data);
+        let mir_global = map.get(&c.irmod.globals, key) as *mir.GlobalVar;
+        if mir_global.value.is_name {
+            return llvm.build_load(c.builder, global, "");
+        }
+
+        num_indices = 2;
+    }
+
+    let int_ty = llvm.int32_type_in_context(c.context.ctx);
+    let tuple = ValueTuple {
+        first: llvm.const_int(int_ty, 0, false),
+        second: llvm.const_int(int_ty, 0, false)
+    };
+    let indices = &tuple as **llvm.Value;
+
+    return llvm.build_in_bounds_gep(c.builder, global, indices, num_indices, "");
 }
 
 def translate_literal(
@@ -516,6 +588,10 @@ def lookup(c: *ModuleCompiler, f: *FunctionData, var_name: name.Ref): *llvm.Valu
         if func != null {
             value = func.val;
         }
+    }
+
+    if value == null {
+        return llvm.get_named_global(c.context.llmod, var_name.data);
     }
 
     return value;
@@ -1045,6 +1121,7 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
     };
 }
 
+// TODO: this seems to be completely broken for some reason
 def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     dbg.assert(c.dbg != null, "called dbg_translate_type in non-debug mode");
 

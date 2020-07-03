@@ -1,0 +1,12 @@
+import "io";
+import "other" as o;
+
+let x = "global";
+
+def main() {
+    let y = x;
+    x = "still global";
+    io.printf("%s %s\n", x, o.get_x());
+    o.set_x("not other.kan");
+    io.printf("%s %s\n", x, o.get_x());
+}

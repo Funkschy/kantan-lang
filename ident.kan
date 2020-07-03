@@ -1,6 +1,7 @@
 import "span";
 import "std";
 import "lexer";
+import "name";
 
 type Ident struct {
     span: span.Span
@@ -28,6 +29,18 @@ def start(i: *Ident): string {
 
 def len(i: *Ident): i32 {
     return span.len(i.span);
+}
+
+def (i: *Ident) start(): string {
+    return i.span.start;
+}
+
+def (i: *Ident) len(): i32 {
+    return span.len(i.span);
+}
+
+def (i: Ident) ref(): name.Ref {
+    return name.make_ref(i.len(), i.start());
 }
 
 def char_at(i: *Ident, pos: i32): char {
