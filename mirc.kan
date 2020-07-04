@@ -1095,7 +1095,12 @@ def (c: *MirCompiler) eval_expr(e: *ast.Expr): mir.ValueBuffer {
     // TODO: this should be a real vm
     if ast.is_string_expr(e) {
         let lit_name = string_lit(c, e);
-        return mir.buffer_from_name(lit_name.clone(), true);
+        return mir.buffer_from_ref(lit_name, true, false);
+    }
+
+    if ast.is_int_expr(e) {
+        let lit_int = name.make_ref(e.span.len(), e.span.start);
+        return mir.buffer_from_ref(lit_int, false, false);
     }
 
     dbg.assert(false, "invalid expression for compile time evaluation");

@@ -2,6 +2,7 @@ import "io";
 import "other" as o;
 
 let x = "global";
+let i = 5;
 
 def main() {
     let y = x;
@@ -9,4 +10,6 @@ def main() {
     io.printf("%s %s\n", x, o.get_x());
     o.set_x("not other.kan");
     io.printf("%s %s\n", x, o.get_x());
+    i += 2;
+    io.printf("%d\n", i);
 }

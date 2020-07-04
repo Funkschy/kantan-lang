@@ -182,17 +182,17 @@ type ValueTuple struct {
 }
 
 def (c: *ModuleCompiler) add_global(global: *mir.GlobalVar): *llvm.Value {
-    dbg.assert(ty.is_string(global.ty), "we currently only support string literals");
-
-    let ty: *llvm.Type = null;
+    let llty: *llvm.Type = null;
     if global.value.is_name {
-        ty = translate_type(c, global.ty);
-    } else {
+        llty = translate_type(c, global.ty);
+    } else if ty.is_string(global.ty) {
         let len = global.value.len + 1; // 1 for null terminator
-        ty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
+        llty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
+    } else {
+        llty = translate_type(c, global.ty);
     }
 
-    let storage = llvm.add_global(c.context.llmod, ty, global.mangled_name.data);
+    let storage = llvm.add_global(c.context.llmod, llty, global.mangled_name.data);
     let private_linkage = 15;
     llvm.set_linkage(storage, private_linkage);
 
@@ -205,10 +205,10 @@ def (c: *ModuleCompiler) init_global(ir: *mir.GlobalVar, storage: *llvm.Value) {
     if ir.value.is_name {
         value = c.get_global(ir.value.as_ref(), true);
     } else {
-        // Address of the string is globally insignificant
+        // Address of the global is globally insignificant
         let global_unnamed_address = 2;
         llvm.set_unnamed_address(storage, global_unnamed_address);
-        llvm.set_global_constant(storage, true);
+        llvm.set_global_constant(storage, ir.value.is_const);
         value = c.create_global_value(ir);
     }
 
@@ -218,16 +218,22 @@ def (c: *ModuleCompiler) init_global(ir: *mir.GlobalVar, storage: *llvm.Value) {
 def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Value {
     if ty.is_string(global.ty) {
         let null_terminate = true;
-        let const_string = llvm.const_string_in_context(
+        return llvm.const_string_in_context(
             c.context.ctx,
             global.value.data as string,
             global.value.len,
             !null_terminate
         );
-        return const_string;
     }
 
-    dbg.assert(false, "non string global");
+    if ty.is_integer(global.ty) {
+        let llty = translate_type(c, global.ty);
+        return llvm.const_int_of_string_and_size(
+            llty, global.value.data as string, global.value.len, 10
+        );
+    }
+
+    dbg.assert(false, "invalid global type");
     return null;
 }
 
@@ -436,16 +442,21 @@ def translate_addr_load(
 
 def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
     let global = llvm.get_named_global(c.context.llmod, name.data);
+    let key = map.create_key(name.len, name.data);
+    let mir_global = map.get(&c.irmod.globals, key) as *mir.GlobalVar;
 
     let num_indices = 1;
     if load {
-        let key = map.create_key(name.len, name.data);
-        let mir_global = map.get(&c.irmod.globals, key) as *mir.GlobalVar;
-        if mir_global.value.is_name {
+        if mir_global.value.is_name || !ty.is_ptr(mir_global.ty) {
             return llvm.build_load(c.builder, global, "");
         }
 
+        // deref twice
         num_indices = 2;
+    }
+
+    if !ty.is_ptr(mir_global.ty) {
+        return global;
     }
 
     let int_ty = llvm.int32_type_in_context(c.context.ctx);

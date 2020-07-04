@@ -1570,7 +1570,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
                 return null;
             }
 
-            value = check_expr_expect(tc, l_s.value, expected_ty);
+            value = check_expr_expect(tc, l_s.value, expected_ty, null);
         } else {
             value = check_expr(tc, l_s.value);
         }
@@ -1608,7 +1608,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         if is_global {
             // we currently have strong constraints for global vars
             // this will change when compile time code evaluation is introduced
-            if !ty.is_string(value.ty) {
+            if !(ast.is_string_expr(value) || ast.is_int_expr(value)) {
                 push_non_const_expr_error(tc, value.span);
                 return null;
             }
@@ -1829,7 +1829,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return s;
         }
 
-        let expr = check_expr_expect(tc, r_s.expr, tc.ctx.current_func.ret);
+        let expr = check_expr_expect(tc, r_s.expr, tc.ctx.current_func.ret, null);
         if expr == null {
             return null;
         }
@@ -1960,19 +1960,11 @@ def (d: *LookupData) is_type_accessible(t: *ty.Type): bool {
 }
 
 def check_expr(tc: *TypeChecker, e: *ast.Expr): *ast.Expr {
-    return check_expr_data(tc, e, null);
-}
-
-def check_expr_expect(tc: *TypeChecker, e: *ast.Expr, expected: *ty.Type): *ast.Expr {
-    return check_expr_scope_expect(tc, e, expected, null);
-}
-
-def check_expr_data(tc: *TypeChecker, e: *ast.Expr, data: *LookupData): *ast.Expr {
-    return check_expr_scope_expect(tc, e, null, data);
+    return check_expr_expect(tc, e, null, null);
 }
 
 // if data == null, LookupKind.Values is assumed
-def check_expr_scope_expect(
+def check_expr_expect(
     tc: *TypeChecker,
     e: *ast.Expr,
     expected: *ty.Type,
@@ -2055,7 +2047,7 @@ def check_expr_scope_expect(
     if ast.is_access_expr(e) {
         let a_e = ast.as_access_expr(e);
 
-        let left = check_expr_data(tc, a_e.left, data);
+        let left = check_expr_expect(tc, a_e.left, expected, data);
         if left == null {
             return null;
         }
@@ -2099,12 +2091,12 @@ def check_expr_scope_expect(
         if ast.is_null_expr(b_e.left) {
             right = check_expr(tc, b_e.right);
             if right != null {
-                left = check_expr_expect(tc, b_e.left, right.ty);
+                left = check_expr_expect(tc, b_e.left, right.ty, data);
             }
         } else {
             left = check_expr(tc, b_e.left);
             if left != null {
-                right = check_expr_expect(tc, b_e.right, left.ty);
+                right = check_expr_expect(tc, b_e.right, left.ty, data);
             }
         }
 
@@ -2140,7 +2132,7 @@ def check_expr_scope_expect(
             return null;
         }
 
-        let right = check_expr_expect(tc, a_e.right, left.ty);
+        let right = check_expr_expect(tc, a_e.right, left.ty, data);
         if right == null {
             return null;
         }
@@ -2181,7 +2173,7 @@ def check_expr_scope_expect(
         let lookup_data = data.copy();
         lookup_data.kind = LookupKind.Both; // needed for method pointers
 
-        let expr = check_expr_data(tc, u_e.right, &lookup_data);
+        let expr = check_expr_expect(tc, u_e.right, expected, &lookup_data);
         if expr == null {
             return null;
         }
@@ -2242,7 +2234,7 @@ def check_expr_scope_expect(
             return null;
         }
 
-        let expr = check_expr_expect(tc, a_e.expr, dest_ty);
+        let expr = check_expr_expect(tc, a_e.expr, dest_ty, data);
         if expr == null {
             return null;
         }
@@ -2279,7 +2271,7 @@ def check_expr_scope_expect(
             let access = ast.as_access_expr(callee);
             let recv_expr = access.left; // receiver should be lhs of the callee access
 
-            let checked_recv = check_expr_expect(tc, recv_expr, func.receiver.ty);
+            let checked_recv = check_expr_expect(tc, recv_expr, func.receiver.ty, data);
             if checked_recv == null {
                 return null;
             }
@@ -2320,7 +2312,7 @@ def check_expr_scope_expect(
             if !func.is_varargs {
                 let param = ty.param_at(func, i);
 
-                let checked_arg = check_expr_expect(tc, arg, param.ty);
+                let checked_arg = check_expr_expect(tc, arg, param.ty, null);
                 if checked_arg == null {
                     return null;
                 }
@@ -2352,7 +2344,7 @@ def check_expr_scope_expect(
     if ast.is_init_expr(e) {
         let i_e = ast.as_init_expr(e);
         let data = create_lookup_data(LookupKind.Types, null);
-        let left = check_expr_data(tc, i_e.struct_ty, &data);
+        let left = check_expr_expect(tc, i_e.struct_ty, expected, &data);
         if left == null {
             return null;
         }
@@ -2379,7 +2371,7 @@ def check_expr_scope_expect(
             let param = ty.field_at(struct_ty, i);
             let arg = ast.init_expr_at(inits, i);
 
-            let checked_arg = check_expr_expect(tc, arg, param.ty);
+            let checked_arg = check_expr_expect(tc, arg, param.ty, null);
             if checked_arg == null {
                 return null;
             }

@@ -252,12 +252,30 @@ def create_meta(pos: source.SourcePos, scope: Scope): MetaData {
 
 type ValueBuffer struct {
     is_name: bool, // is this just a reference to another global variable
+    needs_free: bool,
+    is_const: bool,
     len: i32,
     data: *void
 }
 
-def buffer_from_name(n: name.Owned, is_name: bool): ValueBuffer {
-    return ValueBuffer { is_name: is_name, len: n.len, data: n.data as *void };
+def buffer_from_owned(n: name.Owned, is_name: bool, is_const: bool): ValueBuffer {
+    return ValueBuffer {
+        is_name: is_name,
+        needs_free: true,
+        is_const: is_const,
+        len: n.len,
+        data: n.data as *void
+    };
+}
+
+def buffer_from_ref(n: name.Ref, is_name: bool, is_const: bool): ValueBuffer {
+    return ValueBuffer {
+        is_name: is_name,
+        needs_free: false,
+        is_const: is_const,
+        len: n.len,
+        data: n.data as *void
+    };
 }
 
 def (buf: *ValueBuffer) as_ref(): name.Ref {
@@ -265,7 +283,9 @@ def (buf: *ValueBuffer) as_ref(): name.Ref {
 }
 
 def (buf: *ValueBuffer) free() {
-    delete buf.data;
+    if buf.needs_free {
+        delete buf.data;
+    }
 }
 
 type GlobalVar struct {
@@ -356,7 +376,7 @@ def create_string_literal(
         name: mangled_name,
         meta: meta,
         ty: t,
-        value: buffer_from_name(value, false)
+        value: buffer_from_owned(value, false, true)
     };
 }
 

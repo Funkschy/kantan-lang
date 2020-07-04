@@ -66,6 +66,7 @@ whitelist = set([
     'LLVMBuildSub',
     'LLVMConstInt',
     'LLVMConstIntOfString',
+    'LLVMConstIntOfStringAndSize',
     'LLVMConstNull',
     'LLVMConstRealOfString',
     'LLVMConstStringInContext',
