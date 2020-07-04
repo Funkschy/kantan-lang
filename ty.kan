@@ -18,10 +18,6 @@ type Kind enum {
     Error, Ptr, Bool, I32, F32, I64, Char, Void, Func, Mod, Struct, Enum
 }
 
-// TODO(#15): this should be imported, but can't because of circular dependencies
-//  for some reason, this works anyway
-//  import "mod";
-
 #define WIDTH_UNKNOWN -1
 
 // These flags have to be powers of 2
