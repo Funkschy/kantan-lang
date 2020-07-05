@@ -45,7 +45,7 @@ START_FOLDER = $(shell pwd)
 NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))
 C_OBJ_FILES = $(C_SRC_FILES:.c=.c.o)
 
-LLVM_PATH = $(HOME)/Downloads/llvm/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04
+LLVM_PATH = $(HOME)/Downloads/llvm/llvm-10.0.0.src/build
 LLVM_CONFIG = $(LLVM_PATH)/bin/llvm-config
 
 LLVM_LIB_NAMES = core target analysis support x86codegen linker passes
