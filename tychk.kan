@@ -2214,8 +2214,7 @@ def check_expr_expect(
             return null;
         }
 
-        // sizeof(void) is defined as 1
-        if !ty.is_sized(actual_ty) && !ty.is_void(actual_ty) {
+        if !ty.is_sized(actual_ty) {
             push_unsized_sizeof_error(tc, actual_ty, e.span);
             return null;
         }

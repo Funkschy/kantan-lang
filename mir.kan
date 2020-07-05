@@ -625,7 +625,8 @@ type AddrKind enum {
     ConstValue,
     Global,
     Ref,
-    Arg
+    Arg,
+    Intrinsic
 }
 
 type Address struct {
@@ -816,6 +817,29 @@ type ExprCall struct {
 def new_expr_call(callee: Address, args: vec.Vec, varargs: bool): Expression {
     let call = (new ExprCall { callee: callee, args: args, varargs: varargs });
     return create_expr(ExprKind.Call, call as *void);
+}
+
+type IntrinsicFunction enum {
+    MemSet
+}
+
+def (f: IntrinsicFunction) name(): name.Owned {
+    return name.make_copied(13, "kantan.memset");
+}
+
+def new_intrinsic_call(f: IntrinsicFunction, args: vec.Vec, varargs: bool): Expression {
+    let to_call = *(&f as *i32);
+    let callee = create_addr(AddrKind.Intrinsic, null, std.int_to_ptr(to_call), null);
+    return new_expr_call(callee, args, varargs);
+}
+
+def (call: *ExprCall) is_intrinsic(): bool {
+    return call.callee.kind == AddrKind.Intrinsic;
+}
+
+def (call: *ExprCall) get_intrinsic(): IntrinsicFunction {
+    let as_int = std.ptr_to_int(call.callee.data_hi);
+    return *(&as_int as *IntrinsicFunction);
 }
 
 def call_arg_at(call: *ExprCall, idx: i32): *Address {
@@ -1058,7 +1082,13 @@ def expr_to_name(e: *Expression): name.Owned {
             i = i + 1;
         }
 
-        let n = addr_to_name(&call.callee);
+        let n: name.Owned = undefined;
+        if call.is_intrinsic() {
+            n = call.get_intrinsic().name();
+        } else {
+            n = addr_to_name(&call.callee);
+        }
+
         let len = 0;
         let s = std.l_format_str(
             &len, "%.*s(%s)", n.len, n.data, buf.content

@@ -340,8 +340,8 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
     if ast.is_let_stmt(s) {
         let let_stmt = ast.as_let_stmt(s);
-        let ty = let_stmt.value.ty;
-        declare_type(c, ty);
+        let value_ty = let_stmt.value.ty;
+        declare_type(c, value_ty);
 
         // TODO(#73): implement logic for global variables
         // global variable
@@ -362,8 +362,28 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         let name = bind_ident(c, &let_stmt.ident);
         let meta = get_meta(c, let_stmt.ident.span);
 
-        push_decl(c, name, ty, meta);
-        let target = mir.make_addr_name(name, ty);
+        push_decl(c, name, value_ty, meta);
+        let target = mir.make_addr_name(name, value_ty);
+
+        if ty.is_struct(value_ty) {
+            // structs must be zero initialized
+            // TODO: this should use usize
+            let i64_ty = lookup_global_type(c, 3, "i64");
+            let char_ty = lookup_global_type(c, 4, "char");
+
+            let storage = mir.make_addr_ref(name, value_ty);
+            let value = mir.make_addr_const_value(char_ty, 0);
+            let width = mir.make_addr_const_value(i64_ty, value_ty.width);
+
+            let args = vec.with_cap(sizeof mir.Address, 3);
+            args.push(&storage as *void);
+            args.push(&value as *void);
+            args.push(&width as *void);
+
+            let memset = mir.new_intrinsic_call(mir.IntrinsicFunction.MemSet, args, false);
+            push_assign(c, mir.create_addr_empty(), memset, meta);
+        }
+
         push_assign_decl(c, target, mir_expr, meta, let_stmt.ident);
 
         return;
@@ -886,12 +906,6 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     if ast.is_sizeof_expr(e) {
         let so = ast.as_sizeof_expr(e);
         declare_type(c, so.actual_ty);
-        // TODO(#81): in theory, this should return a AddressConst with e.ty.width as
-        //  its value. But currently i don't really trust the width calculation
-        //  algorithm, so we still use ExprSizeOf, even though it should be
-        //  unnecessary (when this todo is removed, the entire mir.ExprSizeOf should
-        //  be removed as well)
-        //  PS: remember that sizeof(void) := 1
         return mir.new_expr_sizeof(so.actual_ty);
     }
 

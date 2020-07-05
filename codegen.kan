@@ -770,24 +770,13 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void
     dbg.assert_fmt(false, "invalid instruction kind %d", inst.kind);
 }
 
-def compile_struct_init_assign(
-    c: *ModuleCompiler,
-    func: *FunctionData,
-    inst: *mir.Inst
-): void {
+def compile_struct_init_assign(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst) {
     let assign = mir.as_inst_assign(inst);
     let init = mir.as_expr_struct_init(&assign.value);
 
     let dest_ty = translate_type(c, assign.dest.ty);
     let storage = translate_addr_load(c, func, &assign.dest, false);
     dbg.assert(storage != null, "null storage for struct init");
-
-    // I don't really know, if we actually want to do this
-    //
-    // let zero = llvm.const_int(llvm.int8_type_in_context(c.context.ctx), 0, false);
-    // let len = llvm.size_of(dest_ty);
-    // let align = llvm.get_alignment(storage);
-    // llvm.build_mem_set(c.builder, storage, zero, len, align);
 
     let i = 0;
     while i < init.args.len {
@@ -884,6 +873,7 @@ def compile_expr(
         return storage;
     }
 
+    // TODO: remove codegen for sizeof entirely, when we have a mir interpretation stage
     if mir.is_expr_sizeof(e) {
         let so = mir.as_expr_sizeof(e);
         let ty = translate_type(c, so.ty);
@@ -1044,8 +1034,6 @@ def compile_call(
     e: *mir.Expression
 ): *llvm.Value {
     let call = mir.as_expr_call(e);
-    let llvm_func = translate_addr(c, func, &call.callee);
-    dbg.assert(llvm_func != null, "llvm function not found");
 
     let num_args = call.args.len;
     let args = ptrvec.with_cap(num_args);
@@ -1069,9 +1057,29 @@ def compile_call(
     }
 
     let arg_values = args.elements as **llvm.Value;
-    let call = llvm.build_call(c.builder, llvm_func, arg_values, args.len, "");
+
+    let call_value: *llvm.Value = null;
+    if call.is_intrinsic() {
+        let intrinsic = call.get_intrinsic();
+        dbg.assert(intrinsic == mir.IntrinsicFunction.MemSet, "invalid intrinsic");
+        dbg.assert(num_args == 3, "memset expects 3 arguments");
+
+        call_value = llvm.build_mem_set(
+            c.builder,
+            args.get(0) as *llvm.Value,
+            args.get(1) as *llvm.Value,
+            args.get(2) as *llvm.Value,
+            0
+        );
+    } else {
+        let llvm_func = translate_addr(c, func, &call.callee);
+        dbg.assert(llvm_func != null, "llvm function not found");
+
+        call_value = llvm.build_call(c.builder, llvm_func, arg_values, args.len, "");
+    }
+
     args.free();
-    return call;
+    return call_value;
 }
 
 type DebugInfo struct {
