@@ -29,14 +29,14 @@ extern def stmt2str(kind: i32): string;
 #define REAL_PASS           0
 #define DECL_ONLY_PASS      1
 
-#define WAITING_TYPE        1
-#define WAITING_TYPE_PTR    2
-#define WAITING_FUNC_DEF    3
-
 #define OFFSET_RETURN_TYPE   -1
 #define OFFSET_RECEIVER_TYPE -2
 
 #define ERROR_TY "__error_ty__"
+
+type WaitingKind enum {
+    Type = 1, TypePtr, FuncDef
+}
 
 // Used as some kind of callback
 // When we resolve statements it may happen, that the statement uses type we
@@ -45,7 +45,7 @@ extern def stmt2str(kind: i32): string;
 // After a type has been resolved, tychk will check if there are pending requests
 // for this type and resolve them accordingly.
 type WaitingRequest struct {
-    kind: i32,
+    kind: WaitingKind,
     offset: i32, // e.g. index of field in Struct type
     to_fill: *ty.Type,
     to_fill_mod: *mod.Module,
@@ -55,7 +55,7 @@ type WaitingRequest struct {
 
 def create_waiting_request(
     tc: *TypeChecker,
-    kind: i32,
+    kind: WaitingKind,
     to_fill: *ty.Type,
     to_fill_mod: *mod.Module,
     waiting_for: ident.Ident,
@@ -814,17 +814,12 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
 
     let nf = record.num_fields(s_decl);
     s_ty.fields = vec.with_cap(sizeof ty.StructField, nf);
-    let i = 0;
-    while i < nf {
+    for let i = 0; i < nf; i += 1 {
         let f = record.empty_field();
         if !record.field_at(s_decl, i, &f) {
             push_internal_error(tc, s_decl.name.span, "could not get field");
             return;
         }
-
-        // let s = tyid.to_string(&f.ty);
-        // io.printf("DBG: field_ty %s\n", s);
-        // delete s;
 
         let mod: *mod.Module = null;
         let field_ty: *ty.Type = null;
@@ -868,8 +863,6 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
             ty.push_field(s_ty, f.ident, null);
             error = true;
         }
-
-        i = i + 1;
     }
 
     if !error && !waiting {
@@ -886,7 +879,7 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
 
 def wait_for_type(
     tc: *TypeChecker,
-    kind: i32,
+    kind: WaitingKind,
     waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
     waiting_for: ident.Ident,
     offset: i32,
@@ -914,7 +907,7 @@ def func_wait_for_type(
 ): void {
     wait_for_type(
         tc,
-        WAITING_FUNC_DEF,
+        WaitingKind.FuncDef,
         waiting_for_mod,
         waiting_for,
         offset,
@@ -931,10 +924,10 @@ def wait_for_struct_field(
     s_ty: *ty.Type
 ): void {
     let field_ty: *ty.Type = null;
-    let kind = WAITING_TYPE;
+    let kind = WaitingKind.Type;
 
     if tyid.is_ptr(&field.ty) {
-        kind = WAITING_TYPE_PTR;
+        kind = WaitingKind.TypePtr;
         field_ty = ty.new_ptr(field.ty.pointer_count, null);
         push_tmp_ty(tc, field_ty);
     }
@@ -998,7 +991,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
     let waiting_ty = req.to_fill;
     let waiting_mod = req.to_fill_mod;
 
-    if req.kind == WAITING_TYPE || req.kind == WAITING_TYPE_PTR {
+    if req.kind == WaitingKind.Type || req.kind == WaitingKind.TypePtr {
         let waiting_s_ty = ty.as_struct(waiting_ty);
         let waiting_ident = &waiting_s_ty.super.original_name;
 
@@ -1021,9 +1014,9 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
 
         let field = ty.field_at(waiting_s_ty, req.offset);
 
-        if req.kind == WAITING_TYPE {
+        if req.kind == WaitingKind.Type {
             field.ty = resolved_ty;
-        } else if req.kind == WAITING_TYPE_PTR {
+        } else if req.kind == WaitingKind.TypePtr {
             if !ty.is_ptr(field.ty) {
                 push_internal_error(tc, waiting_ident.span, "type is not a ptr");
                 return;
@@ -1045,7 +1038,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         return;
     }
 
-    if req.kind == WAITING_FUNC_DEF {
+    if req.kind == WaitingKind.FuncDef {
         let waiting_f_ty = ty.as_func(waiting_ty);
         let waiting_ident = &waiting_f_ty.name;
 
