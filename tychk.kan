@@ -738,44 +738,41 @@ def fill_func_def(
     let num_params = func.num_params(f_decl);
     let params = vec.with_cap(sizeof ty.Param, num_params);
 
-    let i = 0;
-    while i < num_params {
+    for let i = 0; i < num_params; i += 1 {
         let p = func.get_param_ptr(f_decl, i);
 
         // TODO(#37): handle varargs
-        if !func.is_varargs_param(p) {
-            let p_mod: *mod.Module = null;
-            let p_ty_name = p.ty.ident;
-            let p_ty: *ty.Type = null;
-
-            if checked_type_lookup(tc, &p_ty_name, &p_ty, &p_mod) == OK {
-                if p_ty == null && p_mod != null {
-                    func_wait_for_type(tc, p_mod, p_ty_name, i, t);
-                    waiting = true;
-                }
-
-                if tyid.is_ptr(&p.ty) {
-                    p_ty = ty.new_ptr(p.ty.pointer_count, p_ty);
-                    push_tmp_ty(tc, p_ty);
-                }
-
-                if p_ty != null {
-                    if !ty.is_sized(p_ty) {
-                        push_unsized_param_error(tc, p_ty, tyid.ident_span(&p.ty));
-                        error = true;
-                    }
-                }
-
-                let f_param = ty.create_param(p.name, p_ty);
-                params.push(&f_param as *void);
-            } else {
-                error = true;
-            }
-        } else {
+        if func.is_varargs_param(p) {
             f_ty.is_varargs = true;
+            continue;
         }
 
-        i = i + 1;
+        let p_mod: *mod.Module = null;
+        let p_ty_name = p.ty.ident;
+        let p_ty: *ty.Type = null;
+
+        if checked_type_lookup(tc, &p_ty_name, &p_ty, &p_mod) == ERROR {
+            error = true;
+            continue;
+        }
+
+        if p_ty == null && p_mod != null {
+            func_wait_for_type(tc, p_mod, p_ty_name, i, t);
+            waiting = true;
+        }
+
+        if tyid.is_ptr(&p.ty) {
+            p_ty = ty.new_ptr(p.ty.pointer_count, p_ty);
+            push_tmp_ty(tc, p_ty);
+        }
+
+        if p_ty != null && !ty.is_sized(p_ty) {
+            push_unsized_param_error(tc, p_ty, tyid.ident_span(&p.ty));
+            error = true;
+        }
+
+        let f_param = ty.create_param(p.name, p_ty);
+        params.push(&f_param as *void);
     }
 
     if !error {
@@ -838,45 +835,47 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
 
         let mod: *mod.Module = null;
         let field_ty: *ty.Type = null;
-        if checked_type_lookup(tc, &f.ty.ident, &field_ty, &mod) == OK {
-            // pointers are ok, because their size is known
-            let is_ptr = tyid.is_ptr(&f.ty);
-            if field_ty != null {
-                let is_struct = ty.is_struct(field_ty);
-
-                if ty.is_initialized(field_ty) {
-                    if is_ptr {
-                        field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
-                        push_tmp_ty(tc, field_ty);
-                    }
-
-                    if !ty.is_sized(field_ty) {
-                        push_unsized_field_error(tc, field_ty, f.ty.ident.span);
-                        error = true;
-                    }
-
-                    ty.push_field(s_ty, f.ident, field_ty);
-                } else if is_struct {
-                    // a struct that has not been initialized
-                    wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
-                    if !is_ptr {
-                        waiting = true;
-                    }
-                } else {
-                    // struct types should be the only uninitialized
-                    push_internal_error(tc, f.ident.span, "reached unreachable code");
-                    return;
-                }
-            } else {
-                wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
-                if !is_ptr {
-                    waiting = true;
-                }
-            }
-        } else {
+        if checked_type_lookup(tc, &f.ty.ident, &field_ty, &mod) == ERROR {
             // push fake field here, so that the offset is not out of bounds
             ty.push_field(s_ty, f.ident, null);
             error = true;
+            continue;
+        }
+
+        // pointers are ok, because their size is known
+        let is_ptr = tyid.is_ptr(&f.ty);
+        if field_ty == null {
+            wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
+            if !is_ptr {
+                waiting = true;
+            }
+
+            continue;
+        }
+
+        let is_struct = ty.is_struct(field_ty);
+        if ty.is_initialized(field_ty) {
+            if is_ptr {
+                field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
+                push_tmp_ty(tc, field_ty);
+            }
+
+            if !ty.is_sized(field_ty) {
+                push_unsized_field_error(tc, field_ty, f.ty.ident.span);
+                error = true;
+            }
+
+            ty.push_field(s_ty, f.ident, field_ty);
+        } else if is_struct {
+            // a struct that has not been initialized
+            wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
+            if !is_ptr {
+                waiting = true;
+            }
+        } else {
+            // struct types should be the only uninitialized
+            push_internal_error(tc, f.ident.span, "reached unreachable code");
+            return;
         }
     }
 
