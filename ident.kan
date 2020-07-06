@@ -70,8 +70,7 @@ def eq_value(first: *Ident, second: *Ident): bool {
 // -1 if not found
 def index_of(id: *Ident, ident_len: i32, c: char): i32 {
     let i = 0;
-    let break = false;
-    while i < ident_len && !break {
+    while i < ident_len {
         if char_at(id, i) == '.' {
             return i;
         }

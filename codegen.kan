@@ -639,22 +639,20 @@ def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
     free_function_data(&func_data);
 }
 
-def compile_bb(c: *ModuleCompiler, func: *FunctionData, bb: *mir.BasicBlock): void {
+def compile_bb(c: *ModuleCompiler, func: *FunctionData, bb: *mir.BasicBlock) {
     let llvm_bb = bb_by_label(func, &bb.label);
     llvm.position_builder_at_end(c.builder, llvm_bb);
 
-    let i = 0;
     let n = mir.bb_num_instr(bb);
-    while i < n {
+    for let i = 0; i < n; i += 1 {
         let inst = mir.bb_get_instr(bb, i);
         compile_inst(c, func, inst);
-        i = i + 1;
     }
 
     compile_inst(c, func, &bb.terminator);
 }
 
-def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst): void {
+def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst) {
     dbg_set_inst_location(c, inst);
 
     if mir.is_inst_assign(inst) {

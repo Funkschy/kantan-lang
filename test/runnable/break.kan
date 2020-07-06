@@ -1,0 +1,11 @@
+import "io";
+
+def main() {
+    for let i = 0; i < 4; i += 1 {
+        if i == 2 {
+            break;
+        }
+
+        io.printf("%d\n", i);
+    }
+}

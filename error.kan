@@ -56,7 +56,8 @@ type CompileError enum {
     CannotTakeAddrOf,
     IllegalExprForUnary,
     NonConstExpressionInConstContext,
-    AccessingPrivateSymbol
+    AccessingPrivateSymbol,
+    BreakOrContinueOutsideLoop
 }
 
 extern def err2str(code: CompileError, ...): string;

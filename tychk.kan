@@ -202,6 +202,7 @@ def free_err(err: *TypeError): void {
 }
 
 type Ctx struct {
+    in_loops: i32,
     mod: *mod.Module,
     current_func: *ty.Func, // the function that is currently being resolved (or null)
     imports: map.Map, // <string, *mod.Module>
@@ -219,6 +220,7 @@ def create_ctx(mod: *mod.Module, global_types: *scope.Scope, global_values: *sco
     scope.push_scope(&types, ty.get_type_scope(mod.ty));
 
     return new Ctx {
+        in_loops: 0,
         mod: mod,
         current_func: null,
         imports: map.create(),
@@ -250,6 +252,19 @@ type TypeChecker struct {
     errors: vec.Vec, // <TypeError>
     requests: vec.Vec, // Vec<WaitingRequestMap> indexed by mod idx
     contexts: ptrvec.Vec
+}
+
+def (tc: *TypeChecker) in_loop(): bool {
+    return tc.ctx.in_loops > 0;
+}
+
+def (tc: *TypeChecker) enter_loop() {
+    tc.ctx.in_loops += 1;
+}
+
+def (tc: *TypeChecker) exit_loop() {
+    dbg.assert(tc.ctx.in_loops > 0, "leaving non-existing loop");
+    tc.ctx.in_loops -= 1;
 }
 
 // Basically the stuff, that is not freed after the typechecker is done
@@ -1734,11 +1749,15 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
         w_s.condition = condition;
 
+        tc.enter_loop();
+
         let block = check_stmt(tc, w_s.block as *ast.Stmt);
         if block == null {
             return null;
         }
         w_s.block = block as *ast.BlockStmt;
+
+        tc.exit_loop();
 
         return s;
     }
@@ -1777,11 +1796,15 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             f_s.increment = null;
         }
 
+        tc.enter_loop();
+
         let block = check_stmt(tc, f_s.block as *ast.Stmt) as *ast.BlockStmt;
         if block == null {
             return null;
         }
         f_s.block = null;
+
+        tc.exit_loop();
 
         // transform for statement into while stmt
         // this for loop compiles to...
@@ -1793,16 +1816,26 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         // {
         //     let i = 0;
         //     while i < 3 {
-        //         ...
-        //         i = i + 1;
+        //         {
+        //             ...
+        //         }
+        //         END_BLOCK: {
+        //             i = i + 1;
+        //         }
         //     }
         // }
 
-        if increment != null {
-            ast.push_stmt(block, increment);
-        }
-
         let w_s = ast.new_while_stmt(s.span, condition, block);
+
+        if increment != null {
+            let inc_block = ast.new_block_stmt(increment.span, ptrvec.with_cap(1));
+            let inc_block = inc_block as *ast.BlockStmt;
+
+            inc_block.needs_label = true;
+
+            ast.push_stmt(inc_block, increment);
+            ast.as_while_stmt(w_s).end_block = inc_block;
+        }
 
         let statements = ptrvec.with_cap(2);
         if init != null {
@@ -1833,6 +1866,26 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         r_s.expr = expr;
+        return s;
+    }
+
+    // STMT_CONTINUE
+    if ast.is_continue_stmt(s) {
+        if !tc.in_loop() {
+            push_outside_loop_error(tc, s.span, "continue");
+            return null;
+        }
+
+        return s;
+    }
+
+    // STMT_BREAK
+    if ast.is_break_stmt(s) {
+        if !tc.in_loop() {
+            push_outside_loop_error(tc, s.span, "break");
+            return null;
+        }
+
         return s;
     }
 
@@ -2874,6 +2927,11 @@ def push_could_not_infer_error(tc: *TypeChecker, span: span.Span) {
 
 def push_non_const_expr_error(tc: *TypeChecker, span: span.Span) {
     let text = error.err2str(error.CompileError.NonConstExpressionInConstContext);
+    push_mk_err(tc, text, span);
+}
+
+def push_outside_loop_error(tc: *TypeChecker, span: span.Span, keyword: string) {
+    let text = error.err2str(error.CompileError.BreakOrContinueOutsideLoop, keyword);
     push_mk_err(tc, text, span);
 }
 

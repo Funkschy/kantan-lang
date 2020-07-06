@@ -35,6 +35,30 @@ type CompilationData struct {
     char_lits: CharacterLiterals
 }
 
+type LoopContext struct {
+    current_loop: *ast.WhileStmt,
+    current_condition_label: *mir.Label, // label to jump to, in case of continue
+    current_break_label: *mir.Label // label to jump to, in case of break
+}
+
+def (ctx: *LoopContext) swap_loop(new_loop: *ast.WhileStmt): *ast.WhileStmt {
+    let temp = ctx.current_loop;
+    ctx.current_loop = new_loop;
+    return temp;
+}
+
+def (ctx: *LoopContext) swap_condition(new_condition: *mir.Label): *mir.Label {
+    let temp = ctx.current_condition_label;
+    ctx.current_condition_label = new_condition;
+    return temp;
+}
+
+def (ctx: *LoopContext) swap_break(new_break: *mir.Label): *mir.Label {
+    let temp = ctx.current_break_label;
+    ctx.current_break_label = new_break;
+    return temp;
+}
+
 // Compiles a single *mod.Module to a mir.Module
 type MirCompiler struct {
     label_count: i32,
@@ -46,6 +70,7 @@ type MirCompiler struct {
     globals: map.Map, // map.Map<name.Ref, *mir.GlobalVar>
     global_names: map.Map, // map.Map<ident.Ident, *mir.GlobalVar>
     current_func: *mir.Func,
+    loop_context: LoopContext,
     scopes: vec.Vec,
     current_scope: i32
 }
@@ -61,6 +86,11 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
         globals: map.create(),
         global_names: map.create(),
         current_func: null,
+        loop_context: LoopContext {
+            current_loop: null,
+            current_condition_label: null,
+            current_break_label: null
+        },
         scopes: vec.create(sizeof mir.Scope),
         current_scope: -1
     };
@@ -240,7 +270,7 @@ def declare_type(c: *MirCompiler, t: *ty.Type) {
     }
 }
 
-def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
+def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
     // TODO: remove duplicate code
     if ast.is_struct_decl_stmt(s) {
         let decl_stmt = ast.as_struct_decl_stmt(s);
@@ -393,15 +423,17 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
         dbg.assert(c.current_func != null, "current_func was null");
 
         let block_stmt = ast.as_block_stmt(s);
-        bind_s(c, 5, "__block");
+        if block_stmt.needs_label {
+            let block_label = label(c);
+            let block_meta = get_meta(c, s.span);
+            push_instr(c, mir.new_inst_label(block_meta, block_label));
+        }
 
         open_scope(c);
 
-        let i = 0;
-        while i < block_stmt.stmts.len {
+        for let i = 0; i < block_stmt.stmts.len; i += 1 {
             let s = ast.stmt_at(block_stmt, i);
             compile_stmt(c, s);
-            i = i + 1;
         }
 
         close_scope(c);
@@ -435,10 +467,36 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt): void {
 
     if ast.is_while_stmt(s) {
         let end_label = label(c);
+        let old_end_label = c.loop_context.swap_break(&end_label);
+
         push_while_stmt(c, s, &end_label);
         // TODO(#91): wrong meta for while-stmt-endlabel
         let end_meta = get_meta(c, ast.as_while_stmt(s).block.s.span);
         push_instr(c, mir.new_inst_label(end_meta, end_label));
+
+        c.loop_context.swap_break(old_end_label);
+        return;
+    }
+
+    if ast.is_continue_stmt(s) {
+        let loop = c.loop_context.current_loop;
+        dbg.assert(loop != null, "continue outside of loop");
+
+        if loop.end_block != null {
+            compile_stmt(c, loop.end_block as *ast.Stmt);
+        }
+
+        let cloned = mir.clone_label(c.loop_context.current_condition_label);
+        let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), cloned);
+        push_instr(c, end_jmp);
+        return;
+    }
+
+    if ast.is_break_stmt(s) {
+        dbg.assert(c.loop_context.current_break_label != null, "current_break_label was null");
+        let cloned = mir.clone_label(c.loop_context.current_break_label);
+        let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), cloned);
+        push_instr(c, end_jmp);
         return;
     }
 
@@ -579,10 +637,14 @@ def push_if_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label): void {
     }
 }
 
-def push_while_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label): void {
+def push_while_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label) {
     let while_stmt = ast.as_while_stmt(s);
 
     let condition_label = label(c);
+
+    let old_condition_label = c.loop_context.swap_condition(&condition_label);
+    let old_loop = c.loop_context.swap_loop(while_stmt);
+
     let condition_meta = get_meta(c, while_stmt.condition.span);
     let condition_label_clone = mir.clone_label(&condition_label);
     push_instr(c, mir.new_inst_label(condition_meta, condition_label_clone));
@@ -602,10 +664,17 @@ def push_while_stmt(c: *MirCompiler, s: *ast.Stmt, end_label: *mir.Label): void 
     push_instr(c, mir.new_inst_label(then_meta, then_label));
 
     compile_stmt(c, while_stmt.block as *ast.Stmt);
+    if while_stmt.end_block != null {
+        compile_stmt(c, while_stmt.end_block as *ast.Stmt);
+    }
+
     push_instr(c, mir.new_inst_jmp(condition_meta, condition_label));
 
     let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), mir.clone_label(end_label));
     push_instr(c, end_jmp);
+
+    c.loop_context.swap_loop(old_loop);
+    c.loop_context.swap_condition(old_condition_label);
 }
 
 def temp_addr(c: *MirCompiler, ty: *ty.Type): mir.Address {

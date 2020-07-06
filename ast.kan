@@ -27,6 +27,8 @@ type StmtKind enum {
     While,
     Delete,
     Return,
+    Continue,
+    Break,
     For
 }
 
@@ -138,19 +140,61 @@ def as_return_stmt(s: *Stmt): *ReturnStmt {
     return s as *ReturnStmt;
 }
 
+/////////// Continue stmt ///////////
+
+type ContinueStmt struct {
+    s: Stmt
+}
+
+def new_continue_stmt(span: span.Span): *Stmt {
+    return (new ContinueStmt {
+        s: Stmt { tag: StmtKind.Continue, span: span }
+    }) as *Stmt;
+}
+
+def is_continue_stmt(s: *Stmt): bool {
+    return s.tag == StmtKind.Continue;
+}
+
+def as_continue_stmt(s: *Stmt): *ContinueStmt {
+    return s as *ContinueStmt;
+}
+
+/////////// Break stmt ///////////
+
+type BreakStmt struct {
+    s: Stmt
+}
+
+def new_break_stmt(span: span.Span): *Stmt {
+    return (new BreakStmt {
+        s: Stmt { tag: StmtKind.Break, span: span }
+    }) as *Stmt;
+}
+
+def is_break_stmt(s: *Stmt): bool {
+    return s.tag == StmtKind.Break;
+}
+
+def as_break_stmt(s: *Stmt): *BreakStmt {
+    return s as *BreakStmt;
+}
+
 /////////// While stmt ///////////
 
 type WhileStmt struct {
     s: Stmt,
     condition: *Expr,
-    block: *BlockStmt
+    block: *BlockStmt,
+    end_block: *BlockStmt // only used for the increment of for loops
 }
 
 def new_while_stmt(span: span.Span, condition: *Expr, block: *BlockStmt): *Stmt {
     return (new WhileStmt {
         s: Stmt { tag: StmtKind.While, span: span },
         condition: condition,
-        block: block
+        block: block,
+        end_block: null
     }) as *Stmt;
 }
 
@@ -226,12 +270,14 @@ def as_if_stmt(s: *Stmt): *IfStmt {
 
 type BlockStmt struct {
     s: Stmt,
+    needs_label: bool,
     stmts: ptrvec.Vec
 }
 
 def new_block_stmt(span: span.Span, statements: ptrvec.Vec): *Stmt {
     return (new BlockStmt{
         s: Stmt { tag: StmtKind.Block, span: span },
+        needs_label: false,
         stmts: statements
     }) as *Stmt;
 }
@@ -459,6 +505,7 @@ def stmt_free(s: *Stmt): void {
         let while_stmt = as_while_stmt(s);
         expr_free(while_stmt.condition);
         stmt_free(while_stmt.block as *Stmt);
+        stmt_free(while_stmt.end_block as *Stmt);
     } else if is_for_stmt(s) {
         let for_stmt = as_for_stmt(s);
         stmt_free(for_stmt.initializer);

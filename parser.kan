@@ -334,6 +334,16 @@ def parse_simple_stmt(p: *Parser): *ast.Stmt {
         return parse_return_stmt(p);
     }
 
+    if peek.ty == l.TokenType.Continue {
+        CONSUME_TOK_RET_NULL(continue_tok, l.TokenType.Continue);
+        return ast.new_continue_stmt(continue_tok.span);
+    }
+
+    if peek.ty == l.TokenType.Break {
+        CONSUME_TOK_RET_NULL(break_tok, l.TokenType.Break);
+        return ast.new_break_stmt(break_tok.span);
+    }
+
     let expr = expression(p, false);
     if expr == null {
         return null;

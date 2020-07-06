@@ -41,6 +41,8 @@ static char const *const token_strings[] = {
     "sizeof",
     "for",
     "undefined",
+    "continue",
+    "break",
     ";",
     ",",
     ":",
@@ -147,6 +149,8 @@ static char const *const stmt_type_strings[] = {
     "while",
     "delete",
     "return",
+    "continue",
+    "break",
     "for"
 };
 
@@ -226,6 +230,7 @@ static char const *const error_texts[] = {
     "Illegal expression for unary operand",
     "Expression cannot be evaluated at compile time",
     "Trying to access private symbol '%.*s' from '%.*s'",
+    "%s statements may not be used outside of loops",
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

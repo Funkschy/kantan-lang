@@ -34,6 +34,8 @@ type TokenType enum {
     Sizeof,
     For,
     Undefined,
+    Continue,
+    Break,
 
     Semi,
     Comma,
@@ -289,6 +291,10 @@ def ident_type(l: *Lexer): TokenType {
         return check_keyword(l, 1, 2, "or", TokenType.For);
     } else if start == std.char_to_int('u') {
         return check_keyword(l, 1, 8, "ndefined", TokenType.Undefined);
+    } else if start == std.char_to_int('c') {
+        return check_keyword(l, 1, 7, "ontinue", TokenType.Continue);
+    } else if start == std.char_to_int('b') {
+        return check_keyword(l, 1, 4, "reak", TokenType.Break);
     }
 
     return TokenType.Ident;
@@ -326,15 +332,15 @@ def lex_char_sequence(l: *Lexer, terminator: i32, ty: TokenType): Token {
     let error_start: string = null;
     let error_end: string = null;
 
-    let continue = true;
+    let should_continue = true;
     let escape_next = false;
-    while !at_end(l) && continue {
+    while !at_end(l) && should_continue {
         let curr = current(l);
 
         if curr == backslash && !escape_next {
             escape_next = true;
         } else if curr == terminator {
-            continue = escape_next;
+            should_continue = escape_next;
             escape_next = false;
         } else {
             if escape_next {
@@ -406,11 +412,11 @@ def skip_until(l: *Lexer, ch: i32): void {
 }
 
 def skip_whitespace(l: *Lexer): void {
-    let continue = true;
-    while !at_end(l) && continue {
+    let should_continue = true;
+    while !at_end(l) && should_continue {
         let c = current(l);
-        continue = is_whitespace(c);
-        if continue {
+        should_continue = is_whitespace(c);
+        if should_continue {
             advance(l);
         }
     }
