@@ -1,0 +1,21 @@
+import "io";
+
+def main() {
+    let j = 0;
+    while j < 3 {
+        j += 1;
+        continue;
+        break;
+        io.printf("test\n");
+    }
+    io.printf("%d\n", j);
+
+    j = 0;
+    while j < 3 {
+        j += 1;
+        break;
+        continue;
+        io.printf("test\n");
+    }
+    io.printf("%d\n", j);
+}
