@@ -1830,8 +1830,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             let inc_block = ast.new_block_stmt(increment.span, ptrvec.with_cap(1));
             let inc_block = inc_block as *ast.BlockStmt;
 
-            inc_block.needs_label = true;
-
             ast.push_stmt(inc_block, increment);
             ast.as_while_stmt(w_s).end_block = inc_block;
         }

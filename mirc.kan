@@ -423,11 +423,6 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         dbg.assert(c.current_func != null, "current_func was null");
 
         let block_stmt = ast.as_block_stmt(s);
-        if block_stmt.needs_label {
-            let block_label = label(c);
-            let block_meta = get_meta(c, s.span);
-            push_instr(c, mir.new_inst_label(block_meta, block_label));
-        }
 
         open_scope(c);
 
@@ -487,8 +482,13 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         }
 
         let cloned = mir.clone_label(c.loop_context.current_condition_label);
-        let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), cloned);
+        let meta = get_meta(c, s.span);
+        let end_jmp = mir.new_inst_jmp(meta, cloned);
         push_instr(c, end_jmp);
+
+        let after_continue_label = label(c);
+        push_instr(c, mir.new_inst_label(meta, after_continue_label));
+
         return;
     }
 

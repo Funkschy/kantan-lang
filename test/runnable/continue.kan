@@ -1,6 +1,11 @@
 import "io";
 
 def main() {
+    for let j = 0; j < 3; j += 1 {
+        continue;
+        io.printf("test\n");
+    }
+
     for let i = 0; i < 3; i += 1 {
         if i == 2 {
             continue;
@@ -12,6 +17,13 @@ def main() {
             }
 
             io.printf("%d %d\n", i, j);
+        }
+
+        let k = 0;
+        while k < 3 {
+            k += 1;
+            continue;
+            io.printf("test\n");
         }
     }
 }

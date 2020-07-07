@@ -270,14 +270,12 @@ def as_if_stmt(s: *Stmt): *IfStmt {
 
 type BlockStmt struct {
     s: Stmt,
-    needs_label: bool,
     stmts: ptrvec.Vec
 }
 
 def new_block_stmt(span: span.Span, statements: ptrvec.Vec): *Stmt {
     return (new BlockStmt{
         s: Stmt { tag: StmtKind.Block, span: span },
-        needs_label: false,
         stmts: statements
     }) as *Stmt;
 }
