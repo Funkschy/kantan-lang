@@ -741,6 +741,10 @@ def is_integer(t: *Type): bool {
     return is_i32(t) || is_i64(t);
 }
 
+def (t: *Type) is_float(): bool {
+    return is_f32(t);
+}
+
 def is_comparable(t: *Type): bool {
     return is_num(t)
         || is_ptr(t)

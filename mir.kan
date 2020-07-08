@@ -935,7 +935,21 @@ type ExprCast struct {
 }
 
 type CastKind enum {
-    Bit, IntPtr, Int, FloatToSInt, SIntToFloat
+    Bit, IntNoLoad, Int
+}
+
+def (k: CastKind) to_string(): string {
+    if k == CastKind.Bit {
+        return "bitcast";
+    }
+    if k == CastKind.IntNoLoad {
+        return "ias_nl";
+    }
+    if k == CastKind.Int {
+        return "ias";
+    }
+
+    return "invalid_cast";
 }
 
 def new_expr_cast(kind: CastKind, addr: Address, into: *ty.Type): Expression {
@@ -943,8 +957,8 @@ def new_expr_cast(kind: CastKind, addr: Address, into: *ty.Type): Expression {
     return create_expr(ExprKind.Cast, cast as *void);
 }
 
-def new_expr_intptr_cast(addr: Address, into: *ty.Type): Expression {
-    return new_expr_cast(CastKind.IntPtr, addr, into);
+def new_expr_int_cast_no_load(addr: Address, into: *ty.Type): Expression {
+    return new_expr_cast(CastKind.IntNoLoad, addr, into);
 }
 
 def as_expr_cast(e: *Expression): *ExprCast {
@@ -1174,7 +1188,7 @@ def expr_to_name(e: *Expression): name.Owned {
 
         let len = 0;
         let s = std.l_format_str(
-            &len, "(%.*s as %s)", addr_n.len, addr_n.data, ty_s
+            &len, "(%.*s %s %s)", addr_n.len, addr_n.data, cast.kind.to_string(),ty_s
         );
 
         name.free_owned(&addr_n);

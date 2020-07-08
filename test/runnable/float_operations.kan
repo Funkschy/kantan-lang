@@ -1,0 +1,22 @@
+import "io";
+
+def f32_eq(first: f32, second: f32, offset: f32): bool {
+    let diff = first - second;
+    return diff < offset && diff > -offset;
+}
+
+def main() {
+    // 1)
+    let i: i64 = 5;
+    let f = i as f32;
+    io.printf("%d\n", f32_eq(f, 5.0, 0.00001));
+
+    // 2)
+    let f = 0.1;
+    f *= -1.0;
+    io.printf("%d\n", f32_eq(f, -0.1, 0.00001));
+
+    // 3)
+    f = -f;
+    io.printf("%d\n", f32_eq(f, 0.1, 0.00001));
+}

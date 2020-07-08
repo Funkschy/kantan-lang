@@ -832,7 +832,7 @@ def compile_expr(
     if mir.is_expr_cast(e) {
         let cast = mir.as_expr_cast(e);
 
-        if cast.kind == mir.CastKind.IntPtr {
+        if cast.kind == mir.CastKind.IntNoLoad {
             let addr = translate_addr_load(c, func, &cast.addr, false);
             let into = translate_type(c, cast.into);
             return llvm.build_int_cast(c.builder, addr, into, "");
@@ -841,19 +841,22 @@ def compile_expr(
         let addr = translate_addr(c, func, &cast.addr);
         let into = translate_type(c, cast.into);
 
-        if cast.kind == mir.CastKind.Int {
-            return llvm.build_int_cast(c.builder, addr, into, "");
-        }
-
         if cast.kind == mir.CastKind.Bit {
             return llvm.build_bit_cast(c.builder, addr, into, "");
         }
 
-        if cast.kind == mir.CastKind.SIntToFloat {
+        let from_int = ty.is_integer(cast.addr.ty);
+        let into_int = ty.is_integer(cast.into);
+
+        if from_int && into_int {
+            return llvm.build_int_cast(c.builder, addr, into, "");
+        }
+
+        if from_int && cast.into.is_float() {
             return llvm.build_si_to_fp(c.builder, addr, into, "");
         }
 
-        if cast.kind == mir.CastKind.FloatToSInt {
+        if into_int && cast.addr.ty.is_float() {
             return llvm.build_fp_to_si(c.builder, addr, into, "");
         }
     }
@@ -903,6 +906,9 @@ def compile_unary(
     }
 
     if unary.kind == mir.UnaryKind.NumNeg {
+        if unary.addr.ty.is_float() {
+            return llvm.build_f_neg(c.builder, value, "");
+        }
         return llvm.build_neg(c.builder, value, "");
     }
 

@@ -37,6 +37,7 @@ whitelist = set([
     'LLVMBuildFCmp',
     'LLVMBuildFDiv',
     'LLVMBuildFMul',
+    'LLVMBuildFNeg',
     'LLVMBuildFPExt',
     'LLVMBuildFPToSI',
     'LLVMBuildFRem',

@@ -379,6 +379,8 @@ extern def LLVMBuildOr(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): 
 
 extern def LLVMBuildNeg(arg1: *Builder, v: *Value, name: string): *Value;
 
+extern def LLVMBuildFNeg(arg1: *Builder, v: *Value, name: string): *Value;
+
 extern def LLVMBuildNot(arg1: *Builder, v: *Value, name: string): *Value;
 
 extern def LLVMBuildMalloc(arg1: *Builder, ty: *Type, name: string): *Value;
@@ -514,6 +516,10 @@ def build_or(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {
 
 def build_neg(arg1: *Builder, v: *Value, name: string): *Value {
     return LLVMBuildNeg(arg1, v, name);
+}
+
+def build_f_neg(arg1: *Builder, v: *Value, name: string): *Value {
+    return LLVMBuildFNeg(arg1, v, name);
 }
 
 def build_not(arg1: *Builder, v: *Value, name: string): *Value {
