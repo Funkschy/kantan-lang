@@ -124,6 +124,8 @@ extern def LLVMInt1TypeInContext(c: *Context): *Type;
 
 extern def LLVMInt8TypeInContext(c: *Context): *Type;
 
+extern def LLVMInt16TypeInContext(c: *Context): *Type;
+
 extern def LLVMInt32TypeInContext(c: *Context): *Type;
 
 extern def LLVMInt64TypeInContext(c: *Context): *Type;
@@ -151,6 +153,10 @@ def int1_type_in_context(c: *Context): *Type {
 
 def int8_type_in_context(c: *Context): *Type {
     return LLVMInt8TypeInContext(c);
+}
+
+def int16_type_in_context(c: *Context): *Type {
+    return LLVMInt16TypeInContext(c);
 }
 
 def int32_type_in_context(c: *Context): *Type {

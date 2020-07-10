@@ -292,6 +292,10 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 }
 
 def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+    if ty.is_i16(t) {
+        return llvm.int16_type_in_context(c.context.ctx);
+    }
+
     if ty.is_i32(t) {
         return llvm.int32_type_in_context(c.context.ctx);
     }
@@ -1164,6 +1168,12 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     let dw_ate_signed_fixed    = 13;
     let dw_ate_unsigned_fixed  = 14;
     let dw_ate_decimal_float   = 15;
+
+    if ty.is_i16(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "i16", 3, 16, dw_ate_signed, 0
+        );
+    }
 
     if ty.is_i32(t) {
         return llvm.di_builder_create_basic_type(

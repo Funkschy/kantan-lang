@@ -15,7 +15,7 @@ extern def type2str(kind: Kind): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
-    Error, Ptr, Bool, I32, F32, I64, Char, Void, Func, Mod, Struct, Enum
+    Error, Ptr, Bool, I16, I32, I64, F32, Char, Void, Func, Mod, Struct, Enum
 }
 
 #define WIDTH_UNKNOWN -1
@@ -52,6 +52,18 @@ def new_void(): *Type {
 
 def is_void(t: *Type): bool {
     return t.kind == Kind.Void;
+}
+
+/////////// i16 type ///////////
+
+def new_i16(): *Type {
+    let t = new_type(Kind.I16, null);
+    fill_width_align(t);
+    return t;
+}
+
+def is_i16(t: *Type): bool {
+    return t.kind == Kind.I16;
 }
 
 /////////// i32 type ///////////
@@ -738,7 +750,7 @@ def is_num(t: *Type): bool {
 }
 
 def is_integer(t: *Type): bool {
-    return is_i32(t) || is_i64(t);
+    return is_i16(t) || is_i32(t) || is_i64(t);
 }
 
 def (t: *Type) is_float(): bool {
@@ -822,8 +834,13 @@ def fill_width_align(t: *Type): bool {
     let width = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
 
+    // TODO: this can be inited in the constructor for the constant types (i16, i32...)
+    //  remove this unnecessary if-else
+
     if is_ptr(t) {
         width = 8; // TODO(#42): determine pointer width based on target
+    } else if is_i16(t) {
+        width = 2;
     } else if is_i32(t) {
         width = 4;
     } else if is_f32(t) {

@@ -94,6 +94,7 @@ whitelist = set([
     'LLVMGetParam',
     'LLVMGetUndef',
     'LLVMInt1TypeInContext',
+    'LLVMInt16TypeInContext',
     'LLVMInt32TypeInContext',
     'LLVMInt64TypeInContext',
     'LLVMInt8TypeInContext',

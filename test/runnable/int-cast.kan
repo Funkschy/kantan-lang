@@ -1,0 +1,11 @@
+import "io";
+
+def main() {
+    let i: i64 = 42;
+    let i = i as i32;
+    let i = i as i16;
+
+    io.printf("%d %d\n", sizeof i16, i);
+    io.printf("%d %d\n", sizeof i32, i as i32);
+    io.printf("%d %d\n", sizeof i64, i as i64);
+}
