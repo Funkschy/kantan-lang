@@ -165,6 +165,7 @@ static char const *const type_type_strings[] = {
     "i32",
     "i64",
     "f32",
+    "f64",
     "char",
     "void",
     "function",

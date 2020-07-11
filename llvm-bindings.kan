@@ -423,6 +423,8 @@ extern def LLVMBuildPointerCast(arg1: *Builder, val: *Value, dest_ty: *Type, nam
 
 extern def LLVMBuildIntCast(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value;
 
+extern def LLVMBuildFPCast(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value;
+
 extern def LLVMBuildICmp(arg1: *Builder, op: i32, lhs: *Value, rhs: *Value, name: string): *Value;
 
 extern def LLVMBuildFCmp(arg1: *Builder, op: i32, lhs: *Value, rhs: *Value, name: string): *Value;
@@ -598,6 +600,10 @@ def build_pointer_cast(arg1: *Builder, val: *Value, dest_ty: *Type, name: string
 
 def build_int_cast(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value {
     return LLVMBuildIntCast(arg1, val, dest_ty, name);
+}
+
+def build_fp_cast(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value {
+    return LLVMBuildFPCast(arg1, val, dest_ty, name);
 }
 // Comparisons
 def build_i_cmp(arg1: *Builder, op: i32, lhs: *Value, rhs: *Value, name: string): *Value {

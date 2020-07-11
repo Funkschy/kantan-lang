@@ -1242,8 +1242,12 @@ def cast_kind(e: *ast.Expr): mir.CastKind {
         return mir.CastKind.Bit;
     }
 
-    if ty.is_integer(from) || ty.is_integer(into) {
+    if from.is_integer() || into.is_integer() {
         return mir.CastKind.Int;
+    }
+
+    if from.is_float() || into.is_float() {
+        return mir.CastKind.Float;
     }
 
     return mir.CastKind.Bit;

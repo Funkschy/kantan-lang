@@ -15,7 +15,7 @@ extern def type2str(kind: Kind): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
-    Error, Ptr, Bool, I16, I32, I64, F32, Char, Void, Func, Mod, Struct, Enum
+    Error, Ptr, Bool, I16, I32, I64, F32, F64, Char, Void, Func, Mod, Struct, Enum
 }
 
 #define WIDTH_UNKNOWN -1
@@ -58,7 +58,7 @@ def is_void(t: *Type): bool {
 
 def new_i16(): *Type {
     let t = new_type(Kind.I16, null);
-    fill_width_align(t);
+    t.width = t.align = 2;
     return t;
 }
 
@@ -70,7 +70,7 @@ def is_i16(t: *Type): bool {
 
 def new_i32(): *Type {
     let t = new_type(Kind.I32, null);
-    fill_width_align(t);
+    t.width = t.align = 4;
     return t;
 }
 
@@ -82,7 +82,7 @@ def is_i32(t: *Type): bool {
 
 def new_i64(): *Type {
     let t = new_type(Kind.I64, null);
-    fill_width_align(t);
+    t.width = t.align = 8;
     return t;
 }
 
@@ -94,7 +94,7 @@ def is_i64(t: *Type): bool {
 
 def new_f32(): *Type {
     let t = new_type(Kind.F32, null);
-    fill_width_align(t);
+    t.width = t.align = 4;
     return t;
 }
 
@@ -102,11 +102,23 @@ def is_f32(t: *Type): bool {
     return t.kind == Kind.F32;
 }
 
+/////////// f64 type ///////////
+
+def new_f64(): *Type {
+    let t = new_type(Kind.F64, null);
+    t.width = t.align = 8;
+    return t;
+}
+
+def is_f64(t: *Type): bool {
+    return t.kind == Kind.F64;
+}
+
 /////////// char type ///////////
 
 def new_char(): *Type {
     let t = new_type(Kind.Char, null);
-    fill_width_align(t);
+    t.width = t.align = 1;
     return t;
 }
 
@@ -118,7 +130,7 @@ def is_char(t: *Type): bool {
 
 def new_bool(): *Type {
     let t = new_type(Kind.Bool, null);
-    fill_width_align(t);
+    t.width = t.align = 1;
     return t;
 }
 
@@ -156,7 +168,8 @@ def new_ptr(count: i32, inner: *Type): *Type {
 
     // pointers always have a size
     std.flag_unset(&t.flags, FLAG_UNSIZED);
-    fill_width_align(t);
+    // TODO(#42): determine pointer width based on target
+    t.width = t.align = 8;
     return t;
 }
 
@@ -745,20 +758,20 @@ def get_type_scope(t: *Type): *scope.Scope {
     return null;
 }
 
-def is_num(t: *Type): bool {
-    return is_integer(t) || is_f32(t);
+def (t: *Type) is_num(): bool {
+    return t.is_integer() || t.is_float();
 }
 
-def is_integer(t: *Type): bool {
+def (t: *Type) is_integer(): bool {
     return is_i16(t) || is_i32(t) || is_i64(t);
 }
 
 def (t: *Type) is_float(): bool {
-    return is_f32(t);
+    return is_f32(t) || is_f64(t);
 }
 
 def is_comparable(t: *Type): bool {
-    return is_num(t)
+    return t.is_num()
         || is_ptr(t)
         || is_char(t)
         || is_enum(t);
@@ -766,7 +779,7 @@ def is_comparable(t: *Type): bool {
 
 def can_be_casted(from: *Type, into: *Type): bool {
     return (is_ptr(from) && is_ptr(into))
-        || (is_num(from) && is_num(into));
+        || (from.is_num() && into.is_num());
 }
 
 /////////// align utils ///////////
@@ -837,21 +850,7 @@ def fill_width_align(t: *Type): bool {
     // TODO: this can be inited in the constructor for the constant types (i16, i32...)
     //  remove this unnecessary if-else
 
-    if is_ptr(t) {
-        width = 8; // TODO(#42): determine pointer width based on target
-    } else if is_i16(t) {
-        width = 2;
-    } else if is_i32(t) {
-        width = 4;
-    } else if is_f32(t) {
-        width = 4;
-    } else if is_i64(t) {
-        width = 8;
-    } else if is_bool(t) {
-        width = 1;
-    } else if is_char(t) {
-        width = 1;
-    } else if is_struct(t) {
+    if is_struct(t) {
         let s_ty = as_struct(t);
         has_unresolved_fields = calc_struct_width_align(s_ty, &width, &align);
     } else if is_enum(t) {

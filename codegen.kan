@@ -226,7 +226,7 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
         );
     }
 
-    if ty.is_integer(global.ty) {
+    if global.ty.is_integer() {
         let llty = translate_type(c, global.ty);
         return llvm.const_int_of_string_and_size(
             llty, global.value.data as string, global.value.len, 10
@@ -310,6 +310,10 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     if ty.is_f32(t) {
         return llvm.float_type_in_context(c.context.ctx);
+    }
+
+    if ty.is_f64(t) {
+        return llvm.double_type_in_context(c.context.ctx);
     }
 
     if ty.is_bool(t) {
@@ -494,11 +498,11 @@ def translate_literal(
     let copy = std.strndup(start, end - start);
     let llvm_lit: *llvm.Value = null;
 
-    if ty.is_integer(t) {
+    if t.is_integer() {
         llvm_lit = llvm.const_int_of_string(llvm_ty, copy, 10);
     }
 
-    if ty.is_f32(t) {
+    if t.is_float() {
         llvm_lit = llvm.const_real_of_string(llvm_ty, copy);
     }
 
@@ -849,19 +853,26 @@ def compile_expr(
             return llvm.build_bit_cast(c.builder, addr, into, "");
         }
 
-        let from_int = ty.is_integer(cast.addr.ty);
-        let into_int = ty.is_integer(cast.into);
+        let from_int = cast.addr.ty.is_integer();
+        let into_int = cast.into.is_integer();
+
+        let from_float = cast.addr.ty.is_float();
+        let into_float = cast.into.is_float();
 
         if from_int && into_int {
             return llvm.build_int_cast(c.builder, addr, into, "");
         }
 
-        if from_int && cast.into.is_float() {
+        if from_int && into_float {
             return llvm.build_si_to_fp(c.builder, addr, into, "");
         }
 
-        if into_int && cast.addr.ty.is_float() {
+        if from_float && into_int {
             return llvm.build_fp_to_si(c.builder, addr, into, "");
+        }
+
+        if from_float && into_float {
+            return llvm.build_fp_cast(c.builder, addr, into, "");
         }
     }
 
@@ -931,7 +942,7 @@ def compile_binary(
 ): *llvm.Value {
     let binary = mir.as_expr_binary(e);
 
-    if ty.is_f32(binary.left.ty) {
+    if binary.left.ty.is_float() {
         return compile_binary_float(c, func, binary);
     }
 
@@ -1194,6 +1205,12 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     if ty.is_f32(t) {
         return llvm.di_builder_create_basic_type(
             c.dbg.builder, "f32", 3, 32, dw_ate_float, 0
+        );
+    }
+
+    if ty.is_f64(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "f64", 3, 64, dw_ate_float, 0
         );
     }
 

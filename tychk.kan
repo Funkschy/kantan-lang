@@ -516,6 +516,7 @@ def create_global_types_scope(tc: *TypeChecker): scope.Scope {
     global.bind(3, "i32", push_tmp_ty(tc, ty.new_i32()), public);
     global.bind(3, "i64", push_tmp_ty(tc, ty.new_i64()), public);
     global.bind(3, "f32", push_tmp_ty(tc, ty.new_f32()), public);
+    global.bind(3, "f64", push_tmp_ty(tc, ty.new_f64()), public);
     let char_ty = push_tmp_ty(tc, ty.new_char());
     global.bind(4, "char", char_ty, public);
     global.bind(6, "string", push_tmp_ty(tc, ty.new_ptr(1, char_ty)), public);
@@ -2033,6 +2034,11 @@ def check_expr_expect(
 
     // EXPR_FLOAT
     if ast.is_float_expr(e) {
+        if expected != null && ty.is_f64(expected) {
+            e.ty = get_global_type(tc, 3, "f64");
+            return e;
+        }
+
         e.ty = get_global_type(tc, 3, "f32");
         return e;
     }
@@ -2491,7 +2497,7 @@ def check_binary_expr(
         //  0.1 == 0.2 == 0.3 is false after all
         //  should we just expose a compare function in the stdlib?
 
-        if ty.is_num(first) {
+        if first.is_num() {
             // everything except || and && is fine
             return first;
         }
@@ -2519,16 +2525,16 @@ def check_binary_expr(
 
     if kind == ast.BinaryKind.Add {
         // both ptr + int and int + ptr are ok
-        if ty.is_ptr(first) && ty.is_integer(second) {
+        if ty.is_ptr(first) && second.is_integer() {
             return first;
         }
 
-        if ty.is_ptr(second) && ty.is_integer(first) {
+        if ty.is_ptr(second) && first.is_integer() {
             return second;
         }
     } else if kind == ast.BinaryKind.Sub {
         // only ptr - int is allowed, not the other way
-        if ty.is_ptr(first) && ty.is_integer(second) {
+        if ty.is_ptr(first) && second.is_integer() {
             return first;
         }
     }
@@ -2634,7 +2640,7 @@ def check_unary_expr(
     }
 
     if kind == ast.UnaryKind.NegNum {
-        if !ty.is_num(expr.ty) {
+        if !expr.ty.is_num() {
             let s_ty = ty.to_static_string(expr.ty);
             let text = error.err2str(error.CompileError.UnaryOpNotDefined, "-", s_ty);
             push_mk_err(tc, text, span);
