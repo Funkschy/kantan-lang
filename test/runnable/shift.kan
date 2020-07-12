@@ -1,0 +1,9 @@
+import "io";
+
+def main() {
+    let i: i32 = 'a' << 2;
+    io.printf("%d\n", i);
+    io.printf("%d\n", i >> 1);
+
+    io.printf("%d\n", 1 << 3);
+}

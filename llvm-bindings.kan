@@ -379,6 +379,10 @@ extern def LLVMBuildSRem(arg1: *Builder, lhs: *Value, rhs: *Value, name: string)
 
 extern def LLVMBuildFRem(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value;
 
+extern def LLVMBuildShl(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value;
+
+extern def LLVMBuildAShr(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value;
+
 extern def LLVMBuildAnd(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value;
 
 extern def LLVMBuildOr(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value;
@@ -512,6 +516,14 @@ def build_s_rem(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value 
 
 def build_f_rem(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {
     return LLVMBuildFRem(arg1, lhs, rhs, name);
+}
+
+def build_shl(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {
+    return LLVMBuildShl(arg1, lhs, rhs, name);
+}
+
+def build_a_shr(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {
+    return LLVMBuildAShr(arg1, lhs, rhs, name);
 }
 
 def build_and(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {

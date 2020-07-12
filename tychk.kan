@@ -2152,12 +2152,12 @@ def check_expr_expect(
         let right: *ast.Expr = null;
 
         if ast.is_null_expr(b_e.left) {
-            right = check_expr(tc, b_e.right);
+            right = check_expr_expect(tc, b_e.right, expected, data);
             if right != null {
                 left = check_expr_expect(tc, b_e.left, right.ty, data);
             }
         } else {
-            left = check_expr(tc, b_e.left);
+            left = check_expr_expect(tc, b_e.left, expected, data);
             if left != null {
                 right = check_expr_expect(tc, b_e.right, left.ty, data);
             }
@@ -2468,7 +2468,7 @@ def check_binary_expr(
             return null
 
     dbg.assert_fmt(
-        kind >= ast.BinaryKind.Add && kind <= ast.BinaryKind.LogOr,
+        kind >= ast.BinaryKind.Add && kind <= ast.BinaryKind.RShift,
         "Invalid binary expression: %d\n", kind
     );
 
@@ -2495,6 +2495,14 @@ def check_binary_expr(
 
         if kind == ast.BinaryKind.LogOr || kind == ast.BinaryKind.LogAnd {
             if ty.is_bool(first) {
+                return first;
+            }
+
+            RET_INVALID_TYS();
+        }
+
+        if kind == ast.BinaryKind.LShift || kind == ast.BinaryKind.RShift {
+            if first.is_integer() {
                 return first;
             }
 

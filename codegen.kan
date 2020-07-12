@@ -987,6 +987,10 @@ def compile_binary(
         return llvm.build_and(c.builder, left, right, "");
     } else if binary.kind == mir.BinaryKind.BoolOr {
         return llvm.build_or(c.builder, left, right, "");
+    } else if binary.kind == mir.BinaryKind.LShift {
+        return llvm.build_shl(c.builder, left, right, "");
+    } else if binary.kind == mir.BinaryKind.RShift {
+        return llvm.build_a_shr(c.builder, left, right, "");
     } else {
         let ptr = left;
         let scalar = right;

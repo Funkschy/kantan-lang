@@ -69,6 +69,9 @@ type TokenType enum {
     Pipe,
     DoublePipe,
 
+    SmallerSmaller,
+    GreaterGreater,
+
     LParen,
     RParen,
     LBrace,
@@ -568,6 +571,10 @@ def get_next_token(l: *Lexer): Token {
             advance(l);
             return token_from_start(l, TokenType.SmallerEq);
         }
+        if current(l) == '<' {
+            advance(l);
+            return token_from_start(l, TokenType.SmallerSmaller);
+        }
         return token_from_start(l, TokenType.Smaller);
     }
 
@@ -575,6 +582,10 @@ def get_next_token(l: *Lexer): Token {
         if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.GreaterEq);
+        }
+        if current(l) == '>' {
+            advance(l);
+            return token_from_start(l, TokenType.GreaterGreater);
         }
         return token_from_start(l, TokenType.Greater);
     }

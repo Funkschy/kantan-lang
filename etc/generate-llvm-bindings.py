@@ -45,6 +45,8 @@ whitelist = set([
     'LLVMBuildFSub',
     'LLVMBuildFree',
     'LLVMBuildGEP',
+    'LLVMBuildShl',
+    'LLVMBuildAShr',
     'LLVMBuildICmp',
     'LLVMBuildInBoundsGEP',
     'LLVMBuildIntCast',

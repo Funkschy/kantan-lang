@@ -70,6 +70,8 @@ static char const *const token_strings[] = {
     "&&",
     "|",
     "||",
+    "<<",
+    ">>",
     "(",
     ")",
     "{",
@@ -96,7 +98,9 @@ static char const *const binary_type_ops[] = {
     "==", // BINARY_EQ
     "!=", // BINARY_NE
     "&&", // BINARY_LOG_AND
-    "||"  // BINARY_LOG_OR
+    "||",  // BINARY_LOG_OR
+    "<<",
+    ">>"
 };
 
 static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *);
@@ -253,6 +257,8 @@ static char const *const mir_binary_kind_strings[] = {
     "!=", // MIR_BIN_NE
     "&&", // MIR_BIN_BOOL_AND
     "||", // MIR_BIN_BOOL_OR
+    "<<",
+    ">>",
     "s+",  // MIR_BIN_ADD_SCALAR
     "s-",  // MIR_BIN_SUB_SCALAR
 };

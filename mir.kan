@@ -724,6 +724,9 @@ type BinaryKind enum {
     BoolAnd,
     BoolOr,
 
+    LShift,
+    RShift,
+
     AddScalar,
     SubScalar
 }

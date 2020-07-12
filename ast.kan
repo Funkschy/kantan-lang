@@ -67,7 +67,10 @@ type BinaryKind enum {
     Eq,
     NE,
     LogAnd,
-    LogOr
+    LogOr,
+
+    LShift,
+    RShift
 }
 
 type UnaryKind enum {

@@ -42,7 +42,9 @@ def get(token_type: l.TokenType): Precedence {
     if token_type == l.TokenType.Star
         || token_type == l.TokenType.Slash
         || token_type == l.TokenType.Percent
-        || token_type == l.TokenType.As {
+        || token_type == l.TokenType.As
+        || token_type == l.TokenType.SmallerSmaller
+        || token_type == l.TokenType.GreaterGreater {
         return Precedence.Product;
     }
 

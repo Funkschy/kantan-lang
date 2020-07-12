@@ -1167,6 +1167,12 @@ def infix(p: *Parser, token: *l.Token, left: *ast.Expr, no_struct: bool): *ast.E
     } else if token.ty == l.TokenType.BangEq {
         found = true;
         ty = ast.BinaryKind.NE;
+    } else if token.ty == l.TokenType.SmallerSmaller {
+        found = true;
+        ty = ast.BinaryKind.LShift;
+    } else if token.ty == l.TokenType.GreaterGreater {
+        found = true;
+        ty = ast.BinaryKind.RShift;
     }
 
     // a pattern matched
