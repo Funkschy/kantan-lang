@@ -512,14 +512,14 @@ def create_global_types_scope(tc: *TypeChecker): scope.Scope {
 
     // TODO(#32): this should probably be defined in something like a builtin.kan
     let global = scope.create();
+    let i8_ty = push_tmp_ty(tc, ty.new_i8());
+    global.bind(2, "i8", i8_ty, public);
     global.bind(3, "i16", push_tmp_ty(tc, ty.new_i16()), public);
     global.bind(3, "i32", push_tmp_ty(tc, ty.new_i32()), public);
     global.bind(3, "i64", push_tmp_ty(tc, ty.new_i64()), public);
     global.bind(3, "f32", push_tmp_ty(tc, ty.new_f32()), public);
     global.bind(3, "f64", push_tmp_ty(tc, ty.new_f64()), public);
-    let char_ty = push_tmp_ty(tc, ty.new_char());
-    global.bind(4, "char", char_ty, public);
-    global.bind(6, "string", push_tmp_ty(tc, ty.new_ptr(1, char_ty)), public);
+    global.bind(6, "string", push_tmp_ty(tc, ty.new_ptr(1, i8_ty)), public);
 
     global.bind(4, "void", push_tmp_ty(tc, ty.new_void()), public);
     global.bind(std.strlen(ERROR_TY), ERROR_TY, push_tmp_ty(tc, ty.new_error()), public);
@@ -724,7 +724,7 @@ def fill_func_def(
         );
 
         if !(error || recv_waiting) {
-            // You can only declare methods on user defined types (not on stuff like i32, char...)
+            // You can only declare methods on user defined types (not on stuff like i32, f32 ...)
             if !ty.is_user_defined(receiver_ty) {
                 let span = tyid.ident_span(&f_decl.receiver.ty);
                 push_primitive_receiver_type_error(tc, receiver_ty, span);
@@ -2015,17 +2015,31 @@ def check_expr_expect(
     expected: *ty.Type,
     data: *LookupData
 ): *ast.Expr {
-    // EXPR_INT
-    if ast.is_int_expr(e) {
+    // EXPR_INT || EXPR_CHAR
+    if ast.is_int_expr(e) || ast.is_char_expr(e) {
         // TODO: check size of literal to determine correct integer width
         if expected != null {
-            if ty.is_i64(expected) {
-                e.ty = get_global_type(tc, 3, "i64");
+            if ty.is_i8(expected) {
+                e.ty = get_global_type(tc, 2, "i8");
                 return e;
-            } else if ty.is_i16(expected) {
+            }
+            if ty.is_i16(expected) {
                 e.ty = get_global_type(tc, 3, "i16");
                 return e;
             }
+            if ty.is_i32(expected) {
+                e.ty = get_global_type(tc, 3, "i32");
+                return e;
+            }
+            if ty.is_i64(expected) {
+                e.ty = get_global_type(tc, 3, "i64");
+                return e;
+            }
+        }
+
+        if ast.is_char_expr(e) {
+            e.ty = get_global_type(tc, 2, "i8");
+            return e;
         }
 
         e.ty = get_global_type(tc, 3, "i32");
@@ -2064,12 +2078,6 @@ def check_expr_expect(
         }
         push_could_not_infer_error(tc, e.span);
         return null;
-    }
-
-    // EXPR_CHAR
-    if ast.is_char_expr(e) {
-        e.ty = get_global_type(tc, 4, "char");
-        return e;
     }
 
     // EXPR_STRING
@@ -2499,13 +2507,6 @@ def check_binary_expr(
 
         if first.is_num() {
             // everything except || and && is fine
-            return first;
-        }
-
-        if ty.is_char(first) {
-            if kind == ast.BinaryKind.Add || kind == ast.BinaryKind.Sub {
-                return get_global_type(tc, 3, "i32");
-            }
             return first;
         }
 

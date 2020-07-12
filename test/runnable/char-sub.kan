@@ -4,6 +4,6 @@ def main() {
     let num = '9' - '0';
     io.printf("%d\n", num);
 
-    let num: i32 = '0' - '0';
+    let num: i8 = '0' - '0';
     io.printf("%d\n", num);
 }

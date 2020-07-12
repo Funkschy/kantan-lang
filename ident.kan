@@ -43,7 +43,7 @@ def (i: Ident) ref(): name.Ref {
     return name.make_ref(i.len(), i.start());
 }
 
-def char_at(i: *Ident, pos: i32): char {
+def char_at(i: *Ident, pos: i32): i8 {
     return *(i.span.start + pos);
 }
 
@@ -68,7 +68,7 @@ def eq_value(first: *Ident, second: *Ident): bool {
 }
 
 // -1 if not found
-def index_of(id: *Ident, ident_len: i32, c: char): i32 {
+def index_of(id: *Ident, ident_len: i32, c: i8): i32 {
     let i = 0;
     while i < ident_len {
         if char_at(id, i) == '.' {

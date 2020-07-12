@@ -21,7 +21,7 @@ def create(value: string, len: i32): Path {
     return Path { len: len, inner: value };
 }
 
-def sys_separator(): char {
+def sys_separator(): i8 {
     return SYSTEM_SEPARATOR;
 }
 
@@ -129,7 +129,7 @@ def to_string(p: *Path): string {
 
 def get_cwd(): PathBuf {
     let buf_size = 255;
-    let buf = std.malloc(buf_size * sizeof char) as string;
+    let buf = std.malloc(buf_size * sizeof i8) as string;
 
     // TODO(#34): windows support
     if getcwd(buf, buf_size) == null {

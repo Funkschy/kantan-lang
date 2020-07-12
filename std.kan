@@ -25,8 +25,6 @@ extern def get_errno(): i32;
 extern def format_str(fmt: string, ...): string;
 extern def l_format_str(len: *i32, fmt: string, ...): string;
 extern def read_char(s: string, s_len: i32, dest: *i32): i32;
-extern def char_to_int(c: char): i32;
-extern def int_to_char(c: i32): char;
 extern def ptr_to_int(p: *void): i32;
 extern def int_to_ptr(i: i32): *void;
 extern def bool_to_int(b: bool): i32;
@@ -36,10 +34,10 @@ extern def flag_set(flags: *i32, flag: i32): void;
 extern def flag_unset(flags: *i32, flag: i32): void;
 extern def flag_get(flags: *i32, flag: i32): bool;
 
-def find_char(haystack: string, needle: char): string {
-    return strchr(haystack, char_to_int(needle));
+def find_char(haystack: string, needle: i8): string {
+    return strchr(haystack, needle as i32);
 }
 
-def find_last_char(haystack: string, needle: char): string {
-    return strrchr(haystack, char_to_int(needle));
+def find_last_char(haystack: string, needle: i8): string {
+    return strrchr(haystack, needle as i32);
 }

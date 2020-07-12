@@ -41,16 +41,7 @@ def map_data(data: *CompilationData): mirc.CompilationData {
         config: data.config,
         mods: data.mods,
         proj_root: data.proj_root,
-        global_types: data.global_types,
-        char_lits: mirc.CharacterLiterals {
-            backslash: std.int_to_char(92),
-            new_line: std.int_to_char(10),
-            zero: std.int_to_char(0),
-            carriage_return: std.int_to_char(13),
-            tab: std.int_to_char(9),
-            double_quote: std.int_to_char(34),
-            single_quote: std.int_to_char(39)
-        }
+        global_types: data.global_types
     };
 }
 
@@ -239,7 +230,9 @@ def emit_to_file(comp_data: *CompilationData, base_mod: *llvm.Module, tm: target
     }
 }
 
-def optimize_single(module: *llvm.Module, opt_level: i32): void {
+def optimize_single(module: *llvm.Module, opt_level: i8): void {
+    let opt_level = opt_level as i32;
+
     // replace this with an enum
     let opt_level_none = 0;
     let opt_level_less = 1;

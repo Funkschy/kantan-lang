@@ -5,6 +5,6 @@ def main(): void {
     let c = *s;
 
     io.printf("%c\n", c );
-    let c: char = 'A';
+    let c: i8 = 'A';
     io.printf("%c\n", c + ' ');
 }

@@ -208,7 +208,6 @@ def (c: *ModuleCompiler) init_global(ir: *mir.GlobalVar, storage: *llvm.Value) {
         // Address of the global is globally insignificant
         let global_unnamed_address = 2;
         llvm.set_unnamed_address(storage, global_unnamed_address);
-        llvm.set_global_constant(storage, ir.value.is_const);
         value = c.create_global_value(ir);
     }
 
@@ -292,6 +291,10 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 }
 
 def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+    if ty.is_i8(t) {
+        return llvm.int8_type_in_context(c.context.ctx);
+    }
+
     if ty.is_i16(t) {
         return llvm.int16_type_in_context(c.context.ctx);
     }
@@ -318,10 +321,6 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     if ty.is_bool(t) {
         return llvm.int1_type_in_context(c.context.ctx);
-    }
-
-    if ty.is_char(t) {
-        return llvm.int8_type_in_context(c.context.ctx);
     }
 
     if ty.is_struct(t) {
@@ -485,14 +484,11 @@ def translate_literal(
 ): *llvm.Value {
     let llvm_ty = translate_type(c, t);
 
-    if ty.is_char(t) {
-        let int_value = std.char_to_int(*start);
-        return llvm.const_int(llvm_ty, int_value, false);
-    }
+    // strings are globals, and therefore not handled here
 
     if ty.is_bool(t) {
-        let int_value = std.char_to_int(*start) - std.char_to_int('0');
-        return llvm.const_int(llvm_ty, int_value, false);
+        let int_value = *start - '0';
+        return llvm.const_int(llvm_ty, int_value as i32, false);
     }
 
     let copy = std.strndup(start, end - start);
@@ -1180,6 +1176,12 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     let dw_ate_unsigned_fixed  = 14;
     let dw_ate_decimal_float   = 15;
 
+    if ty.is_i8(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "i8", 2, 8, dw_ate_signed_char, 0
+        );
+    }
+
     if ty.is_i16(t) {
         return llvm.di_builder_create_basic_type(
             c.dbg.builder, "i16", 3, 16, dw_ate_signed, 0
@@ -1220,12 +1222,6 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         );
     }
 
-    if ty.is_char(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "char", 4, 8, dw_ate_signed_char, 0
-        );
-    }
-
     // pointers have to checked before user_defined, since pointers to user_defined are also
     // user defined, but they need to be translated differently here.
     if ty.is_ptr(t) {
@@ -1238,7 +1234,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         for let i = 0; i < ptr.count; i = i + 1 {
             let star_count = i + 1;
             let name = std.malloc(star_count + inner_len);
-            std.memset(name, std.char_to_int('*'), star_count);
+            std.memset(name, '*', star_count);
             std.memcpy(name + star_count, inner_name as *void, inner_len);
 
             // TODO(#99): determine pointer size based on target pointer width

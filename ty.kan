@@ -15,7 +15,7 @@ extern def type2str(kind: Kind): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
-    Error, Ptr, Bool, I16, I32, I64, F32, F64, Char, Void, Func, Mod, Struct, Enum
+    Error, Ptr, Bool, I8, I16, I32, I64, F32, F64, Void, Func, Mod, Struct, Enum
 }
 
 #define WIDTH_UNKNOWN -1
@@ -52,6 +52,18 @@ def new_void(): *Type {
 
 def is_void(t: *Type): bool {
     return t.kind == Kind.Void;
+}
+
+/////////// i8 type ///////////
+
+def new_i8(): *Type {
+    let t = new_type(Kind.I8, null);
+    t.width = t.align = 1;
+    return t;
+}
+
+def is_i8(t: *Type): bool {
+    return t.kind == Kind.I8;
 }
 
 /////////// i16 type ///////////
@@ -112,18 +124,6 @@ def new_f64(): *Type {
 
 def is_f64(t: *Type): bool {
     return t.kind == Kind.F64;
-}
-
-/////////// char type ///////////
-
-def new_char(): *Type {
-    let t = new_type(Kind.Char, null);
-    t.width = t.align = 1;
-    return t;
-}
-
-def is_char(t: *Type): bool {
-    return t.kind == Kind.Char;
 }
 
 /////////// bool type ///////////
@@ -200,7 +200,7 @@ def as_ptr(t: *Type): *Ptr {
 }
 
 def is_string(t: *Type): bool {
-    return is_ptr(t) && as_ptr(t).count == 1 && is_char(as_ptr(t).inner);
+    return is_ptr(t) && as_ptr(t).count == 1 && is_i8(as_ptr(t).inner);
 }
 
 type UserDefinedType struct {
@@ -763,7 +763,7 @@ def (t: *Type) is_num(): bool {
 }
 
 def (t: *Type) is_integer(): bool {
-    return is_i16(t) || is_i32(t) || is_i64(t);
+    return is_i8(t) || is_i16(t) || is_i32(t) || is_i64(t);
 }
 
 def (t: *Type) is_float(): bool {
@@ -773,7 +773,7 @@ def (t: *Type) is_float(): bool {
 def is_comparable(t: *Type): bool {
     return t.is_num()
         || is_ptr(t)
-        || is_char(t)
+        || is_i8(t)
         || is_enum(t);
 }
 
@@ -805,7 +805,7 @@ def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
         }
 
         // s: string,  width: 8, align: 8, offset: 0,  padding: 0    , width_sum: 8
-        // c: char,    width: 1, align: 1, offset: 8,  padding: 0    , width_sum: 9
+        // c: i8,    width: 1, align: 1, offset: 8,  padding: 0    , width_sum: 9
         // x: i32      width: 4, align: 4, offset: 12, padding: 4 - 1,
 
         let padding = 0;
@@ -931,7 +931,7 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         let s_inner = "";
         let free_inner = false;
 
-        if p_ty.inner != null && is_char(p_ty.inner) {
+        if p_ty.inner != null && is_i8(p_ty.inner) {
             count = count - 1;
             s_inner = "string";
         } else {
@@ -939,7 +939,7 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         }
 
         let asterisks = std.malloc(count) as string;
-        std.memset(asterisks as *void, std.char_to_int('*'), count);
+        std.memset(asterisks as *void, '*', count);
         let s = std.format_str("%.*s%s", count, asterisks, s_inner);
 
         if free_inner {

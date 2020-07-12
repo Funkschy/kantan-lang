@@ -332,7 +332,7 @@ typemap = {
     'LLVMModuleFlagBehavior': ('i32', 'i32', None, None), # enum
     'LLVMDWARFTypeEncoding': ('i32', 'i32', None, None), # enum
 
-    'u8': ('char', 'i32', 'std.char_to_int', 'std.int_to_char'),
+    'u8': ('i8', 'i8', None, None),
     '*mut ::libc::c_char': ('string', 'string', None, None),
     '*const ::libc::c_char': ('string', 'string', None, None),
     '*::libc::c_char': ('string', 'string', None, None),

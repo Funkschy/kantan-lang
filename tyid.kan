@@ -43,7 +43,7 @@ def to_string(ty: *Type): string {
 
     let len = ty.pointer_count + ident_len + 1;
     let buffer = std.malloc(len);
-    std.memset(buffer, std.char_to_int('*'), ty.pointer_count);
+    std.memset(buffer, '*', ty.pointer_count);
     std.memcpy(buffer + ty.pointer_count, ident as *void, ident_len);
     delete ident;
 

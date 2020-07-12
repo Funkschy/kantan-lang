@@ -16,23 +16,12 @@ import "ident";
 import "scope";
 import "source";
 
-type CharacterLiterals struct {
-    backslash: char,
-    new_line: char,
-    zero: char,
-    carriage_return: char,
-    tab: char,
-    double_quote: char,
-    single_quote: char
-}
-
 // Data which is shared between all the MirCompiler instances
 type CompilationData struct {
     config: *opt.Config,
     mods: *mod.Map,
     proj_root: path.Path,
-    global_types: scope.Scope,
-    char_lits: CharacterLiterals
+    global_types: scope.Scope
 }
 
 type LoopContext struct {
@@ -399,10 +388,10 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
             // structs must be zero initialized
             // TODO: this should use usize
             let i64_ty = lookup_global_type(c, 3, "i64");
-            let char_ty = lookup_global_type(c, 4, "char");
+            let i8_ty = lookup_global_type(c, 2, "i8");
 
             let storage = mir.make_addr_ref(name, value_ty);
-            let value = mir.make_addr_const_value(char_ty, 0);
+            let value = mir.make_addr_const_value(i8_ty, 0);
             let width = mir.make_addr_const_value(i64_ty, value_ty.width);
 
             let args = vec.with_cap(sizeof mir.Address, 3);
@@ -1129,31 +1118,15 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
     if ast.is_char_expr(e) {
         let char_expr = ast.as_char_expr(e);
 
-        // backslash
-        if std.char_to_int(*char_expr.ptr) == 92 {
-            let ptr = &c.data.char_lits.backslash;
+        if *char_expr.ptr == '\\' {
             let next = *(char_expr.ptr + 1);
+            let c = mir.escape_char(next);
 
-            if next == '0' {
-                ptr = &c.data.char_lits.zero;
-            } else if next == 'n' {
-                ptr = &c.data.char_lits.new_line;
-            } else if next == 'r' {
-                ptr = &c.data.char_lits.carriage_return;
-            } else if next == 't' {
-                ptr = &c.data.char_lits.tab;
-            } else if next == '"' {
-                ptr = &c.data.char_lits.double_quote;
-            } else if next == *"'" {
-                ptr = &c.data.char_lits.single_quote;
-            }
-
-            let s = ptr as string;
-            *out = mir.make_addr_const_strings(e.ty, s, s + 1);
+            *out = mir.make_addr_const_value(e.ty, c as i32);
             return true;
         }
 
-        *out = mir.make_addr_const(e.ty, e.span);
+        *out = mir.make_addr_const_value(e.ty, *char_expr.ptr as i32);
         return true;
     }
 
@@ -1178,12 +1151,12 @@ def (c: *MirCompiler) eval_expr(e: *ast.Expr): mir.ValueBuffer {
     // TODO: this should be a real vm
     if ast.is_string_expr(e) {
         let lit_name = string_lit(c, e);
-        return mir.buffer_from_ref(lit_name, true, false);
+        return mir.buffer_from_ref(lit_name, true);
     }
 
     if ast.is_int_expr(e) {
         let lit_int = name.make_ref(e.span.len(), e.span.start);
-        return mir.buffer_from_ref(lit_int, false, false);
+        return mir.buffer_from_ref(lit_int, false);
     }
 
     dbg.assert(false, "invalid expression for compile time evaluation");

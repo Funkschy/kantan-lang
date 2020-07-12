@@ -10,7 +10,7 @@ type Config struct {
     exit_immediately: bool,
     debug_info: bool,
     files: ptrvec.Vec,
-    opt_level: i32,
+    opt_level: i8,
     output_filename: string,
     target_os: string,
     is_same_target_as_os: bool

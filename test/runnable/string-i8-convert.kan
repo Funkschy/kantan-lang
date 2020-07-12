@@ -1,0 +1,13 @@
+import "io";
+
+def cut_end(s: string): *i8 {
+    *(s + 3) = '\0';
+    return s;
+}
+
+def main() {
+    let s = "test";
+    let s: *i8 = s;
+
+    io.printf("%s\n", cut_end(s));
+}

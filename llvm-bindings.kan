@@ -209,9 +209,9 @@ extern def LLVMGetUndef(ty: *Type): *Value;
 
 extern def LLVMConstInt(int_ty: *Type, n: *void, sign_extend: i32): *Value;
 
-extern def LLVMConstIntOfString(int_ty: *Type, text: string, radix: char): *Value;
+extern def LLVMConstIntOfString(int_ty: *Type, text: string, radix: i8): *Value;
 
-extern def LLVMConstIntOfStringAndSize(int_ty: *Type, text: string, s_len: i32, radix: char): *Value;
+extern def LLVMConstIntOfStringAndSize(int_ty: *Type, text: string, s_len: i32, radix: i8): *Value;
 
 extern def LLVMConstRealOfString(real_ty: *Type, text: string): *Value;
 
@@ -252,12 +252,12 @@ def const_int(int_ty: *Type, n: i32, sign_extend: bool): *Value {
     return LLVMConstInt(int_ty, std.int_to_ptr(n), std.bool_to_int(sign_extend));
 }
 
-def const_int_of_string(int_ty: *Type, text: string, radix: i32): *Value {
-    return LLVMConstIntOfString(int_ty, text, std.int_to_char(radix));
+def const_int_of_string(int_ty: *Type, text: string, radix: i8): *Value {
+    return LLVMConstIntOfString(int_ty, text, radix);
 }
 
-def const_int_of_string_and_size(int_ty: *Type, text: string, s_len: i32, radix: i32): *Value {
-    return LLVMConstIntOfStringAndSize(int_ty, text, s_len, std.int_to_char(radix));
+def const_int_of_string_and_size(int_ty: *Type, text: string, s_len: i32, radix: i8): *Value {
+    return LLVMConstIntOfStringAndSize(int_ty, text, s_len, radix);
 }
 
 def const_real_of_string(real_ty: *Type, text: string): *Value {

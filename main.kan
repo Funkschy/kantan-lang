@@ -212,14 +212,14 @@ def printf_spanned(s: span.Span, file: *source.SourceFile): void {
     let len = span.len(s);
     while ptr - s.start < len {
         let c = *ptr;
-        io.putchar(std.char_to_int(c));
+        io.putchar(c as i32);
         if c == '\n' {
             io.printf(" | ");
         }
         ptr = ptr + 1;
     }
 
-    io.putchar(std.char_to_int('\n'));
+    io.putchar('\n');
 }
 
 def print_error(

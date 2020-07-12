@@ -205,12 +205,12 @@ def source_file(l: *Lexer): *source.SourceFile {
 }
 
 def is_num(c: i32): bool {
-    return c >= std.char_to_int('0') && c <= std.char_to_int('9');
+    return c >= '0' && c <= '9';
 }
 
 def is_letter(c: i32): bool {
-    return (c >= std.char_to_int('a') && c <= std.char_to_int('z'))
-        || (c >= std.char_to_int('A') && c <= std.char_to_int('Z'));
+    return c >= 'a' && c <= 'z'
+        || c >= 'A' && c <= 'Z';
 }
 
 def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: TokenType): TokenType {
@@ -228,72 +228,72 @@ def ident_type(l: *Lexer): TokenType {
     let start = 0;
     let len = std.read_char(l.start, l.source.len - bytes_until, &start);
 
-    if start == std.char_to_int('l') {
+    if start == 'l' {
         return check_keyword(l, 1, 2, "et", TokenType.Let);
-    } else if start == std.char_to_int('i') && l.current - l.start > 1 {
+    } else if start == 'i' && l.current - l.start > 1 {
         let next = 0;
         std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
-        if next == std.char_to_int('f') {
+        if next == 'f' {
             return check_keyword(l, 2, 0, "", TokenType.If);
-        } else if next == std.char_to_int('m') {
+        } else if next == 'm' {
             return check_keyword(l, 2, 4, "port", TokenType.Import);
         }
-    } else if start == std.char_to_int('d') && l.current - l.start > 2 {
+    } else if start == 'd' && l.current - l.start > 2 {
         let next = 0;
         len = len + std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
         // read third char
         std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
-        if next == std.char_to_int('f') {
+        if next == 'f' {
             return check_keyword(l, 1, 2, "ef", TokenType.Def);
-        } else if next == std.char_to_int('l') {
+        } else if next == 'l' {
             return check_keyword(l, 1, 5, "elete", TokenType.Delete);
         }
-    } else if start == std.char_to_int('e') && l.current - l.start > 3 {
+    } else if start == 'e' && l.current - l.start > 3 {
         let next = 0;
         std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
-        if next == std.char_to_int('x') {
+        if next == 'x' {
             return check_keyword(l, 2, 4, "tern", TokenType.Extern);
-        } else if next == std.char_to_int('l') {
+        } else if next == 'l' {
             return check_keyword(l, 2, 2, "se", TokenType.Else);
-        } else if next == std.char_to_int('n') {
+        } else if next == 'n' {
             return check_keyword(l, 2, 2, "um", TokenType.Enum);
         }
-    } else if start == std.char_to_int('n') && l.current - l.start > 2 {
+    } else if start == 'n' && l.current - l.start > 2 {
         let next = 0;
         std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
-        if next == std.char_to_int('u') {
+        if next == 'u' {
             return check_keyword(l, 2, 2, "ll", TokenType.Null);
-        } else if next == std.char_to_int('e') {
+        } else if next == 'e' {
             return check_keyword(l, 2, 1, "w", TokenType.New);
         }
-    } else if start == std.char_to_int('s') && l.current - l.start > 5 {
+    } else if start == 's' && l.current - l.start > 5 {
         let next = 0;
         std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
-        if next == std.char_to_int('t') {
+        if next == 't' {
             return check_keyword(l, 2, 4, "ruct", TokenType.Struct);
-        } else if next == std.char_to_int('i') {
+        } else if next == 'i' {
             return check_keyword(l, 2, 4, "zeof", TokenType.Sizeof);
         }
-    } else if start == std.char_to_int('w') {
+    } else if start == 'w' {
         return check_keyword(l, 1, 4, "hile", TokenType.While);
-    } else if start == std.char_to_int('t') {
+    } else if start == 't' {
         return check_keyword(l, 1, 3, "ype", TokenType.Type);
-    } else if start == std.char_to_int('r') {
+    } else if start == 'r' {
         return check_keyword(l, 1, 5, "eturn", TokenType.Return);
-    } else if start == std.char_to_int('a') {
+    } else if start == 'a' {
         return check_keyword(l, 1, 1, "s", TokenType.As);
-    } else if start == std.char_to_int('f') {
+    } else if start == 'f' {
         return check_keyword(l, 1, 2, "or", TokenType.For);
-    } else if start == std.char_to_int('u') {
+    } else if start == 'u' {
         return check_keyword(l, 1, 8, "ndefined", TokenType.Undefined);
-    } else if start == std.char_to_int('c') {
+    } else if start == 'c' {
         return check_keyword(l, 1, 7, "ontinue", TokenType.Continue);
-    } else if start == std.char_to_int('b') {
+    } else if start == 'b' {
         return check_keyword(l, 1, 4, "reak", TokenType.Break);
     }
 
@@ -301,7 +301,7 @@ def ident_type(l: *Lexer): TokenType {
 }
 
 def lex_ident(l: *Lexer): Token {
-    while is_letter(current(l)) || is_num(current(l)) || current(l) == std.char_to_int('_') {
+    while is_letter(current(l)) || is_num(current(l)) || current(l) == '_' {
         advance(l);
     }
 
@@ -314,7 +314,7 @@ def lex_num(l: *Lexer): Token {
     }
 
     // float
-    if current(l) == std.char_to_int('.') {
+    if current(l) == '.' {
         advance(l);
         while is_num(current(l)) {
             advance(l);
@@ -345,13 +345,13 @@ def lex_char_sequence(l: *Lexer, terminator: i32, ty: TokenType): Token {
         } else {
             if escape_next {
                 // every escapable character
-                if curr != std.char_to_int('0')
-                    && curr != std.char_to_int('n')
-                    && curr != std.char_to_int('r')
-                    && curr != std.char_to_int('t')
-                    && curr != std.char_to_int('\\')
-                    && curr != 39 // single quote
-                    && curr != std.char_to_int('"') {
+                if curr != '0'
+                    && curr != 'n'
+                    && curr != 'r'
+                    && curr != 't'
+                    && curr != '\\'
+                    && curr != '\''
+                    && curr != '"' {
 
                     error_start = l.current - 1;
                     error_end = l.current + 1;
@@ -372,11 +372,11 @@ def lex_char_sequence(l: *Lexer, terminator: i32, ty: TokenType): Token {
 }
 
 def lex_string(l: *Lexer): Token {
-    return lex_char_sequence(l, std.char_to_int('"'), TokenType.String);
+    return lex_char_sequence(l, '"', TokenType.String);
 }
 
 def lex_char(l: *Lexer): Token {
-    let char_seq = lex_char_sequence(l, std.char_to_int(*"'"), TokenType.Char);
+    let char_seq = lex_char_sequence(l, '\'', TokenType.Char);
 
     if is_err(&char_seq) {
         return char_seq;
@@ -395,11 +395,11 @@ def lex_char(l: *Lexer): Token {
 }
 
 def is_whitespace(c: i32): bool {
-    return c == std.char_to_int(' ')
-        || c == std.char_to_int('\r')
-        || c == std.char_to_int('\n')
-        || c == std.char_to_int('\t')
-        || c == std.char_to_int('\0');
+    return c == ' '
+        || c == '\r'
+        || c == '\n'
+        || c == '\t'
+        || c == '\0';
 }
 
 def skip_until(l: *Lexer, ch: i32): void {
@@ -473,75 +473,75 @@ def get_next_token(l: *Lexer): Token {
         return lex_ident(l);
     }
 
-    if c == std.char_to_int('"') {
+    if c == '"' {
         return lex_string(l);
     }
 
-    if c == std.char_to_int(*"'") {
+    if c == '\'' {
         return lex_char(l);
     }
 
-    if c == std.char_to_int(';') {
+    if c == ';' {
         return token_from_start(l, TokenType.Semi);
     }
 
-    if c == std.char_to_int(',') {
+    if c == ',' {
         return token_from_start(l, TokenType.Comma);
     }
 
-    if c == std.char_to_int(':') {
+    if c == ':' {
         return token_from_start(l, TokenType.Colon);
     }
 
-    if c == std.char_to_int('+') {
-        if current(l) == std.char_to_int('=') {
+    if c == '+' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.PlusEq);
         }
         return token_from_start(l, TokenType.Plus);
     }
 
-    if c == std.char_to_int('-') {
-        if current(l) == std.char_to_int('=') {
+    if c == '-' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.MinusEq);
         }
         return token_from_start(l, TokenType.Minus);
     }
 
-    if c == std.char_to_int('*') {
-        if current(l) == std.char_to_int('=') {
+    if c == '*' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.StarEq);
         }
         return token_from_start(l, TokenType.Star);
     }
 
-    if c == std.char_to_int('(') {
+    if c == '(' {
         return token_from_start(l, TokenType.LParen);
     }
 
-    if c == std.char_to_int(')') {
+    if c == ')' {
         return token_from_start(l, TokenType.RParen);
     }
 
-    if c == std.char_to_int('{') {
+    if c == '{' {
         return token_from_start(l, TokenType.LBrace);
     }
 
-    if c == std.char_to_int('}') {
+    if c == '}' {
         return token_from_start(l, TokenType.RBrace);
     }
 
-    if c == std.char_to_int('%') {
-        if current(l) == std.char_to_int('=') {
+    if c == '%' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.PercentEq);
         }
         return token_from_start(l, TokenType.Percent);
     }
 
-    if c == std.char_to_int('.') {
+    if c == '.' {
         if std.memcmp(l.start as *void, "..." as *void, 3) == 0 {
             advance(l);
             advance(l);
@@ -551,60 +551,60 @@ def get_next_token(l: *Lexer): Token {
         return token_from_start(l, TokenType.Dot);
     }
 
-    if c == std.char_to_int('/') {
-        if current(l) == std.char_to_int('/') {
-            skip_until(l, std.char_to_int('\n'));
+    if c == '/' {
+        if current(l) == '/' {
+            skip_until(l, '\n');
             return next_token(l);
         }
-        if current(l) == std.char_to_int('=') {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.SlashEq);
         }
         return token_from_start(l, TokenType.Slash);
     }
 
-    if c == std.char_to_int('<') {
-        if current(l) == std.char_to_int('=') {
+    if c == '<' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.SmallerEq);
         }
         return token_from_start(l, TokenType.Smaller);
     }
 
-    if c == std.char_to_int('>') {
-        if current(l) == std.char_to_int('=') {
+    if c == '>' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.GreaterEq);
         }
         return token_from_start(l, TokenType.Greater);
     }
 
-    if c == std.char_to_int('&') {
-        if current(l) == std.char_to_int('&') {
+    if c == '&' {
+        if current(l) == '&' {
             advance(l);
             return token_from_start(l, TokenType.DoubleAmpersand);
         }
         return token_from_start(l, TokenType.Ampersand);
     }
 
-    if c == std.char_to_int('|') {
-        if current(l) == std.char_to_int('|') {
+    if c == '|' {
+        if current(l) == '|' {
             advance(l);
             return token_from_start(l, TokenType.DoublePipe);
         }
         return token_from_start(l, TokenType.Pipe);
     }
 
-    if c == std.char_to_int('=') {
-        if current(l) == std.char_to_int('=') {
+    if c == '=' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.DoubleEq);
         }
         return token_from_start(l, TokenType.Eq);
     }
 
-    if c == std.char_to_int('!') {
-        if current(l) == std.char_to_int('=') {
+    if c == '!' {
+        if current(l) == '=' {
             advance(l);
             return token_from_start(l, TokenType.BangEq);
         }

@@ -274,14 +274,6 @@ void flag_unset(uint32_t *flags, uint32_t flag) {
     }
 }
 
-int32_t char_to_int(char c) {
-    return (int32_t) c;
-}
-
-char int_to_char(int32_t i) {
-    return (char) i;
-}
-
 int32_t bool_to_int(bool b) {
     return (int32_t) b;
 }

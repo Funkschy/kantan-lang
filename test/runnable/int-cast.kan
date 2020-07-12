@@ -8,4 +8,7 @@ def main() {
     io.printf("%d %d\n", sizeof i16, i);
     io.printf("%d %d\n", sizeof i32, i as i32);
     io.printf("%d %d\n", sizeof i64, i as i64);
+
+    i = 'A';
+    io.printf("%d %d\n", sizeof i16, i);
 }
