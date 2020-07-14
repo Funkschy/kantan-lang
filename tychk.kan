@@ -1389,15 +1389,17 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     }
     f_s.block = body as *ast.BlockStmt;
 
-    close_scope(tc);
-    tc.ctx.current_func = last_func;
-
     if !ty.is_void(f_ty.ret) {
-        if check_for_return_stmt(f_s.block) == ERROR {
+        if tc.check_for_return_stmt(f_s.block) == ERROR {
             push_missing_return_error(tc, f_s.decl.name.span);
+            close_scope(tc);
+            tc.ctx.current_func = last_func;
             return null;
         }
     }
+
+    close_scope(tc);
+    tc.ctx.current_func = last_func;
 
     return f_s.block;
 }
@@ -1412,7 +1414,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
 //         - error
 //     - error
 // - error
-def check_for_return_stmt(block: *ast.BlockStmt): i32 {
+def (tc: *TypeChecker) check_for_return_stmt(block: *ast.BlockStmt): i32 {
     if block.stmts.len <= 0 {
         return ERROR;
     }
@@ -1440,10 +1442,18 @@ def check_for_return_stmt(block: *ast.BlockStmt): i32 {
         }
         let else_stmt = ast.as_block_stmt(else_stmt);
 
-        let if_has_return = check_for_return_stmt(if_stmt.block);
-        let else_has_return = check_for_return_stmt(else_stmt);
+        let if_has_return = tc.check_for_return_stmt(if_stmt.block);
+        let else_has_return = tc.check_for_return_stmt(else_stmt);
 
         if if_has_return == OK && else_has_return == OK {
+            let span = span.create(block.s.span.end, block.s.span.end);
+
+            // just add a null value here. This is unreachable, but we currently don't have a
+            // statement for that
+            let value = ast.new_null_expr(span);
+            value.ty = tc.ctx.current_func.ret;
+
+            block.push(ast.new_return_stmt(span, value));
             return OK;
         }
     }

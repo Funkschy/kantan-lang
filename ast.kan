@@ -299,6 +299,10 @@ def set_stmt_at(b: *BlockStmt, i: i32, s: *Stmt): void {
     return b.stmts.set(i, s as *void);
 }
 
+def (b: *BlockStmt) push(s: *Stmt) {
+    b.stmts.push_ptr(s as *void);
+}
+
 def push_stmt(b: *BlockStmt, s: *Stmt): void {
     b.stmts.push_ptr(s as *void);
 }
