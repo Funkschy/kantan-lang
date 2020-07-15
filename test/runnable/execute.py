@@ -84,7 +84,9 @@ if __name__ == '__main__':
     error = f'{colored(TermColor.FAIL, "ERROR")}'
     success = f'{colored(TermColor.OKGREEN, "SUCCESS")}'
 
-    for filename, expected in tests.items():
+    items = sorted(tests.items(), key = lambda item: item[0])
+
+    for filename, expected in items:
         if compile(filename) != 0:
             print(f'{error}: Compilation failed for {filename}')
             continue
