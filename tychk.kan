@@ -371,6 +371,10 @@ def check(tc: *TypeChecker): CheckResult {
         i = i + 1;
     }
 
+    if tc.errors.len > 0 {
+        error = true;
+    }
+
     // check for pending waitingrequests in all mods
     i = 0;
     while i < n {
@@ -646,7 +650,11 @@ def checked_type_lookup(
 
 def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
     let out: *ty.Type = null;
-    if checked_type_lookup(tc, &name.ident, &out, null) == ERROR || out == null {
+    let out_mod: *mod.Module = null;
+    if checked_type_lookup(tc, &name.ident, &out, &out_mod) == ERROR
+        || out == null
+        || out_mod == null {
+
         push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
         return null;
     }
