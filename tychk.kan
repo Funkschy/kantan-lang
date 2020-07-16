@@ -347,28 +347,22 @@ def check(tc: *TypeChecker): CheckResult {
 
     // first init all modules, since the waiting system expects this
     let n = mod.num_mods(tc.mods);
-    let i = 0;
-    while i < n {
+    for let i = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
         error = error || init_mod(tc, m, idx);
-
-        i = i + 1;
     }
 
     // the decl only pass
     // TODO(#27): dont check stdlib if not needed
-    i = 0;
-    while i < n {
+    for let i = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
         if check_mod(tc, m, idx, DECL_ONLY_PASS) == ERROR {
             error = true;
         }
-
-        i = i + 1;
     }
 
     if tc.errors.len > 0 {
@@ -376,8 +370,7 @@ def check(tc: *TypeChecker): CheckResult {
     }
 
     // check for pending waitingrequests in all mods
-    i = 0;
-    while i < n {
+    for let i = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
@@ -430,8 +423,6 @@ def check(tc: *TypeChecker): CheckResult {
 
             next = map.iter_next(&iter);
         }
-
-        i = i + 1;
     }
 
     // don't execute real pass if there are already errors
@@ -440,14 +431,11 @@ def check(tc: *TypeChecker): CheckResult {
     }
 
     // the real pass
-    i = 0;
-    while i < n {
+    for let i = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
         check_mod(tc, m, idx, REAL_PASS);
-
-        i = i + 1;
     }
 
     return create_check_result(tc);
@@ -1785,10 +1773,13 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_for_stmt(s) {
         let f_s = ast.as_for_stmt(s);
 
+        open_scope(tc);
+
         let init: *ast.Stmt = null;
         if f_s.initializer != null {
             init = check_stmt(tc, f_s.initializer);
             if init == null {
+                close_scope(tc);
                 return null;
             }
             f_s.initializer = null;
@@ -1796,12 +1787,14 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         let condition = check_expr(tc, f_s.condition);
         if condition == null {
+            close_scope(tc);
             return null;
         }
 
         let bool_ty = get_global_type(tc, 4, "bool");
         if !ty.equals(bool_ty, condition.ty) {
             push_invalid_condition_error(tc, condition);
+            close_scope(tc);
             return null;
         }
         f_s.condition = null;
@@ -1810,6 +1803,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         if f_s.increment != null {
             increment = check_stmt(tc, f_s.increment);
             if increment == null {
+                close_scope(tc);
                 return null;
             }
             f_s.increment = null;
@@ -1819,6 +1813,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         let block = check_stmt(tc, f_s.block as *ast.Stmt) as *ast.BlockStmt;
         if block == null {
+            close_scope(tc);
             return null;
         }
         f_s.block = null;
@@ -1862,6 +1857,8 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         let original_span = s.span;
         ast.stmt_free(s);
+
+        close_scope(tc);
         return ast.new_block_stmt(original_span, statements);
     }
 
