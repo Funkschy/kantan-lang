@@ -1866,6 +1866,12 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_return_stmt(s) {
         let r_s = ast.as_return_stmt(s);
         if r_s.expr == null {
+            if !ty.is_void(tc.ctx.current_func.ret) {
+                let void_ty = get_global_type(tc, 4, "void");
+                push_wrong_return_type_error(tc, s.span, void_ty);
+                return null;
+            }
+
             return s;
         }
 
@@ -1875,7 +1881,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         if !ty.equals(tc.ctx.current_func.ret, expr.ty) {
-            push_wrong_return_type_error(tc, expr);
+            push_wrong_return_type_error(tc, expr.span, expr.ty);
             return null;
         }
 
@@ -2925,11 +2931,11 @@ def push_wrong_type_error(
 }
 
 
-def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr) {
+def push_wrong_return_type_error(tc: *TypeChecker, span: span.Span, actual: *ty.Type) {
     let ret_ty_s = "";
     let free_ret_ty_s = tc.ty_to_string(tc.ctx.current_func.ret, &ret_ty_s);
     let ty_s = "";
-    let free_ty_s = tc.ty_to_string(expr.ty, &ty_s);
+    let free_ty_s = tc.ty_to_string(actual, &ty_s);
 
     let text = error.err2str(error.CompileError.WrongReturnType, ret_ty_s, ty_s);
     if free_ty_s {
@@ -2939,7 +2945,7 @@ def push_wrong_return_type_error(tc: *TypeChecker, expr: *ast.Expr) {
         delete ret_ty_s;
     }
 
-    push_mk_err(tc, text, expr.span);
+    push_mk_err(tc, text, span);
 }
 
 def push_missing_return_error(tc: *TypeChecker, span: span.Span) {
