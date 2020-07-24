@@ -1,0 +1,16 @@
+import "io";
+
+def f(i: i32) {
+    defer io.printf("%d\n", i);
+    if i % 2 == 0 {
+        defer io.printf("even\n");
+        return;
+    }
+
+    io.printf("end\n");
+}
+
+def main() {
+    f(1);
+    f(2);
+}

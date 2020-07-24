@@ -48,9 +48,16 @@ def (ctx: *LoopContext) swap_break(new_break: *mir.Label): *mir.Label {
     return temp;
 }
 
+type CompilerState enum {
+    Normal, Defer
+}
+
 // Compiles a single *mod.Module to a mir.Module
+// TODO: make single context like in tychk
 type MirCompiler struct {
+    state: CompilerState,
     label_count: i32,
+    current_scope: i32,
     mod: *mod.Module,
     data: *CompilationData,
     names: nt.NameTable,
@@ -60,13 +67,14 @@ type MirCompiler struct {
     global_names: map.Map, // map.Map<ident.Ident, *mir.GlobalVar>
     current_func: *mir.Func,
     loop_context: LoopContext,
-    scopes: vec.Vec,
-    current_scope: i32
+    scopes: mir.Scopes
 }
 
 def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
     return MirCompiler {
+        state: CompilerState.Normal,
         label_count: 0,
+        current_scope: -1,
         mod: m,
         data: data,
         names: nt.create(),
@@ -80,8 +88,7 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
             current_condition_label: null,
             current_break_label: null
         },
-        scopes: vec.create(sizeof mir.Scope),
-        current_scope: -1
+        scopes: mir.create_scopes()
     };
 }
 
@@ -91,19 +98,18 @@ def free_compiler(c: *MirCompiler): void {
 }
 
 def compile(c: *MirCompiler): mir.Module {
-    let i = 0;
     let n = mod.num_stmts(c.mod);
 
-    open_scope(c);
+    open_block_scope(c);
 
-    while i < n {
+    for let i = 0; i < n; i += 1 {
         let s = mod.get_stmt_at(c.mod, i);
         compile_stmt(c, s);
-        i = i + 1;
     }
 
     close_scope(c);
 
+    // TODO: theses things should probably be a struct
     return mir.create_mod(c.globals, c.functions, c.user_defined_types, c.scopes, c.mod);
 }
 
@@ -137,53 +143,61 @@ def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData 
 }
 
 def scope_at(c: *MirCompiler, id: i32): mir.Scope {
-    let s = c.scopes.get_ptr(id) as *mir.Scope;
+    let s = c.scopes.with_id(id);
     dbg.assert_fmt(s != null, "no scope at %d", id);
     return *s;
 }
 
-// open_scope opens a real semantic scope (so in our case a {} block statement)
-def open_scope(c: *MirCompiler) {
-    nt.open_scope(&c.names);
-    // The whole scope logic is only needed for debugger information, but is actually
-    // quite expensive, so we only calculate it, if neccessary
-    if !c.data.config.debug_info && c.scopes.len > 0 {
-        return;
-    }
+// open_block_scope opens a real semantic scope (so in our case a {} block statement)
+def open_block_scope(c: *MirCompiler) {
+    open_scope(c, mir.ScopeKind.Block);
+}
 
-    let s = mir.Scope { id: c.scopes.len, parent: c.current_scope, num_decls: 0 };
+def open_loop_scope(c: *MirCompiler) {
+    open_scope(c, mir.ScopeKind.Loop);
+}
+
+def open_func_scope(c: *MirCompiler) {
+    open_scope(c, mir.ScopeKind.Function);
+}
+
+def open_scope(c: *MirCompiler, kind: mir.ScopeKind) {
+    nt.open_scope(&c.names);
+    let s = mir.scope(kind)
+        .with_id(c.scopes.count())
+        .with_parent(c.current_scope);
+
     c.current_scope = s.id;
-    c.scopes.push(&s as *void);
+    c.scopes.open(s);
 }
 
 // open_var_scope opens a local variable scope
 // each variable declaration opens an implicit scope, since we don't want the debugger
 // to display variables before they are initialized
 def open_var_scope(c: *MirCompiler) {
-    if !c.data.config.debug_info {
-        return;
-    }
-
     let current = scope_at(c, c.current_scope);
-    let s = mir.Scope {
-        id: c.scopes.len,
-        parent: c.current_scope,
-        num_decls: current.num_decls + 1
-    };
+    let s = mir.scope(mir.ScopeKind.Variable)
+        .with_id(c.scopes.count())
+        .with_parent(c.current_scope)
+        .with_num_decls(current.num_decls + 1);
+
     c.current_scope = s.id;
-    c.scopes.push(&s as *void);
+    c.scopes.open(s);
 }
 
 def close_scope(c: *MirCompiler) {
     nt.close_scope(&c.names);
-    if !c.data.config.debug_info && c.scopes.len > 0{
-        return;
-    }
 
     let current = scope_at(c, c.current_scope);
+    c.push_defered_instructions(current);
+
     while current.num_decls > 0 {
         current = scope_at(c, current.parent);
+        if current.kind != mir.ScopeKind.Variable {
+            c.push_defered_instructions(current);
+        }
     }
+
     c.current_scope = current.parent;
 }
 
@@ -291,7 +305,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         let decl_stmt = ast.as_func_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
-        open_scope(c);
+        open_func_scope(c);
         let mir_func = lookup_or_declare_function(c, decl.func_ty);
         // override the meta information, since it could be wrong, if the function
         // was called before it was declared
@@ -328,7 +342,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
             compile_stmt(c, decl_stmt.block as *ast.Stmt);
             let last_bb = mir.bm_last_bb_ptr(&mir_func.blocks);
             if mir.is_inst_nop(&last_bb.terminator) {
-                open_scope(c);
+                open_block_scope(c);
                 let is_main = std.strcmp(mir_func.name.data, "main") == 0;
                 dbg.assert(
                     is_main || ty.is_void(mir.func_ret_ty(mir_func)),
@@ -413,7 +427,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
         let block_stmt = ast.as_block_stmt(s);
 
-        open_scope(c);
+        open_block_scope(c);
 
         for let i = 0; i < block_stmt.stmts.len; i += 1 {
             let s = ast.stmt_at(block_stmt, i);
@@ -453,10 +467,14 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         let end_label = label(c);
         let old_end_label = c.loop_context.swap_break(&end_label);
 
+        open_loop_scope(c);
+
         push_while_stmt(c, s, &end_label);
         // TODO(#91): wrong meta for while-stmt-endlabel
         let end_meta = get_meta(c, ast.as_while_stmt(s).block.s.span);
         push_instr(c, mir.new_inst_label(end_meta, end_label));
+
+        close_scope(c);
 
         c.loop_context.swap_break(old_end_label);
         return;
@@ -465,6 +483,8 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
     if ast.is_continue_stmt(s) {
         let loop = c.loop_context.current_loop;
         dbg.assert(loop != null, "continue outside of loop");
+
+        c.push_defered_until_kind(mir.ScopeKind.Loop);
 
         if loop.end_block != null {
             compile_stmt(c, loop.end_block as *ast.Stmt);
@@ -483,15 +503,31 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
     if ast.is_break_stmt(s) {
         dbg.assert(c.loop_context.current_break_label != null, "current_break_label was null");
+
+        c.push_defered_until_kind(mir.ScopeKind.Loop);
+
         let cloned = mir.clone_label(c.loop_context.current_break_label);
         let end_jmp = mir.new_inst_jmp(get_meta(c, s.span), cloned);
         push_instr(c, end_jmp);
         return;
     }
 
+    if ast.is_defer_stmt(s) {
+        let defer_stmt = ast.as_defer_stmt(s);
+
+        let old_state = c.state;
+        c.state = CompilerState.Defer;
+        compile_stmt(c, defer_stmt.stmt);
+        c.state = old_state;
+
+        return;
+    }
+
     if ast.is_return_stmt(s) {
         let ret = ast.as_return_stmt(s);
         let meta = get_meta(c, s.span);
+
+        c.push_defered_until_kind(mir.ScopeKind.Function);
 
         if ret.expr == null {
             // we actually allow the main function to be declared as
@@ -518,16 +554,45 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
     }
 }
 
-def push_decl(c: *MirCompiler, n: name.Ref, ty: *ty.Type, m: mir.MetaData): void {
+def (c: *MirCompiler) push_defered_instructions(scope: mir.Scope) {
+    let defered = c.scopes.defered_for(scope.id);
+    let len = defered.len();
+    for let i = len - 1; i >= 0; i -= 1 {
+        let instr = defered.get(i);
+        push_instr_p(c, instr);
+    }
+}
+
+def (c: *MirCompiler) push_defered_until_kind(kind: mir.ScopeKind) {
+    let scope = scope_at(c, c.current_scope);
+    c.push_defered_instructions(scope);
+    // return/break/continue end the scope prematurely. If we didn't clear this,
+    // the instruction would also be emitted for the end of the block and therefore
+    // be duplicated
+    c.scopes.clear_defered_for(scope.id);
+
+    while scope.kind != kind {
+        scope = scope_at(c, scope.parent);
+        c.push_defered_instructions(scope);
+    }
+}
+
+def push_decl(c: *MirCompiler, n: name.Ref, ty: *ty.Type, m: mir.MetaData) {
     push_instr(c, mir.new_inst_decl(m, n, ty));
 }
 
-def push_instr_p(c: *MirCompiler, instr: *mir.Inst): void {
-    mir.func_push_instr(c.current_func, instr);
+def push_instr(c: *MirCompiler, instr: mir.Inst) {
+    push_instr_p(c, &instr);
 }
 
-def push_instr(c: *MirCompiler, instr: mir.Inst): void {
-    mir.func_push_instr(c.current_func, &instr);
+def push_instr_p(c: *MirCompiler, instr: *mir.Inst) {
+    if c.state == CompilerState.Defer {
+        c.scopes.push_defer(c.current_scope, instr);
+        return;
+    }
+
+    instr.push_count += 1;
+    mir.func_push_instr(c.current_func, instr);
 }
 
 def push_assign(

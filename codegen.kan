@@ -1143,7 +1143,7 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
         false         // debug info for profiling
     );
 
-    let scopes = ptrvec.with_cap(c.irmod.scopes.len);
+    let scopes = ptrvec.with_cap(c.irmod.scopes.count());
     scopes.zero();
     // the scope at index 0 is the file
     scopes.push_ptr(llfile as *void);

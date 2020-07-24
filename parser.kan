@@ -326,10 +326,6 @@ def parse_simple_stmt(p: *Parser): *ast.Stmt {
         return parse_let_stmt(p);
     }
 
-    if peek.ty == l.TokenType.Delete {
-        return parse_delete_stmt(p);
-    }
-
     if peek.ty == l.TokenType.Return {
         return parse_return_stmt(p);
     }
@@ -344,12 +340,34 @@ def parse_simple_stmt(p: *Parser): *ast.Stmt {
         return ast.new_break_stmt(break_tok.span);
     }
 
+    if peek.ty == l.TokenType.Defer {
+        return parse_defer_stmt(p);
+    }
+
+    return parse_deferable_stmt(p);
+}
+
+def parse_deferable_stmt(p: *Parser): *ast.Stmt {
+    let peek = peek(p);
+
+    if peek.ty == l.TokenType.Delete {
+        return parse_delete_stmt(p);
+    }
+
     let expr = expression(p, false);
     if expr == null {
         return null;
     }
 
     return ast.new_expr_stmt(expr);
+}
+
+def parse_defer_stmt(p: *Parser): *ast.Stmt {
+    CONSUME_TOK_RET_NULL(del_tok, l.TokenType.Defer);
+
+    LETCHECK(stmt, parse_deferable_stmt(p));
+    let defer_span = span.merge(del_tok.span, stmt.span);
+    return ast.new_defer_stmt(defer_span, stmt);
 }
 
 def parse_delete_stmt(p: *Parser): *ast.Stmt {

@@ -29,6 +29,7 @@ type StmtKind enum {
     Return,
     Continue,
     Break,
+    Defer,
     For
 }
 
@@ -181,6 +182,28 @@ def is_break_stmt(s: *Stmt): bool {
 
 def as_break_stmt(s: *Stmt): *BreakStmt {
     return s as *BreakStmt;
+}
+
+/////////// Defer stmt ///////////
+
+type DeferStmt struct {
+    s: Stmt,
+    stmt: *Stmt
+}
+
+def new_defer_stmt(span: span.Span, stmt: *Stmt): *Stmt {
+    return (new DeferStmt {
+        s: Stmt { tag: StmtKind.Defer, span: span },
+        stmt: stmt
+    }) as *Stmt;
+}
+
+def is_defer_stmt(s: *Stmt): bool {
+    return s.tag == StmtKind.Defer;
+}
+
+def as_defer_stmt(s: *Stmt): *DeferStmt {
+    return s as *DeferStmt;
 }
 
 /////////// While stmt ///////////
@@ -481,6 +504,8 @@ def stmt_free(s: *Stmt): void {
         expr_free(as_let_stmt(s).value);
     } else if is_delete_stmt(s) {
         expr_free(as_delete_stmt(s).expr);
+    } else if is_defer_stmt(s) {
+        stmt_free(as_defer_stmt(s).stmt);
     } else if is_return_stmt(s) {
         expr_free(as_return_stmt(s).expr);
     } else if is_func_decl_stmt(s) {

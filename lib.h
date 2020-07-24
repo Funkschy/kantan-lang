@@ -43,6 +43,7 @@ static char const *const token_strings[] = {
     "undefined",
     "continue",
     "break",
+    "defer",
     ";",
     ",",
     ":",
@@ -155,6 +156,7 @@ static char const *const stmt_type_strings[] = {
     "return",
     "continue",
     "break",
+    "defer",
     "for"
 };
 

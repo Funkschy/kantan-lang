@@ -1,0 +1,7 @@
+import "io";
+
+def main() {
+    io.printf("%d\n", 0);
+    defer io.printf("%d\n", 2);
+    io.printf("%d\n", 1);
+}

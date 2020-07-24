@@ -36,6 +36,7 @@ type TokenType enum {
     Undefined,
     Continue,
     Break,
+    Defer,
 
     Semi,
     Comma,
@@ -249,7 +250,11 @@ def ident_type(l: *Lexer): TokenType {
         std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
         if next == 'f' {
-            return check_keyword(l, 1, 2, "ef", TokenType.Def);
+            if l.current - l.start == 3 {
+                return check_keyword(l, 1, 2, "ef", TokenType.Def);
+            } else {
+                return check_keyword(l, 1, 4, "efer", TokenType.Defer);
+            }
         } else if next == 'l' {
             return check_keyword(l, 1, 5, "elete", TokenType.Delete);
         }

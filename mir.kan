@@ -19,7 +19,7 @@ type Module struct {
     globals: map.Map, // map.Map<name.Ref, *GlobalVar>
     functions: map.Map, // map.Map<name.Ref, *Func>
     user_defined_types: map.Map, // map.Map<name.Ref, *UserDefinedType>
-    scopes: vec.Vec, // vec.Vec<Scope>
+    scopes: Scopes,
     actual: *mod.Module
 }
 
@@ -27,7 +27,7 @@ def create_mod(
     globals: map.Map,
     funcs: map.Map,
     user_defined_types: map.Map,
-    scopes: vec.Vec,
+    scopes: Scopes,
     actual: *mod.Module
 ): Module {
     return Module {
@@ -175,6 +175,92 @@ def dump_module(m: *Module): void {
     }
 }
 
+type DeferedStmts struct {
+    instructions: vec.Vec // vec.Vec<Inst>
+}
+
+def create_defered_stmts(): DeferedStmts {
+    return DeferedStmts {
+        instructions: vec.create(sizeof Inst)
+    };
+}
+
+def (ds: *DeferedStmts) free() {
+    for let i = 0; i < ds.instructions.len; i += 1 {
+        let instr = ds.get(i);
+        if instr.push_count == 0 {
+            free_inst(instr);
+        }
+    }
+    ds.instructions.free();
+}
+
+def (ds: *DeferedStmts) len(): i32 {
+    return ds.instructions.len;
+}
+
+def (ds: *DeferedStmts) push(instr: *Inst) {
+    ds.instructions.push(instr as *void);
+}
+
+def (ds: *DeferedStmts) get(idx: i32): *Inst {
+    return ds.instructions.get_ptr(idx) as *Inst;
+}
+
+type Scopes struct {
+    mir_scopes: vec.Vec, // vec.Vec<Scope>
+    defered: vec.Vec // vec.Vec<DeferedStmts>
+}
+
+def create_scopes(): Scopes {
+    return Scopes {
+        mir_scopes: vec.create(sizeof Scope),
+        defered: vec.create(sizeof DeferedStmts)
+    };
+}
+
+def (s: *Scopes) free() {
+    for let i = 0; i < s.defered.len; i += 1 {
+        (s.defered.get_ptr(i) as *DeferedStmts).free();
+    }
+    s.defered.free();
+    s.mir_scopes.free();
+}
+
+def (s: *Scopes) open(scope: Scope) {
+    s.mir_scopes.push(&scope as *void);
+    let defered = create_defered_stmts();
+    s.defered.push(&defered as *void);
+}
+
+def (s: *Scopes) push_defer(scope_id: i32, instr: *Inst) {
+    let stmts = s.defered.get_ptr(scope_id) as *DeferedStmts;
+    dbg.assert(stmts != null, "pushing defer into non existing scope");
+    stmts.push(instr);
+}
+
+def (s: *Scopes) defered_for(id: i32): *DeferedStmts {
+    return s.defered.get_ptr(id) as *DeferedStmts;
+}
+
+def (s: *Scopes) clear_defered_for(id: i32) {
+    let defered = s.defered_for(id);
+    defered.free();
+    *defered = create_defered_stmts();
+}
+
+def (s: *Scopes) with_id(id: i32): *Scope {
+    return s.mir_scopes.get_ptr(id) as *Scope;
+}
+
+def (s: *Scopes) count(): i32 {
+    return s.mir_scopes.len;
+}
+
+def (s: *Scopes) is_empty(): bool {
+    return s.count() <= 0;
+}
+
 type Func struct {
     name: name.Ref,
     blocks: BlockMap,
@@ -235,10 +321,34 @@ def create_user_defined_type(
     };
 }
 
+type ScopeKind enum {
+    Function, Loop, Block, Variable
+}
+
 type Scope struct {
+    kind: ScopeKind,
     id: i32,
     parent: i32,
     num_decls: i32
+}
+
+def scope(kind: ScopeKind): Scope {
+    return Scope { kind: kind, id: -1, parent: -1, num_decls: 0 };
+}
+
+def (s: Scope) with_id(id: i32): Scope {
+    s.id = id;
+    return s;
+}
+
+def (s: Scope) with_parent(parent: i32): Scope {
+    s.parent = parent;
+    return s;
+}
+
+def (s: Scope) with_num_decls(num_decls: i32): Scope {
+    s.num_decls = num_decls;
+    return s;
 }
 
 type MetaData struct {
@@ -1212,11 +1322,11 @@ type InstDecl struct {
 }
 
 def new_inst_decl(meta: MetaData, name: name.Ref, ty: *ty.Type): Inst {
-    return Inst {
-        kind: InstKind.Decl,
-        meta: meta,
-        data: (new InstDecl {name: name, ty: ty}) as *void
-    };
+    return create_inst(
+        InstKind.Decl,
+        meta,
+        (new InstDecl {name: name, ty: ty}) as *void
+    );
 }
 
 def is_inst_decl(inst: *Inst): bool {
@@ -1251,17 +1361,17 @@ def new_inst_assign_param(
     t: *ty.Type,
     param_idx: i32
 ): Inst {
-    return Inst {
-        kind: InstKind.Assign,
-        meta: meta,
-        data: (new InstAssign {
+    return create_inst(
+        InstKind.Assign,
+        meta,
+        (new InstAssign {
             dest: dest,
             value: value,
             param_idx: param_idx,
             var_scope: meta.scope,
             original_ident: ident.empty()
         }) as *void
-    };
+    );
 }
 
 def new_inst_assign_decl(
@@ -1272,17 +1382,17 @@ def new_inst_assign_decl(
     var_scope: Scope,
     original_ident: ident.Ident
 ): Inst {
-    return Inst {
-        kind: InstKind.Assign,
-        meta: meta,
-        data: (new InstAssign {
+    return create_inst (
+        InstKind.Assign,
+        meta,
+        (new InstAssign {
             dest: dest,
             value: value,
             param_idx: -1,
             var_scope: var_scope,
             original_ident: original_ident
         }) as *void
-    };
+    );
 }
 
 def is_inst_assign(inst: *Inst): bool {
@@ -1298,11 +1408,11 @@ type InstJmp struct {
 }
 
 def new_inst_jmp(meta: MetaData, target: Label): Inst {
-    return Inst {
-        kind: InstKind.Jmp,
-        meta: meta,
-        data: (new InstJmp {target: target}) as *void
-    };
+    return create_inst(
+        InstKind.Jmp,
+        meta,
+        (new InstJmp {target: target}) as *void
+    );
 }
 
 def is_inst_jmp(inst: *Inst): bool {
@@ -1325,13 +1435,13 @@ def new_inst_jmpif(
     if_target: Label,
     else_target: Label
 ): Inst {
-    return Inst {
-        kind: InstKind.JmpIf,
-        meta: meta,
-        data: (new InstJmpIf {
+    return create_inst(
+        InstKind.JmpIf,
+        meta,
+        (new InstJmpIf {
             condition: condition, if_target: if_target, else_target: else_target
         }) as *void
-    };
+    );
 }
 
 
@@ -1352,11 +1462,11 @@ def new_inst_return(meta: MetaData): Inst {
 }
 
 def new_inst_return_value(meta: MetaData, value: Address): Inst {
-    return Inst {
-        kind: InstKind.Return,
-        meta: meta,
-        data: (new InstReturn { value: value }) as *void
-    };
+    return create_inst(
+        InstKind.Return,
+        meta,
+        (new InstReturn { value: value }) as *void
+    );
 }
 
 def is_inst_return(inst: *Inst): bool {
@@ -1372,11 +1482,11 @@ type InstLabel struct {
 }
 
 def new_inst_label(meta: MetaData, value: Label): Inst {
-    return Inst {
-        kind: InstKind.Label,
-        meta: meta,
-        data: (new InstLabel { value: value }) as *void
-    };
+    return create_inst(
+        InstKind.Label,
+        meta,
+        (new InstLabel { value: value }) as *void
+    );
 }
 
 def is_inst_label(inst: *Inst): bool {
@@ -1392,11 +1502,11 @@ type InstDelete struct {
 }
 
 def new_inst_delete(meta: MetaData, target: Address): Inst {
-    return Inst {
-        kind: InstKind.Delete,
-        meta: meta,
-        data: (new InstDelete { addr: target }) as *void
-    };
+    return create_inst(
+        InstKind.Delete,
+        meta,
+        (new InstDelete { addr: target }) as *void
+    );
 }
 
 def is_inst_delete(inst: *Inst): bool {
@@ -1408,11 +1518,11 @@ def as_inst_delete(inst: *Inst): *InstDelete {
 }
 
 def create_inst_nop(): Inst {
-    return Inst {
-        kind: InstKind.NOP,
-        meta: create_meta(source.empty_pos(), Scope { id: -1, parent: -1, num_decls: 0 }),
-        data: null
-    };
+    return create_inst(
+        InstKind.NOP,
+        create_meta(source.empty_pos(), scope(ScopeKind.Variable)),
+        null
+    );
 }
 
 def is_inst_nop(inst: *Inst): bool {
@@ -1451,8 +1561,15 @@ type InstKind enum {
 //  Nop,
 type Inst struct {
     kind: InstKind,
+    push_count: i32, // how often was this statement pushed (basically a ref count)
     meta: MetaData,
     data: *void
+}
+
+def create_inst(kind: InstKind, meta: MetaData, data: *void): Inst {
+    return Inst {
+        kind: kind, push_count: 0, meta: meta, data: data
+    };
 }
 
 def inst_changes_ip(inst: *Inst): bool {
@@ -1574,7 +1691,12 @@ def inst_to_name(inst: *Inst): name.Owned {
     return name.make_owned(0, null);
 }
 
-def free_inst(inst: *Inst): void {
+def free_inst(inst: *Inst) {
+    inst.push_count -= 1;
+    if inst.push_count > 0 {
+        return;
+    }
+
     if is_inst_assign(inst) {
         let assign = as_inst_assign(inst);
         free_expr(&assign.value);

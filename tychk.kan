@@ -1909,6 +1909,15 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         return s;
     }
 
+    // STMT_DEFER
+    if ast.is_defer_stmt(s) {
+        let defer_stmt = ast.as_defer_stmt(s);
+        let checked = check_stmt(tc, defer_stmt.stmt);
+
+        defer_stmt.stmt = checked;
+        return s;
+    }
+
     return null;
 }
 

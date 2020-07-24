@@ -1,0 +1,22 @@
+import "io";
+
+def f() {
+    defer io.printf("end\n");
+    let i = 0;
+    while i < 10 {
+        defer i += 1;
+        defer io.printf("%d\n", i);
+        if i % 2 == 0 {
+            continue;
+        }
+
+        defer io.printf("uneven %d\n", i);
+        if i > 4 {
+            break;
+        }
+    }
+}
+
+def main() {
+    f();
+}
