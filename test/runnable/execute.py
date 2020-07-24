@@ -83,6 +83,7 @@ if __name__ == '__main__':
     tests = collect()
     error = f'{colored(TermColor.FAIL, "ERROR")}'
     success = f'{colored(TermColor.OKGREEN, "SUCCESS")}'
+    failed_count = 0
 
     items = sorted(tests.items(), key = lambda item: item[0])
 
@@ -94,9 +95,14 @@ if __name__ == '__main__':
         output = execute()
         if output.strip() != expected.strip():
             print(f'{error}: in {filename}')
-            print(f'expected <{expected}>, but got \n<{output}>')
+            print(f'expected:\n{expected}, but got:\n{output}')
+            failed_count += 1
         else:
             print(f'{success} {filename}')
+
+    print(f'{colored(TermColor.OKGREEN, "OK")}: {len(items) - failed_count}')
+    if failed_count > 0:
+        print(f'{colored(TermColor.FAIL, "FAILED")}: {failed_count}')
 
     cleanup()
 
