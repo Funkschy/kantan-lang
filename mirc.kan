@@ -193,9 +193,7 @@ def close_scope(c: *MirCompiler) {
 
     while current.num_decls > 0 {
         current = scope_at(c, current.parent);
-        if current.kind != mir.ScopeKind.Variable {
-            c.push_defered_instructions(current);
-        }
+        c.push_defered_instructions(current);
     }
 
     c.current_scope = current.parent;
@@ -565,6 +563,11 @@ def (c: *MirCompiler) push_defered_instructions(scope: mir.Scope) {
 
 def (c: *MirCompiler) push_defered_until_kind(kind: mir.ScopeKind) {
     let scope = scope_at(c, c.current_scope);
+    // don't defer into variables scopes. This will lead to duplicated statements
+    while scope.kind == mir.ScopeKind.Variable {
+        scope = scope_at(c, scope.parent);
+    }
+
     c.push_defered_instructions(scope);
     // return/break/continue end the scope prematurely. If we didn't clear this,
     // the instruction would also be emitted for the end of the block and therefore

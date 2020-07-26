@@ -1,0 +1,19 @@
+import "io";
+
+def first() {
+    defer io.printf("1\n");
+    let run = true;
+    return;
+}
+
+def second() {
+    defer io.printf("3\n");
+    let x = 3;
+    defer io.printf("2\n");
+    let x = 2;
+}
+
+def main() {
+    first();
+    second();
+}
