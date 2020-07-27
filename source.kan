@@ -36,25 +36,21 @@ type SourceFile struct {
     map: SourceMap
 }
 
-def free_sf(sf: *SourceFile): void {
+def (sf: *SourceFile) free() {
     delete sf.code;
-    file.free_f(&sf.file);
-    free_srcmap(&sf.map);
+    sf.file.free();
+    sf.map.free();
 }
 
-def file_name_dup(sf: *SourceFile): string {
-    return file.name_dup(&sf.file);
-}
-
-def code(sf: *SourceFile): string {
-    return sf.code;
+def (sf: *SourceFile) name_dup(): string {
+    return sf.file.name_dup();
 }
 
 def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): error.CompileError {
     let new_file = file.create(p);
     let s: string = null;
     let len = 0;
-    let res = file.read_to_string(&new_file, &s, &len);
+    let res = new_file.read_to_string(&s, &len);
 
     if res != error.CompileError.OK {
         return res;
@@ -72,14 +68,13 @@ def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): error.CompileError 
     return error.CompileError.OK;
 }
 
-def line_info(
-    file: *SourceFile,
+def (file: *SourceFile) line_info(
     target: span.Span,
     out_line_start: *string,
     out_line_end: *string,
     out_line_nr: *i32,
     out_col: *i32
-): void {
+) {
     dbg.assert_fmt(
         file.code <= target.start && target.end <= file.code + file.len,
         "invalid target (%p-%p) for source (%p-%p) in %.*s",
@@ -116,22 +111,22 @@ def line_info(
         *out_col = target.start - last_nl;
     }
     if out_line_nr != null {
-        *out_line_nr = find_line_in_srcmap(&file.map, target);
+        *out_line_nr = file.map.find_line_in_srcmap(target);
     }
 }
 
-def find_line(file: *SourceFile, target: span.Span): LineSpan {
+def (file: *SourceFile) find_line(target: span.Span): LineSpan {
     let pos = SourcePos{ lnr: 0, col: 0 };
     let line_span = span.empty();
 
-    line_info(file, target, &line_span.start, &line_span.end, &pos.lnr, &pos.col);
+    file.line_info(target, &line_span.start, &line_span.end, &pos.lnr, &pos.col);
 
     return LineSpan { pos: pos, span: line_span };
 }
 
-def span_to_pos(file: *SourceFile, s: span.Span): SourcePos {
+def (file: *SourceFile) span_to_pos(target: span.Span): SourcePos {
     let pos = SourcePos{ lnr: 0, col: 0 };
-    line_info(file, s, null, null, &pos.lnr, &pos.col);
+    file.line_info(target, null, null, &pos.lnr, &pos.col);
     return pos;
 }
 
@@ -159,14 +154,14 @@ def map_from_source(code: string, len: i32): SourceMap {
 
 // does a binary search inside the SourceMap, to find the line number of the
 // specified span
-def find_line_in_srcmap(m: *SourceMap, span: span.Span): i32 {
+def (m: *SourceMap) find_line_in_srcmap(span: span.Span): i32 {
     let start = 0;
     let end = m.line_starts.len - 1;
 
     while start <= end {
         let idx = (start + end) / 2;
-        let line_start = line_at(m, idx);
-        let line_end = line_at(m, idx + 1);
+        let line_start = m.line_at(idx);
+        let line_end = m.line_at(idx + 1);
 
         if line_end == null {
             // no next line, so just search for the end of the string
@@ -189,10 +184,10 @@ def find_line_in_srcmap(m: *SourceMap, span: span.Span): i32 {
     return -1;
 }
 
-def line_at(m: *SourceMap, idx: i32): string {
+def (m: *SourceMap) line_at(idx: i32): string {
     return m.line_starts.get(idx) as string;
 }
 
-def free_srcmap(m: *SourceMap): void {
+def (m: *SourceMap) free() {
     m.line_starts.free();
 }

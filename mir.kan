@@ -1195,19 +1195,18 @@ def expr_to_name(e: *Expression): name.Owned {
         let call = as_expr_call(e);
 
         let buf = str.create_buf();
+        defer buf.free();
 
-        let i = 0;
-        while i < call.args.len {
+        for let i = 0; i < call.args.len; i += 1 {
             let arg = call_arg_at(call, i);
             let arg_n = addr_to_name(arg);
 
-            str.append(&buf, arg_n.len, arg_n.data);
+            buf.append(arg_n.len, arg_n.data);
             if i < call.args.len - 1 {
-                str.append(&buf, 2, ", ");
+                buf.append(2, ", ");
             }
 
             name.free_owned(&arg_n);
-            i = i + 1;
         }
 
         let n: name.Owned = undefined;
@@ -1223,7 +1222,6 @@ def expr_to_name(e: *Expression): name.Owned {
         );
         name.free_owned(&n);
 
-        str.free_buf(&buf);
         return name.make_owned(len, s);
     }
 
@@ -1244,19 +1242,18 @@ def expr_to_name(e: *Expression): name.Owned {
         let init = as_expr_struct_init(e);
 
         let buf = str.create_buf();
+        defer buf.free();
 
-        let i = 0;
-        while i < init.args.len {
+        for let i = 0; i < init.args.len; i += 1 {
             let arg = init_arg_at(init, i);
             let arg_n = addr_to_name(arg);
 
-            str.append(&buf, arg_n.len, arg_n.data);
+            buf.append(arg_n.len, arg_n.data);
             if i < init.args.len - 1 {
-                str.append(&buf, 2, ", ");
+                buf.append(2, ", ");
             }
 
             name.free_owned(&arg_n);
-            i = i + 1;
         }
 
         let n= init.name;
@@ -1265,7 +1262,6 @@ def expr_to_name(e: *Expression): name.Owned {
             &len, "%.*s{%s}", n.len, n.data, buf.content
         );
 
-        str.free_buf(&buf);
         return name.make_owned(len, s);
     }
 

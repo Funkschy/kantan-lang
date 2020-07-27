@@ -895,9 +895,11 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         let free_ret = to_string(f_ty.ret, &s_ret);
 
         let buf = str.create_buf();
-        for let i = 0; i < f_ty.params.len; i = i + 1 {
+        defer buf.free();
+
+        for let i = 0; i < f_ty.params.len; i += 1 {
             if i > 0 {
-                str.append(&buf, 2, ", ");
+                buf.append(2, ", ");
             }
 
             let p = param_at(f_ty, i);
@@ -906,7 +908,7 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
             let free_p_ty_s = to_string_mangled(p.ty, use_mangled, &p_ty_s);
             let len = std.strlen(p_ty_s);
 
-            str.append(&buf, len, p_ty_s);
+            buf.append(len, p_ty_s);
 
             if free_p_ty_s {
                 delete p_ty_s;
@@ -917,8 +919,6 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         if free_ret {
             delete s_ret;
         }
-
-        str.free_buf(&buf);
 
         *out = s;
         return true;

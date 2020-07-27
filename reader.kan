@@ -35,94 +35,82 @@ def create(): FileMap {
     };
 }
 
-def num_files(m: *FileMap): i32 {
+def (m: *FileMap) num_files(): i32 {
     return m.files.len;
 }
 
-def get_ptr_by_idx(m: *FileMap, idx: i32): *source.SourceFile {
+def (m: *FileMap) get_ptr_by_idx(idx: i32): *source.SourceFile {
     return m.files.get_ptr(idx) as *source.SourceFile;
 }
 
-def get_ptr_from_span(m: *FileMap, span: span.Span): *source.SourceFile {
+def (m: *FileMap) get_ptr_from_span(span: span.Span): *source.SourceFile {
     // TODO(#60): this should use a binary search or some kind of tree
 
-    let i = 0;
-    while i < m.files.len {
-        let file = get_ptr_by_idx(m, i);
-        dbg.assert(file != null, "File was null");
+    for let i = 0; i < m.files.len; i += 1 {
+        let file = m.get_ptr_by_idx(i);
+        dbg.assert(file != null, "file was null");
 
         if span.start >= file.code && span.end <= file.code + file.len {
             return file;
         }
-
-        i = i + 1;
     }
 
     return null;
 }
 
-def free_fm(m: *FileMap): void {
-    let i = 0;
-    while i < m.files.len {
+def (m: *FileMap) free() {
+    for let i = 0; i < m.files.len; i += 1 {
         let s: source.SourceFile = undefined;
         if m.files.get(i, &s as *void) {
-            source.free_sf(&s);
+            s.free();
         }
-        i = i + 1;
     }
 
     m.files.free();
     path.free_pb(&m.proj_root);
 }
 
-def add_std_lib(m: *FileMap, rel_path: *path.Path, std_dir: string): FileAddResult {
+def (m: *FileMap) add_std_lib(rel_path: *path.Path, std_dir: string): FileAddResult {
     let len = num_builtin_files();
     let file_names = get_builtin_files();
 
-    let i = 0;
-    while i < len {
+    for let i = 0; i < len; i += 1 {
         let file_name = *(file_names + i);
         let full_file_name = std.format_str("%s/%s", std_dir, file_name);
+        defer delete full_file_name;
 
-        let res = add_file(m, rel_path, full_file_name, true);
+        let res = m.add_file(rel_path, full_file_name, true);
         if res.is_not_ok() {
-            delete full_file_name;
             return FileAddResult { file_name: file_name, err_code: res };
         }
 
-        let idx = num_files(m) - 1;
-        let sptr = get_ptr_by_idx(m, idx);
+        let idx = m.num_files() - 1;
+        let sptr = m.get_ptr_by_idx(idx);
 
         if sptr != null {
             let new_path = path.new_path_buf(file_name);
-            file.free_f(&sptr.file);
+            sptr.file.free();
             sptr.file.path = new_path;
         }
-
-        delete full_file_name;
-
-        i = i + 1;
     }
 
     return FileAddResult { file_name: null, err_code: err.CompileError.OK };
 }
 
-def add_all(m: *FileMap, rel_path: *path.Path, len: i32, file_names: *string): FileAddResult {
+def (m: *FileMap) add_all(rel_path: *path.Path, len: i32, file_names: *string): FileAddResult {
     // TODO(#31): detect duplicate files
-    let i = 0;
-    while i < len {
+    for let i = 0; i < len; i+= 1 {
         let file_name = *(file_names + i);
-        let res = add_file(m, rel_path, file_name, false);
+        let res = m.add_file(rel_path, file_name, false);
         if res.is_not_ok() {
             return FileAddResult { file_name: file_name, err_code: res };
         }
-        i = i + 1;
     }
 
     return FileAddResult { file_name: null, err_code: err.CompileError.OK };
 }
 
-def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool): err.CompileError {
+def (m: *FileMap) add_file(rel_path: *path.Path, name: string, is_std_lib: bool): err.CompileError {
     let p = path.empty();
     let res = path.from_str(name, &p);
     if res.is_not_ok() {
@@ -143,13 +131,13 @@ def add_file(m: *FileMap, rel_path: *path.Path, name: string, is_std_lib: bool):
 
     m.files.push(&sf as *void);
     if !is_std_lib {
-        update_root(m, abs_path.inner);
+        m.update_root(abs_path.inner);
     }
 
     return err.CompileError.OK;
 }
 
-def update_root(m: *FileMap, p: path.Path): void {
+def (m: *FileMap) update_root(p: path.Path) {
     if m.proj_root.inner.len == 0 {
         let p = path.parent(&p);
         m.proj_root = path.new_path_buf_l(p.len, p.inner);

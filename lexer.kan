@@ -1,6 +1,5 @@
 import "std";
 import "span";
-import "path";
 import "source";
 
 extern def tok2str(ty: TokenType): string;

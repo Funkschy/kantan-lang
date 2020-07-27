@@ -138,7 +138,7 @@ def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
 }
 
 def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData {
-    let pos = source.span_to_pos(mod.source, s);
+    let pos = mod.source.span_to_pos(s);
     return mir.create_meta(pos, scope_at(c, c.current_scope));
 }
 

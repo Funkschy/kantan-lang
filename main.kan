@@ -5,16 +5,11 @@ import "opt";
 
 import "error";
 import "parser";
-import "ast";
 import "reader";
 import "span";
 import "source";
 import "mod";
-import "tyid";
-import "record";
 
-import "ty";
-import "ptrvec";
 import "tychk";
 import "path";
 
@@ -61,9 +56,9 @@ def main(argc: i32, argv: *string): i32 {
     defer delete std_dir;
 
     let file_map = reader.create();
-    defer reader.free_fm(&file_map);
+    defer file_map.free();
 
-    let res = reader.add_std_lib(&file_map, &cwd, std_dir);
+    let res = file_map.add_std_lib(&cwd, std_dir);
     if res.err_code != error.CompileError.OK {
         let err_msg = error.err2str(res.err_code, res.file_name);
         io.printf("ERROR: %s\n", err_msg);
@@ -71,7 +66,7 @@ def main(argc: i32, argv: *string): i32 {
         return -2;
     }
 
-    let res = reader.add_all(&file_map, &cwd, config.files.len, files);
+    let res = file_map.add_all(&cwd, config.files.len, files);
     if res.err_code != error.CompileError.OK {
         let err_msg = error.err2str(res.err_code, res.file_name);
         io.printf("ERROR: %s\n", err_msg);
@@ -80,12 +75,15 @@ def main(argc: i32, argv: *string): i32 {
     }
 
     let project_root = file_map.proj_root.inner;
-    let mm = mod.map_with_cap(project_root, reader.num_files(&file_map));
+    let mm = mod.map_with_cap(project_root, file_map.num_files());
+    defer mod.map_free(&mm);
 
-    let i = 0;
-    while i < reader.num_files(&file_map) {
-        let src = reader.get_ptr_by_idx(&file_map, i);
+    for let i = 0; i < file_map.num_files(); i += 1 {
+        let src = file_map.get_ptr_by_idx(i);
+
         let p = parser.create(src);
+        defer parser.free_p(&p);
+
         let curr_mod = parser.parse(&p);
         curr_mod.set_mangled_mod_name(project_root);
 
@@ -104,16 +102,18 @@ def main(argc: i32, argv: *string): i32 {
         if s == null {
             io.printf("ERROR: no valid statement in file\n");
         }
-
-        parser.free_p(&p);
-        i = i + 1;
     }
 
     let tychk_res = tychk.empty_result();
+    // this also frees all the types, so it has to happen after compilation
+    // TODO(#67): implement some form of type garbage collection
+    defer tychk.free_result(&tychk_res);
 
     if num_total_errs == 0 {
         let tc = tychk.create(&mm);
-         tychk_res = tychk.check(&tc);
+        defer tychk.free_tc(&tc);
+
+        tychk_res = tychk.check(&tc);
 
         if tychk_res.had_errors {
             let num_errs = tychk.num_errs(&tc);
@@ -121,8 +121,6 @@ def main(argc: i32, argv: *string): i32 {
             io.printf("%d type errors found\n", num_errs);
             print_type_errors(&tc, &file_map, &cwd);
         }
-
-        tychk.free_tc(&tc);
     }
 
     if num_total_errs == 0 {
@@ -139,11 +137,6 @@ def main(argc: i32, argv: *string): i32 {
         );
     }
 
-    // this also frees all the types, so it has to happen after compilation
-    // TODO(#67): implement some form of type garbage collection
-    tychk.free_result(&tychk_res);
-    mod.map_free(&mm);
-
     if num_total_errs > 0 {
         io.printf("%d compile errors found\n", num_total_errs);
         return 1;
@@ -152,39 +145,25 @@ def main(argc: i32, argv: *string): i32 {
     return 0;
 }
 
-def print_parse_errors(
-    p: *parser.Parser,
-    fm: *reader.FileMap,
-    abs_path: *path.Path
-): void {
-    let i = 0;
-    while i < parser.num_errs(p) {
+def print_parse_errors(p: *parser.Parser, fm: *reader.FileMap, abs_path: *path.Path) {
+    for let i = 0; i < parser.num_errs(p); i += 1 {
         let err = parser.get_err(p, i);
-        let src = reader.get_ptr_from_span(fm, err.span);
+        let src = fm.get_ptr_from_span(err.span);
 
         print_error(err.text, err.span, src, abs_path);
-
-        i = i + 1;
     }
 }
 
-def print_type_errors(
-    tc: *tychk.TypeChecker,
-    fm: *reader.FileMap,
-    abs_path: *path.Path
-): void {
-    let i = 0;
-    while i < tychk.num_errs(tc) {
+def print_type_errors(tc: *tychk.TypeChecker, fm: *reader.FileMap, abs_path: *path.Path) {
+    for let i = 0; i < tychk.num_errs(tc); i += 1 {
         let err = tychk.get_err(tc, i);
-        let src = reader.get_ptr_from_span(fm, err.span);
+        let src = fm.get_ptr_from_span(err.span);
 
         print_error(err.text, err.span, src, abs_path);
-
-        i = i + 1;
     }
 }
 
-def printf_spanned(s: span.Span, file: *source.SourceFile): void {
+def printf_spanned(s: span.Span, file: *source.SourceFile) {
     io.printf(" | ");
 
     let ptr = s.start;
@@ -201,16 +180,11 @@ def printf_spanned(s: span.Span, file: *source.SourceFile): void {
     io.putchar('\n');
 }
 
-def print_error(
-    err_text: string,
-    span: span.Span,
-    file: *source.SourceFile,
-    abs_path: *path.Path
-): void {
+def print_error(err_text: string, span: span.Span, file: *source.SourceFile, abs_path: *path.Path) {
     dbg.assert(file != null, "source file was null");
 
-    let line_info = source.find_line(file, span);
-    let name = source.file_name_dup(file);
+    let line_info = file.find_line(span);
+    let name = file.name_dup();
 
     let offset = 0;
     let file_path = &file.file.path.inner;

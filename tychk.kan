@@ -2240,6 +2240,7 @@ def check_expr_expect(
             return null;
         }
 
+        // TODO: += does not work for pointers right now ptr += 1 is not valid;
         if a_e.assign_type != ast.AssignType.Normal {
             // TODO: remove this, when casting between enums and their base type is implemented
             let kind = *(&a_e.assign_type as *ast.BinaryKind);

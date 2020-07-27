@@ -11,17 +11,17 @@ def create(path: path.PathBuf): File {
     return File { path: path };
 }
 
-def name_dup(f: *File): string {
+def (f: *File) name_dup(): string {
     return path.to_string(&f.path.inner);
 }
 
-def read_to_string(s: *File, dest: *string, len: *i32): error.CompileError {
+def (s: *File) read_to_string(dest: *string, len: *i32): error.CompileError {
     let path = path.to_string(&s.path.inner);
+    defer delete path;
     let ret_code = read_file(path, dest, len);
-    delete path;
     return ret_code;
 }
 
-def free_f(f: *File): void {
+def (f: *File) free() {
     path.free_pb(&f.path);
 }
