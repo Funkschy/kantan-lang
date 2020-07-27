@@ -63,7 +63,7 @@ def with_cap(cap: i32): Map {
     }
 
     if cap % 2 != 0 {
-        cap = std.next_pow_of_2(cap);
+        cap = std.next_pow_of_2(cap as i64) as i32;
     }
 
     let items = std.calloc(cap, sizeof Item) as *Item;

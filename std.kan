@@ -20,7 +20,6 @@ extern def strerror(err: i32): string;
 extern def getenv(name: string): string;
 
 // in lib.c
-extern def next_pow_of_2(i: i32): i32;
 extern def get_errno(): i32;
 extern def format_str(fmt: string, ...): string;
 extern def l_format_str(len: *i32, fmt: string, ...): string;
@@ -41,3 +40,21 @@ def find_char(haystack: string, needle: i8): string {
 def find_last_char(haystack: string, needle: i8): string {
     return strrchr(haystack, needle as i32);
 }
+
+def next_pow_of_2(n: i64): i64 {
+    if n == 0 {
+        return 0;
+    }
+
+    let n = n - 1;
+
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n |= n >> 32;
+
+    return n + 1;
+}
+

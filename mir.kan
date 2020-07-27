@@ -1196,16 +1196,16 @@ def expr_to_name(e: *Expression): name.Owned {
     if is_expr_call(e) {
         let call = as_expr_call(e);
 
-        let buf = str.create_buf();
-        defer buf.free();
+        let args_string = str.create();
+        defer args_string.free();
 
         for let i = 0; i < call.args.len; i += 1 {
             let arg = call_arg_at(call, i);
             let arg_n = addr_to_name(arg);
 
-            buf.append(arg_n.len, arg_n.data);
+            args_string.push(str.view(arg_n.len as i64, arg_n.data));
             if i < call.args.len - 1 {
-                buf.append(2, ", ");
+                args_string.push(str.view(2, ", "));
             }
 
             name.free_owned(&arg_n);
@@ -1220,7 +1220,7 @@ def expr_to_name(e: *Expression): name.Owned {
 
         let len = 0;
         let s = std.l_format_str(
-            &len, "%.*s(%s)", n.len, n.data, buf.content
+            &len, "%.*s(%s)", n.len, n.data, args_string.cstring()
         );
         name.free_owned(&n);
 
@@ -1243,25 +1243,25 @@ def expr_to_name(e: *Expression): name.Owned {
     if is_expr_struct_init(e) {
         let init = as_expr_struct_init(e);
 
-        let buf = str.create_buf();
-        defer buf.free();
+        let args_string = str.create();
+        defer args_string.free();
 
         for let i = 0; i < init.args.len; i += 1 {
             let arg = init_arg_at(init, i);
             let arg_n = addr_to_name(arg);
 
-            buf.append(arg_n.len, arg_n.data);
+            args_string.push(str.view(arg_n.len as i64, arg_n.data));
             if i < init.args.len - 1 {
-                buf.append(2, ", ");
+                args_string.push(str.view(2, ", "));
             }
 
             name.free_owned(&arg_n);
         }
 
-        let n= init.name;
+        let n = init.name;
         let len = 0;
         let s = std.l_format_str(
-            &len, "%.*s{%s}", n.len, n.data, buf.content
+            &len, "%.*s{%s}", n.len, n.data, args_string.cstring()
         );
 
         return name.make_owned(len, s);

@@ -1,37 +1,135 @@
-#define GROW_AMOUNT 16
-
 import "std";
 
-type StrBuf struct {
-    len: i32,
-    cap: i32,
-    content: string
+// TODO: remove these, when we finally have an isize/usize type
+extern def strlen(s: string): i64;
+extern def memcpy(dest: *void, src: *void, n: i64);
+extern def strndup(s: string, n: i64): string;
+extern def malloc(size: i64): *void;
+
+type String struct {
+    // don't access directly
+    // TODO: use isize instead
+    len_: i64,
+    cap_: i64,
+    data_: string
 }
 
-def create_buf(): StrBuf {
-    let cap = 16;
-    let content = std.malloc(cap) as string;
-    *content = '\0';
-
-    return StrBuf {
-        len: 0,
-        cap: cap - 1, // subtract one for null terminator
-        content: content
-    };
+def create(): String {
+    return from_l("", 0);
 }
 
-def (buf: *StrBuf) free() {
-    delete buf.content;
+def from(s: string): String {
+    return from_l(s, strlen(s));
 }
 
-def (buf: *StrBuf) append(len: i32, s: string) {
-    if len + buf.len > buf.cap {
-        let new_cap = len + buf.cap + 1 + GROW_AMOUNT;
-        buf.content = std.realloc(buf.content as *void, new_cap) as string;
-        buf.cap = new_cap - 1;
+def from_l(s: string, len: i64): String {
+    let max_storage: i64 = (sizeof *void as i64) * 3 - 2;
+
+    let str: String = undefined;
+
+    // on x64, we have 24 bytes - len (1 byte) - null terminator
+    if len <= max_storage {
+        // least significant len bit == 0 => optimized string
+        str.len_ = len << 1;
+
+        memcpy((&str as *void) + 1, s as *void, len);
+        *(((&s as *i8) + sizeof String) - 1) = '\0';
+    } else {
+        str.cap_ = len;
+        // least significant len bit == 1 => heap allocated string
+        str.len_ = (len << 1) | 1;
+        str.data_ = strndup(s, len);
     }
 
-    std.memcpy((buf.content + buf.len) as *void, s as *void, len);
-    buf.len = buf.len + len;
-    *(buf.content + buf.len) = '\0';
+    return str;
+}
+
+def (s: *String) len(): i64 {
+    if s.is_optimized() {
+        return *(&s.len_ as *i8) >> 1 as i64;
+    }
+
+    return s.len_ >> 1;
+}
+
+def (s: *String) cstring(): string {
+    if s.is_optimized() {
+        return (s as *i8) + 1;
+    }
+    return s.data_;
+}
+
+def (s: *String) push(other: StringView) {
+    let len = s.len();
+    let new_len = len + other.len;
+
+    if s.is_optimized() {
+        let max_storage: i64 = (sizeof *void as i64) * 3 - 2;
+
+        if  new_len <= max_storage {
+            *(&s.len_ as *i8) = (new_len << 1) as i8;
+            memcpy((s as *void + 1) + len, other.data as *void, other.len);
+            *(s as *i8 + 1 + new_len) = '\0';
+        } else {
+            let cap = std.next_pow_of_2(new_len + 1);
+            let data = malloc(cap);
+
+            memcpy(data, s as *void + 1, len);
+            memcpy(data + len, other.data as *void, other.len);
+
+            s.data_ = data as string;
+            *(s.data_ + new_len) = '\0';
+
+            s.len_ = (new_len << 1) | 1;
+            s.cap_ = cap;
+        }
+
+        return;
+    }
+
+    if new_len < s.cap_ {
+        memcpy(s.data_ as *void + len, other.data as *void, other.len);
+        *(s.data_ + new_len) = '\0';
+        s.len_ = (new_len << 1) | 1;
+        return;
+    }
+
+    let cap = std.next_pow_of_2(new_len + 1);
+    let data = malloc(cap);
+
+    memcpy(data, s.data_ as *void, len);
+    memcpy(data + len, other.data as *void, other.len);
+
+    delete s.data_;
+    s.data_ = data as string;
+    *(s.data_ + new_len) = '\0';
+
+    s.len_ = (new_len << 1) | 1;
+    s.cap_ = cap;
+}
+
+def (s: *String) is_optimized(): bool {
+    return s.len_ & 1 == 0;
+}
+
+def (s: *String) view(): StringView {
+    return view(s.len(), s.cstring());
+}
+
+def (s: *String) free() {
+    if s.is_optimized() {
+        return;
+    }
+    delete s.data_;
+}
+
+type StringView struct {
+    len: i64,
+    data: string
+}
+
+def view(len: i64, s: string): StringView {
+    return StringView {
+        len: len, data: s
+    };
 }
