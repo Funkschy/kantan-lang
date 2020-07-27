@@ -1,0 +1,12 @@
+import "io";
+
+def main() {
+    let i = 1 & 3;
+    io.printf("%d\n", i);
+    let i = 1 | 3;
+    io.printf("%d\n", i);
+    i &= 8;
+    io.printf("%d\n", i);
+    i |= 2;
+    io.printf("%d\n", i);
+}

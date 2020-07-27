@@ -2532,7 +2532,7 @@ def check_binary_expr(
             RET_INVALID_TYS();
         }
 
-        if kind == ast.BinaryKind.LShift || kind == ast.BinaryKind.RShift {
+        if kind.is_bit_op() {
             if first.is_integer() {
                 return first;
             }

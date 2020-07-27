@@ -1191,6 +1191,12 @@ def infix(p: *Parser, token: *l.Token, left: *ast.Expr, no_struct: bool): *ast.E
     } else if token.ty == l.TokenType.GreaterGreater {
         found = true;
         ty = ast.BinaryKind.RShift;
+    } else if token.ty == l.TokenType.Ampersand {
+        found = true;
+        ty = ast.BinaryKind.BitAnd;
+    } else if token.ty == l.TokenType.Pipe {
+        found = true;
+        ty = ast.BinaryKind.BitOr;
     }
 
     // a pattern matched

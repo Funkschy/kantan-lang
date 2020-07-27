@@ -59,6 +59,8 @@ type BinaryKind enum {
     Mul,
     Div,
     Mod,
+    BitAnd,
+    BitOr,
 
     ST,
     SE,
@@ -72,6 +74,11 @@ type BinaryKind enum {
 
     LShift,
     RShift
+}
+
+def (k: BinaryKind) is_bit_op(): bool {
+    return k == BinaryKind.LShift || k == BinaryKind.RShift
+        || k == BinaryKind.BitAnd || k == BinaryKind.BitOr;
 }
 
 type UnaryKind enum {
@@ -678,12 +685,12 @@ def as_init_expr(e: *Expr): *InitExpr {
 /////////// assign expr ///////////
 
 type AssignType enum {
-    Normal, PlusEq, MinusEq, TimesEq, DivEq, RemEq
+    Normal, PlusEq, MinusEq, TimesEq, DivEq, RemEq, AndEq, OrEq
 }
 
 type AssignExpr struct {
     e: Expr,
-    assign_type: AssignType, // =, +=, -=, *=, /=, %=
+    assign_type: AssignType, // =, +=, -=, *=, /=, %=, &=, |=
     assign_span: span.Span,
     left: *Expr,
     right: *Expr

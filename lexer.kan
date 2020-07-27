@@ -58,6 +58,8 @@ type TokenType enum {
     StarEq,
     SlashEq,
     PercentEq,
+    AmpersandEq,
+    PipeEq,
 
     Smaller,
     SmallerEq,
@@ -130,7 +132,7 @@ def token_to_string(token: *Token, dest: *string): bool {
 }
 
 def is_assign(ty: TokenType): bool {
-    return ty >= TokenType.Eq && ty <= TokenType.PercentEq;
+    return ty >= TokenType.Eq && ty <= TokenType.PipeEq;
 }
 
 // Lexer
@@ -595,6 +597,10 @@ def get_next_token(l: *Lexer): Token {
     }
 
     if c == '&' {
+        if current(l) == '=' {
+            advance(l);
+            return token_from_start(l, TokenType.AmpersandEq);
+        }
         if current(l) == '&' {
             advance(l);
             return token_from_start(l, TokenType.DoubleAmpersand);
@@ -603,6 +609,10 @@ def get_next_token(l: *Lexer): Token {
     }
 
     if c == '|' {
+        if current(l) == '=' {
+            advance(l);
+            return token_from_start(l, TokenType.PipeEq);
+        }
         if current(l) == '|' {
             advance(l);
             return token_from_start(l, TokenType.DoublePipe);

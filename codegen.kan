@@ -983,9 +983,9 @@ def compile_binary(
         return llvm.build_i_cmp(c.builder, 32, left, right, "");
     } else if binary.kind == mir.BinaryKind.NE {
         return llvm.build_i_cmp(c.builder, 33, left, right, "");
-    } else if binary.kind == mir.BinaryKind.BoolAnd {
+    } else if binary.kind == mir.BinaryKind.BoolAnd || binary.kind == mir.BinaryKind.BitAnd {
         return llvm.build_and(c.builder, left, right, "");
-    } else if binary.kind == mir.BinaryKind.BoolOr {
+    } else if binary.kind == mir.BinaryKind.BoolOr || binary.kind == mir.BinaryKind.BitOr {
         return llvm.build_or(c.builder, left, right, "");
     } else if binary.kind == mir.BinaryKind.LShift {
         return llvm.build_shl(c.builder, left, right, "");
@@ -1007,7 +1007,6 @@ def compile_binary(
         return llvm.build_in_bounds_gep(c.builder, ptr, &scalar, 1, "");
     }
 
-    dbg.assert_fmt(false, "Invalid binary kind: %d", binary.kind);
     return null;
 }
 

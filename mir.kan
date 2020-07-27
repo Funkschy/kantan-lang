@@ -823,6 +823,8 @@ type BinaryKind enum {
     Mul,
     Div,
     Mod,
+    BitAnd,
+    BitOr,
 
     ST,
     SE,
