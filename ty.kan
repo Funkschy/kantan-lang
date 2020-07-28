@@ -15,7 +15,7 @@ extern def type2str(kind: Kind): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
-    Error, Ptr, Bool, I8, I16, I32, I64, ISize, USize, F32, F64, Void, Func, Mod, Struct, Enum
+    Error, Ptr, Bool, I8, I16, I32, I64, ISize, U8, U16, U32, U64, USize, F32, F64, Void, Func, Mod, Struct, Enum
 }
 
 #define WIDTH_UNKNOWN -1
@@ -112,6 +112,54 @@ def new_isize(width: i32): *Type {
 
 def is_isize(t: *Type): bool {
     return t.kind == Kind.ISize;
+}
+
+/////////// u8 type ///////////
+
+def new_u8(): *Type {
+    let t = new_type(Kind.U8, null);
+    t.width = t.align = 1;
+    return t;
+}
+
+def is_u8(t: *Type): bool {
+    return t.kind == Kind.U8;
+}
+
+/////////// u16 type ///////////
+
+def new_u16(): *Type {
+    let t = new_type(Kind.U16, null);
+    t.width = t.align = 1;
+    return t;
+}
+
+def is_u16(t: *Type): bool {
+    return t.kind == Kind.U16;
+}
+
+/////////// u32 type ///////////
+
+def new_u32(): *Type {
+    let t = new_type(Kind.U32, null);
+    t.width = t.align = 1;
+    return t;
+}
+
+def is_u32(t: *Type): bool {
+    return t.kind == Kind.U32;
+}
+
+/////////// u64 type ///////////
+
+def new_u64(): *Type {
+    let t = new_type(Kind.U64, null);
+    t.width = t.align = 1;
+    return t;
+}
+
+def is_u64(t: *Type): bool {
+    return t.kind == Kind.U64;
 }
 
 /////////// usize type ///////////
@@ -791,7 +839,7 @@ def (t: *Type) is_integer(): bool {
 }
 
 def (t: *Type) is_unsigned(): bool {
-    return is_usize(t);
+    return t.kind >= Kind.U8 && t.kind <= Kind.USize;
 }
 
 def (t: *Type) is_float(): bool {
