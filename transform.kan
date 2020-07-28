@@ -6,7 +6,6 @@
 import "io";
 import "ty";
 import "dbg";
-import "opt";
 import "std";
 import "mod";
 import "mir";
@@ -16,6 +15,7 @@ import "mirc";
 import "path";
 import "scope";
 import "target";
+import "config";
 import "ptrvec";
 import "codegen";
 import "llvm-bindings" as llvm;
@@ -32,7 +32,7 @@ type CompilationData struct {
     main_func: *ty.Type,
     proj_root: path.Path,
     global_types: scope.Scope,
-    config: *opt.Config,
+    config: *config.Config,
     std_dir: string
 }
 
@@ -105,21 +105,14 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
     }
 
 #if USE_LLVM
-    let arch = target.Arch.X86_64;
-    let vendor = target.Vendor.Unknown;
-    let sys = target.Sys.Linux;
-    let abi = target.Abi.Gnu;
+    let target_conf = comp_data.config.target;
+    let t = target.create_and_register_target(
+        target_conf.arch,
+        target_conf.vendor,
+        target_conf.sys,
+        target_conf.abi
+    );
 
-    if std.strcmp(comp_data.config.target_os, "win32") == 0 {
-        abi = target.Abi.Msvc;
-        sys = target.Sys.Win32;
-    } else if std.strcmp(comp_data.config.target_os, "darwin") == 0 {
-        vendor = target.Vendor.Apple;
-        abi = target.Abi.Empty;
-        sys = target.Sys.Darwin;
-    }
-
-    let t = target.create_and_register_target(arch, vendor, sys, abi);
     if t.is_error {
         io.printf("%s\n", t.triple_or_error);
         return;
@@ -139,7 +132,7 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
         global_ctx: base_ctx,
         std_dir: comp_data.std_dir,
         target: t,
-        debug_info: comp_data.config.debug_info
+        debug_info: comp_data.config.emit_debug_info
     };
 #endif
 
@@ -191,42 +184,21 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
 }
 
 def emit_to_file(comp_data: *CompilationData, base_mod: *llvm.Module, tm: target.TargetMachine) {
-    let out_name = "out.o";
-    let out_len = 5;
-    let gen_asm = false;
-    let gen_obj = false;
+    let gen_asm = comp_data.config.output_kind == config.OutputKind.ASM;
+    let output_file = comp_data.config.output_file;
+    let temp_output_file = comp_data.config.temp_output_file;
 
-    if comp_data.config.output_filename != null {
-        let len = std.strlen(comp_data.config.output_filename);
-        if len >= 3 {
-            gen_asm = std.strcmp(comp_data.config.output_filename + (len - 2), ".s") == 0;
-            gen_obj = std.strcmp(comp_data.config.output_filename + (len - 2), ".o") == 0;
-        }
-
-        if gen_asm || gen_obj {
-            out_name = comp_data.config.output_filename;
-            out_len = len;
-        }
-    }
-
-    let out = path.create(out_name, out_len);
-    let error = target.emit_to_file(&tm, base_mod, out, gen_asm);
+    let error = target.emit_to_file(&tm, base_mod, temp_output_file, gen_asm);
     if error != null {
         io.printf("%s\n", error);
         llvm.dispose_message(error);
         return;
     }
 
-    // we currently use the system linker, which ofc only works on the same system
-    if !(gen_asm || gen_obj) && comp_data.config.is_same_target_as_os {
-        let exe_name = comp_data.config.output_filename;
-        if exe_name == null {
-            exe_name = "a.out";
-        }
-
-        link_obj_file(out_name, exe_name);
+    if comp_data.config.invoke_linker {
+        link_obj_file(temp_output_file.inner, output_file.inner);
         // use unlink instead of remove, to not accidentally delete some directory
-        unlink(out_name);
+        unlink(temp_output_file.inner);
     }
 }
 

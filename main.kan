@@ -3,6 +3,7 @@ import "std";
 import "dbg";
 import "opt";
 
+import "config";
 import "error";
 import "parser";
 import "reader";
@@ -31,13 +32,12 @@ def main(argc: i32, argv: *string): i32 {
 
     let num_total_errs = 0;
 
-    let config = opt.parse(argc, argv);
-    defer opt.free_config(&config);
+    let opts = opt.parse(argc, argv);
+    let config = config.from_options(&opts);
+    defer config.free();
 
-    let files = config.files.elements as *string;
-
-    if config.had_errors || config.exit_immediately {
-        if config.exit_immediately {
+    if opts.had_errors || opts.exit_immediately {
+        if opts.exit_immediately {
             return 0;
         }
 
@@ -48,7 +48,7 @@ def main(argc: i32, argv: *string): i32 {
         io.printf("ERROR: no input files\n");
         return - 1;
     }
-
+    let files = config.files.elements as *string;
 
     let home_dir = std.getenv("HOME");
     // TODO(#26): users should be able to change this using env vars

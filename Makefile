@@ -3,6 +3,7 @@ SHELL := /bin/bash
 BIN_NAME = compiler
 K_FILES = ast.kan \
 		  codegen.kan \
+		  config.kan \
 		  dbg.kan \
 		  error.kan \
 		  file.kan \

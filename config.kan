@@ -1,0 +1,144 @@
+import "std";
+import "opt";
+import "str";
+import "path";
+import "target";
+import "ptrvec";
+
+extern def get_sys(linux: *bool, darwin: *bool, win32: *bool);
+
+type TargetConfig struct {
+    ptr_width_bytes: i32,
+    arch: target.Arch,
+    vendor: target.Vendor,
+    sys: target.Sys,
+    abi: target.Abi
+}
+
+type OutputKind enum {
+    ASM, OBJ, EXE
+}
+
+type Config struct {
+    emit_debug_info: bool,
+    invoke_linker: bool,
+    output_kind: OutputKind,
+    opt_level: i8,
+    output_file: path.Path,
+    temp_output_file: path.Path,
+    files: ptrvec.Vec,
+    target: TargetConfig
+}
+
+def (c: *Config) free() {
+    c.files.free();
+}
+
+def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
+    let linux = false;
+    let darwin = false;
+    let win32 = false;
+
+    get_sys(&linux, &darwin, &win32);
+
+    if options.target_os == null {
+        if darwin {
+            config.sys = target.Sys.Darwin;
+            config.vendor = target.Vendor.Apple;
+            config.abi = target.Abi.Empty;
+            return true;
+        }
+
+        config.vendor = target.Vendor.Unknown;
+        if linux {
+            config.sys = target.Sys.Linux;
+            config.abi = target.Abi.Gnu;
+            return true;
+        }
+
+        if win32 {
+            config.sys = target.Sys.Win32;
+            config.abi = target.Abi.Msvc;
+            return true;
+        }
+    }
+
+    if std.strcmp(options.target_os, "darwin") == 0 {
+        config.sys = target.Sys.Darwin;
+        config.vendor = target.Vendor.Apple;
+        config.abi = target.Abi.Empty;
+        return darwin;
+    }
+
+    config.vendor = target.Vendor.Unknown;
+    if std.strcmp(options.target_os, "linux") == 0 {
+        config.sys = target.Sys.Linux;
+        config.abi = target.Abi.Gnu;
+        return linux;
+    }
+
+    if std.strcmp(options.target_os, "win32") == 0 {
+        config.sys = target.Sys.Win32;
+        config.abi = target.Abi.Msvc;
+        return win32;
+    }
+
+    return false;
+}
+
+def from_options(options: *opt.Options): Config {
+    let target_conf: TargetConfig = undefined;
+    // we currently don't support cross compilation for arch
+    target_conf.ptr_width_bytes = sizeof *void;
+    target_conf.arch = target.Arch.X86_64;
+    let is_same_target_as_os = fill_os_info(options, &target_conf);
+
+    let out_name = "out.o";
+    let out_len = 5;
+    let gen_asm = false;
+    let gen_obj = false;
+
+    let output_filename = options.output_filename;
+    if output_filename != null {
+        let len = std.strlen(output_filename);
+        if len >= 3 {
+            gen_asm = std.strcmp(output_filename + (len - 2), ".s") == 0;
+            gen_obj = std.strcmp(output_filename + (len - 2), ".o") == 0;
+        }
+
+        if gen_asm || gen_obj {
+            out_name = output_filename;
+            out_len = len;
+        }
+    }
+
+    let invoke_linker = false;
+    let temp_out = path.create(out_name, out_len);
+
+    // we currently use the system linker, which ofc only works on the same system
+    if !(gen_asm || gen_obj) && is_same_target_as_os {
+        out_name = "a.out";
+        out_len = 5;
+        invoke_linker = true;
+    }
+
+    let out = path.create(out_name, out_len);
+
+    let kind = OutputKind.EXE;
+    if gen_asm {
+        kind = OutputKind.ASM;
+    } else if gen_obj {
+        kind = OutputKind.OBJ;
+    }
+
+    return Config {
+        emit_debug_info: options.debug_info,
+        invoke_linker: invoke_linker,
+        output_kind: kind,
+        opt_level: options.opt_level,
+        output_file: out,
+        temp_output_file: temp_out,
+        files: options.files,
+        target: target_conf
+    };
+}

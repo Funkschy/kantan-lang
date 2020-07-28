@@ -1,6 +1,5 @@
 import "ty";
 import "nt";
-import "opt";
 import "vec";
 import "mod";
 import "mir";
@@ -14,11 +13,12 @@ import "path";
 import "scope";
 import "ident";
 import "scope";
+import "config";
 import "source";
 
 // Data which is shared between all the MirCompiler instances
 type CompilationData struct {
-    config: *opt.Config,
+    config: *config.Config,
     mods: *mod.Map,
     proj_root: path.Path,
     global_types: scope.Scope

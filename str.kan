@@ -59,7 +59,7 @@ def (s: *String) cstring(): string {
     return s.data_;
 }
 
-def (s: *String) push(other: StringView) {
+def (s: *String) push(other: View) {
     let len = s.len();
     let new_len = len + other.len;
 
@@ -112,7 +112,7 @@ def (s: *String) is_optimized(): bool {
     return s.len_ & 1 == 0;
 }
 
-def (s: *String) view(): StringView {
+def (s: *String) view(): View {
     return view(s.len(), s.cstring());
 }
 
@@ -123,13 +123,13 @@ def (s: *String) free() {
     delete s.data_;
 }
 
-type StringView struct {
+type View struct {
     len: i64,
     data: string
 }
 
-def view(len: i64, s: string): StringView {
-    return StringView {
+def view(len: i64, s: string): View {
+    return View {
         len: len, data: s
     };
 }
