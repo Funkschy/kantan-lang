@@ -984,7 +984,7 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
             let free_p_ty_s = to_string_mangled(p.ty, use_mangled, &p_ty_s);
             let len = std.strlen(p_ty_s);
 
-            params_string.push(str.view(len as i64, p_ty_s));
+            params_string.push(str.view(len as usize, p_ty_s));
 
             if free_p_ty_s {
                 delete p_ty_s;

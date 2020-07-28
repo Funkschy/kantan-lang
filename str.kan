@@ -1,16 +1,15 @@
 import "std";
 
 // TODO: remove these, when we finally have an isize/usize type
-extern def strlen(s: string): i64;
-extern def memcpy(dest: *void, src: *void, n: i64);
-extern def strndup(s: string, n: i64): string;
-extern def malloc(size: i64): *void;
+extern def strlen(s: string): usize;
+extern def memcpy(dest: *void, src: *void, n: usize);
+extern def strndup(s: string, n: usize): string;
+extern def malloc(size: usize): *void;
 
 type String struct {
     // don't access directly
-    // TODO: use isize instead
-    len_: i64,
-    cap_: i64,
+    len_: usize,
+    cap_: usize,
     data_: string
 }
 
@@ -22,8 +21,8 @@ def from(s: string): String {
     return from_l(s, strlen(s));
 }
 
-def from_l(s: string, len: i64): String {
-    let max_storage: i64 = (sizeof *void as i64) * 3 - 2;
+def from_l(s: string, len: usize): String {
+    let max_storage = (sizeof *void as usize) * 3 - 2;
 
     let str: String = undefined;
 
@@ -44,9 +43,9 @@ def from_l(s: string, len: i64): String {
     return str;
 }
 
-def (s: *String) len(): i64 {
+def (s: *String) len(): usize {
     if s.is_optimized() {
-        return *(&s.len_ as *i8) >> 1 as i64;
+        return *(&s.len_ as *i8) >> 1 as usize;
     }
 
     return s.len_ >> 1;
@@ -64,14 +63,14 @@ def (s: *String) push(other: View) {
     let new_len = len + other.len;
 
     if s.is_optimized() {
-        let max_storage: i64 = (sizeof *void as i64) * 3 - 2;
+        let max_storage = (sizeof *void as usize) * 3 - 2;
 
         if  new_len <= max_storage {
             *(&s.len_ as *i8) = (new_len << 1) as i8;
             memcpy((s as *void + 1) + len, other.data as *void, other.len);
             *(s as *i8 + 1 + new_len) = '\0';
         } else {
-            let cap = std.next_pow_of_2(new_len + 1);
+            let cap = std.next_pow_of_2(new_len as i64 + 1) as usize;
             let data = malloc(cap);
 
             memcpy(data, s as *void + 1, len);
@@ -94,7 +93,7 @@ def (s: *String) push(other: View) {
         return;
     }
 
-    let cap = std.next_pow_of_2(new_len + 1);
+    let cap = std.next_pow_of_2(new_len as i64 + 1) as usize;
     let data = malloc(cap);
 
     memcpy(data, s.data_ as *void, len);
@@ -124,11 +123,11 @@ def (s: *String) free() {
 }
 
 type View struct {
-    len: i64,
+    len: usize,
     data: string
 }
 
-def view(len: i64, s: string): View {
+def view(len: usize, s: string): View {
     return View {
         len: len, data: s
     };
