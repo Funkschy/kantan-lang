@@ -101,6 +101,7 @@ whitelist = set([
     'LLVMInt32TypeInContext',
     'LLVMInt64TypeInContext',
     'LLVMInt8TypeInContext',
+    'LLVMIntTypeInContext',
     'LLVMModuleCreateWithNameInContext',
     'LLVMPointerType',
     'LLVMPositionBuilderAtEnd',

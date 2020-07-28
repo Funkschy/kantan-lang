@@ -291,20 +291,8 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 }
 
 def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
-    if ty.is_i8(t) {
-        return llvm.int8_type_in_context(c.context.ctx);
-    }
-
-    if ty.is_i16(t) {
-        return llvm.int16_type_in_context(c.context.ctx);
-    }
-
-    if ty.is_i32(t) {
-        return llvm.int32_type_in_context(c.context.ctx);
-    }
-
-    if ty.is_i64(t) {
-        return llvm.int64_type_in_context(c.context.ctx);
+    if t.is_integer() {
+        return llvm.int_type_in_context(c.context.ctx, t.width * 8);
     }
 
     if ty.is_void(t) {
@@ -1200,6 +1188,12 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     if ty.is_i64(t) {
         return llvm.di_builder_create_basic_type(
             c.dbg.builder, "i64", 3, 64, dw_ate_signed, 0
+        );
+    }
+
+    if ty.is_isize(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "isize", 5, t.width * 8, dw_ate_signed, 0
         );
     }
 

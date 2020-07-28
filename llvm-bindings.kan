@@ -130,6 +130,8 @@ extern def LLVMInt32TypeInContext(c: *Context): *Type;
 
 extern def LLVMInt64TypeInContext(c: *Context): *Type;
 
+extern def LLVMIntTypeInContext(c: *Context, num_bits: i32): *Type;
+
 extern def LLVMFloatTypeInContext(c: *Context): *Type;
 
 extern def LLVMDoubleTypeInContext(c: *Context): *Type;
@@ -165,6 +167,10 @@ def int32_type_in_context(c: *Context): *Type {
 
 def int64_type_in_context(c: *Context): *Type {
     return LLVMInt64TypeInContext(c);
+}
+
+def int_type_in_context(c: *Context, num_bits: i32): *Type {
+    return LLVMIntTypeInContext(c, num_bits);
 }
 
 def float_type_in_context(c: *Context): *Type {
