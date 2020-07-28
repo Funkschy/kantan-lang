@@ -272,14 +272,11 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         struct_decl = llvm.struct_create_named(c.context.ctx, name.data);
         map.insert(&c.structs, key, struct_decl as *void);
 
-        let i = 0;
-        while i < num_fields {
+        for let i = 0; i < num_fields; i += 1 {
             let field = ty.field_at(s_ty, i);
 
             let field_ty = translate_type(c, field.ty);
             fields.push_ptr(field_ty as *void);
-
-            i = i + 1;
         }
 
         let field_types = fields.elements as **llvm.Type;
@@ -933,6 +930,12 @@ def compile_binary(
     let left = translate_addr(c, func, &binary.left);
     let right = translate_addr(c, func, &binary.right);
 
+    let signed_offset = 0;
+    if binary.left.ty.is_unsigned() {
+        // the unsiged int predicates are always 4 less, than their signed counterpart
+        signed_offset = 4;
+    }
+
     if binary.kind == mir.BinaryKind.Add {
         return llvm.build_add(c.builder, left, right, "");
     } else if binary.kind == mir.BinaryKind.Sub {
@@ -959,14 +962,13 @@ def compile_binary(
         //  same for floats
         return llvm.build_s_rem(c.builder, left, right, "");
     } else if binary.kind == mir.BinaryKind.ST {
-        // TODO(#96): unsigned integer types
-        return llvm.build_i_cmp(c.builder, 40, left, right, "");
+        return llvm.build_i_cmp(c.builder, 40 - signed_offset, left, right, "");
     } else if binary.kind == mir.BinaryKind.SE {
-        return llvm.build_i_cmp(c.builder, 41, left, right, "");
+        return llvm.build_i_cmp(c.builder, 41 - signed_offset, left, right, "");
     } else if binary.kind == mir.BinaryKind.GT {
-        return llvm.build_i_cmp(c.builder, 38, left, right, "");
+        return llvm.build_i_cmp(c.builder, 38 - signed_offset, left, right, "");
     } else if binary.kind == mir.BinaryKind.GE {
-        return llvm.build_i_cmp(c.builder, 39, left, right, "");
+        return llvm.build_i_cmp(c.builder, 39 - signed_offset, left, right, "");
     } else if binary.kind == mir.BinaryKind.EQ {
         return llvm.build_i_cmp(c.builder, 32, left, right, "");
     } else if binary.kind == mir.BinaryKind.NE {
@@ -1194,6 +1196,12 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     if ty.is_isize(t) {
         return llvm.di_builder_create_basic_type(
             c.dbg.builder, "isize", 5, t.width * 8, dw_ate_signed, 0
+        );
+    }
+
+    if ty.is_usize(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "usize", 5, t.width * 8, dw_ate_unsigned, 0
         );
     }
 

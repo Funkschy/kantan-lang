@@ -514,6 +514,7 @@ def create_global_types_scope(tc: *TypeChecker): scope.Scope {
     global.bind(3, "i32", push_tmp_ty(tc, ty.new_i32()), public);
     global.bind(3, "i64", push_tmp_ty(tc, ty.new_i64()), public);
     global.bind(5, "isize", push_tmp_ty(tc, ty.new_isize(ptr_width)), public);
+    global.bind(5, "usize", push_tmp_ty(tc, ty.new_usize(ptr_width)), public);
 
     global.bind(3, "f32", push_tmp_ty(tc, ty.new_f32()), public);
     global.bind(3, "f64", push_tmp_ty(tc, ty.new_f64()), public);

@@ -90,6 +90,7 @@ if __name__ == '__main__':
     for filename, expected in items:
         if compile(filename) != 0:
             print(f'{error}: Compilation failed for {filename}')
+            failed_count += 1
             continue
 
         output = execute()
