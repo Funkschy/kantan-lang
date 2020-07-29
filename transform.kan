@@ -236,7 +236,7 @@ def optimize_single(module: *llvm.Module, opt_level: i8) {
     llvm.finalize_function_pass_manager(fpm);
 
     // Run the MPM over the module
-    llvm.run_pass_manager(mpm, module);
+    // llvm.run_pass_manager(mpm, module);
 
     // Clean up managers
     llvm.dispose_pass_manager(fpm);
