@@ -2,8 +2,8 @@ import "std";
 import "dbg";
 
 type Vec struct {
-    len: i32,
-    cap: i32,
+    len: usize,
+    cap: usize,
     elements: **void
 }
 
@@ -11,7 +11,7 @@ def create(): Vec {
     return Vec { len: 0, cap: 0, elements: null };
 }
 
-def with_cap(cap: i32): Vec {
+def with_cap(cap: usize): Vec {
     let vec = create();
     vec.resize_s(cap);
     return vec;
@@ -22,7 +22,7 @@ def (v: *Vec) zero() {
 }
 
 def (v: *Vec) is_empty(): bool {
-    return v.len <= 0;
+    return v.len == 0;
 }
 
 def (v: *Vec) pop(): *void {
@@ -63,7 +63,7 @@ def (v: *Vec) push_ptr(elem: *void): void {
     v.len = v.len + 1;
 }
 
-def (v: *Vec) get(i: i32): *void {
+def (v: *Vec) get(i: usize): *void {
     if i < v.len {
         return *(v.elements + i);
     }
@@ -71,11 +71,11 @@ def (v: *Vec) get(i: i32): *void {
     return null;
 }
 
-def (v: *Vec) unsafe_get(i: i32): *void {
+def (v: *Vec) unsafe_get(i: usize): *void {
     return *(v.elements + i);
 }
 
-def (v: *Vec) set(i: i32, elem: *void): void {
+def (v: *Vec) set(i: usize, elem: *void): void {
     dbg.assert_fmt(i >= 0 && i < v.cap, "out of bounds set: %d", i);
 
     // sizeof(*v.elements) is already 8, so we don't need to multiply
@@ -86,7 +86,7 @@ def (v: *Vec) set(i: i32, elem: *void): void {
     }
 }
 
-def (v: *Vec) resize_s(size: i32): void {
+def (v: *Vec) resize_s(size: usize): void {
     if size <= v.cap {
         return;
     }
@@ -96,7 +96,7 @@ def (v: *Vec) resize_s(size: i32): void {
         v.elements = std.calloc(v.cap, sizeof **void) as **void;
     } else {
         v.elements = std.realloc(v.elements as *void, v.cap * sizeof **void) as **void;
-        std.memset((v.elements + v.len) as *void, v.cap * sizeof **void, 0);
+        std.memset((v.elements + v.len) as *void, 0, (v.cap - v.len) * sizeof **void);
     }
 }
 

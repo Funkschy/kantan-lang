@@ -51,7 +51,7 @@ def free_p(p: *Parser): void {
     p.errors.free();
 }
 
-def free_errs_from(p: *Parser, start: i32): void {
+def free_errs_from(p: *Parser, start: usize): void {
     let i = start;
     let elem = empty_err();
     while i < p.errors.len {
@@ -62,15 +62,15 @@ def free_errs_from(p: *Parser, start: i32): void {
     p.errors.len = p.errors.len - (p.errors.len - start);
 }
 
-def num_errs(p: *Parser): i32 {
+def num_errs(p: *Parser): usize {
     return p.errors.len;
 }
 
-def get_err(p: *Parser, idx: i32): *ParseError {
+def get_err(p: *Parser, idx: usize): *ParseError {
     return p.errors.get_ptr(idx) as *ParseError;
 }
 
-def push_err(p: *Parser, error: ParseError): void {
+def push_err(p: *Parser, error: ParseError) {
     p.errors.push(&error as *void);
 }
 
@@ -86,7 +86,7 @@ def advance(p: *Parser, dest: *l.Token): bool {
             p.errors.push(&error as *void);
         }
         return false;
-    } else if l.is_err(&next) && !p.in_panic_mode {
+    } else if next.is_err() && !p.in_panic_mode {
         // advance should not care about lex errors while in panic mode
         let error = create_lex_error(p, &next);
         push_err(p, error);
@@ -155,7 +155,7 @@ def consume_type_ident(p: *Parser, ident: *l.Token, err: *ParseError): bool {
         *ident = l.create_token_from_span(
             &p.lexer,
             l.TokenType.Ident,
-            l.lexeme(&first_part),
+            first_part.lexeme(),
             merged_span
         );
         dots = dots + 1;
@@ -176,7 +176,7 @@ def consume_type_ident(p: *Parser, ident: *l.Token, err: *ParseError): bool {
 def consume_type(p: *Parser, dest: *tyid.Type): bool {
     let prev_num_errs = num_errs(p);
 
-    let pointer_count = 0;
+    let pointer_count: u32 = 0;
     while peek(p).ty == l.TokenType.Star {
         consume(p, l.TokenType.Star);
         pointer_count = pointer_count + 1;
@@ -515,7 +515,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
         // There can only be one receiver param
         if receiver_list.len != 1 {
             receiver_list.free();
-            let error = create_invalid_recv_count_error(p, &l_paren, receiver_list.len);
+            let error = create_invalid_recv_count_error(p, &l_paren, receiver_list.len as u32);
             push_err(p, error);
             return null;
         }
@@ -714,12 +714,10 @@ def parse_if_stmt(p: *Parser): *ast.Stmt {
     return if_stmt;
 }
 
-def free_statements(statements: *ptrvec.Vec): void {
-    let i = 0;
-    while i < statements.len {
+def free_statements(statements: *ptrvec.Vec) {
+    for let i: usize = 0; i < statements.len; i += 1 {
         let s = statements.get(i) as *ast.Stmt;
         ast.stmt_free(s);
-        i = i + 1;
     }
 
     statements.free();
@@ -1000,7 +998,7 @@ def parse_expression(p: *Parser, precedence: prec.Precedence, no_struct: bool): 
 def next_higher_precedence(p: *Parser, current: prec.Precedence, no_struct: bool): bool {
     let t = peek(p);
 
-    if l.is_err(&t) || t.ty == l.TokenType.EOF {
+    if t.is_err() || t.ty == l.TokenType.EOF {
         return false;
     }
 
@@ -1024,11 +1022,11 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     }
 
     if token.ty == l.TokenType.Int {
-        return ast.new_int_expr(token.span, l.lexeme(&token));
+        return ast.new_int_expr(token.span, token.lexeme());
     }
 
     if token.ty == l.TokenType.Float {
-        return ast.new_float_expr(token.span, l.lexeme(&token));
+        return ast.new_float_expr(token.span, token.lexeme());
     }
 
     if token.ty == l.TokenType.String {
@@ -1036,7 +1034,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     }
 
     if token.ty == l.TokenType.Char {
-        return ast.new_char_expr(token.span, l.lexeme(&token));
+        return ast.new_char_expr(token.span, token.lexeme());
     }
 
     if token.ty == l.TokenType.Ident {
@@ -1271,7 +1269,7 @@ def create_statement_error(p: *Parser, start: string, end: string): ParseError {
     );
 }
 
-def create_invalid_recv_count_error(p: *Parser, l_paren: *l.Token, count: i32): ParseError {
+def create_invalid_recv_count_error(p: *Parser, l_paren: *l.Token, count: u32): ParseError {
     return create_error(
         l_paren.span,
         error.err2str(error.CompileError.InvalidReceiverCount, count)
@@ -1279,8 +1277,6 @@ def create_invalid_recv_count_error(p: *Parser, l_paren: *l.Token, count: i32): 
 }
 
 def create_lex_error(p: *Parser, next: *l.Token): ParseError {
-    // len for lexeme
-    let len = l.token_len(next);
     let err_ty = error.CompileError.UnknownSymbol;
 
     if next.ty == l.TokenType.CharErr {
@@ -1293,7 +1289,7 @@ def create_lex_error(p: *Parser, next: *l.Token): ParseError {
 
     return create_error(
         next.span,
-        error.err2str(err_ty, len, l.lexeme(next))
+        error.err2str(err_ty, next.len(), next.lexeme())
     );
 }
 

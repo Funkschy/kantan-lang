@@ -8,7 +8,7 @@ import "ptrvec";
 extern def get_sys(linux: *bool, darwin: *bool, win32: *bool);
 
 type TargetConfig struct {
-    ptr_width_bytes: i32,
+    ptr_width_bytes: usize,
     arch: target.Arch,
     vendor: target.Vendor,
     sys: target.Sys,
@@ -94,7 +94,7 @@ def from_options(options: *opt.Options): Config {
     let is_same_target_as_os = fill_os_info(options, &target_conf);
 
     let out_name = "out.o";
-    let out_len = 5;
+    let out_len: usize = 5;
     let gen_asm = false;
     let gen_obj = false;
 

@@ -13,7 +13,7 @@
 #define DEBUG_ASSERT 1
 
 // forward decls
-int vformat_str(char **dest, char const *fmt, va_list args);
+ssize_t vformat_str(char **dest, char const *fmt, va_list args);
 
 int32_t get_errno() {
     return errno;
@@ -68,7 +68,7 @@ void assert_fmt(bool condition, char const *fmt, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, fmt);
-    int32_t size = vformat_str(&s, fmt, args);
+    ssize_t size = vformat_str(&s, fmt, args);
     va_end(args);
 
     if (size < 0) {
@@ -82,11 +82,11 @@ void assert_fmt(bool condition, char const *fmt, ...) {
 #endif
 }
 
-char const *const l_format_str(int32_t *len, char const *fmt, ...) {
+char const *const l_format_str(size_t *len, char const *fmt, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, fmt);
-    int32_t size = vformat_str(&s, fmt, args);
+    ssize_t size = vformat_str(&s, fmt, args);
     va_end(args);
 
     if (size < 0) {
@@ -101,7 +101,7 @@ char const *const format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, fmt);
-    int32_t size = vformat_str(&s, fmt, args);
+    ssize_t size = vformat_str(&s, fmt, args);
     va_end(args);
 
     if (size < 0) {
@@ -119,7 +119,7 @@ char const *const err2str(int32_t err_code, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, err_code);
-    int32_t size = vformat_str(&s, error_texts[err_code], args);
+    ssize_t size = vformat_str(&s, error_texts[err_code], args);
     va_end(args);
 
     if (size < 0) {
@@ -129,7 +129,7 @@ char const *const err2str(int32_t err_code, ...) {
     return s;
 }
 
-int32_t read_char(char const *string, int32_t s_len, int32_t *ch) {
+int32_t read_char(char const *string, size_t s_len, int32_t *ch) {
     int32_t c_len = 1;
 
     if ((*string & 0xf8) == 0xf0) {
@@ -151,16 +151,16 @@ int32_t read_char(char const *string, int32_t s_len, int32_t *ch) {
     return c_len;
 }
 
-int32_t hash(char const *const key, int32_t len) {
-    int32_t h = 0;
-    for (int32_t i = 0; i < len; i++) {
+size_t hash(char const *const key, size_t len) {
+    size_t h = 0;
+    for (size_t i = 0; i < len; i++) {
         h = h * HASH_NUM + key[i];
     }
     return h;
 }
 
-int32_t get_map_index(int32_t cap, char const *const key, int32_t key_len) {
-    int32_t h = hash(key, key_len);
+size_t get_map_index(size_t cap, char const *const key, size_t key_len) {
+    size_t h = hash(key, key_len);
     return h & (cap - 1);
 }
 
@@ -177,7 +177,7 @@ bool is_file(char const *path) {
 #define ERROR_COULD_NOT_ALLOCATE_BUFFER 4
 #define ERROR_COULD_NOT_READ_FILE       5
 
-int32_t read_file(char const *path, char const **content, int32_t *len) {
+int32_t read_file(char const *path, char const **content, size_t *len) {
     if (!is_file(path)) {
         // TODO(#4): custom error, and check if this works on windows
         return ERROR_COULD_NOT_OPEN_FILE;
@@ -216,7 +216,7 @@ int32_t read_file(char const *path, char const **content, int32_t *len) {
     return 0;
 }
 
-int vformat_str(char **dest, char const *fmt, va_list args){
+ssize_t vformat_str(char **dest, char const *fmt, va_list args){
     int size = 0;
     va_list tmp_args;
 
@@ -242,9 +242,9 @@ int vformat_str(char **dest, char const *fmt, va_list args){
     return size;
 }
 
-int32_t int_num_digits(int32_t i) {
+size_t int_num_digits(size_t i) {
     // pass NULL as str, so that we just get the size
-    return snprintf(NULL, 0, "%d", i);
+    return snprintf(NULL, 0, "%lu", i);
 }
 
 uint64_t next_pow_of_2(uint64_t num) {
@@ -274,19 +274,19 @@ void flag_unset(uint32_t *flags, uint32_t flag) {
     }
 }
 
-int32_t bool_to_int(bool b) {
-    return (int32_t) b;
+size_t bool_to_int(bool b) {
+    return b;
 }
 
-char int_to_bool(int32_t i) {
+bool int_to_bool(size_t i) {
     return (bool) i;
 }
 
-int32_t ptr_to_int(void* ptr) {
-    return (int32_t)((size_t) ptr);
+size_t ptr_to_int(void* ptr) {
+    return (size_t) ptr;
 }
 
-void *int_to_ptr(int32_t i) {
+void *int_to_ptr(size_t i) {
     size_t s = i;
     return *((void **)&s);
 }

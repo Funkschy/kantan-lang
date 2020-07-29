@@ -3,7 +3,7 @@ import "span";
 import "std";
 
 type Type struct {
-    pointer_count: i32,
+    pointer_count: u32,
     ident: ident.Ident
 }
 
@@ -26,7 +26,7 @@ def ident_span(t: *Type): span.Span {
     return t.ident.span;
 }
 
-def create_ptr(ident: ident.Ident, pointer_count: i32): Type {
+def create_ptr(ident: ident.Ident, pointer_count: u32): Type {
     return Type {
         pointer_count: pointer_count,
         ident: ident
@@ -41,9 +41,9 @@ def to_string(ty: *Type): string {
     let ident = ident.to_string(&ty.ident);
     let ident_len = std.strlen(ident);
 
-    let len = ty.pointer_count + ident_len + 1;
+    let len = ty.pointer_count as usize + ident_len + 1;
     let buffer = std.malloc(len);
-    std.memset(buffer, '*', ty.pointer_count);
+    std.memset(buffer, '*', ty.pointer_count as usize);
     std.memcpy(buffer + ty.pointer_count, ident as *void, ident_len);
     delete ident;
 

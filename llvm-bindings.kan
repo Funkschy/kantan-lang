@@ -61,11 +61,11 @@ extern def LLVMModuleCreateWithNameInContext(module_id: string, c: *Context): *M
 
 extern def LLVMDisposeModule(m: *Module): void;
 
-extern def LLVMSetSourceFileName(m: *Module, name: string, len: *void): void;
+extern def LLVMSetSourceFileName(m: *Module, name: string, len: usize): void;
 
 extern def LLVMSetTarget(m: *Module, triple: string): void;
 
-extern def LLVMAddModuleFlag(m: *Module, behavior: i32, key: string, key_len: *void, val: *MetaData): void;
+extern def LLVMAddModuleFlag(m: *Module, behavior: i32, key: string, key_len: usize, val: *MetaData): void;
 
 extern def LLVMDumpModule(m: *Module): void;
 
@@ -86,16 +86,16 @@ def dispose_module(m: *Module): void {
     LLVMDisposeModule(m);
 }
 // Set the original source file name of a module to a string Name with length Len.
-def set_source_file_name(m: *Module, name: string, len: i32): void {
-    LLVMSetSourceFileName(m, name, std.int_to_ptr(len));
+def set_source_file_name(m: *Module, name: string, len: usize): void {
+    LLVMSetSourceFileName(m, name, len);
 }
 
 def set_target(m: *Module, triple: string): void {
     LLVMSetTarget(m, triple);
 }
 // Add a module-level flag to the module-level flags metadata if it doesn't already exist.
-def add_module_flag(m: *Module, behavior: i32, key: string, key_len: i32, val: *MetaData): void {
-    LLVMAddModuleFlag(m, behavior, key, std.int_to_ptr(key_len), val);
+def add_module_flag(m: *Module, behavior: i32, key: string, key_len: usize, val: *MetaData): void {
+    LLVMAddModuleFlag(m, behavior, key, key_len, val);
 }
 
 def dump_module(m: *Module): void {
@@ -130,21 +130,21 @@ extern def LLVMInt32TypeInContext(c: *Context): *Type;
 
 extern def LLVMInt64TypeInContext(c: *Context): *Type;
 
-extern def LLVMIntTypeInContext(c: *Context, num_bits: i32): *Type;
+extern def LLVMIntTypeInContext(c: *Context, num_bits: u32): *Type;
 
 extern def LLVMFloatTypeInContext(c: *Context): *Type;
 
 extern def LLVMDoubleTypeInContext(c: *Context): *Type;
 
-extern def LLVMFunctionType(return_type: *Type, param_types: **Type, param_count: i32, is_var_arg: i32): *Type;
+extern def LLVMFunctionType(return_type: *Type, param_types: **Type, param_count: u32, is_var_arg: i32): *Type;
 
 extern def LLVMStructCreateNamed(c: *Context, name: string): *Type;
 
-extern def LLVMStructSetBody(struct_ty: *Type, element_types: **Type, element_count: i32, packed: i32): void;
+extern def LLVMStructSetBody(struct_ty: *Type, element_types: **Type, element_count: u32, packed: i32): void;
 
-extern def LLVMArrayType(element_type: *Type, element_count: i32): *Type;
+extern def LLVMArrayType(element_type: *Type, element_count: u32): *Type;
 
-extern def LLVMPointerType(element_type: *Type, address_space: i32): *Type;
+extern def LLVMPointerType(element_type: *Type, address_space: u32): *Type;
 
 extern def LLVMVoidTypeInContext(c: *Context): *Type;
 
@@ -169,7 +169,7 @@ def int64_type_in_context(c: *Context): *Type {
     return LLVMInt64TypeInContext(c);
 }
 
-def int_type_in_context(c: *Context, num_bits: i32): *Type {
+def int_type_in_context(c: *Context, num_bits: u32): *Type {
     return LLVMIntTypeInContext(c, num_bits);
 }
 
@@ -181,23 +181,23 @@ def double_type_in_context(c: *Context): *Type {
     return LLVMDoubleTypeInContext(c);
 }
 
-def function_type(return_type: *Type, param_types: **Type, param_count: i32, is_var_arg: bool): *Type {
-    return LLVMFunctionType(return_type, param_types, param_count, std.bool_to_int(is_var_arg));
+def function_type(return_type: *Type, param_types: **Type, param_count: u32, is_var_arg: bool): *Type {
+    return LLVMFunctionType(return_type, param_types, param_count, std.bool_to_int(is_var_arg) as i32);
 }
 
 def struct_create_named(c: *Context, name: string): *Type {
     return LLVMStructCreateNamed(c, name);
 }
 
-def struct_set_body(struct_ty: *Type, element_types: **Type, element_count: i32, packed: bool): void {
-    LLVMStructSetBody(struct_ty, element_types, element_count, std.bool_to_int(packed));
+def struct_set_body(struct_ty: *Type, element_types: **Type, element_count: u32, packed: bool): void {
+    LLVMStructSetBody(struct_ty, element_types, element_count, std.bool_to_int(packed) as i32);
 }
 
-def array_type(element_type: *Type, element_count: i32): *Type {
+def array_type(element_type: *Type, element_count: u32): *Type {
     return LLVMArrayType(element_type, element_count);
 }
 
-def pointer_type(element_type: *Type, address_space: i32): *Type {
+def pointer_type(element_type: *Type, address_space: u32): *Type {
     return LLVMPointerType(element_type, address_space);
 }
 
@@ -213,15 +213,15 @@ extern def LLVMConstNull(ty: *Type): *Value;
 
 extern def LLVMGetUndef(ty: *Type): *Value;
 
-extern def LLVMConstInt(int_ty: *Type, n: *void, sign_extend: i32): *Value;
+extern def LLVMConstInt(int_ty: *Type, n: usize, sign_extend: i32): *Value;
 
-extern def LLVMConstIntOfString(int_ty: *Type, text: string, radix: i8): *Value;
+extern def LLVMConstIntOfString(int_ty: *Type, text: string, radix: u8): *Value;
 
-extern def LLVMConstIntOfStringAndSize(int_ty: *Type, text: string, s_len: i32, radix: i8): *Value;
+extern def LLVMConstIntOfStringAndSize(int_ty: *Type, text: string, s_len: u32, radix: u8): *Value;
 
 extern def LLVMConstRealOfString(real_ty: *Type, text: string): *Value;
 
-extern def LLVMConstStringInContext(c: *Context, str: string, length: i32, dont_null_terminate: i32): *Value;
+extern def LLVMConstStringInContext(c: *Context, str: string, length: u32, dont_null_terminate: i32): *Value;
 
 extern def LLVMSizeOf(ty: *Type): *Value;
 
@@ -229,7 +229,7 @@ extern def LLVMSetLinkage(global: *Value, linkage: i32): void;
 
 extern def LLVMSetUnnamedAddress(global: *Value, unnamed_addr: i32): void;
 
-extern def LLVMGetAlignment(v: *Value): i32;
+extern def LLVMGetAlignment(v: *Value): u32;
 
 extern def LLVMAddGlobal(m: *Module, ty: *Type, name: string): *Value;
 
@@ -239,7 +239,7 @@ extern def LLVMSetInitializer(global_var: *Value, constant_val: *Value): void;
 
 extern def LLVMSetGlobalConstant(global_var: *Value, is_constant: i32): void;
 
-extern def LLVMGetParam(fn: *Value, index: i32): *Value;
+extern def LLVMGetParam(fn: *Value, index: u32): *Value;
 
 
 def type_of(val: *Value): *Type {
@@ -254,15 +254,15 @@ def get_undef(ty: *Type): *Value {
     return LLVMGetUndef(ty);
 }
 
-def const_int(int_ty: *Type, n: i32, sign_extend: bool): *Value {
-    return LLVMConstInt(int_ty, std.int_to_ptr(n), std.bool_to_int(sign_extend));
+def const_int(int_ty: *Type, n: usize, sign_extend: bool): *Value {
+    return LLVMConstInt(int_ty, n, std.bool_to_int(sign_extend) as i32);
 }
 
-def const_int_of_string(int_ty: *Type, text: string, radix: i8): *Value {
+def const_int_of_string(int_ty: *Type, text: string, radix: u8): *Value {
     return LLVMConstIntOfString(int_ty, text, radix);
 }
 
-def const_int_of_string_and_size(int_ty: *Type, text: string, s_len: i32, radix: i8): *Value {
+def const_int_of_string_and_size(int_ty: *Type, text: string, s_len: u32, radix: u8): *Value {
     return LLVMConstIntOfStringAndSize(int_ty, text, s_len, radix);
 }
 
@@ -270,8 +270,8 @@ def const_real_of_string(real_ty: *Type, text: string): *Value {
     return LLVMConstRealOfString(real_ty, text);
 }
 
-def const_string_in_context(c: *Context, str: string, length: i32, dont_null_terminate: bool): *Value {
-    return LLVMConstStringInContext(c, str, length, std.bool_to_int(dont_null_terminate));
+def const_string_in_context(c: *Context, str: string, length: u32, dont_null_terminate: bool): *Value {
+    return LLVMConstStringInContext(c, str, length, std.bool_to_int(dont_null_terminate) as i32);
 }
 
 def size_of(ty: *Type): *Value {
@@ -286,7 +286,7 @@ def set_unnamed_address(global: *Value, unnamed_addr: i32): void {
     LLVMSetUnnamedAddress(global, unnamed_addr);
 }
 
-def get_alignment(v: *Value): i32 {
+def get_alignment(v: *Value): u32 {
     return LLVMGetAlignment(v);
 }
 
@@ -303,10 +303,10 @@ def set_initializer(global_var: *Value, constant_val: *Value): void {
 }
 
 def set_global_constant(global_var: *Value, is_constant: bool): void {
-    LLVMSetGlobalConstant(global_var, std.bool_to_int(is_constant));
+    LLVMSetGlobalConstant(global_var, std.bool_to_int(is_constant) as i32);
 }
 
-def get_param(fn: *Value, index: i32): *Value {
+def get_param(fn: *Value, index: u32): *Value {
     return LLVMGetParam(fn, index);
 }
 
@@ -401,9 +401,9 @@ extern def LLVMBuildNot(arg1: *Builder, v: *Value, name: string): *Value;
 
 extern def LLVMBuildMalloc(arg1: *Builder, ty: *Type, name: string): *Value;
 
-extern def LLVMBuildMemSet(b: *Builder, ptr: *Value, val: *Value, len: *Value, align: i32): *Value;
+extern def LLVMBuildMemSet(b: *Builder, ptr: *Value, val: *Value, len: *Value, align: u32): *Value;
 
-extern def LLVMBuildMemCpy(b: *Builder, dst: *Value, dst_align: i32, src: *Value, src_align: i32, size: *Value): *Value;
+extern def LLVMBuildMemCpy(b: *Builder, dst: *Value, dst_align: u32, src: *Value, src_align: u32, size: *Value): *Value;
 
 extern def LLVMBuildAlloca(arg1: *Builder, ty: *Type, name: string): *Value;
 
@@ -413,11 +413,11 @@ extern def LLVMBuildLoad(arg1: *Builder, pointer_val: *Value, name: string): *Va
 
 extern def LLVMBuildStore(arg1: *Builder, val: *Value, ptr: *Value): *Value;
 
-extern def LLVMBuildGEP(b: *Builder, pointer: *Value, indices: **Value, num_indices: i32, name: string): *Value;
+extern def LLVMBuildGEP(b: *Builder, pointer: *Value, indices: **Value, num_indices: u32, name: string): *Value;
 
-extern def LLVMBuildInBoundsGEP(b: *Builder, pointer: *Value, indices: **Value, num_indices: i32, name: string): *Value;
+extern def LLVMBuildInBoundsGEP(b: *Builder, pointer: *Value, indices: **Value, num_indices: u32, name: string): *Value;
 
-extern def LLVMBuildStructGEP(b: *Builder, pointer: *Value, idx: i32, name: string): *Value;
+extern def LLVMBuildStructGEP(b: *Builder, pointer: *Value, idx: u32, name: string): *Value;
 
 extern def LLVMBuildFPToSI(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value;
 
@@ -439,7 +439,7 @@ extern def LLVMBuildICmp(arg1: *Builder, op: i32, lhs: *Value, rhs: *Value, name
 
 extern def LLVMBuildFCmp(arg1: *Builder, op: i32, lhs: *Value, rhs: *Value, name: string): *Value;
 
-extern def LLVMBuildCall(arg1: *Builder, fn: *Value, args: **Value, num_args: i32, name: string): *Value;
+extern def LLVMBuildCall(arg1: *Builder, fn: *Value, args: **Value, num_args: u32, name: string): *Value;
 
 
 def create_builder_in_context(c: *Context): *Builder {
@@ -556,11 +556,11 @@ def build_malloc(arg1: *Builder, ty: *Type, name: string): *Value {
     return LLVMBuildMalloc(arg1, ty, name);
 }
 
-def build_mem_set(b: *Builder, ptr: *Value, val: *Value, len: *Value, align: i32): *Value {
+def build_mem_set(b: *Builder, ptr: *Value, val: *Value, len: *Value, align: u32): *Value {
     return LLVMBuildMemSet(b, ptr, val, len, align);
 }
 
-def build_mem_cpy(b: *Builder, dst: *Value, dst_align: i32, src: *Value, src_align: i32, size: *Value): *Value {
+def build_mem_cpy(b: *Builder, dst: *Value, dst_align: u32, src: *Value, src_align: u32, size: *Value): *Value {
     return LLVMBuildMemCpy(b, dst, dst_align, src, src_align, size);
 }
 
@@ -580,15 +580,15 @@ def build_store(arg1: *Builder, val: *Value, ptr: *Value): *Value {
     return LLVMBuildStore(arg1, val, ptr);
 }
 
-def build_gep(b: *Builder, pointer: *Value, indices: **Value, num_indices: i32, name: string): *Value {
+def build_gep(b: *Builder, pointer: *Value, indices: **Value, num_indices: u32, name: string): *Value {
     return LLVMBuildGEP(b, pointer, indices, num_indices, name);
 }
 
-def build_in_bounds_gep(b: *Builder, pointer: *Value, indices: **Value, num_indices: i32, name: string): *Value {
+def build_in_bounds_gep(b: *Builder, pointer: *Value, indices: **Value, num_indices: u32, name: string): *Value {
     return LLVMBuildInBoundsGEP(b, pointer, indices, num_indices, name);
 }
 
-def build_struct_gep(b: *Builder, pointer: *Value, idx: i32, name: string): *Value {
+def build_struct_gep(b: *Builder, pointer: *Value, idx: u32, name: string): *Value {
     return LLVMBuildStructGEP(b, pointer, idx, name);
 }
 
@@ -632,7 +632,7 @@ def build_f_cmp(arg1: *Builder, op: i32, lhs: *Value, rhs: *Value, name: string)
     return LLVMBuildFCmp(arg1, op, lhs, rhs, name);
 }
 
-def build_call(arg1: *Builder, fn: *Value, args: **Value, num_args: i32, name: string): *Value {
+def build_call(arg1: *Builder, fn: *Value, args: **Value, num_args: u32, name: string): *Value {
     return LLVMBuildCall(arg1, fn, args, num_args, name);
 }
 
@@ -677,19 +677,19 @@ def create_function_pass_manager_for_module(m: *Module): *PassManager {
 }
 
 def run_pass_manager(pm: *PassManager, m: *Module): bool {
-    return std.int_to_bool(LLVMRunPassManager(pm, m));
+    return std.int_to_bool(LLVMRunPassManager(pm, m) as usize);
 }
 
 def initialize_function_pass_manager(fpm: *PassManager): bool {
-    return std.int_to_bool(LLVMInitializeFunctionPassManager(fpm));
+    return std.int_to_bool(LLVMInitializeFunctionPassManager(fpm) as usize);
 }
 
 def run_function_pass_manager(fpm: *PassManager, f: *Value): bool {
-    return std.int_to_bool(LLVMRunFunctionPassManager(fpm, f));
+    return std.int_to_bool(LLVMRunFunctionPassManager(fpm, f) as usize);
 }
 
 def finalize_function_pass_manager(fpm: *PassManager): bool {
-    return std.int_to_bool(LLVMFinalizeFunctionPassManager(fpm));
+    return std.int_to_bool(LLVMFinalizeFunctionPassManager(fpm) as usize);
 }
 
 def dispose_pass_manager(pm: *PassManager): void {
@@ -707,7 +707,7 @@ extern def LLVMLinkModules2(dest: *Module, src: *Module): i32;
 // Destroys the source module, returns true on error. Use the diagnostic
 // handler to get any diagnostic message.
 def link_modules2(dest: *Module, src: *Module): bool {
-    return std.int_to_bool(LLVMLinkModules2(dest, src));
+    return std.int_to_bool(LLVMLinkModules2(dest, src) as usize);
 }
 
 
@@ -718,7 +718,7 @@ extern def LLVMVerifyModule(m: *Module, action: i32, out_message: *string): i32;
 // Optionally returns a human-readable description of any invalid constructs,
 // which must be disposed with `LLVMDisposeMessage`.
 def verify_module(m: *Module, action: i32, out_message: *string): bool {
-    return std.int_to_bool(LLVMVerifyModule(m, action, out_message));
+    return std.int_to_bool(LLVMVerifyModule(m, action, out_message) as usize);
 }
 
 
@@ -765,7 +765,7 @@ extern def LLVMTargetMachineEmitToMemoryBuffer(t: *TargetMachine, m: *Module, co
 
 
 def get_target_from_triple(triple: string, t: **Target, error_message: *string): bool {
-    return std.int_to_bool(LLVMGetTargetFromTriple(triple, t, error_message));
+    return std.int_to_bool(LLVMGetTargetFromTriple(triple, t, error_message) as usize);
 }
 
 def create_target_machine(t: *Target, triple: string, cpu: string, features: string, level: i32, reloc: i32, code_model: i32): *TargetMachine {
@@ -777,11 +777,11 @@ def dispose_target_machine(t: *TargetMachine): void {
 }
 
 def target_machine_emit_to_file(t: *TargetMachine, m: *Module, filename: string, codegen: i32, error_message: *string): bool {
-    return std.int_to_bool(LLVMTargetMachineEmitToFile(t, m, filename, codegen, error_message));
+    return std.int_to_bool(LLVMTargetMachineEmitToFile(t, m, filename, codegen, error_message) as usize);
 }
 
 def target_machine_emit_to_memory_buffer(t: *TargetMachine, m: *Module, codegen: i32, error_message: *string, out_mem_buf: **MemoryBuffer): bool {
-    return std.int_to_bool(LLVMTargetMachineEmitToMemoryBuffer(t, m, codegen, error_message, out_mem_buf));
+    return std.int_to_bool(LLVMTargetMachineEmitToMemoryBuffer(t, m, codegen, error_message, out_mem_buf) as usize);
 }
 
 
@@ -789,7 +789,7 @@ extern def LLVMParseBitcodeInContext2(context_ref: *Context, mem_buf: *MemoryBuf
 
 
 def parse_bitcode_in_context2(context_ref: *Context, mem_buf: *MemoryBuffer, out_module: **Module): bool {
-    return std.int_to_bool(LLVMParseBitcodeInContext2(context_ref, mem_buf, out_module));
+    return std.int_to_bool(LLVMParseBitcodeInContext2(context_ref, mem_buf, out_module) as usize);
 }
 
 
@@ -805,9 +805,9 @@ extern def LLVMPassManagerBuilderCreate(): *PassManagerBuilder;
 
 extern def LLVMPassManagerBuilderDispose(pmb: *PassManagerBuilder): void;
 
-extern def LLVMPassManagerBuilderSetOptLevel(pmb: *PassManagerBuilder, opt_level: i32): void;
+extern def LLVMPassManagerBuilderSetOptLevel(pmb: *PassManagerBuilder, opt_level: u32): void;
 
-extern def LLVMPassManagerBuilderUseInlinerWithThreshold(pmb: *PassManagerBuilder, threshold: i32): void;
+extern def LLVMPassManagerBuilderUseInlinerWithThreshold(pmb: *PassManagerBuilder, threshold: u32): void;
 
 extern def LLVMPassManagerBuilderPopulateFunctionPassManager(pmb: *PassManagerBuilder, pm: *PassManager): void;
 
@@ -822,11 +822,11 @@ def pass_manager_builder_dispose(pmb: *PassManagerBuilder): void {
     LLVMPassManagerBuilderDispose(pmb);
 }
 
-def pass_manager_builder_set_opt_level(pmb: *PassManagerBuilder, opt_level: i32): void {
+def pass_manager_builder_set_opt_level(pmb: *PassManagerBuilder, opt_level: u32): void {
     LLVMPassManagerBuilderSetOptLevel(pmb, opt_level);
 }
 
-def pass_manager_builder_use_inliner_with_threshold(pmb: *PassManagerBuilder, threshold: i32): void {
+def pass_manager_builder_use_inliner_with_threshold(pmb: *PassManagerBuilder, threshold: u32): void {
     LLVMPassManagerBuilderUseInlinerWithThreshold(pmb, threshold);
 }
 
@@ -861,41 +861,41 @@ extern def LLVMDisposeDIBuilder(builder: *DbgBuilder): void;
 
 extern def LLVMDIBuilderFinalize(builder: *DbgBuilder): void;
 
-extern def LLVMDIBuilderCreateCompileUnit(builder: *DbgBuilder, lang: i32, file_ref: *MetaData, producer: string, producer_len: *void, is_optimized: i32, flags: string, flags_len: *void, runtime_ver: i32, split_name: string, split_name_len: *void, kind: i32, dwo_id: i32, split_debug_inlining: i32, debug_info_for_profiling: i32): *MetaData;
+extern def LLVMDIBuilderCreateCompileUnit(builder: *DbgBuilder, lang: i32, file_ref: *MetaData, producer: string, producer_len: usize, is_optimized: i32, flags: string, flags_len: usize, runtime_ver: u32, split_name: string, split_name_len: usize, kind: i32, dwo_id: u32, split_debug_inlining: i32, debug_info_for_profiling: i32): *MetaData;
 
-extern def LLVMDIBuilderCreateFile(builder: *DbgBuilder, filename: string, filename_len: *void, directory: string, directory_len: *void): *MetaData;
+extern def LLVMDIBuilderCreateFile(builder: *DbgBuilder, filename: string, filename_len: usize, directory: string, directory_len: usize): *MetaData;
 
-extern def LLVMDIBuilderCreateFunction(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, linkage_name: string, linkage_name_len: *void, file: *MetaData, line_no: i32, ty: *MetaData, is_local_to_unit: i32, is_definition: i32, scope_line: i32, flags: i32, is_optimized: i32): *MetaData;
+extern def LLVMDIBuilderCreateFunction(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, linkage_name: string, linkage_name_len: usize, file: *MetaData, line_no: u32, ty: *MetaData, is_local_to_unit: i32, is_definition: i32, scope_line: u32, flags: i32, is_optimized: i32): *MetaData;
 
-extern def LLVMDIBuilderCreateLexicalBlock(builder: *DbgBuilder, scope: *MetaData, file: *MetaData, line: i32, column: i32): *MetaData;
+extern def LLVMDIBuilderCreateLexicalBlock(builder: *DbgBuilder, scope: *MetaData, file: *MetaData, line: u32, column: u32): *MetaData;
 
-extern def LLVMDIBuilderCreateDebugLocation(ctx: *Context, line: i32, column: i32, scope: *MetaData, inlined_at: *MetaData): *MetaData;
+extern def LLVMDIBuilderCreateDebugLocation(ctx: *Context, line: u32, column: u32, scope: *MetaData, inlined_at: *MetaData): *MetaData;
 
-extern def LLVMDIBuilderCreateSubroutineType(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData;
+extern def LLVMDIBuilderCreateSubroutineType(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: u32, flags: i32): *MetaData;
 
-extern def LLVMDIBuilderCreateEnumerator(builder: *DbgBuilder, name: string, name_len: *void, value: *void, is_unsigned: i32): *MetaData;
+extern def LLVMDIBuilderCreateEnumerator(builder: *DbgBuilder, name: string, name_len: usize, value: i64, is_unsigned: i32): *MetaData;
 
-extern def LLVMDIBuilderCreateEnumerationType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_number: i32, size_in_bits: *void, align_in_bits: i32, elements: **MetaData, num_elements: i32, class_ty: *MetaData): *MetaData;
+extern def LLVMDIBuilderCreateEnumerationType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_number: u32, size_in_bits: u64, align_in_bits: u32, elements: **MetaData, num_elements: u32, class_ty: *MetaData): *MetaData;
 
-extern def LLVMDIBuilderCreateBasicType(builder: *DbgBuilder, name: string, name_len: *void, size_in_bits: *void, encoding: i32, flags: i32): *MetaData;
+extern def LLVMDIBuilderCreateBasicType(builder: *DbgBuilder, name: string, name_len: usize, size_in_bits: u64, encoding: i32, flags: i32): *MetaData;
 
-extern def LLVMDIBuilderCreatePointerType(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: *void, align_in_bits: i32, address_space: i32, name: string, name_len: *void): *MetaData;
+extern def LLVMDIBuilderCreatePointerType(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: u64, align_in_bits: u32, address_space: u32, name: string, name_len: usize): *MetaData;
 
-extern def LLVMDIBuilderCreateStructType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_number: i32, size_in_bits: *void, align_in_bits: i32, flags: i32, derived_from: *MetaData, elements: **MetaData, num_elements: i32, run_time_lang: i32, v_table_holder: *MetaData, unique_id: string, unique_id_len: *void): *MetaData;
+extern def LLVMDIBuilderCreateStructType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_number: u32, size_in_bits: u64, align_in_bits: u32, flags: i32, derived_from: *MetaData, elements: **MetaData, num_elements: u32, run_time_lang: u32, v_table_holder: *MetaData, unique_id: string, unique_id_len: usize): *MetaData;
 
-extern def LLVMDIBuilderCreateMemberType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_no: i32, size_in_bits: *void, align_in_bits: i32, offset_in_bits: *void, flags: i32, ty: *MetaData): *MetaData;
+extern def LLVMDIBuilderCreateMemberType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_no: u32, size_in_bits: u64, align_in_bits: u32, offset_in_bits: u64, flags: i32, ty: *MetaData): *MetaData;
 
-extern def LLVMDIBuilderCreateForwardDecl(builder: *DbgBuilder, tag: i32, name: string, name_len: *void, scope: *MetaData, file: *MetaData, line: i32, runtime_lang: i32, size_in_bits: *void, align_in_bits: i32, unique_identifier: string, unique_identifier_len: *void): *MetaData;
+extern def LLVMDIBuilderCreateForwardDecl(builder: *DbgBuilder, tag: u32, name: string, name_len: usize, scope: *MetaData, file: *MetaData, line: u32, runtime_lang: u32, size_in_bits: u64, align_in_bits: u32, unique_identifier: string, unique_identifier_len: usize): *MetaData;
 
-extern def LLVMDIBuilderCreateExpression(builder: *DbgBuilder, addr: *i32, length: *void): *MetaData;
+extern def LLVMDIBuilderCreateExpression(builder: *DbgBuilder, addr: *i64, length: usize): *MetaData;
 
-extern def LLVMDIBuilderCreateConstantValueExpression(builder: *DbgBuilder, value: *void): *MetaData;
+extern def LLVMDIBuilderCreateConstantValueExpression(builder: *DbgBuilder, value: i64): *MetaData;
 
 extern def LLVMDIBuilderInsertDeclareBefore(builder: *DbgBuilder, storage: *Value, var_info: *MetaData, expr: *MetaData, debug_loc: *MetaData, instr: *Value): *Value;
 
-extern def LLVMDIBuilderCreateAutoVariable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: i32, flags: i32, align_in_bits: i32): *MetaData;
+extern def LLVMDIBuilderCreateAutoVariable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_no: u32, ty: *MetaData, always_preserve: i32, flags: i32, align_in_bits: u32): *MetaData;
 
-extern def LLVMDIBuilderCreateParameterVariable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: *void, arg_no: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: i32, flags: i32): *MetaData;
+extern def LLVMDIBuilderCreateParameterVariable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, arg_no: u32, file: *MetaData, line_no: u32, ty: *MetaData, always_preserve: i32, flags: i32): *MetaData;
 
 extern def LLVMSetSubprogram(func: *Value, sp: *MetaData): void;
 
@@ -914,76 +914,76 @@ def di_builder_finalize(builder: *DbgBuilder): void {
     LLVMDIBuilderFinalize(builder);
 }
 
-def di_builder_create_compile_unit(builder: *DbgBuilder, lang: i32, file_ref: *MetaData, producer: string, producer_len: i32, is_optimized: bool, flags: string, flags_len: i32, runtime_ver: i32, split_name: string, split_name_len: i32, kind: i32, dwo_id: i32, split_debug_inlining: bool, debug_info_for_profiling: bool): *MetaData {
-    return LLVMDIBuilderCreateCompileUnit(builder, lang, file_ref, producer, std.int_to_ptr(producer_len), std.bool_to_int(is_optimized), flags, std.int_to_ptr(flags_len), runtime_ver, split_name, std.int_to_ptr(split_name_len), kind, dwo_id, std.bool_to_int(split_debug_inlining), std.bool_to_int(debug_info_for_profiling));
+def di_builder_create_compile_unit(builder: *DbgBuilder, lang: i32, file_ref: *MetaData, producer: string, producer_len: usize, is_optimized: bool, flags: string, flags_len: usize, runtime_ver: u32, split_name: string, split_name_len: usize, kind: i32, dwo_id: u32, split_debug_inlining: bool, debug_info_for_profiling: bool): *MetaData {
+    return LLVMDIBuilderCreateCompileUnit(builder, lang, file_ref, producer, producer_len, std.bool_to_int(is_optimized) as i32, flags, flags_len, runtime_ver, split_name, split_name_len, kind, dwo_id, std.bool_to_int(split_debug_inlining) as i32, std.bool_to_int(debug_info_for_profiling) as i32);
 }
 // Create a file descriptor to hold debugging information for a file.
-def di_builder_create_file(builder: *DbgBuilder, filename: string, filename_len: i32, directory: string, directory_len: i32): *MetaData {
-    return LLVMDIBuilderCreateFile(builder, filename, std.int_to_ptr(filename_len), directory, std.int_to_ptr(directory_len));
+def di_builder_create_file(builder: *DbgBuilder, filename: string, filename_len: usize, directory: string, directory_len: usize): *MetaData {
+    return LLVMDIBuilderCreateFile(builder, filename, filename_len, directory, directory_len);
 }
 // Create a new descriptor for the specified subprogram.
-def di_builder_create_function(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, linkage_name: string, linkage_name_len: i32, file: *MetaData, line_no: i32, ty: *MetaData, is_local_to_unit: bool, is_definition: bool, scope_line: i32, flags: i32, is_optimized: bool): *MetaData {
-    return LLVMDIBuilderCreateFunction(builder, scope, name, std.int_to_ptr(name_len), linkage_name, std.int_to_ptr(linkage_name_len), file, line_no, ty, std.bool_to_int(is_local_to_unit), std.bool_to_int(is_definition), scope_line, flags, std.bool_to_int(is_optimized));
+def di_builder_create_function(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, linkage_name: string, linkage_name_len: usize, file: *MetaData, line_no: u32, ty: *MetaData, is_local_to_unit: bool, is_definition: bool, scope_line: u32, flags: i32, is_optimized: bool): *MetaData {
+    return LLVMDIBuilderCreateFunction(builder, scope, name, name_len, linkage_name, linkage_name_len, file, line_no, ty, std.bool_to_int(is_local_to_unit) as i32, std.bool_to_int(is_definition) as i32, scope_line, flags, std.bool_to_int(is_optimized) as i32);
 }
 // Create a descriptor for a lexical block with the specified parent context.
-def di_builder_create_lexical_block(builder: *DbgBuilder, scope: *MetaData, file: *MetaData, line: i32, column: i32): *MetaData {
+def di_builder_create_lexical_block(builder: *DbgBuilder, scope: *MetaData, file: *MetaData, line: u32, column: u32): *MetaData {
     return LLVMDIBuilderCreateLexicalBlock(builder, scope, file, line, column);
 }
 // Creates a new DebugLocation that describes a source location.
-def di_builder_create_debug_location(ctx: *Context, line: i32, column: i32, scope: *MetaData, inlined_at: *MetaData): *MetaData {
+def di_builder_create_debug_location(ctx: *Context, line: u32, column: u32, scope: *MetaData, inlined_at: *MetaData): *MetaData {
     return LLVMDIBuilderCreateDebugLocation(ctx, line, column, scope, inlined_at);
 }
 // Create subroutine type.
-def di_builder_create_subroutine_type(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: i32, flags: i32): *MetaData {
+def di_builder_create_subroutine_type(builder: *DbgBuilder, file: *MetaData, parameter_types: **MetaData, num_parameter_types: u32, flags: i32): *MetaData {
     return LLVMDIBuilderCreateSubroutineType(builder, file, parameter_types, num_parameter_types, flags);
 }
 // Create debugging information entry for an enumerator.
-def di_builder_create_enumerator(builder: *DbgBuilder, name: string, name_len: i32, value: i32, is_unsigned: bool): *MetaData {
-    return LLVMDIBuilderCreateEnumerator(builder, name, std.int_to_ptr(name_len), std.int_to_ptr(value), std.bool_to_int(is_unsigned));
+def di_builder_create_enumerator(builder: *DbgBuilder, name: string, name_len: usize, value: i64, is_unsigned: bool): *MetaData {
+    return LLVMDIBuilderCreateEnumerator(builder, name, name_len, value, std.bool_to_int(is_unsigned) as i32);
 }
 // Create debugging information entry for an enumeration.
-def di_builder_create_enumeration_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_number: i32, size_in_bits: i32, align_in_bits: i32, elements: **MetaData, num_elements: i32, class_ty: *MetaData): *MetaData {
-    return LLVMDIBuilderCreateEnumerationType(builder, scope, name, std.int_to_ptr(name_len), file, line_number, std.int_to_ptr(size_in_bits), align_in_bits, elements, num_elements, class_ty);
+def di_builder_create_enumeration_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_number: u32, size_in_bits: u64, align_in_bits: u32, elements: **MetaData, num_elements: u32, class_ty: *MetaData): *MetaData {
+    return LLVMDIBuilderCreateEnumerationType(builder, scope, name, name_len, file, line_number, size_in_bits, align_in_bits, elements, num_elements, class_ty);
 }
 // Create debugging information entry for a basic type.
-def di_builder_create_basic_type(builder: *DbgBuilder, name: string, name_len: i32, size_in_bits: i32, encoding: i32, flags: i32): *MetaData {
-    return LLVMDIBuilderCreateBasicType(builder, name, std.int_to_ptr(name_len), std.int_to_ptr(size_in_bits), encoding, flags);
+def di_builder_create_basic_type(builder: *DbgBuilder, name: string, name_len: usize, size_in_bits: u64, encoding: i32, flags: i32): *MetaData {
+    return LLVMDIBuilderCreateBasicType(builder, name, name_len, size_in_bits, encoding, flags);
 }
 // Create debugging information entry for a pointer.
-def di_builder_create_pointer_type(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: i32, align_in_bits: i32, address_space: i32, name: string, name_len: i32): *MetaData {
-    return LLVMDIBuilderCreatePointerType(builder, pointee_ty, std.int_to_ptr(size_in_bits), align_in_bits, address_space, name, std.int_to_ptr(name_len));
+def di_builder_create_pointer_type(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: u64, align_in_bits: u32, address_space: u32, name: string, name_len: usize): *MetaData {
+    return LLVMDIBuilderCreatePointerType(builder, pointee_ty, size_in_bits, align_in_bits, address_space, name, name_len);
 }
 // Create debugging information entry for a struct.
-def di_builder_create_struct_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_number: i32, size_in_bits: i32, align_in_bits: i32, flags: i32, derived_from: *MetaData, elements: **MetaData, num_elements: i32, run_time_lang: i32, v_table_holder: *MetaData, unique_id: string, unique_id_len: i32): *MetaData {
-    return LLVMDIBuilderCreateStructType(builder, scope, name, std.int_to_ptr(name_len), file, line_number, std.int_to_ptr(size_in_bits), align_in_bits, flags, derived_from, elements, num_elements, run_time_lang, v_table_holder, unique_id, std.int_to_ptr(unique_id_len));
+def di_builder_create_struct_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_number: u32, size_in_bits: u64, align_in_bits: u32, flags: i32, derived_from: *MetaData, elements: **MetaData, num_elements: u32, run_time_lang: u32, v_table_holder: *MetaData, unique_id: string, unique_id_len: usize): *MetaData {
+    return LLVMDIBuilderCreateStructType(builder, scope, name, name_len, file, line_number, size_in_bits, align_in_bits, flags, derived_from, elements, num_elements, run_time_lang, v_table_holder, unique_id, unique_id_len);
 }
 // Create debugging information entry for a member.
-def di_builder_create_member_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_no: i32, size_in_bits: i32, align_in_bits: i32, offset_in_bits: i32, flags: i32, ty: *MetaData): *MetaData {
-    return LLVMDIBuilderCreateMemberType(builder, scope, name, std.int_to_ptr(name_len), file, line_no, std.int_to_ptr(size_in_bits), align_in_bits, std.int_to_ptr(offset_in_bits), flags, ty);
+def di_builder_create_member_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_no: u32, size_in_bits: u64, align_in_bits: u32, offset_in_bits: u64, flags: i32, ty: *MetaData): *MetaData {
+    return LLVMDIBuilderCreateMemberType(builder, scope, name, name_len, file, line_no, size_in_bits, align_in_bits, offset_in_bits, flags, ty);
 }
 // Create a permanent forward-declared type.
-def di_builder_create_forward_decl(builder: *DbgBuilder, tag: i32, name: string, name_len: i32, scope: *MetaData, file: *MetaData, line: i32, runtime_lang: i32, size_in_bits: i32, align_in_bits: i32, unique_identifier: string, unique_identifier_len: i32): *MetaData {
-    return LLVMDIBuilderCreateForwardDecl(builder, tag, name, std.int_to_ptr(name_len), scope, file, line, runtime_lang, std.int_to_ptr(size_in_bits), align_in_bits, unique_identifier, std.int_to_ptr(unique_identifier_len));
+def di_builder_create_forward_decl(builder: *DbgBuilder, tag: u32, name: string, name_len: usize, scope: *MetaData, file: *MetaData, line: u32, runtime_lang: u32, size_in_bits: u64, align_in_bits: u32, unique_identifier: string, unique_identifier_len: usize): *MetaData {
+    return LLVMDIBuilderCreateForwardDecl(builder, tag, name, name_len, scope, file, line, runtime_lang, size_in_bits, align_in_bits, unique_identifier, unique_identifier_len);
 }
 // Create a new descriptor for the specified variable which has a complex
-def di_builder_create_expression(builder: *DbgBuilder, addr: *i32, length: i32): *MetaData {
-    return LLVMDIBuilderCreateExpression(builder, addr, std.int_to_ptr(length));
+def di_builder_create_expression(builder: *DbgBuilder, addr: *i64, length: usize): *MetaData {
+    return LLVMDIBuilderCreateExpression(builder, addr, length);
 }
 // Create a new descriptor for the specified variable that does not have an
-def di_builder_create_constant_value_expression(builder: *DbgBuilder, value: i32): *MetaData {
-    return LLVMDIBuilderCreateConstantValueExpression(builder, std.int_to_ptr(value));
+def di_builder_create_constant_value_expression(builder: *DbgBuilder, value: i64): *MetaData {
+    return LLVMDIBuilderCreateConstantValueExpression(builder, value);
 }
 // Insert a new llvm.dbg.declare intrinsic call before the given instruction.
 def di_builder_insert_declare_before(builder: *DbgBuilder, storage: *Value, var_info: *MetaData, expr: *MetaData, debug_loc: *MetaData, instr: *Value): *Value {
     return LLVMDIBuilderInsertDeclareBefore(builder, storage, var_info, expr, debug_loc, instr);
 }
 // Create a new descriptor for a local auto variable.
-def di_builder_create_auto_variable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: bool, flags: i32, align_in_bits: i32): *MetaData {
-    return LLVMDIBuilderCreateAutoVariable(builder, scope, name, std.int_to_ptr(name_len), file, line_no, ty, std.bool_to_int(always_preserve), flags, align_in_bits);
+def di_builder_create_auto_variable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_no: u32, ty: *MetaData, always_preserve: bool, flags: i32, align_in_bits: u32): *MetaData {
+    return LLVMDIBuilderCreateAutoVariable(builder, scope, name, name_len, file, line_no, ty, std.bool_to_int(always_preserve) as i32, flags, align_in_bits);
 }
 // Create a new descriptor for a function parameter variable.
-def di_builder_create_parameter_variable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: i32, arg_no: i32, file: *MetaData, line_no: i32, ty: *MetaData, always_preserve: bool, flags: i32): *MetaData {
-    return LLVMDIBuilderCreateParameterVariable(builder, scope, name, std.int_to_ptr(name_len), arg_no, file, line_no, ty, std.bool_to_int(always_preserve), flags);
+def di_builder_create_parameter_variable(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, arg_no: u32, file: *MetaData, line_no: u32, ty: *MetaData, always_preserve: bool, flags: i32): *MetaData {
+    return LLVMDIBuilderCreateParameterVariable(builder, scope, name, name_len, arg_no, file, line_no, ty, std.bool_to_int(always_preserve) as i32, flags);
 }
 // Set the subprogram attached to a function.
 def set_subprogram(func: *Value, sp: *MetaData): void {

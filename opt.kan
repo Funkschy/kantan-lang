@@ -18,7 +18,7 @@ def parse(argc: i32, argv: *string): Options {
         had_errors: false,
         exit_immediately: false,
         debug_info: false,
-        files: ptrvec.with_cap(argc),
+        files: ptrvec.with_cap(argc as usize),
         opt_level: 0,
         output_filename: null,
         target_os: null

@@ -3,16 +3,16 @@ import "std";
 import "ident";
 import "span";
 
-extern def get_map_index(cap: i32, key: string, key_len: i32): i32;
+extern def get_map_index(cap: usize, key: string, key_len: usize): usize;
 
 type Map struct {
-    len: i32,
-    cap: i32,
+    len: usize,
+    cap: usize,
     items: *Item
 }
 
 type Iter struct {
-    pos: i32,
+    pos: usize,
     map: *Map
 }
 
@@ -32,11 +32,11 @@ def iter(map: *Map): Iter {
 }
 
 type Key struct {
-    len: i32,
+    len: usize,
     value: string
 }
 
-def create_key(len: i32, value: string): Key {
+def create_key(len: usize, value: string): Key {
     return Key { len: len, value: value };
 }
 
@@ -57,13 +57,13 @@ def create(): Map {
     return Map { len: 0, cap: 0, items: null };
 }
 
-def with_cap(cap: i32): Map {
+def with_cap(cap: usize): Map {
     if cap == 0 {
         return Map { len: 0, cap: 0, items: null };
     }
 
     if cap % 2 != 0 {
-        cap = std.next_pow_of_2(cap as i64) as i32;
+        cap = std.next_pow_of_2(cap as i64) as usize;
     }
 
     let items = std.calloc(cap, sizeof Item) as *Item;
@@ -87,13 +87,11 @@ def key_eq(first: Key, second: Key): bool {
 }
 
 def insert_all(map: *Map, other: *Map): void {
-    let i = 0;
-    while i < other.cap {
+    for let i: usize = 0; i < other.cap; i += 1 {
         let item = other.items + i;
         if item.key.value != null {
             insert(map, item.key, item.value);
         }
-        i = i + 1;
     }
 }
 
@@ -133,8 +131,8 @@ def insert(map: *Map, key: Key, value: *void): *void {
 
 def probe_insert(
     map: *Map,
-    start: i32,
-    len: i32,
+    start: usize,
+    len: usize,
     key: Key,
     value: *void,
     out_old_val: **void
@@ -164,7 +162,7 @@ def probe_insert(
     return false;
 }
 
-def probe_get(map: *Map, start: i32, end: i32, key: Key): *Item {
+def probe_get(map: *Map, start: usize, end: usize, key: Key): *Item {
     let i = start;
     let item: *Item = null;
     while i < end {

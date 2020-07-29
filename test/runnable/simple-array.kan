@@ -1,6 +1,6 @@
 import "io";
 
-extern def malloc(size: i32): *i32;
+extern def malloc(size: usize): *i32;
 extern def free(arr: *i32): void;
 
 def main(): void {

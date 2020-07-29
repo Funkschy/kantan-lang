@@ -7,7 +7,7 @@ static char const *const builtin_files[] = {
 
 static size_t const len_builtin_files = sizeof(builtin_files) / sizeof(char *);
 
-int32_t num_builtin_files() {
+size_t num_builtin_files() {
     return len_builtin_files;
 }
 
@@ -209,7 +209,7 @@ static char const *const error_texts[] = {
     "Could not parse statement",
     "Illegal type identifier '%.*s': %s",
     "Invalid escape sequence '%.*s'",
-    "Expected 1 receiver for Method, but got %d",
+    "Expected 1 receiver for Method, but got %u",
     // type errors
     "Duplicate definition of '%.*s'",
     "No %s called '%.*s' in %.*s",
@@ -224,7 +224,7 @@ static char const *const error_texts[] = {
     "Missing return statement",
     "Illegal use of declared type",
     "Type '%s' is not callable",
-    "Wrong number of arguments. Expected '%d', but got '%d'",
+    "Wrong number of arguments. Expected '%u', but got '%u'",
     "Wrong argument type. Expected '%s', but got '%s'",
     "Expected the name of a struct, but got '%s'",
     "Could not infer type",

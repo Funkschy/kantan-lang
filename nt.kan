@@ -22,17 +22,17 @@ def create_scope(): NameScope {
     };
 }
 
-def free_s(ns: *NameScope): void {
+def free_s(ns: *NameScope) {
     map.free_m(&ns.bindings);
 }
 
-def bind_in(ns: *NameScope, original: name.Ref, idx: i32): void {
+def bind_in(ns: *NameScope, original: name.Ref, idx: usize) {
     let key = map.create_key(original.len, original.data);
     // differentiate index 0 from null
     map.insert(&ns.bindings, key, std.int_to_ptr(idx + 1));
 }
 
-def get_in(ns: *NameScope, name: name.Ref, out: *i32): bool {
+def get_in(ns: *NameScope, name: name.Ref, out: *usize): bool {
     let key = map.create_key(name.len, name.data);
     let index = map.get(&ns.bindings, key);
     if index == null {
@@ -79,13 +79,11 @@ def free_nt(nt: *NameTable): void {
 
     nt.scopes.free();
 
-    let i = 0;
-    while i < nt.mangled_names.len {
+    for let i: usize = 0; i < nt.mangled_names.len; i += 1 {
         let n = nt.mangled_names.get_ptr(i) as *name.Owned;
         dbg.assert(n != null, "name was null");
 
         name.free_owned(n);
-        i = i + 1;
     }
 
     nt.mangled_names.free();
@@ -96,7 +94,7 @@ def top(nt: *NameTable): *NameScope {
     return scope_at(nt, nt.scopes.len - 1);
 }
 
-def scope_at(nt: *NameTable, i: i32): *NameScope {
+def scope_at(nt: *NameTable, i: usize): *NameScope {
     return nt.scopes.get_ptr(i) as *NameScope;
 }
 
@@ -128,44 +126,42 @@ def bind(nt: *NameTable, to_bind: name.Ref): name.Ref {
     return name.ref(mangled);
 }
 
-def open_scope(nt: *NameTable): void {
+def open_scope(nt: *NameTable) {
     let scope = create_scope();
     push_scope(nt, &scope);
 }
 
-def num_in_scope(nt: *NameTable, name: name.Ref): i32 {
+def num_in_scope(nt: *NameTable, name: name.Ref): usize {
     let key = map.create_key(name.len, name.data);
     return std.ptr_to_int(map.get(&nt.in_scope, key));
 }
 
-def set_in_scope(nt: *NameTable, name: name.Ref, count: i32): void {
+def set_in_scope(nt: *NameTable, name: name.Ref, count: usize) {
     let key = map.create_key(name.len, name.data);
     let count = std.int_to_ptr(count);
     map.insert(&nt.in_scope, key, count);
 }
 
-def close_scope(nt: *NameTable): void {
+def close_scope(nt: *NameTable) {
     let top = top(nt);
     free_s(top);
     nt.scopes.len = nt.scopes.len - 1;
 }
 
-def push_scope(s: *NameTable, scope: *NameScope): void {
+def push_scope(s: *NameTable, scope: *NameScope) {
     s.scopes.push(scope as *void);
 }
 
 def lookup(nt: *NameTable, needle: name.Ref, out: *name.Ref): bool {
-    let i = nt.scopes.len - 1;
-    while i >= 0 {
+    for let i = nt.scopes.len - 1; i as isize >= 0; i -= 1 {
         let scope = scope_at(nt, i);
-        let idx = 0;
+        let idx: usize = 0;
         if get_in(scope, needle, &idx) {
             let mangled = nt.mangled_names.get_ptr(idx) as *name.Owned;
 
             *out = name.ref(*mangled);
             return true;
         }
-        i = i - 1;
     }
 
     return false;

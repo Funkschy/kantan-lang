@@ -1,6 +1,6 @@
 import "io";
 
-extern def calloc(num: i32, size: i32): *void;
+extern def calloc(num: usize, size: usize): *void;
 
 def main(): void {
     let p: **void = calloc(1, sizeof *void) as **void;

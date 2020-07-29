@@ -58,7 +58,7 @@ def is_void(t: *Type): bool {
 
 def new_i8(): *Type {
     let t = new_type(Kind.I8, null);
-    t.width = t.align = 1;
+    t.width = (t.align = 1) as u64;
     return t;
 }
 
@@ -70,7 +70,7 @@ def is_i8(t: *Type): bool {
 
 def new_i16(): *Type {
     let t = new_type(Kind.I16, null);
-    t.width = t.align = 2;
+    t.width = (t.align = 2) as u64;
     return t;
 }
 
@@ -82,7 +82,7 @@ def is_i16(t: *Type): bool {
 
 def new_i32(): *Type {
     let t = new_type(Kind.I32, null);
-    t.width = t.align = 4;
+    t.width = (t.align = 4) as u64;
     return t;
 }
 
@@ -94,7 +94,7 @@ def is_i32(t: *Type): bool {
 
 def new_i64(): *Type {
     let t = new_type(Kind.I64, null);
-    t.width = t.align = 8;
+    t.width = (t.align = 8) as u64;
     return t;
 }
 
@@ -104,9 +104,10 @@ def is_i64(t: *Type): bool {
 
 /////////// isize type ///////////
 
-def new_isize(width: i32): *Type {
+def new_isize(width: usize): *Type {
     let t = new_type(Kind.ISize, null);
-    t.width = t.align = width;
+    t.align = width as u32;
+    t.width = width as u64;
     return t;
 }
 
@@ -118,7 +119,7 @@ def is_isize(t: *Type): bool {
 
 def new_u8(): *Type {
     let t = new_type(Kind.U8, null);
-    t.width = t.align = 1;
+    t.width = (t.align = 1) as u64;
     return t;
 }
 
@@ -130,7 +131,7 @@ def is_u8(t: *Type): bool {
 
 def new_u16(): *Type {
     let t = new_type(Kind.U16, null);
-    t.width = t.align = 2;
+    t.width = (t.align = 2) as u64;
     return t;
 }
 
@@ -142,7 +143,7 @@ def is_u16(t: *Type): bool {
 
 def new_u32(): *Type {
     let t = new_type(Kind.U32, null);
-    t.width = t.align = 4;
+    t.width = (t.align = 4) as u64;
     return t;
 }
 
@@ -154,7 +155,7 @@ def is_u32(t: *Type): bool {
 
 def new_u64(): *Type {
     let t = new_type(Kind.U64, null);
-    t.width = t.align = 8;
+    t.width = (t.align = 8) as u64;
     return t;
 }
 
@@ -164,9 +165,10 @@ def is_u64(t: *Type): bool {
 
 /////////// usize type ///////////
 
-def new_usize(width: i32): *Type {
+def new_usize(width: usize): *Type {
     let t = new_type(Kind.USize, null);
-    t.width = t.align = width;
+    t.align = width as u32;
+    t.width = width as u64;
     return t;
 }
 
@@ -178,7 +180,7 @@ def is_usize(t: *Type): bool {
 
 def new_f32(): *Type {
     let t = new_type(Kind.F32, null);
-    t.width = t.align = 4;
+    t.width = (t.align = 4) as u64;
     return t;
 }
 
@@ -190,7 +192,7 @@ def is_f32(t: *Type): bool {
 
 def new_f64(): *Type {
     let t = new_type(Kind.F64, null);
-    t.width = t.align = 8;
+    t.width = (t.align = 8) as u64;
     return t;
 }
 
@@ -202,7 +204,7 @@ def is_f64(t: *Type): bool {
 
 def new_bool(): *Type {
     let t = new_type(Kind.Bool, null);
-    t.width = t.align = 1;
+    t.width = (t.align = 1) as u64;
     return t;
 }
 
@@ -215,13 +217,13 @@ def is_bool(t: *Type): bool {
 // TODO(#22): remember to make the result of pointer subtraction dependent on the
 //  pointers types
 type Ptr struct {
-    count: i32,
+    count: u32,
     inner: *Type
 }
 
 // TODO(#28): don't allow pointers to Mod or other non-runtime abstractions (e.g Types)
 //  should we actually check this here, or just in the typechecker itself?
-def new_ptr(count: i32, inner: *Type): *Type {
+def new_ptr(count: u32, inner: *Type): *Type {
     if inner != null && is_ptr(inner) {
         count = count + as_ptr(inner).count;
         inner = as_ptr(inner).inner;
@@ -241,7 +243,7 @@ def new_ptr(count: i32, inner: *Type): *Type {
     // pointers always have a size
     std.flag_unset(&t.flags, FLAG_UNSIZED);
     // TODO(#42): determine pointer width based on target
-    t.width = t.align = 8;
+    t.width = (t.align = 8) as u64;
     return t;
 }
 
@@ -313,7 +315,7 @@ def get_user_defined(t: *Type): *UserDefinedType {
 type StructField struct {
     name: ident.Ident,
     ty: *Type,
-    offset: i32 // gets set during fill_width_align
+    offset: u64 // gets set during fill_width_align
 }
 
 type Struct struct {
@@ -353,25 +355,19 @@ def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
     t.super.scope.bind_public_ident(&name, ty);
 }
 
-def field_at(t: *Struct, i: i32): *StructField {
-    return t.fields.get_ptr(i) as *StructField;
-}
-
 // get the index of the field with name 'name'
 // returns -1 if the field does not exist
 // if out_field_ty is not null, it is set to the type of the field
 // TODO(#85): Struct should have a vmap for its fields
-def field_idx(t: *Struct, name: ident.Ident, out_field_ty: **Type): i32 {
-    let i = 0;
-    while i < t.fields.len {
-        let f = field_at(t, i);
+def field_idx(t: *Struct, name: ident.Ident, out_field_ty: **Type): i64 {
+    for let i: u32 = 0; i < t.num_fields(); i += 1 {
+        let f = t.field_at(i);
         if ident.eq_value(&name, &f.name) {
             if out_field_ty != null {
                 *out_field_ty = f.ty;
             }
-            return i;
+            return i as i64;
         }
-        i = i + 1;
     }
 
     return -1;
@@ -381,8 +377,12 @@ def update_field_ty(t: *Struct, field: *StructField): void {
     t.super.scope.bind_public_ident(&field.name, field.ty);
 }
 
-def num_fields(t: *Struct): i32 {
-    return t.fields.len;
+def (t: *Struct) field_at(i: u32): *StructField {
+    return t.fields.get_ptr(i as usize) as *StructField;
+}
+
+def (t: *Struct) num_fields(): u32 {
+    return t.fields.len as u32;
 }
 
 def as_struct(t: *Type): *Struct {
@@ -436,8 +436,8 @@ def as_enum(t: *Type): *Enum {
     return t.data as *Enum;
 }
 
-def num_values(t: *Enum): i32 {
-    return t.values.values.len;
+def (t: *Enum) num_values(): u32 {
+    return t.values.values.len as u32;
 }
 
 // returns true, if the value was already in the enum
@@ -459,14 +459,14 @@ def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
     return false;
 }
 
-def value_at(t: *Enum, i: i32): *EnumValue {
-    return vmap.get_ptr_idx(&t.values, i) as *EnumValue;
+def value_at(t: *Enum, i: u32): *EnumValue {
+    return vmap.get_ptr_idx(&t.values, i as usize) as *EnumValue;
 }
 
 def enum_value_by_name(t: *Enum, name: ident.Ident): i32 {
     // since there is no Ident for "len", we just cheat a bit
     if ident.eq_lit(&name, "len") {
-        return vmap.len(&t.values);
+        return vmap.len(&t.values) as i32;
     }
 
     let key = vmap.key_from_ident(&name);
@@ -539,8 +539,8 @@ def (old_method: *Func) as_normal_function(): *Type {
 
     let params = vec.with_cap(sizeof Param, old_method.params.len + 1);
     params.push(&old_method.receiver as *void);
-    for let i = 0; i < old_method.params.len; i += 1 {
-        params.push(param_at(old_method, i) as *void);
+    for let i: u32 = 0; i < old_method.num_params(); i += 1 {
+        params.push(old_method.param_at(i) as *void);
     }
 
     new_func.params = params;
@@ -577,33 +577,33 @@ def func_is_initalized(t: *Func): bool {
         return false;
     }
 
-    let i = 0;
-    while i < t.params.len {
-        let p = param_at(t, i);
+    for let i: u32 = 0; i < t.num_params(); i += 1 {
+        let p = t.param_at(i);
         if p.ty == null {
             return false;
         }
-        i = i + 1;
     }
 
     return true;
 }
 
 // returns: idx of param with name or -1
-def find_param_idx(t: *Func, name: *ident.Ident): i32 {
-    let i = 0;
-    while i < t.params.len {
-        let p = param_at(t, i);
+def find_param_idx(t: *Func, name: *ident.Ident): i64 {
+    for let i: u32 = 0; i < t.num_params(); i += 1 {
+        let p = t.param_at(i);
         if ident.eq_value(&p.name, name) {
-            return i;
+            return i as i64;
         }
-        i = i + 1;
     }
     return -1;
 }
 
-def param_at(t: *Func, i: i32): *Param {
-    return t.params.get_ptr(i) as *Param;
+def (t: *Func) num_params(): u32 {
+    return t.params.len as u32;
+}
+
+def (t: *Func) param_at(i: u32): *Param {
+    return t.params.get_ptr(i as usize) as *Param;
 }
 
 def is_func(t: *Type): bool {
@@ -660,8 +660,8 @@ def as_mod(t: *Type): *Mod {
 
 type Type struct {
     kind: Kind,
-    width: i32, // width in bytes
-    align: i32,
+    width: u64, // width in bytes
+    align: u32,
     flags: i32,
     data: *void // extra data, eg. 'Struct' or 'Func'
 }
@@ -866,12 +866,12 @@ def width_was_calculated(t: *Type): bool {
 }
 
 // returns true, if the struct has uninitialized fields
-def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
-    let max_align = 1;
-    let width_sum = 0;
+def calc_struct_width_align(s_ty: *Struct, width: *u64, align: *u32): bool {
+    let max_align: u32 = 1;
+    let width_sum: u64 = 0;
 
-    for let i = 0; i < s_ty.fields.len; i = i + 1 {
-        let f = field_at(s_ty, i);
+    for let i: u32 = 0; i < s_ty.num_fields(); i += 1 {
+        let f = s_ty.field_at(i);
         if f == null || !is_initialized(f.ty) {
             return true;
         }
@@ -884,10 +884,10 @@ def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
         // c: i8,    width: 1, align: 1, offset: 8,  padding: 0    , width_sum: 9
         // x: i32      width: 4, align: 4, offset: 12, padding: 4 - 1,
 
-        let padding = 0;
-        let rem = width_sum % f.ty.align;
+        let padding: u64 = 0;
+        let rem = width_sum % (f.ty.align as u64);
         if width_sum > 0 && rem != 0 {
-            padding = f.ty.align - rem;
+            padding = f.ty.align as u64 - rem;
         }
 
         f.offset = width_sum + padding;
@@ -896,9 +896,9 @@ def calc_struct_width_align(s_ty: *Struct, width: *i32, align: *i32): bool {
         width_sum = width_sum + real_width;
     }
 
-    let rem = width_sum % max_align;
+    let rem = width_sum % (max_align as u64);
     if rem != 0 {
-        width_sum = width_sum + (max_align - rem);
+        width_sum = width_sum + (max_align as u64 - rem);
     }
 
     *width = width_sum;
@@ -919,12 +919,9 @@ def fill_width_align(t: *Type): bool {
     }
 
     // if align is 0 at end of this function, use width as align
-    let align = 0;
-    let width = WIDTH_UNKNOWN;
+    let align: u32 = 0;
+    let width: u64 = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
-
-    // TODO: this can be inited in the constructor for the constant types (i16, i32...)
-    //  remove this unnecessary if-else
 
     if is_struct(t) {
         let s_ty = as_struct(t);
@@ -940,17 +937,9 @@ def fill_width_align(t: *Type): bool {
         return false;
     }
 
-    if width != WIDTH_UNKNOWN {
-        t.width = width;
-        if align == 0 {
-            align = width;
-        }
-        t.align = align;
-
-        return true;
-    }
-
-    return false;
+    t.width = width;
+    t.align = align;
+    return true;
 }
 
 // returns true if the string needs to be freed
@@ -973,12 +962,12 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
         let params_string = str.create();
         defer params_string.free();
 
-        for let i = 0; i < f_ty.params.len; i += 1 {
+        for let i: u32 = 0; i < f_ty.params.len as u32; i += 1 {
             if i > 0 {
                 params_string.push(str.view(2, ", "));
             }
 
-            let p = param_at(f_ty, i);
+            let p = f_ty.param_at(i);
 
             let p_ty_s = "";
             let free_p_ty_s = to_string_mangled(p.ty, use_mangled, &p_ty_s);
@@ -1014,8 +1003,8 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
             free_inner = to_string_mangled(p_ty.inner, use_mangled, &s_inner);
         }
 
-        let asterisks = std.malloc(count) as string;
-        std.memset(asterisks as *void, '*', count);
+        let asterisks = std.malloc(count as usize) as string;
+        std.memset(asterisks as *void, '*', count as usize);
         let s = std.format_str("%.*s%s", count, asterisks, s_inner);
 
         if free_inner {
@@ -1075,8 +1064,8 @@ def equals(first: *Type, second: *Type): bool {
             return false;
         }
 
-        for let i = 0; i < first.params.len; i = i + 1 {
-            if !equals(param_at(first, i).ty, param_at(second, i).ty) {
+        for let i: u32 = 0; i < first.params.len as u32; i = i + 1 {
+            if !equals(first.param_at(i).ty, second.param_at(i).ty) {
                 return false;
             }
         }
@@ -1085,8 +1074,8 @@ def equals(first: *Type, second: *Type): bool {
     }
 
     let was_pointer = false;
-    let first_ptr_count = 0;
-    let second_ptr_count = 0;
+    let first_ptr_count: u32 = 0;
+    let second_ptr_count: u32 = 0;
 
     if is_ptr(first) {
         let p_ty = as_ptr(first);

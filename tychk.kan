@@ -27,13 +27,14 @@ extern def stmt2str(kind: i32): string;
 #define OK                  0
 #define ERROR              -1
 
-#define REAL_PASS           0
-#define DECL_ONLY_PASS      1
-
 #define OFFSET_RETURN_TYPE   -1
 #define OFFSET_RECEIVER_TYPE -2
 
 #define ERROR_TY "__error_ty__"
+
+type PassMode enum {
+    Real, DeclOnly
+}
 
 type WaitingKind enum {
     Type = 1, TypePtr, FuncDef
@@ -77,11 +78,7 @@ def create_waiting_request(
     };
 }
 
-def patch_waiting_for(
-    tc: *TypeChecker,
-    waiting_for: *ident.Ident,
-    waiting_for_mod: *mod.Module
-): void {
+def patch_waiting_for(tc: *TypeChecker, waiting_for: *ident.Ident, waiting_for_mod: *mod.Module) {
     if waiting_for_mod == tc.ctx.mod {
         return;
     }
@@ -89,7 +86,7 @@ def patch_waiting_for(
     let len = ident.len(waiting_for);
     let dot_index = ident.index_of(waiting_for, len, '.');
     if dot_index > 0 {
-        let ident_mod = get_mod_by_alias(tc.ctx, dot_index, ident.start(waiting_for));
+        let ident_mod = get_mod_by_alias(tc.ctx, dot_index as usize, ident.start(waiting_for));
         if ident_mod != waiting_for_mod {
             if ident_mod == null {
                 io.printf("ERROR: alias '%.*s' was null\n", dot_index, ident.start(waiting_for));
@@ -128,7 +125,7 @@ def create_waiting_request_map(): WaitingRequestMap {
     return map;
 }
 
-def add_request(wrm: *WaitingRequestMap, request: WaitingRequest): void {
+def add_request(wrm: *WaitingRequestMap, request: WaitingRequest) {
     let requests: *vec.Vec = null;
 
     let wanted_ident = req_waiting_for_ident(&request);
@@ -146,7 +143,7 @@ def add_request(wrm: *WaitingRequestMap, request: WaitingRequest): void {
 
     let key = map.key_from_ident(wanted_ident);
     let request_idx = map.get(&wrm.request_map, key);
-    let idx = -1;
+    let idx: usize = -1;
 
     if request_idx == null || std.ptr_to_int(request_idx) == 0 {
         // create new vector
@@ -180,7 +177,7 @@ def get_waiting(wrm: *WaitingRequestMap, ident: *ident.Ident): *vec.Vec {
 }
 
 def free_wait_map(wrm: *WaitingRequestMap): void {
-    for let i = 0; i < wrm.requests.len; i = i + 1 {
+    for let i: usize = 0; i < wrm.requests.len; i += 1 {
         let v = wrm.requests.get_ptr(i) as *vec.Vec;
         v.free();
     }
@@ -230,14 +227,14 @@ def create_ctx(mod: *mod.Module, global_types: *scope.Scope, global_values: *sco
     };
 }
 
-def free_ctx(ctx: *Ctx): void {
+def free_ctx(ctx: *Ctx) {
     scope.free_stack(&ctx.types, 2);
     scope.free_stack(&ctx.values, 2);
     map.free_m(&ctx.imports);
     delete ctx;
 }
 
-def get_mod_by_alias(ctx: *Ctx, alias_len: i32, alias: string): *mod.Module {
+def get_mod_by_alias(ctx: *Ctx, alias_len: usize, alias: string): *mod.Module {
     return map.get(&ctx.imports, map.create_key(alias_len, alias)) as *mod.Module;
 }
 
@@ -245,7 +242,7 @@ type TypeChecker struct {
     decl_only_pass: bool, // the first pass ignores everything but declarations
     config: *config.Config,
     mods: *mod.Map,
-    sorted_mods: *i32,
+    sorted_mods: *u32,
     ctx: *Ctx,
     main_func: *ty.Type,
     types: ptrvec.Vec,
@@ -298,11 +295,9 @@ def create_result(
     };
 }
 
-def free_result(r: *CheckResult): void {
-    let i = 0;
-    while i < r.types.len {
+def free_result(r: *CheckResult) {
+    for let i: usize = 0; i < r.types.len; i += 1 {
         ty.free_ty(r.types.get(i) as *ty.Type);
-        i = i + 1;
     }
 
     r.types.free();
@@ -318,7 +313,7 @@ def create_check_result(tc: *TypeChecker): CheckResult {
 }
 
 def create(mods: *mod.Map, config: *config.Config): TypeChecker {
-    let num_mods = mod.num_mods(mods);
+    let num_mods = mod.num_mods(mods) as usize;
 
     let tc = TypeChecker {
         decl_only_pass: false,
@@ -341,8 +336,8 @@ def create(mods: *mod.Map, config: *config.Config): TypeChecker {
     return tc;
 }
 
-def get_ctx(tc: *TypeChecker, idx: i32): *Ctx {
-    return tc.contexts.unsafe_get(idx) as *Ctx;
+def get_ctx(tc: *TypeChecker, idx: u32): *Ctx {
+    return tc.contexts.unsafe_get(idx as usize) as *Ctx;
 }
 
 def check(tc: *TypeChecker): CheckResult {
@@ -350,7 +345,7 @@ def check(tc: *TypeChecker): CheckResult {
 
     // first init all modules, since the waiting system expects this
     let n = mod.num_mods(tc.mods);
-    for let i = 0; i < n; i += 1 {
+    for let i: u32 = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
@@ -359,11 +354,11 @@ def check(tc: *TypeChecker): CheckResult {
 
     // the decl only pass
     // TODO(#27): dont check stdlib if not needed
-    for let i = 0; i < n; i += 1 {
+    for let i: u32 = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
-        if check_mod(tc, m, idx, DECL_ONLY_PASS) == ERROR {
+        if check_mod(tc, m, idx, PassMode.DeclOnly) == ERROR {
             error = true;
         }
     }
@@ -373,7 +368,7 @@ def check(tc: *TypeChecker): CheckResult {
     }
 
     // check for pending waitingrequests in all mods
-    for let i = 0; i < n; i += 1 {
+    for let i: u32 = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
@@ -415,12 +410,10 @@ def check(tc: *TypeChecker): CheckResult {
                 let pending = wrm.requests.get_ptr(idx) as *vec.Vec;
                 dbg.assert(pending != null, "pending was null");
 
-                let j = 0;
-                while j < pending.len {
+                for let j: usize = 0; j < pending.len; j += 1 {
                     let req = pending.get_ptr(j) as *WaitingRequest;
                     push_not_defined_error(tc, &req.waiting_for, LookupKind.Types.to_string(), null);
                     error = true;
-                    j = j + 1;
                 }
             }
 
@@ -434,17 +427,17 @@ def check(tc: *TypeChecker): CheckResult {
     }
 
     // the real pass
-    for let i = 0; i < n; i += 1 {
+    for let i: u32 = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
-        check_mod(tc, m, idx, REAL_PASS);
+        check_mod(tc, m, idx, PassMode.Real);
     }
 
     return create_check_result(tc);
 }
 
-def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
+def init_mod(tc: *TypeChecker, m: *mod.Module, idx: u32): bool {
     dbg.assert(m.ty == null, "mod type should be null");
     let p = mod.get_path(m);
     // io.printf("DBG: Initializing (%d) %.*s\n", idx, p.len, p.inner);
@@ -453,25 +446,24 @@ def init_mod(tc: *TypeChecker, m: *mod.Module, idx: i32): bool {
     m.ty = ty;
 
     let ctx = create_ctx(m, &tc.global_types, &tc.global_values);
-    tc.contexts.set(idx, ctx as *void);
+    tc.contexts.set(idx as usize, ctx as *void);
     tc.ctx = ctx;
 
     return false;
 }
 
-def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
+def check_mod(tc: *TypeChecker, m: *mod.Module, idx: u32, mode: PassMode): i32 {
     dbg.assert(m.ty != null, "mod type should not be null");
 
     let ctx = get_ctx(tc, idx);
     dbg.assert(ctx != null, "ctx should not be null");
 
     tc.ctx = ctx;
-    tc.decl_only_pass = mode == DECL_ONLY_PASS;
+    tc.decl_only_pass = mode == PassMode.DeclOnly;
 
     let ret = OK;
 
-    let i = 0;
-    while i < mod.num_stmts(m) {
+    for let i: usize = 0; i < mod.num_stmts(m); i += 1 {
         let result = check_stmt(tc, mod.get_stmt_at(m, i));
 
         if result != null {
@@ -479,16 +471,14 @@ def check_mod(tc: *TypeChecker, m: *mod.Module, idx: i32, mode: i32): i32 {
         } else {
             ret = ERROR;
         }
-
-        i = i + 1;
     }
 
     return ret;
 }
 
-def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
+def wait_for(tc: *TypeChecker, req: WaitingRequest) {
     let idx = req.waiting_for_mod.idx;
-    let map = tc.requests.get_ptr(idx) as *WaitingRequestMap;
+    let map = tc.requests.get_ptr(idx as usize) as *WaitingRequestMap;
 
     if map.init_flag == 0 {
         *map = create_waiting_request_map();
@@ -498,7 +488,7 @@ def wait_for(tc: *TypeChecker, req: WaitingRequest): void {
 }
 
 def get_waiting_map(tc: *TypeChecker, mod: *mod.Module): *WaitingRequestMap {
-    return tc.requests.get_ptr(mod.idx) as *WaitingRequestMap;
+    return tc.requests.get_ptr(mod.idx as usize) as *WaitingRequestMap;
 }
 
 def create_global_types_scope(tc: *TypeChecker): scope.Scope {
@@ -544,43 +534,41 @@ def create_global_values_scope(tc: *TypeChecker, global_types: *scope.Scope): sc
     return global;
 }
 
-def get_global_type(tc: *TypeChecker, len: i32, name: string): *ty.Type {
+def get_global_type(tc: *TypeChecker, len: usize, name: string): *ty.Type {
     // the return value of this is never checked, but since it isn't user supplied, it should
     // be correct anyway
     return tc.global_types.get(len, name).sym.ty;
 }
 
-def num_errs(tc: *TypeChecker): i32 {
+def num_errs(tc: *TypeChecker): usize {
     return tc.errors.len;
 }
 
-def push_err(tc: *TypeChecker, error: TypeError): void {
+def push_err(tc: *TypeChecker, error: TypeError) {
     tc.errors.push(&error as *void);
 }
 
-def push_mk_err(tc: *TypeChecker, text: string, span: span.Span): void {
+def push_mk_err(tc: *TypeChecker, text: string, span: span.Span) {
     let error = err(tc, text, span);
     tc.errors.push(&error as *void);
 }
 
-def get_err(tc: *TypeChecker, i: i32): *TypeError {
+def get_err(tc: *TypeChecker, i: usize): *TypeError {
     return tc.errors.get_ptr(i) as *TypeError;
 }
 
-def add_import_alias(tc: *TypeChecker, ident: *ident.Ident, mod: *mod.Module): void {
+def add_import_alias(tc: *TypeChecker, ident: *ident.Ident, mod: *mod.Module) {
     map.insert(&tc.ctx.imports, map.key_from_ident(ident), mod as *void);
 }
 
 // sorts the mods after the number of imports inside
-def sorted_mods(mods: *mod.Map): *i32 {
+def sorted_mods(mods: *mod.Map): *u32 {
     let num_mods = mod.num_mods(mods);
-    let import_nums = std.malloc(num_mods * sizeof i32) as *i32;
+    let import_nums = std.malloc(num_mods as usize * sizeof u32) as *u32;
 
-    let i = 0;
-    while i < num_mods {
+    for let i: u32 = 0; i < num_mods; i += 1 {
         let m = mod.get_mod(mods, i);
         *(import_nums + i) = mod.num_imports(m);
-        i = i + 1;
     }
 
     let sorted_mods = ms.sort(import_nums, num_mods);
@@ -615,6 +603,7 @@ def m_lookup_type(
         return scope.lookup(&tc.ctx.types, name);
     }
 
+    let dot_index = dot_index as usize;
     let m = get_mod_by_alias(tc.ctx, dot_index, ident.start(name));
     if m == null {
         SET_OUT_MOD(null);
@@ -654,11 +643,11 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
     let out_mod: *mod.Module = null;
     if checked_type_lookup(tc, &name.ident, &out, &out_mod) == ERROR
         || out == null
-        || out_mod == null {
+            || out_mod == null {
 
-        push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
-        return null;
-    }
+                push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
+                return null;
+            }
 
     if tyid.is_ptr(name) {
         return push_tmp_ty(tc, ty.new_ptr(name.pointer_count, out));
@@ -746,11 +735,11 @@ def fill_func_def(
         waiting = waiting || recv_waiting;
     }
 
-    let num_params = func.num_params(f_decl);
-    let params = vec.with_cap(sizeof ty.Param, num_params);
+    let num_params = f_decl.num_params();
+    let params = vec.with_cap(sizeof ty.Param, num_params as usize);
 
-    for let i = 0; i < num_params; i += 1 {
-        let p = func.get_param_ptr(f_decl, i);
+    for let i: u32 = 0; i < num_params; i += 1 {
+        let p = f_decl.get_param_ptr(i);
 
         // TODO(#37): handle varargs
         if func.is_varargs_param(p) {
@@ -768,7 +757,7 @@ def fill_func_def(
         }
 
         if p_ty == null && p_mod != null {
-            func_wait_for_type(tc, p_mod, p_ty_name, i, t);
+            func_wait_for_type(tc, p_mod, p_ty_name, i as i32, t);
             waiting = true;
         }
 
@@ -835,11 +824,11 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
     let error = false;
     let waiting = false;
 
-    let nf = record.num_fields(s_decl);
-    s_ty.fields = vec.with_cap(sizeof ty.StructField, nf);
-    for let i = 0; i < nf; i += 1 {
+    let nf = s_decl.num_fields();
+    s_ty.fields = vec.with_cap(sizeof ty.StructField, nf as usize);
+    for let i: u32 = 0; i < nf; i += 1 {
         let f = record.empty_field();
-        if !record.field_at(s_decl, i, &f) {
+        if !s_decl.field_at(i, &f) {
             push_internal_error(tc, s_decl.name.span, "could not get field");
             return;
         }
@@ -856,7 +845,7 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
         // pointers are ok, because their size is known
         let is_ptr = tyid.is_ptr(&f.ty);
         if field_ty == null {
-            wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
+            wait_for_struct_field(tc, mod, f.ty.ident, &f, i as i32, t);
             if !is_ptr {
                 waiting = true;
             }
@@ -879,7 +868,7 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
             ty.push_field(s_ty, f.ident, field_ty);
         } else if is_struct {
             // a struct that has not been initialized
-            wait_for_struct_field(tc, mod, f.ty.ident, &f, i, t);
+            wait_for_struct_field(tc, mod, f.ty.ident, &f, i as i32, t);
             if !is_ptr {
                 waiting = true;
             }
@@ -909,7 +898,7 @@ def wait_for_type(
     waiting_for: ident.Ident,
     offset: i32,
     to_fill: *ty.Type
-) : void {
+) {
     let request = create_waiting_request(
         tc,
         kind,
@@ -929,7 +918,7 @@ def func_wait_for_type(
     waiting_for: ident.Ident,
     offset: i32,
     to_fill: *ty.Type
-): void {
+) {
     wait_for_type(
         tc,
         WaitingKind.FuncDef,
@@ -947,7 +936,7 @@ def wait_for_struct_field(
     field: *record.Field,
     offset: i32,
     s_ty: *ty.Type
-): void {
+) {
     let field_ty: *ty.Type = null;
     let kind = WaitingKind.Type;
 
@@ -958,7 +947,7 @@ def wait_for_struct_field(
     }
     ty.push_field(ty.as_struct(s_ty), field.ident, field_ty);
 
-    dbg.assert(offset < ty.as_struct(s_ty).fields.len, "offset too big");
+    dbg.assert(offset as u32 < ty.as_struct(s_ty).num_fields(), "offset too big");
 
     let request = create_waiting_request(
         tc,
@@ -978,7 +967,7 @@ def update_all_waiting(
     mod: *mod.Module,
     resolved_ty: *ty.Type,
     resolved_name: *ident.Ident
-): void {
+) {
     // only execute this once
     if ty.was_touched_by_tychk(resolved_ty) {
         return;
@@ -1002,7 +991,7 @@ def update_all_waiting(
     // io.printf("DBG: %d types waiting for %s\n", waiting.len, name);
     // delete name;
 
-    for let i = 0; i < waiting.len; i = i + 1 {
+    for let i: usize = 0; i < waiting.len; i = i + 1 {
         let req = waiting.get_ptr(i) as *WaitingRequest;
         update_waiting(tc, req, resolved_ty);
     }
@@ -1037,7 +1026,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
         // delete resolved_name;
         // -----
 
-        let field = ty.field_at(waiting_s_ty, req.offset);
+        let field = waiting_s_ty.field_at(req.offset as u32);
 
         if req.kind == WaitingKind.Type {
             field.ty = resolved_ty;
@@ -1094,7 +1083,7 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 }
             }
         } else {
-            let p = ty.param_at(waiting_f_ty, req.offset);
+            let p = waiting_f_ty.param_at(req.offset as u32);
             // if there was an error during function initialization, there may
             // be no params, but the error should already have been propagated
             if p != null {
@@ -1254,10 +1243,10 @@ def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
         start_value = strtol(value_span.start, &value_end, 10);
     }
 
-    for let i = 0; i < ed.values.len; i = i + 1 {
+    for let i: usize = 0; i < ed.values.len; i += 1 {
         let name: ident.Ident = undefined;
         ed.values.get(i, &name as *void);
-        if ty.push_enum_value(decl, name, start_value + i) {
+        if ty.push_enum_value(decl, name, start_value + i as i32) {
             push_duplicate_enum_value_error(tc, e_ty, &name);
             return null;
         }
@@ -1376,11 +1365,9 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     }
 
     // bind params
-    let i = 0;
-    while i < f_ty.params.len {
-        let p = ty.param_at(f_ty, i);
+    for let i: u32 = 0; i < f_ty.num_params(); i += 1 {
+        let p = f_ty.param_at(i);
         bind_value_public(tc, &p.name, p.ty);
-        i = i + 1;
     }
 
     if f_s.block == null {
@@ -1424,7 +1411,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
 //     - error
 // - error
 def (tc: *TypeChecker) check_for_return_stmt(block: *ast.BlockStmt): i32 {
-    if block.stmts.len <= 0 {
+    if block.stmts.len == 0 {
         return ERROR;
     }
 
@@ -1661,8 +1648,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let error = false;
         open_scope(tc);
 
-        let i = 0;
-        while i < b_s.stmts.len {
+        for let i: usize = 0; i < b_s.stmts.len; i += 1 {
             let stmt = ast.stmt_at(b_s, i);
 
             let checked = check_stmt(tc, stmt);
@@ -1671,8 +1657,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             } else {
                 ast.set_stmt_at(b_s, i, checked);
             }
-
-            i = i + 1;
         }
 
         close_scope(tc);
@@ -1787,48 +1771,46 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let f_s = ast.as_for_stmt(s);
 
         open_scope(tc);
+        defer close_scope(tc);
 
         let init: *ast.Stmt = null;
         if f_s.initializer != null {
             init = check_stmt(tc, f_s.initializer);
             if init == null {
-                close_scope(tc);
                 return null;
             }
-            f_s.initializer = null;
         }
 
         let condition = check_expr(tc, f_s.condition);
         if condition == null {
-            close_scope(tc);
             return null;
         }
 
         let bool_ty = get_global_type(tc, 4, "bool");
         if !ty.equals(bool_ty, condition.ty) {
             push_invalid_condition_error(tc, condition);
-            close_scope(tc);
             return null;
         }
-        f_s.condition = null;
 
         let increment: *ast.Stmt = null;
         if f_s.increment != null {
             increment = check_stmt(tc, f_s.increment);
             if increment == null {
-                close_scope(tc);
                 return null;
             }
-            f_s.increment = null;
         }
 
         tc.enter_loop();
 
         let block = check_stmt(tc, f_s.block as *ast.Stmt) as *ast.BlockStmt;
         if block == null {
-            close_scope(tc);
             return null;
         }
+
+        // set the inner statements to null, so we don't get duplicated frees
+        f_s.initializer = null;
+        f_s.condition = null;
+        f_s.increment = null;
         f_s.block = null;
 
         tc.exit_loop();
@@ -1871,7 +1853,6 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let original_span = s.span;
         ast.stmt_free(s);
 
-        close_scope(tc);
         return ast.new_block_stmt(original_span, statements);
     }
 
@@ -2315,7 +2296,7 @@ def check_expr_expect(
         }
 
         s_e.actual_ty = actual_ty;
-        e.ty = get_global_type(tc, 3, "i32");
+        e.ty = get_global_type(tc, 5, "usize");
         return e;
     }
 
@@ -2386,8 +2367,8 @@ def check_expr_expect(
             }
         }
 
-        let expected_num_args = func.params.len;
-        let actual_num_args = ast.num_args(&c_e.args);
+        let expected_num_args = func.num_params();
+        let actual_num_args = c_e.args.count();
         if expected_num_args != actual_num_args {
             if actual_num_args < expected_num_args {
                 push_wrong_num_args_error(tc, expected_num_args, actual_num_args, callee.span);
@@ -2400,11 +2381,11 @@ def check_expr_expect(
             }
         }
 
-        for let i = 0; i < actual_num_args; i += 1 {
+        for let i: u32 = 0; i < actual_num_args; i += 1 {
             let arg = ast.get_arg_at(&c_e.args, i);
 
             if !func.is_varargs {
-                let param = ty.param_at(func, i);
+                let param = func.param_at(i);
 
                 let checked_arg = check_expr_expect(tc, arg, param.ty, null);
                 if checked_arg == null {
@@ -2453,16 +2434,15 @@ def check_expr_expect(
         let struct_ty = ty.as_struct(left.ty);
         let inits = &i_e.inits;
 
-        let expected_num_args = ty.num_fields(struct_ty);
-        let actual_num_args = ast.num_inits(inits);
+        let expected_num_args = struct_ty.num_fields();
+        let actual_num_args = inits.count();
         if expected_num_args != actual_num_args {
             push_wrong_num_args_error(tc, expected_num_args, actual_num_args, e.span);
             return null;
         }
 
-        let i = 0;
-        while i < expected_num_args {
-            let param = ty.field_at(struct_ty, i);
+        for let i: u32 = 0; i < expected_num_args; i += 1 {
+            let param = struct_ty.field_at(i);
             let arg = ast.init_expr_at(inits, i);
 
             let checked_arg = check_expr_expect(tc, arg, param.ty, null);
@@ -2476,7 +2456,6 @@ def check_expr_expect(
             }
 
             ast.set_init_expr_at(inits, i, checked_arg);
-            i = i + 1;
         }
 
         // TODO(#54): those names are really confusing
@@ -2553,7 +2532,7 @@ def check_binary_expr(
         if ty.is_ptr(first) {
             // pointer subtraction is the only allowed operation
             if kind == ast.BinaryKind.Sub {
-                return get_global_type(tc, 3, "i32");
+                return get_global_type(tc, 5, "isize");
             }
 
             let text = error.err2str(error.CompileError.BinPtrInvalid);
@@ -2706,7 +2685,7 @@ def mangle_func_name(tc: *TypeChecker, fd: *func.FuncDef): name.Owned {
 
     if fd.is_method {
         let recv_ty_name = &fd.receiver.ty.ident;
-        let len = 0;
+        let len: usize = 0;
         let with_receiver = std.l_format_str(
             &len,
             "%.*s.%.*s",
@@ -2730,24 +2709,18 @@ def mangle_type_name(tc: *TypeChecker, i: *ident.Ident): name.Owned {
 def free_tc(tc: *TypeChecker): void {
     delete tc.sorted_mods;
 
-    let i = 0;
-    while i < tc.errors.len {
+    for let i: usize = 0; i < tc.errors.len; i += 1 {
         free_err(get_err(tc, i));
-        i = i + 1;
     }
     tc.errors.free();
 
-    i = 0;
-    while i < tc.requests.len {
+    for let i: usize = 0; i < tc.requests.len; i += 1 {
         free_wait_map(tc.requests.get_ptr(i) as *WaitingRequestMap);
-        i = i + 1;
     }
     tc.requests.free();
 
-    i = 0;
-    while i < tc.contexts.len {
-        free_ctx(get_ctx(tc, i));
-        i = i + 1;
+    for let i: usize = 0; i < tc.contexts.len; i += 1 {
+        free_ctx(get_ctx(tc, i as u32));
     }
     tc.contexts.free();
 
@@ -2814,7 +2787,7 @@ def push_not_callable_error(tc: *TypeChecker, span: span.Span, actual_ty: *ty.Ty
     push_mk_err(tc, text, span);
 }
 
-def push_wrong_num_args_error(tc: *TypeChecker, expected: i32, actual: i32, span: span.Span) {
+def push_wrong_num_args_error(tc: *TypeChecker, expected: u32, actual: u32, span: span.Span) {
     let text = error.err2str(error.CompileError.WrongNumberOfArgs, expected, actual);
     push_mk_err(tc, text, span);
 }

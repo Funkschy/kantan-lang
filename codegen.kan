@@ -159,7 +159,7 @@ def add_forward_declarations(c: *ModuleCompiler): void {
 
     // TODO: keep global order
     // globals, which reference other globals have to be initialized after the others
-    for let i = 0; i < ref_globals.len; i += 1 {
+    for let i: usize = 0; i < ref_globals.len; i += 1 {
         let var = ref_globals.get(i) as *mir.GlobalVar;
         let storage = c.add_global(var);
         c.init_global(var, storage);
@@ -186,7 +186,7 @@ def (c: *ModuleCompiler) add_global(global: *mir.GlobalVar): *llvm.Value {
     if global.value.is_name {
         llty = translate_type(c, global.ty);
     } else if ty.is_string(global.ty) {
-        let len = global.value.len + 1; // 1 for null terminator
+        let len = global.value.len as u32 + 1; // 1 for null terminator
         llty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
     } else {
         llty = translate_type(c, global.ty);
@@ -220,7 +220,7 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
         return llvm.const_string_in_context(
             c.context.ctx,
             global.value.data as string,
-            global.value.len,
+            global.value.len as u32,
             !null_terminate
         );
     }
@@ -228,7 +228,7 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
     if global.ty.is_integer() {
         let llty = translate_type(c, global.ty);
         return llvm.const_int_of_string_and_size(
-            llty, global.value.data as string, global.value.len, 10
+            llty, global.value.data as string, global.value.len as u32, 10
         );
     }
 
@@ -266,14 +266,14 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     let struct_decl = map.get(&c.structs, key) as *llvm.Type;
 
     if struct_decl == null {
-        let num_fields = ty.num_fields(s_ty);
-        let fields = ptrvec.with_cap(num_fields);
+        let num_fields = s_ty.num_fields();
+        let fields = ptrvec.with_cap(num_fields as usize);
 
         struct_decl = llvm.struct_create_named(c.context.ctx, name.data);
         map.insert(&c.structs, key, struct_decl as *void);
 
-        for let i = 0; i < num_fields; i += 1 {
-            let field = ty.field_at(s_ty, i);
+        for let i: u32 = 0; i < num_fields; i += 1 {
+            let field = s_ty.field_at(i);
 
             let field_ty = translate_type(c, field.ty);
             fields.push_ptr(field_ty as *void);
@@ -289,7 +289,7 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
 def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     if t.is_integer() {
-        return llvm.int_type_in_context(c.context.ctx, t.width * 8);
+        return llvm.int_type_in_context(c.context.ctx, t.width as u32 * 8);
     }
 
     if ty.is_void(t) {
@@ -326,10 +326,8 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
             t = translate_type(c, p_ty.inner);
         }
 
-        let i = 0;
-        while i < p_ty.count {
+        for let i: u32 = 0; i < p_ty.count; i += 1 {
             t = llvm.pointer_type(t, 0);
-            i = i + 1;
         }
 
         return t;
@@ -337,17 +335,14 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     if ty.is_callable(t) {
         let f_ty = ty.callable_as_func(t);
-        let num_params = f_ty.params.len;
-        let params = ptrvec.with_cap(num_params);
+        let num_params = f_ty.params.len as u32;
+        let params = ptrvec.with_cap(num_params as usize);
 
-        let i = 0;
-        while i < num_params {
-            let param = ty.param_at(f_ty, i);
+        for let i: u32 = 0; i < num_params; i += 1 {
+            let param = f_ty.param_at(i);
 
             let param_ty = translate_type(c, param.ty);
             params.push_ptr(param_ty as *void);
-
-            i = i + 1;
         }
 
         let ret_ty = translate_type(c, f_ty.ret);
@@ -372,7 +367,7 @@ def translate_addr(
 ): *llvm.Value {
     return translate_addr_load(c, curr_func, a, true);
 }
-import "io";
+
 def translate_addr_load(
     c: *ModuleCompiler,
     curr_func: *FunctionData,
@@ -407,7 +402,7 @@ def translate_addr_load(
     if mir.is_addr_const_value(a) {
         let llvm_ty = translate_type(c, a.ty);
         let constant = mir.as_addr_const_value(a);
-        return llvm.const_int(llvm_ty, constant.value, false);
+        return llvm.const_int(llvm_ty, constant.value as usize, true);
     }
 
     if mir.is_addr_global(a) {
@@ -437,7 +432,7 @@ def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
     let key = map.create_key(name.len, name.data);
     let mir_global = map.get(&c.irmod.globals, key) as *mir.GlobalVar;
 
-    let num_indices = 1;
+    let num_indices: u32 = 1;
     if load {
         if mir_global.value.is_name || !ty.is_ptr(mir_global.ty) {
             return llvm.build_load(c.builder, global, "");
@@ -473,10 +468,10 @@ def translate_literal(
 
     if ty.is_bool(t) {
         let int_value = *start - '0';
-        return llvm.const_int(llvm_ty, int_value as i32, false);
+        return llvm.const_int(llvm_ty, int_value as usize, false);
     }
 
-    let copy = std.strndup(start, end - start);
+    let copy = std.strndup(start, (end - start) as usize);
     let llvm_lit: *llvm.Value = null;
 
     if t.is_integer() {
@@ -521,8 +516,7 @@ def create_function_data(
     dbg_set_inst_location(c, null);
     let entry_block: *llvm.BasicBlock = null;
 
-    let i = 0;
-    while i < num_blocks {
+    for let i: usize = 0; i < num_blocks; i += 1 {
         let mir_bb = mir.bm_get_bb_ptr(&irfunc.blocks, i);
         let bb_name = name.ref(mir_bb.label.name);
         let llvm_bb = llvm.append_basic_block_in_context(
@@ -535,7 +529,6 @@ def create_function_data(
 
         let key = map.create_key(bb_name.len, bb_name.data);
         map.insert(&blocks, key, llvm_bb as *void);
-        i = i + 1;
     }
 
     let num_locals = irfunc.blocks.decls.len;
@@ -544,7 +537,7 @@ def create_function_data(
     // compile variable declarations for the entire function
     llvm.position_builder_at_end(c.builder, entry_block);
 
-    for let i = 0; i < num_locals; i = i + 1 {
+    for let i: usize = 0; i < num_locals; i += 1 {
         let inst_decl = mir.bm_decl_at(&irfunc.blocks, i);
         dbg.assert(mir.is_inst_decl(&inst_decl), "expected a declaration");
         let decl = mir.as_inst_decl(&inst_decl);
@@ -620,7 +613,7 @@ def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
 
     let func_data = create_function_data(c, llvm_func.val, func);
 
-    for let i = 0; i < func_data.blocks.len; i = i + 1 {
+    for let i: usize = 0; i < func_data.blocks.len; i += 1 {
         let bb = mir.bm_get_bb_ptr(&func.blocks, i);
         compile_bb(c, &func_data, bb);
     }
@@ -633,7 +626,7 @@ def compile_bb(c: *ModuleCompiler, func: *FunctionData, bb: *mir.BasicBlock) {
     llvm.position_builder_at_end(c.builder, llvm_bb);
 
     let n = mir.bb_num_instr(bb);
-    for let i = 0; i < n; i += 1 {
+    for let i: usize = 0; i < n; i += 1 {
         let inst = mir.bb_get_instr(bb, i);
         compile_inst(c, func, inst);
     }
@@ -692,7 +685,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst) {
 
         // check if this is a parameter
         if is_param {
-            dbg_declare_parameter(c, func, storage, store, inst, assign.param_idx);
+            dbg_declare_parameter(c, func, storage, store, inst, assign.param_idx as u32);
         } else {
             llvm.set_inst_debug_location(c.builder, store);
 
@@ -765,16 +758,13 @@ def compile_struct_init_assign(c: *ModuleCompiler, func: *FunctionData, inst: *m
     let storage = translate_addr_load(c, func, &assign.dest, false);
     dbg.assert(storage != null, "null storage for struct init");
 
-    let i = 0;
-    while i < init.args.len {
+    for let i: u32 = 0; i < init.args.len as u32; i += 1 {
         let arg = mir.init_arg_at(init, i);
         let arg_addr = translate_addr(c, func, arg);
 
         let field = llvm.build_struct_gep(c.builder, storage, i, "");
         let store = llvm.build_store(c.builder, arg_addr, field);
         llvm.set_inst_debug_location(c.builder, store);
-
-        i = i + 1;
     }
 
     if mir.assign_has_original_ident(assign) {
@@ -875,13 +865,7 @@ def compile_expr(
         let so = mir.as_expr_sizeof(e);
         let ty = translate_type(c, so.ty);
 
-        // TODO(#88): remove when u64 is supported
-        return llvm.build_int_cast(
-            c.builder,
-            llvm.size_of(ty),
-            llvm.int32_type_in_context(c.context.ctx),
-            ""
-        );
+        return llvm.size_of(ty);
     }
 
     dbg.assert_fmt(false, "invalid expression kind %d", e.kind);
@@ -947,9 +931,7 @@ def compile_binary(
 
             let sub = llvm.build_sub(c.builder, left, right, "");
             let int32_ty = llvm.int32_type_in_context(c.context.ctx);
-            // we currently only support i32, so we need to cast the result
-            // this is safer than casting the pointers separately i think
-            return llvm.build_int_cast(c.builder, sub, int32_ty, "");
+            return sub;
         }
 
         return llvm.build_sub(c.builder, left, right, "");
@@ -1045,8 +1027,7 @@ def compile_call(
 
     let num_args = call.args.len;
     let args = ptrvec.with_cap(num_args);
-    let i = 0;
-    while i < num_args {
+    for let i: u32 = 0; i < num_args as u32; i += 1 {
         let arg = mir.call_arg_at(call, i);
         let value = translate_addr(c, func, arg);
 
@@ -1061,7 +1042,6 @@ def compile_call(
         }
 
         args.push_ptr(value as *void);
-        i = i + 1;
     }
 
     let arg_values = args.elements as **llvm.Value;
@@ -1083,7 +1063,7 @@ def compile_call(
         let llvm_func = translate_addr(c, func, &call.callee);
         dbg.assert(llvm_func != null, "llvm function not found");
 
-        call_value = llvm.build_call(c.builder, llvm_func, arg_values, args.len, "");
+        call_value = llvm.build_call(c.builder, llvm_func, arg_values, args.len as u32, "");
     }
 
     args.free();
@@ -1104,7 +1084,7 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
     let mod_path = mod.get_path(c.irmod.actual);
     let dir = path.parent(&mod_path);
     let file = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
-    let dir_len = 0;
+    let dir_len: usize = 0;
 
     let builder = llvm.create_di_builder(c.context.llmod);
     if mod.is_std_lib(c.irmod.actual) {
@@ -1199,6 +1179,30 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         );
     }
 
+    if ty.is_u8(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "u8", 2, 8, dw_ate_unsigned, 0
+        );
+    }
+
+    if ty.is_u16(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "u16", 3, 16, dw_ate_unsigned, 0
+        );
+    }
+
+    if ty.is_u32(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "u32", 3, 32, dw_ate_unsigned, 0
+        );
+    }
+
+    if ty.is_u64(t) {
+        return llvm.di_builder_create_basic_type(
+            c.dbg.builder, "u64", 3, 64, dw_ate_unsigned, 0
+        );
+    }
+
     if ty.is_usize(t) {
         return llvm.di_builder_create_basic_type(
             c.dbg.builder, "usize", 5, t.width * 8, dw_ate_unsigned, 0
@@ -1236,7 +1240,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         let free_inner_name = ty.to_string(ptr.inner, &inner_name);
         let inner_len = std.strlen(inner_name);
 
-        for let i = 0; i < ptr.count; i = i + 1 {
+        for let i: usize = 0; i < ptr.count as usize; i += 1 {
             let star_count = i + 1;
             let name = std.malloc(star_count + inner_len);
             std.memset(name, '*', star_count);
@@ -1295,7 +1299,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
 
         if ty.is_struct(t) {
             let s_ty = ty.as_struct(t);
-            let tag = 19; // dwarf_tag_structure_type
+            let tag: u32 = 19; // dwarf_tag_structure_type
             let placeholder = llvm.di_builder_create_forward_decl(
                 c.dbg.builder, tag,
                 definition.name.data, definition.name.len,
@@ -1305,9 +1309,9 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             );
             map.insert(&c.dbg.types, key, placeholder as *void);
 
-            let field_types = ptrvec.with_cap(ty.num_fields(s_ty));
-            for let i = 0; i < ty.num_fields(s_ty); i = i + 1 {
-                let field = ty.field_at(s_ty, i);
+            let field_types = ptrvec.with_cap(s_ty.num_fields() as usize);
+            for let i: u32 = 0; i < s_ty.num_fields(); i += 1 {
+                let field = s_ty.field_at(i);
                 let width_bits = field.ty.width * 8;
                 let offset_in_bits = field.offset * 8;
 
@@ -1327,7 +1331,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 definition.name.data, definition.name.len,
                 file, definition.meta.pos.lnr,
                 t.width * 8, t.align * 8, 0, placeholder,
-                field_types.elements as **llvm.MetaData, field_types.len,
+                field_types.elements as **llvm.MetaData, field_types.len as u32,
                 0, null,
                 definition.name.data, definition.name.len
             );
@@ -1341,15 +1345,15 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         if ty.is_enum(t) {
             let e_ty = ty.as_enum(t);
 
-            let enumerators = ptrvec.with_cap(ty.num_values(e_ty));
-            for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
+            let enumerators = ptrvec.with_cap(e_ty.num_values() as usize);
+            for let i: u32 = 0; i < e_ty.num_values(); i += 1 {
                 let enum_value = ty.value_at(e_ty, i);
 
                 let enumerator = llvm.di_builder_create_enumerator(
                     c.dbg.builder,
                     ident.start(&enum_value.name),
                     ident.len(&enum_value.name),
-                    enum_value.value,
+                    enum_value.value as i64,
                     true // are there signed enum values?
                 );
 
@@ -1362,7 +1366,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 definition.name.data, definition.name.len,
                 file, definition.meta.pos.lnr,
                 t.width * 8, t.align * 8,
-                enumerators.elements as **llvm.MetaData, enumerators.len,
+                enumerators.elements as **llvm.MetaData, enumerators.len as u32,
                 null // class ty
             );
 
@@ -1395,13 +1399,13 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
         return info.cu;
     }
 
-    let metadata = info.scopes.get(scope.id) as *llvm.MetaData;
+    let metadata = info.scopes.get(scope.id as usize) as *llvm.MetaData;
     if metadata == null {
         // Empty scopes (scopes without statements) might not have been initialized,
         // so we just look for the next smallest scope for parent
         let parent: *llvm.MetaData = null;
-        for let i = scope.parent; parent == null && i >= 0; i = i - 1 {
-            parent = info.scopes.get(i) as *llvm.MetaData;
+        for let i = scope.parent; parent == null && i >= 0; i -= 1 {
+            parent = info.scopes.get(i as usize) as *llvm.MetaData;
         }
 
         dbg.assert_fmt(
@@ -1415,7 +1419,7 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
             info.builder, parent, info.file, meta.pos.lnr, meta.pos.col
         );
 
-        info.scopes.set(scope.id, metadata as *void);
+        info.scopes.set(scope.id as usize, metadata as *void);
     }
 
     return metadata;
@@ -1423,14 +1427,14 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
 
 def dbg_create_subroutine_type(c: *ModuleCompiler, f_ty: *ty.Func): *llvm.MetaData {
     let types = ptrvec.with_cap(f_ty.params.len + 1); // +1 for return type
-    for let i = 0; i < f_ty.params.len; i = i + 1 {
-        let param = ty.param_at(f_ty, i);
+    for let i: u32 = 0; i < f_ty.num_params(); i += 1 {
+        let param = f_ty.param_at(i);
         types.push_ptr(dbg_translate_type(c, param.ty) as *void);
     }
     types.push_ptr(dbg_translate_type(c, f_ty.ret) as *void);
 
     let ll_ty = llvm.di_builder_create_subroutine_type(
-        c.dbg.builder, c.dbg.file, types.elements as **llvm.MetaData, types.len, 0
+        c.dbg.builder, c.dbg.file, types.elements as **llvm.MetaData, types.len as u32, 0
     );
     types.free();
 
@@ -1438,7 +1442,7 @@ def dbg_create_subroutine_type(c: *ModuleCompiler, f_ty: *ty.Func): *llvm.MetaDa
 }
 
 def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): *llvm.MetaData {
-    let surrounding = c.dbg.scopes.get(ir_f.meta.scope.parent) as *llvm.MetaData;
+    let surrounding = c.dbg.scopes.get(ir_f.meta.scope.parent as usize) as *llvm.MetaData;
 
     let f_ty = ty.as_func(ir_f.ty);
     let ll_ty = dbg_create_subroutine_type(c, f_ty);
@@ -1458,7 +1462,7 @@ def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): 
     let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
     map.insert(&c.dbg.functions, key, ll_ty as *void);
 
-    c.dbg.scopes.set(ir_f.meta.scope.id, sub_program as *void);
+    c.dbg.scopes.set(ir_f.meta.scope.id as usize, sub_program as *void);
     return sub_program;
 }
 
@@ -1493,7 +1497,7 @@ def dbg_declare_local(
     insert_after: *llvm.Value,
     inst: *mir.Inst,
     t: *ty.Type,
-    name_len: i32,
+    name_len: usize,
     name: string
 ) {
     if c.dbg == null {
@@ -1541,13 +1545,13 @@ def dbg_declare_parameter(
     storage: *llvm.Value,
     insert_after: *llvm.Value,
     inst: *mir.Inst,
-    param_nr: i32
+    param_nr: u32
 ) {
     if c.dbg == null {
         return;
     }
 
-    let param = ty.param_at(ty.as_func(func.irfunc.ty), param_nr);
+    let param = ty.as_func(func.irfunc.ty).param_at(param_nr);
 
     let surrounding = dbg_get_scope(c.dbg, inst.meta);
     let loc = dbg_create_location(c, inst);

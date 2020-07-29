@@ -80,14 +80,14 @@ def create_method(
     };
 }
 
-def get_param_ptr(f: *FuncDef, i: i32): *Param {
-    return f.params.params.get_ptr(i) as *Param;
+def (f: *FuncDef) get_param_ptr(i: u32): *Param {
+    return f.params.params.get_ptr(i as usize) as *Param;
 }
 
-def num_params(f: *FuncDef): i32 {
-    return f.params.params.len;
+def (f: *FuncDef) num_params(): u32 {
+    return f.params.params.len as u32;
 }
 
-def free_f(f: *FuncDef): void {
+def free_f(f: *FuncDef) {
     free_pl(&f.params);
 }

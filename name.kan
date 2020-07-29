@@ -7,14 +7,14 @@ import "source";
 
 type Owned struct {
     data: string,
-    len: i32
+    len: usize
 }
 
 def free_owned(n: *Owned): void {
     delete n.data;
 }
 
-def make_owned(len: i32, data: string): Owned {
+def make_owned(len: usize, data: string): Owned {
     if data != null {
         dbg.assert(*(data + len) == '\0', "owned names should be null terminated");
     }
@@ -22,7 +22,7 @@ def make_owned(len: i32, data: string): Owned {
 }
 
 // like make_owned, but copies the data automatically
-def make_copied(len: i32, data: string): Owned {
+def make_copied(len: usize, data: string): Owned {
     return make_owned(len, std.strndup(data, len));
 }
 
@@ -35,11 +35,11 @@ def (n: *Owned) ref(): Ref {
 }
 
 type Ref struct {
-    len: i32,
+    len: usize,
     data: string
 }
 
-def make_ref(len: i32, data: string): Ref {
+def make_ref(len: usize, data: string): Ref {
     return Ref { len: len, data: data };
 }
 
@@ -77,17 +77,17 @@ def mangle_ident(
 
 def s_mangle(
     proj_root: path.Path,
-    len: i32,
+    len: usize,
     s: string,
     declared_in: *mod.Module
 ): Owned {
-    let name_len = 0;
+    let name_len: usize = 0;
     let name_data = "";
 
     // TODO(#72): this name mangling algorithm assumes the existence of a global
     //  file path root. This does not necessarily exist in windows
 
-    let file_ending_len = 0;
+    let file_ending_len: usize = 0;
     source.kantan_file_ending(&file_ending_len);
 
     let p = mod.get_path(declared_in);
@@ -114,7 +114,7 @@ def s_mangle(
             out_idx = 1;
         }
 
-        let in_idx = 0;
+        let in_idx: usize = 0;
         let sep = path.sys_separator();
         while in_idx < mod_len {
             let c = *(mod_name + in_idx);

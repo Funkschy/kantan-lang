@@ -1,18 +1,19 @@
+// set the inner statements to null, so we don't get duplicated frees
 import "std";
 import "dbg";
 
 type Vec struct {
-    len: i32,
-    cap: i32,
-    elem_size: i32,
+    len: usize,
+    cap: usize,
+    elem_size: usize,
     elements: *void
 }
 
-def create(elem_size: i32): Vec {
+def create(elem_size: usize): Vec {
     return Vec { len: 0, cap: 0, elem_size: elem_size, elements: null };
 }
 
-def with_cap(elem_size: i32, cap: i32): Vec {
+def with_cap(elem_size: usize, cap: usize): Vec {
     if cap == 0 {
         return create(elem_size);
     }
@@ -34,19 +35,19 @@ def (v: *Vec) push_front(elem: *void) {
     }
 
     if v.len > 0 {
-        std.memmove(v.elements + 1 * v.elem_size, v.elements, v.elem_size * v.len);
+        std.memmove(v.elements + v.elem_size, v.elements, v.elem_size * v.len);
     }
 
     std.memcpy(v.elements, elem, v.elem_size);
     v.len = v.len + 1;
 }
 
-def (v: *Vec) init_zero(): void {
+def (v: *Vec) init_zero() {
     v.len = v.cap;
     std.memset(v.elements, 0, v.elem_size * v.cap);
 }
 
-def (v: *Vec) set(i: i32, elem: *void): void {
+def (v: *Vec) set(i: usize, elem: *void) {
     dbg.assert(i >= 0 && i < v.cap, "out of bounds set");
 
     std.memcpy(v.elements + i * v.elem_size, elem, v.elem_size);
@@ -56,7 +57,7 @@ def (v: *Vec) set(i: i32, elem: *void): void {
     }
 }
 
-def (v: *Vec) get(i: i32, ptr: *void): bool {
+def (v: *Vec) get(i: usize, ptr: *void): bool {
     if i >= 0 && i < v.len {
         std.memcpy(ptr, v.elements + i * v.elem_size, v.elem_size);
         return true;
@@ -65,7 +66,7 @@ def (v: *Vec) get(i: i32, ptr: *void): bool {
     return false;
 }
 
-def (v: *Vec) get_ptr(i: i32): *void {
+def (v: *Vec) get_ptr(i: usize): *void {
     if i >= 0 && i < v.len {
         return v.elements + i * v.elem_size;
     }
@@ -73,7 +74,7 @@ def (v: *Vec) get_ptr(i: i32): *void {
     return null;
 }
 
-def (v: *Vec) resize(): void {
+def (v: *Vec) resize() {
     if v.elements == null {
         v.cap = 2;
         v.elements = std.malloc(v.cap * v.elem_size);
@@ -83,6 +84,6 @@ def (v: *Vec) resize(): void {
     }
 }
 
-def (v: *Vec) free(): void {
+def (v: *Vec) free() {
     delete v.elements;
 }

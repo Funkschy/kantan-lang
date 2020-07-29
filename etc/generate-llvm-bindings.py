@@ -335,7 +335,7 @@ typemap = {
     'LLVMModuleFlagBehavior': ('i32', 'i32', None, None), # enum
     'LLVMDWARFTypeEncoding': ('i32', 'i32', None, None), # enum
 
-    'u8': ('i8', 'i8', None, None),
+    'u8': ('u8', 'u8', None, None),
     '*mut ::libc::c_char': ('string', 'string', None, None),
     '*const ::libc::c_char': ('string', 'string', None, None),
     '*::libc::c_char': ('string', 'string', None, None),
@@ -343,18 +343,18 @@ typemap = {
     '*const *const ::libc::c_char': ('*string', '*string', None, None),
     '**::libc::c_char': ('*string', '*string', None, None),
 
-    '::libc::size_t': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
-    '::libc::c_ulonglong': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
-    'i64': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
-    'u64': ('*void', 'i32', 'std.ptr_to_int', 'std.int_to_ptr'),   # too big
-    'u32': ('i32', 'i32', None, None),
-    '*mut ::libc::size_t': ('*i32', '*i32', None, None),
-    '*mut i64': ('*i32', '*i32', None, None),
-    '::libc::c_uint': ('i32', 'i32', None, None),
-    '*mut ::libc::c_uint': ('*i32', '*i32', None, None),
+    '::libc::size_t': ('usize', 'usize', None, None),
+    '::libc::c_ulonglong': ('usize', 'usize', None, None),
+    'i64': ('i64', 'i64', None, None),
+    'u64': ('u64', 'u64', None, None),
+    'u32': ('u32', 'u32', None, None),
+    '*mut ::libc::size_t': ('*usize', '*usize', None, None),
+    '*mut i64': ('*i64', '*i64', None, None),
+    '::libc::c_uint': ('u32', 'u32', None, None),
+    '*mut ::libc::c_uint': ('*u32', '*u32', None, None),
     '::libc::c_int': ('i32', 'i32', None, None),
     '*mut ::libc::c_int': ('*i32', '*i32', None, None),
-    'LLVMBool': ('i32', 'bool', 'std.int_to_bool', 'std.bool_to_int'),
+    'LLVMBool': ('i32', 'bool', 'std.int_to_bool({} as usize)', 'std.bool_to_int({}) as i32'),
 
     'LLVMMemoryBufferRef': ('*MemoryBuffer', '*MemoryBuffer', None, None),
     '*mut LLVMMemoryBufferRef': ('**MemoryBuffer', '**MemoryBuffer', None, None),
@@ -486,7 +486,7 @@ def generate_kantan(block):
             (_, _, _, kantan_to_c) = map_typename(argtype)
             argname = transform_name(argname)
             if kantan_to_c is not None:
-                return f'{kantan_to_c}({argname})'
+                return kantan_to_c.format(argname)
             else:
                 return argname
 
@@ -496,7 +496,8 @@ def generate_kantan(block):
         else:
             (_, _, c_to_kantan, _) = map_typename(decl['return'])
             if c_to_kantan is not None:
-                code += f'    return {c_to_kantan}({c_name}({args}));'
+                converted = c_to_kantan.format(f'{c_name}({args})')
+                code += f'    return {converted};'
             else:
                 code += f'    return {c_name}({args});'
 

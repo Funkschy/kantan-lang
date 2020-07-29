@@ -1,9 +1,9 @@
 def main(): void {
     let a = 1;
     let b = 2;
-    let i: i32 = get_diff(&a as *void, &b as *void);
+    let i: isize = get_diff(&a as *void, &b as *void);
 }
 
-def get_diff(first: *void, second: *void): i32 {
+def get_diff(first: *void, second: *void): isize {
     return second - first;
 }

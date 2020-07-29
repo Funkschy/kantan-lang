@@ -1,6 +1,6 @@
 import "std";
 
-def swap(values: *i32, indices: *i32, i: i32, j: i32) {
+def swap(values: *u32, indices: *u32, i: u32, j: u32) {
     let tmp_value = *(values + i);
     let tmp_index = *(indices + i);
 
@@ -11,7 +11,7 @@ def swap(values: *i32, indices: *i32, i: i32, j: i32) {
     *(indices + j) = tmp_index;
 }
 
-def inner_sort(values: *i32, indices: *i32, len: i32) {
+def inner_sort(values: *u32, indices: *u32, len: u32) {
     if len <= 1 {
         return;
     }
@@ -19,8 +19,8 @@ def inner_sort(values: *i32, indices: *i32, len: i32) {
     let pivot_idx = len / 2;
     let pivot = values + pivot_idx;
 
-    let j = len - 1;
-    let i = -1;
+    let j: u32 = len - 1;
+    let i: u32 = -1;
 
     let running = true;
     while running {
@@ -45,9 +45,9 @@ def inner_sort(values: *i32, indices: *i32, len: i32) {
 //                     ----------
 // e.g. import_coutns: 2, 4, 1, 2
 // returns:            2, 3, 0, 1
-def sort(import_counts: *i32, len: i32): *i32 {
-    let indices = std.malloc(len * sizeof i32) as *i32;
-    for let i = 0; i < len; i+= 1 {
+def sort(import_counts: *u32, len: u32): *u32 {
+    let indices = std.malloc(len as usize * sizeof u32) as *u32;
+    for let i: u32 = 0; i < len; i+= 1 {
         *(indices + i) = i;
     }
 

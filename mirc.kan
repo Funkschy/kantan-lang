@@ -56,8 +56,8 @@ type CompilerState enum {
 // TODO: make single context like in tychk
 type MirCompiler struct {
     state: CompilerState,
-    label_count: i32,
-    current_scope: i32,
+    label_count: usize,
+    current_scope: isize,
     mod: *mod.Module,
     data: *CompilationData,
     names: nt.NameTable,
@@ -102,7 +102,7 @@ def compile(c: *MirCompiler): mir.Module {
 
     open_block_scope(c);
 
-    for let i = 0; i < n; i += 1 {
+    for let i: usize = 0; i < n; i += 1 {
         let s = mod.get_stmt_at(c.mod, i);
         compile_stmt(c, s);
     }
@@ -142,7 +142,7 @@ def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData 
     return mir.create_meta(pos, scope_at(c, c.current_scope));
 }
 
-def scope_at(c: *MirCompiler, id: i32): mir.Scope {
+def scope_at(c: *MirCompiler, id: isize): mir.Scope {
     let s = c.scopes.with_id(id);
     dbg.assert_fmt(s != null, "no scope at %d", id);
     return *s;
@@ -164,7 +164,7 @@ def open_func_scope(c: *MirCompiler) {
 def open_scope(c: *MirCompiler, kind: mir.ScopeKind) {
     nt.open_scope(&c.names);
     let s = mir.scope(kind)
-        .with_id(c.scopes.count())
+        .with_id(c.scopes.count() as isize)
         .with_parent(c.current_scope);
 
     c.current_scope = s.id;
@@ -177,7 +177,7 @@ def open_scope(c: *MirCompiler, kind: mir.ScopeKind) {
 def open_var_scope(c: *MirCompiler) {
     let current = scope_at(c, c.current_scope);
     let s = mir.scope(mir.ScopeKind.Variable)
-        .with_id(c.scopes.count())
+        .with_id(c.scopes.count() as isize)
         .with_parent(c.current_scope)
         .with_num_decls(current.num_decls + 1);
 
@@ -199,7 +199,7 @@ def close_scope(c: *MirCompiler) {
     c.current_scope = current.parent;
 }
 
-def lookup_global_type(c: *MirCompiler, len: i32, name: string): *ty.Type {
+def lookup_global_type(c: *MirCompiler, len: usize, name: string): *ty.Type {
     return c.data.global_types.get(len, name).sym.ty;
 }
 
@@ -221,8 +221,8 @@ def lookup_or_declare_type(c: *MirCompiler, t: *ty.Type): *mir.UserDefinedType {
 
         if ty.is_struct(t) {
             let s_ty = ty.as_struct(t);
-            for let i = 0; i < s_ty.fields.len; i = i + 1 {
-                declare_type(c, ty.field_at(s_ty, i).ty);
+            for let i: u32 = 0; i < s_ty.num_fields(); i = i + 1 {
+                declare_type(c, s_ty.field_at(i).ty);
             }
         }
     }
@@ -321,8 +321,8 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
             ty.patch_receiver_into_params(f_ty);
 
             // Declare arguments
-            for let i = 0; i < f_ty.params.len; i = i + 1 {
-                let p = ty.param_at(f_ty, i);
+            for let i: u32= 0; i < f_ty.num_params(); i = i + 1 {
+                let p = f_ty.param_at(i);
                 let meta = get_meta(c, p.name.span);
 
                 let name = bind_ident(c, &p.name);
@@ -404,7 +404,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
             let storage = mir.make_addr_ref(name, value_ty);
             let value = mir.make_addr_const_value(i8_ty, 0);
-            let width = mir.make_addr_const_value(i64_ty, value_ty.width);
+            let width = mir.make_addr_const_value(i64_ty, value_ty.width as i64);
 
             let args = vec.with_cap(sizeof mir.Address, 3);
             args.push(&storage as *void);
@@ -427,7 +427,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
         open_block_scope(c);
 
-        for let i = 0; i < block_stmt.stmts.len; i += 1 {
+        for let i: usize = 0; i < block_stmt.stmts.len; i += 1 {
             let s = ast.stmt_at(block_stmt, i);
             compile_stmt(c, s);
         }
@@ -555,7 +555,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 def (c: *MirCompiler) push_defered_instructions(scope: mir.Scope) {
     let defered = c.scopes.defered_for(scope.id);
     let len = defered.len();
-    for let i = len - 1; i >= 0; i -= 1 {
+    for let i = len - 1; i as isize >= 0; i -= 1 {
         let instr = defered.get(i);
         push_instr_p(c, instr);
     }
@@ -626,9 +626,9 @@ def push_assign_param(
     target: mir.Address,
     value: mir.Expression,
     m: mir.MetaData,
-    param_idx: i32
+    param_idx: u32
 ): void {
-    let assign = mir.new_inst_assign_param(m, target, value, target.ty, param_idx);
+    let assign = mir.new_inst_assign_param(m, target, value, target.ty, param_idx as isize);
     push_instr_p(c, &assign);
 }
 
@@ -743,7 +743,7 @@ def bind_ident(c: *MirCompiler, i: *ident.Ident): name.Ref {
     return nt.bind(&c.names, name.make_ref(ident.len(i), ident.start(i)));
 }
 
-def bind_s(c: *MirCompiler, len: i32, s: string): name.Ref {
+def bind_s(c: *MirCompiler, len: usize, s: string): name.Ref {
     return nt.bind(&c.names, name.make_ref(len, s));
 }
 
@@ -751,7 +751,7 @@ def (c: *MirCompiler) bind(name: name.Ref): name.Ref {
     return nt.bind(&c.names, name);
 }
 
-def mod_at(c: *MirCompiler, i: i32): *mod.Module {
+def mod_at(c: *MirCompiler, i: u32): *mod.Module {
     return mod.get_mod(c.data.mods, i);
 }
 
@@ -878,7 +878,7 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let f_ty = ty.as_func(call.callee.ty);
     let is_method = f_ty.is_method;
 
-    let n = ast.num_args(&call.args);
+    let n = call.args.count();
     let recv_addr: mir.Address = undefined;
     if is_method {
         let access = ast.as_access_expr(call.callee);
@@ -894,13 +894,13 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         n += 1;
     }
 
-    let args = vec.with_cap(sizeof mir.Address, n);
+    let args = vec.with_cap(sizeof mir.Address, n as usize);
     if is_method {
         args.push(&recv_addr as *void);
     }
 
 
-    for let i = 0; i < ast.num_args(&call.args); i += 1 {
+    for let i: u32 = 0; i < call.args.count(); i += 1 {
         let arg = ast.get_arg_at(&call.args, i);
         let arg_addr = expr_instruction(c, arg, true);
         args.push(&arg_addr as *void);
@@ -916,7 +916,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     if ty.is_enum(access.left.ty) {
         let e_ty = ty.as_enum(access.left.ty);
         let enum_value = ty.enum_value_by_name(e_ty, access.right.ident);
-        let const = mir.make_addr_const_value(e.ty, enum_value);
+        let const = mir.make_addr_const_value(e.ty, enum_value as i64);
         return mir.new_expr_copy(const);
     }
 
@@ -955,7 +955,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let field_idx = ty.field_idx(struct_ty, ident, &field_ty);
     dbg.assert(field_idx >= 0, "no field with this name");
 
-    let gep = mir.new_expr_gep(left_addr, field_idx);
+    let gep = mir.new_expr_gep(left_addr, field_idx as u32);
     let a = mir.create_addr_empty();
     // Deref by default. This copy has to be removed if the value
     // should be assigned
@@ -968,15 +968,13 @@ def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     let mir_struct = lookup_or_declare_type(c, e.ty);
 
-    let i = 0;
-    let n = ast.num_inits(&struct_init.inits);
-    let inits = vec.with_cap(sizeof mir.Address, n);
+    let n = struct_init.inits.count();
+    let inits = vec.with_cap(sizeof mir.Address, n as usize);
 
-    while i < n {
+    for let i: u32 = 0; i < n; i += 1 {
         let init = ast.init_expr_at(&struct_init.inits, i);
         let init_addr = expr_instruction(c, init, true);
         inits.push(&init_addr as *void);
-        i = i + 1;
     }
 
     return mir.new_expr_struct_init(mir_struct.name, inits);
@@ -1190,11 +1188,11 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
             let next = *(char_expr.ptr + 1);
             let c = mir.escape_char(next);
 
-            *out = mir.make_addr_const_value(e.ty, c as i32);
+            *out = mir.make_addr_const_value(e.ty, c as i64);
             return true;
         }
 
-        *out = mir.make_addr_const_value(e.ty, *char_expr.ptr as i32);
+        *out = mir.make_addr_const_value(e.ty, *char_expr.ptr as i64);
         return true;
     }
 
@@ -1203,7 +1201,7 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
 
 def string_lit(c: *MirCompiler, e: *ast.Expr): name.Ref {
     let idx = c.globals.len;
-    let s_len = 0;
+    let s_len: usize = 0;
     let s = std.l_format_str(&s_len, "_g%d", idx);
     let mangled_name = s_mangle(c, s_len, s);
 
@@ -1252,7 +1250,7 @@ def (c: *MirCompiler) add_global(global: *mir.GlobalVar) {
 }
 
 def label(c: *MirCompiler): mir.Label {
-    let s_len = 0;
+    let s_len: usize = 0;
     let s = std.l_format_str(&s_len, "L_%d", c.label_count);
     c.label_count = c.label_count + 1;
 
@@ -1262,7 +1260,7 @@ def label(c: *MirCompiler): mir.Label {
     return mir.create_label(mangled_name);
 }
 
-def s_mangle(c: *MirCompiler, len: i32, s: string): name.Owned {
+def s_mangle(c: *MirCompiler, len: usize, s: string): name.Owned {
     return name.s_mangle(c.data.proj_root, len, s, c.mod);
 }
 

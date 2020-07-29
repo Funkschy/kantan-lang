@@ -93,14 +93,18 @@ def empty_token(): Token {
     return Token { ty: TokenType.UnknownErr, span: span.empty() };
 }
 
-def lexeme(tok: *Token): string {
+def (tok: *Token) lexeme(): string {
     return tok.span.start;
 }
 
-def is_err(token: *Token): bool {
-    return token.ty == TokenType.UnknownErr
-        || token.ty == TokenType.CharErr
-        || token.ty == TokenType.EscapeErr;
+def (tok: *Token) is_err(): bool {
+    return tok.ty == TokenType.UnknownErr
+        || tok.ty == TokenType.CharErr
+        || tok.ty == TokenType.EscapeErr;
+}
+
+def (token: *Token) len(): usize {
+    return token.span.len();
 }
 
 // static (don't free!)
@@ -108,22 +112,16 @@ def token_ty_to_static_string(ty: TokenType): string {
     return tok2str(ty);
 }
 
-def token_len(token: *Token): i32 {
-    return span.len(token.span);
-}
-
 // returned boolean indicates if the strings has to be freed
 def token_to_string(token: *Token, dest: *string): bool {
     // this is the range of tokens, that need to be formatted
     if token.ty >= TokenType.Int && token.ty <= TokenType.Ident {
-        let len = token_len(token);
-        *dest = std.strndup(lexeme(token), len);
+        *dest = std.strndup(token.lexeme(), token.len());
         return true;
     }
 
     if token.ty == TokenType.String || token.ty == TokenType.Char {
-        let len = token_len(token);
-        *dest = std.strndup(lexeme(token) - 1, len + 2);
+        *dest = std.strndup(token.lexeme() - 1, token.len() + 2);
         return true;
     }
 
@@ -158,7 +156,7 @@ def create(src: *source.SourceFile): Lexer {
     };
 }
 
-def end_pos(l: *Lexer): i32 {
+def end_pos(l: *Lexer): usize {
     return l.source.len - 1;
 }
 
@@ -182,12 +180,12 @@ def next_token(l: *Lexer): Token {
     return get_next_token(l);
 }
 
-def current_pos(l: *Lexer): i32 {
+def current_pos(l: *Lexer): usize {
     if l.has_peek {
-        return l.peek.span.start - l.source.code;
+        return (l.peek.span.start - l.source.code) as usize;
     }
 
-    return l.current - l.source.code;
+    return (l.current - l.source.code) as usize;
 }
 
 def current_ptr(l: *Lexer): string {
@@ -218,8 +216,8 @@ def is_letter(c: i32): bool {
         || c >= 'A' && c <= 'Z';
 }
 
-def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: TokenType): TokenType {
-    if l.current - l.start == start + rest_len {
+def check_keyword(l: *Lexer, start: usize, rest_len: usize, rest: string, ty: TokenType): TokenType {
+    if (l.current - l.start) as usize == start + rest_len {
         if std.memcmp((l.start + start) as *void, rest as *void, rest_len) == 0 {
             return ty;
         }
@@ -229,9 +227,9 @@ def check_keyword(l: *Lexer, start: i32, rest_len: i32, rest: string, ty: TokenT
 }
 
 def ident_type(l: *Lexer): TokenType {
-    let bytes_until = l.start - l.source.code;
+    let bytes_until = (l.start - l.source.code) as usize;
     let start = 0;
-    let len = std.read_char(l.start, l.source.len - bytes_until, &start);
+    let len = std.read_char(l.start, (l.source.len - bytes_until) as usize, &start) as usize;
 
     if start == 'l' {
         return check_keyword(l, 1, 2, "et", TokenType.Let);
@@ -246,7 +244,7 @@ def ident_type(l: *Lexer): TokenType {
         }
     } else if start == 'd' && l.current - l.start > 2 {
         let next = 0;
-        len = len + std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+        len += std.read_char(l.start + len, l.source.len - bytes_until - len, &next) as usize;
         // read third char
         std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
 
@@ -387,7 +385,7 @@ def lex_string(l: *Lexer): Token {
 def lex_char(l: *Lexer): Token {
     let char_seq = lex_char_sequence(l, '\'', TokenType.Char);
 
-    if is_err(&char_seq) {
+    if char_seq.is_err() {
         return char_seq;
     }
 
@@ -438,7 +436,7 @@ def at_end(l: *Lexer): bool {
 def advance(l: *Lexer): i32 {
     let read_bytes = current_pos(l);
     let c = 0;
-    let len = std.read_char(l.current, l.source.len - read_bytes, &c);
+    let len = std.read_char(l.current, (l.source.len - read_bytes) as usize, &c) as usize;
 
     l.current = l.current + len;
     return c;

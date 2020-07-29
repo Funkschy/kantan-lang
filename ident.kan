@@ -27,7 +27,7 @@ def start(i: *Ident): string {
     return i.span.start;
 }
 
-def len(i: *Ident): i32 {
+def len(i: *Ident): usize {
     return span.len(i.span);
 }
 
@@ -35,7 +35,7 @@ def (i: *Ident) start(): string {
     return i.span.start;
 }
 
-def (i: *Ident) len(): i32 {
+def (i: *Ident) len(): usize {
     return span.len(i.span);
 }
 
@@ -43,7 +43,7 @@ def (i: Ident) ref(): name.Ref {
     return name.make_ref(i.len(), i.start());
 }
 
-def char_at(i: *Ident, pos: i32): i8 {
+def char_at(i: *Ident, pos: usize): i8 {
     return *(i.span.start + pos);
 }
 
@@ -68,13 +68,11 @@ def eq_value(first: *Ident, second: *Ident): bool {
 }
 
 // -1 if not found
-def index_of(id: *Ident, ident_len: i32, c: i8): i32 {
-    let i = 0;
-    while i < ident_len {
+def index_of(id: *Ident, ident_len: usize, c: i8): isize {
+    for let i: usize = 0; i < ident_len; i += 1 {
         if char_at(id, i) == '.' {
-            return i;
+            return i as isize;
         }
-        i = i + 1;
     }
     return -1;
 }

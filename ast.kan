@@ -321,11 +321,11 @@ def as_block_stmt(s: *Stmt): *BlockStmt {
     return s as *BlockStmt;
 }
 
-def stmt_at(b: *BlockStmt, i: i32): *Stmt {
+def stmt_at(b: *BlockStmt, i: usize): *Stmt {
     return b.stmts.get(i) as *Stmt;
 }
 
-def set_stmt_at(b: *BlockStmt, i: i32, s: *Stmt): void {
+def set_stmt_at(b: *BlockStmt, i: usize, s: *Stmt): void {
     return b.stmts.set(i, s as *void);
 }
 
@@ -523,13 +523,11 @@ def stmt_free(s: *Stmt): void {
     } else if is_block_stmt(s) {
         let stmts = as_block_stmt(s).stmts;
 
-        let i = 0;
-        while i < stmts.len {
+        for let i: usize = 0; i < stmts.len; i += 1 {
             let s = stmts.get(i);
             if s != null {
                 stmt_free(s as *Stmt);
             }
-            i = i + 1;
         }
 
         stmts.free();
@@ -1051,7 +1049,7 @@ def expr_to_string(e: *Expr): string {
 
     if is_char_expr(e) {
         let c_expr = as_char_expr(e);
-        let len = span.len(e.span);
+        let len = e.span.len();
         // include the quotes
         return std.strndup(c_expr.ptr - 1, len + 2);
     }
@@ -1181,16 +1179,16 @@ def create_arg_list(): ArgList {
     return ArgList { args: ptrvec.create() };
 }
 
-def num_args(al: *ArgList): i32 {
-    return al.args.len;
+def (al: *ArgList) count(): u32 {
+    return al.args.len as u32;
 }
 
-def get_arg_at(al: *ArgList, i: i32): *Expr {
-    return al.args.get(i) as *Expr;
+def get_arg_at(al: *ArgList, i: u32): *Expr {
+    return al.args.get(i as usize) as *Expr;
 }
 
-def set_arg_at(al: *ArgList, i: i32, expr: *Expr): void {
-    al.args.set(i, expr as *void);
+def set_arg_at(al: *ArgList, i: u32, expr: *Expr) {
+    al.args.set(i as usize, expr as *void);
 }
 
 def push_arg(al: *ArgList, arg: *Expr): void {
@@ -1198,11 +1196,9 @@ def push_arg(al: *ArgList, arg: *Expr): void {
 }
 
 def free_al(al: *ArgList): void {
-    let i = 0;
-    while i < al.args.len {
+    for let i: usize = 0; i < al.args.len; i += 1 {
         let e = al.args.get(i) as *Expr;
         expr_free(e);
-        i = i + 1;
     }
 
     al.args.free();
@@ -1211,12 +1207,11 @@ def free_al(al: *ArgList): void {
 def arg_list_to_string(al: *ArgList): string {
     let args = (new '\0') as string;
 
-    let i = 0;
-    while i < al.args.len {
+    for let i: u32 = 0; i < al.count(); i += 1 {
         let a = get_arg_at(al, i);
         let s = expr_to_string(a);
 
-        let comma_len = 0;
+        let comma_len: usize = 0;
         if i > 0 {
             comma_len = 2;
         }
@@ -1233,8 +1228,6 @@ def arg_list_to_string(al: *ArgList): string {
 
         args = std.strcat(args, s);
         delete s;
-
-        i = i + 1;
     }
 
     return args;
@@ -1264,11 +1257,11 @@ def create_init_list(): InitList {
     return InitList { inits: vec.create(sizeof Init) };
 }
 
-def num_inits(il: *InitList): i32 {
-    return il.inits.len;
+def (il: *InitList) count(): u32 {
+    return il.inits.len as u32;
 }
 
-def init_expr_at(il: *InitList, i: i32): *Expr {
+def init_expr_at(il: *InitList, i: u32): *Expr {
     let init = empty_init();
     if !init_at(il, i, &init) {
         return null;
@@ -1276,12 +1269,12 @@ def init_expr_at(il: *InitList, i: i32): *Expr {
     return init.expr;
 }
 
-def set_init_expr_at(il: *InitList, i: i32, value: *Expr): void {
-    (il.inits.get_ptr(i) as *Init).expr = value;
+def set_init_expr_at(il: *InitList, i: u32, value: *Expr) {
+    (il.inits.get_ptr(i as usize) as *Init).expr = value;
 }
 
-def init_at(il: *InitList, i: i32, dest: *Init): bool {
-    return il.inits.get(i, dest as *void);
+def init_at(il: *InitList, i: u32, dest: *Init): bool {
+    return il.inits.get(i as usize, dest as *void);
 }
 
 def push_init(il: *InitList, init: Init): void {
@@ -1289,12 +1282,10 @@ def push_init(il: *InitList, init: Init): void {
 }
 
 def free_il(il: *InitList): void {
-    let i = 0;
-    while i < il.inits.len {
+    for let i: u32 = 0; i < il.count(); i += 1 {
         let init = empty_init();
         init_at(il, i, &init);
         expr_free(init.expr);
-        i = i + 1;
     }
 
     il.inits.free();
@@ -1303,8 +1294,7 @@ def free_il(il: *InitList): void {
 def init_list_to_string(il: *InitList): string {
     let inits = (new '\0') as string;
 
-    let i = 0;
-    while i < il.inits.len {
+    for let i: u32 = 0; i < il.count(); i += 1 {
         let init = empty_init();
         if !init_at(il, i, &init) {
             delete inits;
@@ -1313,7 +1303,7 @@ def init_list_to_string(il: *InitList): string {
         let n = ident.to_string(&init.ident);
         let e = expr_to_string(init.expr);
 
-        let extra_len = 2; // ': '
+        let extra_len: usize = 2; // ': '
         if i > 0 {
             extra_len = 4; // ': ..., '
         }
@@ -1333,8 +1323,6 @@ def init_list_to_string(il: *InitList): string {
         inits = std.strcat(inits, e);
         delete n;
         delete e;
-
-        i = i + 1;
     }
 
     return inits;

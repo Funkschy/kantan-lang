@@ -33,8 +33,7 @@ def free_fields(fs: *Fields): void {
 def create_fields(fields: vec.Vec): Fields {
     let field_map = map.with_cap(fields.len);
 
-    let i = 0;
-    while i < fields.len {
+    for let i: usize = 0; i < fields.len; i += 1 {
         let field = empty_field();
         fields.get(i, &field as *void);
 
@@ -46,21 +45,19 @@ def create_fields(fields: vec.Vec): Fields {
         let index = std.int_to_ptr(i) + 1;
 
         map.insert(&field_map, key, index);
-        i = i + 1;
     }
 
     return Fields { field_map: field_map, fields: fields };
 }
 
-def fields_get_field_at(fs: *Fields, i: i32, dest: *Field): bool {
-    return fs.fields.get(i, dest as *void);
+def fields_get_field_at(fs: *Fields, i: u32, dest: *Field): bool {
+    return fs.fields.get(i as usize, dest as *void);
 }
 
 def fields_to_string(fs: *Fields): string {
     let fields = (new '\0') as string;
 
-    let i = 0;
-    while i < fs.fields.len {
+    for let i: u32 = 0; i < fs.fields.len as u32; i += 1 {
         let f = empty_field();
         if !fields_get_field_at(fs, i, &f) {
             delete fields;
@@ -69,7 +66,7 @@ def fields_to_string(fs: *Fields): string {
         let n = ident.to_string(&f.ident);
         let t = tyid.to_string(&f.ty);
 
-        let extra_len = 2; // ': '
+        let extra_len: usize = 2; // ': '
         if i > 0 {
             extra_len = 4; // ': ..., '
         }
@@ -107,15 +104,15 @@ def create_struct(name: ident.Ident, fields: vec.Vec): StructDecl {
     return StructDecl { name: name, fields: fields, struct_ty: null };
 }
 
-def free_struct(s: *StructDecl): void {
+def free_struct(s: *StructDecl) {
     free_fields(&s.fields);
 }
 
-def num_fields(s: *StructDecl): i32 {
-    return s.fields.fields.len;
+def (s: *StructDecl) num_fields(): u32 {
+    return s.fields.fields.len as u32;
 }
 
-def field_at(s: *StructDecl, i: i32, dest: *Field): bool {
+def (s: *StructDecl) field_at(i: u32, dest: *Field): bool {
     return fields_get_field_at(&s.fields, i, dest);
 }
 
@@ -127,7 +124,7 @@ def field_by_ident(s: *StructDecl, name: ident.Ident, dest: *Field): bool {
     }
 
     let idx = std.ptr_to_int(ptr) - 1;
-    return field_at(s, idx, dest);
+    return s.field_at(idx as u32, dest);
 }
 
 def to_string(s: *StructDecl): string {
@@ -151,15 +148,15 @@ def create_enum(name: ident.Ident, values: vec.Vec): EnumDecl {
     return EnumDecl { name: name, values: values, enum_ty: null };
 }
 
-def free_enum(e: *EnumDecl): void {
+def free_enum(e: *EnumDecl) {
     e.values.free();
 }
 
-def num_values(e: *EnumDecl): i32 {
+def num_values(e: *EnumDecl): usize {
     return e.values.len;
 }
 
-def value_at(e: *EnumDecl, i: i32, dest: *ident.Ident): bool {
+def value_at(e: *EnumDecl, i: usize, dest: *ident.Ident): bool {
     return e.values.get(i, dest as *void);
 }
 

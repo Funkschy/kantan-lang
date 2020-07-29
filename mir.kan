@@ -39,7 +39,7 @@ def create_mod(
     };
 }
 
-def free_mod(m: *Module): void {
+def free_mod(m: *Module) {
     // free function names
     let f_iter = map.iter(&m.functions);
     let item = map.iter_next(&f_iter);
@@ -92,12 +92,12 @@ def dump_module(m: *Module): void {
 
         if ty.is_struct(t.ty) {
             let s_ty = ty.as_struct(t.ty);
-            for let i = 0; i < ty.num_fields(s_ty); i += 1 {
+            for let i: u32 = 0; i < s_ty.num_fields(); i += 1 {
                 if i > 0 {
                     io.printf(", ");
                 }
 
-                let field = ty.field_at(s_ty, i);
+                let field = s_ty.field_at(i);
 
                 let ty_s = "";
                 let free_ty_s = ty.to_string(field.ty, &ty_s);
@@ -115,7 +115,7 @@ def dump_module(m: *Module): void {
         } else if ty.is_enum(t.ty) {
             let e_ty = ty.as_enum(t.ty);
 
-            for let i = 0; i < ty.num_values(e_ty); i = i + 1 {
+            for let i: u32 = 0; i < e_ty.num_values(); i += 1 {
                 if i > 0 {
                     io.printf(", ");
                 }
@@ -186,7 +186,7 @@ def create_defered_stmts(): DeferedStmts {
 }
 
 def (ds: *DeferedStmts) free() {
-    for let i = 0; i < ds.instructions.len; i += 1 {
+    for let i: usize = 0; i < ds.instructions.len; i += 1 {
         let instr = ds.get(i);
         if instr.push_count == 0 {
             free_inst(instr);
@@ -195,7 +195,7 @@ def (ds: *DeferedStmts) free() {
     ds.instructions.free();
 }
 
-def (ds: *DeferedStmts) len(): i32 {
+def (ds: *DeferedStmts) len(): usize {
     return ds.instructions.len;
 }
 
@@ -203,7 +203,7 @@ def (ds: *DeferedStmts) push(instr: *Inst) {
     ds.instructions.push(instr as *void);
 }
 
-def (ds: *DeferedStmts) get(idx: i32): *Inst {
+def (ds: *DeferedStmts) get(idx: usize): *Inst {
     return ds.instructions.get_ptr(idx) as *Inst;
 }
 
@@ -220,7 +220,7 @@ def create_scopes(): Scopes {
 }
 
 def (s: *Scopes) free() {
-    for let i = 0; i < s.defered.len; i += 1 {
+    for let i: usize = 0; i < s.defered.len; i += 1 {
         (s.defered.get_ptr(i) as *DeferedStmts).free();
     }
     s.defered.free();
@@ -233,27 +233,27 @@ def (s: *Scopes) open(scope: Scope) {
     s.defered.push(&defered as *void);
 }
 
-def (s: *Scopes) push_defer(scope_id: i32, instr: *Inst) {
-    let stmts = s.defered.get_ptr(scope_id) as *DeferedStmts;
+def (s: *Scopes) push_defer(scope_id: isize, instr: *Inst) {
+    let stmts = s.defered.get_ptr(scope_id as usize) as *DeferedStmts;
     dbg.assert(stmts != null, "pushing defer into non existing scope");
     stmts.push(instr);
 }
 
-def (s: *Scopes) defered_for(id: i32): *DeferedStmts {
-    return s.defered.get_ptr(id) as *DeferedStmts;
+def (s: *Scopes) defered_for(id: isize): *DeferedStmts {
+    return s.defered.get_ptr(id as usize) as *DeferedStmts;
 }
 
-def (s: *Scopes) clear_defered_for(id: i32) {
+def (s: *Scopes) clear_defered_for(id: isize) {
     let defered = s.defered_for(id);
     defered.free();
     *defered = create_defered_stmts();
 }
 
-def (s: *Scopes) with_id(id: i32): *Scope {
-    return s.mir_scopes.get_ptr(id) as *Scope;
+def (s: *Scopes) with_id(id: isize): *Scope {
+    return s.mir_scopes.get_ptr(id as usize) as *Scope;
 }
 
-def (s: *Scopes) count(): i32 {
+def (s: *Scopes) count(): usize {
     return s.mir_scopes.len;
 }
 
@@ -327,26 +327,26 @@ type ScopeKind enum {
 
 type Scope struct {
     kind: ScopeKind,
-    id: i32,
-    parent: i32,
-    num_decls: i32
+    id: isize,
+    parent: isize,
+    num_decls: usize
 }
 
 def scope(kind: ScopeKind): Scope {
     return Scope { kind: kind, id: -1, parent: -1, num_decls: 0 };
 }
 
-def (s: Scope) with_id(id: i32): Scope {
+def (s: Scope) with_id(id: isize): Scope {
     s.id = id;
     return s;
 }
 
-def (s: Scope) with_parent(parent: i32): Scope {
+def (s: Scope) with_parent(parent: isize): Scope {
     s.parent = parent;
     return s;
 }
 
-def (s: Scope) with_num_decls(num_decls: i32): Scope {
+def (s: Scope) with_num_decls(num_decls: usize): Scope {
     s.num_decls = num_decls;
     return s;
 }
@@ -363,7 +363,7 @@ def create_meta(pos: source.SourcePos, scope: Scope): MetaData {
 type ValueBuffer struct {
     is_name: bool, // is this just a reference to another global variable
     needs_free: bool,
-    len: i32,
+    len: usize,
     data: *void
 }
 
@@ -439,16 +439,16 @@ def escape_char(c: i8): i8 {
 }
 
 def escape_string(start: string, end: string): name.Owned {
-    let value = name.make_copied(end - start, start);
+    let value = name.make_copied((end - start) as usize, start);
     let actual_len = value.len;
 
-    let out_pos = 0;
-    let in_pos = 0;
+    let out_pos: usize = 0;
+    let in_pos: usize = 0;
 
-    let n = end - start;
+    let n = (end - start) as usize;
     while in_pos < n {
         let c = *(start + in_pos);
-        let inc = 1;
+        let inc: usize = 1;
 
         if c == '\\' {
             // \x are 2 chars, but we replace it with 1 escaped byte
@@ -505,15 +505,13 @@ def push_instr(b: *InstBlock, inst: *Inst): void {
     b.instructions.push(inst as *void);
 }
 
-def get_instr(b: *InstBlock, idx: i32): *Inst {
+def get_instr(b: *InstBlock, idx: usize): *Inst {
     return b.instructions.get_ptr(idx) as *Inst;
 }
 
-def free_inst_block(b: *InstBlock): void {
-    let i = 0;
-    while i < b.instructions.len {
+def free_inst_block(b: *InstBlock) {
+    for let i: usize = 0; i < b.instructions.len; i += 1 {
         free_inst(b.instructions.get_ptr(i) as *Inst);
-        i = i + 1;
     }
     b.instructions.free();
 }
@@ -533,7 +531,7 @@ def create_bb(label: Label): BasicBlock {
 }
 
 // number of instructions excluding label and terminator
-def bb_num_instr(bb: *BasicBlock): i32 {
+def bb_num_instr(bb: *BasicBlock): usize {
     return bb.instructions.instructions.len;
 }
 
@@ -541,11 +539,11 @@ def bb_push_instr(bb: *BasicBlock, inst: *Inst): void {
     push_instr(&bb.instructions, inst);
 }
 
-def bb_get_instr(bb: *BasicBlock, idx: i32): *Inst {
+def bb_get_instr(bb: *BasicBlock, idx: usize): *Inst {
     return get_instr(&bb.instructions, idx);
 }
 
-def free_bb(bb: *BasicBlock): void {
+def free_bb(bb: *BasicBlock) {
     free_label(&bb.label);
     free_inst_block(&bb.instructions);
     free_inst(&bb.terminator);
@@ -620,20 +618,20 @@ def is_addr_const(a: *Address): bool {
     return a.kind == AddrKind.Const;
 }
 
-def const_len(c: *AddressConst): i32 {
-    return c.end - c.start;
+def const_len(c: *AddressConst): usize {
+    return (c.end - c.start) as usize;
 }
 
 type AddressConstValue struct {
-    value: i32
+    value: i64
 }
 
-def make_addr_const_value(ty: *ty.Type, value: i32): Address {
-    return create_addr(AddrKind.ConstValue, ty, std.int_to_ptr(value), null);
+def make_addr_const_value(ty: *ty.Type, value: i64): Address {
+    return create_addr(AddrKind.ConstValue, ty, std.int_to_ptr(value as usize), null);
 }
 
 def as_addr_const_value(a: *Address): AddressConstValue {
-    return AddressConstValue { value: std.ptr_to_int(a.data_hi) };
+    return AddressConstValue { value: std.ptr_to_int(a.data_hi) as i64 };
 }
 
 def is_addr_const_value(a: *Address): bool {
@@ -683,17 +681,17 @@ def is_addr_ref(a: *Address): bool {
 }
 
 type AddressArg struct {
-    idx: i32
+    idx: u32
 }
 
-def make_addr_arg(idx: i32, ty: *ty.Type): Address {
-    let hi = std.int_to_ptr(idx);
+def make_addr_arg(idx: u32, ty: *ty.Type): Address {
+    let hi = std.int_to_ptr(idx as usize);
     return create_addr(AddrKind.Arg, ty, hi, null);
 }
 
 def as_addr_arg(a: *Address): AddressArg {
     let idx = std.ptr_to_int(a.data_hi);
-    return AddressArg { idx: idx };
+    return AddressArg { idx: idx as u32 };
 }
 
 def is_addr_arg(a: *Address): bool {
@@ -761,7 +759,7 @@ def addr_to_name(a: *Address): name.Owned {
 
     if is_addr_const(a) {
         let const = as_addr_const(a);
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "const %.*s", const_len(&const), const.start
         );
@@ -770,14 +768,14 @@ def addr_to_name(a: *Address): name.Owned {
 
     if is_addr_const_value(a) {
         let const = as_addr_const_value(a);
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(&len, "const %d", const.value);
         return name.make_owned(len, s);
     }
 
     if is_addr_global(a) {
         let global = as_addr_global(a);
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "global %.*s", global.name.len, global.name.data
         );
@@ -786,7 +784,7 @@ def addr_to_name(a: *Address): name.Owned {
 
     if is_addr_ref(a) {
         let ref = as_addr_ref(a);
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "&%.*s", ref.name.len, ref.name.data
         );
@@ -795,7 +793,7 @@ def addr_to_name(a: *Address): name.Owned {
 
     if is_addr_arg(a) {
         let arg = as_addr_arg(a);
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "getarg(%d)", arg.idx
         );
@@ -941,7 +939,7 @@ def (f: IntrinsicFunction) name(): name.Owned {
 }
 
 def new_intrinsic_call(f: IntrinsicFunction, args: vec.Vec, varargs: bool): Expression {
-    let to_call = *(&f as *i32);
+    let to_call = *(&f as *usize);
     let callee = create_addr(AddrKind.Intrinsic, null, std.int_to_ptr(to_call), null);
     return new_expr_call(callee, args, varargs);
 }
@@ -955,8 +953,8 @@ def (call: *ExprCall) get_intrinsic(): IntrinsicFunction {
     return *(&as_int as *IntrinsicFunction);
 }
 
-def call_arg_at(call: *ExprCall, idx: i32): *Address {
-    return call.args.get_ptr(idx) as *Address;
+def call_arg_at(call: *ExprCall, idx: u32): *Address {
+    return call.args.get_ptr(idx as usize) as *Address;
 }
 
 def as_expr_call(e: *Expression): *ExprCall {
@@ -969,10 +967,10 @@ def is_expr_call(e: *Expression): bool {
 
 type ExprGep struct {
     addr: Address,
-    idx: i32
+    idx: u32
 }
 
-def new_expr_gep(addr: Address, idx: i32): Expression {
+def new_expr_gep(addr: Address, idx: u32): Expression {
     let gep = (new ExprGep { addr: addr, idx: idx }) as *void;
     return create_expr(ExprKind.Gep, gep);
 }
@@ -995,8 +993,8 @@ def new_expr_struct_init(name: name.Ref, args: vec.Vec): Expression {
     return create_expr(ExprKind.StructInit, init);
 }
 
-def init_arg_at(init: *ExprStructInit, idx: i32): *Address {
-    return init.args.get_ptr(idx) as *Address;
+def init_arg_at(init: *ExprStructInit, idx: u32): *Address {
+    return init.args.get_ptr(idx as usize) as *Address;
 }
 
 def as_expr_struct_init(e: *Expression): *ExprStructInit {
@@ -1159,7 +1157,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let right = addr_to_name(&bin.right);
         let op = binary_kind_to_static_string(bin.kind);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "(%.*s)%s(%.*s)", left.len, left.data, op, right.len, right.data
         );
@@ -1175,7 +1173,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let addr = addr_to_name(&unary.addr);
         let op = unary_kind_to_static_string(unary.kind);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(&len, "%s(%.*s)", op, addr.len, addr.data);
 
         name.free_owned(&addr);
@@ -1186,7 +1184,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let copy = as_expr_copy(e);
 
         let addr = addr_to_name(&copy.addr);
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(&len, "copy %.*s", addr.len, addr.data);
 
         name.free_owned(&addr);
@@ -1199,15 +1197,15 @@ def expr_to_name(e: *Expression): name.Owned {
         let args_string = str.create();
         defer args_string.free();
 
-        for let i = 0; i < call.args.len; i += 1 {
+        for let i: u32 = 0; i < call.args.len as u32; i += 1 {
+            if i > 0 {
+                args_string.push(str.view(2, ", "));
+            }
+
             let arg = call_arg_at(call, i);
             let arg_n = addr_to_name(arg);
 
             args_string.push(str.view(arg_n.len as usize, arg_n.data));
-            if i < call.args.len - 1 {
-                args_string.push(str.view(2, ", "));
-            }
-
             name.free_owned(&arg_n);
         }
 
@@ -1218,7 +1216,7 @@ def expr_to_name(e: *Expression): name.Owned {
             n = addr_to_name(&call.callee);
         }
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "%.*s(%s)", n.len, n.data, args_string.cstring()
         );
@@ -1231,7 +1229,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let gep = as_expr_gep(e);
         let addr_n = addr_to_name(&gep.addr);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "gep(%.*s, %d)", addr_n.len, addr_n.data, gep.idx
         );
@@ -1246,20 +1244,20 @@ def expr_to_name(e: *Expression): name.Owned {
         let args_string = str.create();
         defer args_string.free();
 
-        for let i = 0; i < init.args.len; i += 1 {
+        for let i: u32 = 0; i < init.args.len as u32; i += 1 {
+            if i > 0 {
+                args_string.push(str.view(2, ", "));
+            }
+
             let arg = init_arg_at(init, i);
             let arg_n = addr_to_name(arg);
 
             args_string.push(str.view(arg_n.len as usize, arg_n.data));
-            if i < init.args.len - 1 {
-                args_string.push(str.view(2, ", "));
-            }
-
             name.free_owned(&arg_n);
         }
 
         let n = init.name;
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "%.*s{%s}", n.len, n.data, args_string.cstring()
         );
@@ -1271,7 +1269,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let n = as_expr_new(e);
         let addr_n = addr_to_name(&n.addr);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(&len, "new %.*s", addr_n.len, addr_n.data);
 
         name.free_owned(&addr_n);
@@ -1283,7 +1281,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let ty_s: string = null;
         let free_ty_s = ty.to_string(so.ty, &ty_s);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(&len, "sizeof(%s)", ty_s);
 
         if free_ty_s {
@@ -1298,7 +1296,7 @@ def expr_to_name(e: *Expression): name.Owned {
         let ty_s: string = null;
         let free_ty_s = ty.to_string(cast.into, &ty_s);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "(%.*s %s %s)", addr_n.len, addr_n.data, cast.kind.to_string(),ty_s
         );
@@ -1339,7 +1337,7 @@ type InstAssign struct {
     dest: Address,
     value: Expression,
     // TODO: convert this to a union
-    param_idx: i32, // -1 if this is not a param
+    param_idx: isize, // -1 if this is not a param
     var_scope: Scope, // every variable opens an implicit scope, after it was assigned
     original_ident: ident.Ident
 }
@@ -1357,7 +1355,7 @@ def new_inst_assign_param(
     dest: Address,
     value: Expression,
     t: *ty.Type,
-    param_idx: i32
+    param_idx: isize
 ): Inst {
     return create_inst(
         InstKind.Assign,
@@ -1580,7 +1578,7 @@ def inst_to_name(inst: *Inst): name.Owned {
         let ty_s: string = null;
         let free_ty_s = ty.to_string(decl.ty, &ty_s);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len,
             "let %.*s: %s",
@@ -1607,7 +1605,7 @@ def inst_to_name(inst: *Inst): name.Owned {
             free_ty_s = ty.to_string(assign.dest.ty, &ty_s);
         }
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len,
             "%.*s: %s = %.*s", a_n.len, a_n.data, ty_s, e_n.len, e_n.data
@@ -1627,7 +1625,7 @@ def inst_to_name(inst: *Inst): name.Owned {
         let jmp = as_inst_jmp(inst);
         let label = label_name(&jmp.target);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len, "jmp %.*s", label.len, label.data
         );
@@ -1641,7 +1639,7 @@ def inst_to_name(inst: *Inst): name.Owned {
         let else_label = label_name(&jmpif.else_target);
         let condition = addr_to_name(&jmpif.condition);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(
             &len,
             "jmpif %.*s;%.*s;%.*s",
@@ -1664,7 +1662,7 @@ def inst_to_name(inst: *Inst): name.Owned {
         }
 
         let a_n = addr_to_name(&ret.value);
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(&len, "return %.*s", a_n.len, a_n.data);
 
         name.free_owned(&a_n);
@@ -1675,7 +1673,7 @@ def inst_to_name(inst: *Inst): name.Owned {
         let del = as_inst_delete(inst);
         let a_n = addr_to_name(&del.addr);
 
-        let len = 0;
+        let len: usize = 0;
         let s = std.l_format_str(&len, "delete %.*s", a_n.len, a_n.data);
 
         name.free_owned(&a_n);
@@ -1747,29 +1745,25 @@ def bm_push_block(bm: *BlockMap, bb: *BasicBlock): void {
     vmap.insert(&bm.blocks, key, bb as *void);
 }
 
-def free_block_map(bm: *BlockMap): void {
-    let i = 0;
-    while i < vmap.len(&bm.blocks) {
+def free_block_map(bm: *BlockMap) {
+    for let i: usize = 0; i < vmap.len(&bm.blocks); i += 1 {
         free_bb(vmap.get_ptr_idx(&bm.blocks, i) as *BasicBlock);
-        i = i + 1;
     }
 
     vmap.free_m(&bm.blocks);
 
-    i = 0;
-    while i < bm.decls.len {
+    for let i: usize = 0; i < bm.decls.len; i += 1 {
         free_inst(bm.decls.get_ptr(i) as *Inst);
-        i = i + 1;
     }
 
     bm.decls.free();
 }
 
-def bm_num_blocks(bm: *BlockMap): i32 {
+def bm_num_blocks(bm: *BlockMap): usize {
     return vmap.len(&bm.blocks);
 }
 
-def bm_get_bb_ptr(bm: *BlockMap, idx: i32): *BasicBlock {
+def bm_get_bb_ptr(bm: *BlockMap, idx: usize): *BasicBlock {
     return vmap.get_ptr_idx(&bm.blocks, idx) as *BasicBlock;
 }
 
@@ -1777,29 +1771,29 @@ def bm_last_bb_ptr(bm: *BlockMap): *BasicBlock {
     return bm_get_bb_ptr(bm, vmap.len(&bm.blocks) - 1);
 }
 
-def bm_decl_at(bm: *BlockMap, idx: i32): Inst {
+def bm_decl_at(bm: *BlockMap, idx: usize): Inst {
     return *(bm.decls.get_ptr(idx) as *Inst);
 }
 
-def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst): void {
+def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst) {
     let last_bb = bm_last_bb_ptr(bm);
     bb_push_instr(last_bb, inst);
 }
 
-def bm_push_new_block(bm: *BlockMap): void {
-    let label_len = 0;
+def bm_push_new_block(bm: *BlockMap) {
+    let label_len: usize = 0;
     // TODO(#79): this id is not unique across modules
     let label = std.l_format_str(&label_len, ".block%d", vmap.len(&bm.blocks));
     let new_bb = create_bb(create_label(name.make_owned(label_len, label)));
     bm_push_block(bm, &new_bb);
 }
 
-def bm_push_new_labeled_block(bm: *BlockMap, label: Label): void {
+def bm_push_new_labeled_block(bm: *BlockMap, label: Label) {
     let new_bb = create_bb(label);
     bm_push_block(bm, &new_bb);
 }
 
-def bm_push_instr(bm: *BlockMap, inst: *Inst): void {
+def bm_push_instr(bm: *BlockMap, inst: *Inst) {
     // the last blocks was already closed, so we need to open a new one
 
     if is_inst_decl(inst) {
@@ -1842,17 +1836,14 @@ def bm_dump(bm: *BlockMap): void {
     let n = label_name(&first_bb.label);
     io.printf("%.*s:\n", n.len, n.data);
 
-    let i = 0;
-    while i < bm.decls.len {
+    for let i: usize = 0; i < bm.decls.len; i += 1 {
         let decl = bm.decls.get_ptr(i) as *Inst;
         let n = inst_to_name(decl);
         io.printf("  %.*s\n", n.len, n.data);
         name.free_owned(&n);
-        i =  i + 1;
     }
 
-    i = 0;
-    while i < vmap.len(&bm.blocks) {
+    for let i: usize = 0; i < vmap.len(&bm.blocks); i += 1 {
         let bb = vmap.get_ptr_idx(&bm.blocks, i) as *BasicBlock;
 
         let bb_name = label_name(&bb.label);
@@ -1860,19 +1851,15 @@ def bm_dump(bm: *BlockMap): void {
             io.printf("label: %.*s:\n", bb_name.len, bb_name.data);
         }
 
-        let j = 0;
-        while j < bb_num_instr(bb) {
+        for let j: usize = 0; j < bb_num_instr(bb); j += 1 {
             let inst = bb_get_instr(bb, j);
             let n = inst_to_name(inst);
             io.printf("  %.*s\n", n.len, n.data);
             name.free_owned(&n);
-            j = j + 1;
         }
 
         let n = inst_to_name(&bb.terminator);
         io.printf("  term: %.*s\n", n.len, n.data);
         name.free_owned(&n);
-
-        i = i + 1;
     }
 }

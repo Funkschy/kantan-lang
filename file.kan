@@ -1,7 +1,7 @@
 import "path";
 import "error";
 
-extern def read_file(path: string, dest: *string, len: *i32): error.CompileError;
+extern def read_file(path: string, dest: *string, len: *usize): error.CompileError;
 
 type File struct {
     path: path.PathBuf
@@ -15,7 +15,7 @@ def (f: *File) name_dup(): string {
     return path.to_string(&f.path.inner);
 }
 
-def (s: *File) read_to_string(dest: *string, len: *i32): error.CompileError {
+def (s: *File) read_to_string(dest: *string, len: *usize): error.CompileError {
     let path = path.to_string(&s.path.inner);
     defer delete path;
     let ret_code = read_file(path, dest, len);

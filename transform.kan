@@ -136,8 +136,7 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
     };
 #endif
 
-    let i = 0;
-    while i < n {
+    for let i: u32 = 0; i < n; i += 1 {
         let m = mod.get_mod(data.mods, i);
 
         let mir_compiler = mirc.create_mirc(m, &data);
@@ -162,8 +161,6 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
 
         mirc.free_compiler(&mir_compiler);
         mir.free_mod(&mir_mod);
-
-        i = i + 1;
     }
 
 #if LLVM_DUMP
@@ -202,14 +199,14 @@ def emit_to_file(comp_data: *CompilationData, base_mod: *llvm.Module, tm: target
     }
 }
 
-def optimize_single(module: *llvm.Module, opt_level: i8): void {
-    let opt_level = opt_level as i32;
+def optimize_single(module: *llvm.Module, opt_level: i8) {
+    let opt_level = opt_level as u32;
 
     // replace this with an enum
-    let opt_level_none = 0;
-    let opt_level_less = 1;
-    let opt_level_default = 2;
-    let opt_level_aggressive = 3;
+    let opt_level_none: u32 = 0;
+    // let opt_level_less = 1;
+    // let opt_level_default = 2;
+    // let opt_level_aggressive = 3;
 
     if opt_level == opt_level_none {
         return;

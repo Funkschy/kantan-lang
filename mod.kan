@@ -14,11 +14,11 @@ import "source";
 import "ptrvec";
 
 type Module struct {
-    idx: i32, // index in modmap used for faster access
+    idx: u32, // index in modmap used for faster access
     name: name.Owned, // injected after parsing
     source: *source.SourceFile,
     statements: ptrvec.Vec,
-    num_imports: i32,
+    num_imports: u32,
     ty: *ty.Type // the Type containing the bindings
 }
 
@@ -48,28 +48,28 @@ def is_std_lib(m: *Module): bool {
     return m.source.is_std_lib;
 }
 
-def (m: *Module) lookup_type(key_len: i32, key: string): symbol.Data {
+def (m: *Module) lookup_type(key_len: usize, key: string): symbol.Data {
     return ty.get_type_scope(m.ty).get(key_len, key);
 }
 
-def (m: *Module) lookup_value(key_len: i32, key: string): symbol.Data {
+def (m: *Module) lookup_value(key_len: usize, key: string): symbol.Data {
     return ty.get_value_scope(m.ty).get(key_len, key);
 }
 
-def get_stmt_at(mod: *Module, i: i32): *ast.Stmt {
+def get_stmt_at(mod: *Module, i: usize): *ast.Stmt {
     return mod.statements.get(i) as *ast.Stmt;
 }
 
-def set_stmt_at(mod: *Module, i: i32, s: *ast.Stmt): void {
+def set_stmt_at(mod: *Module, i: usize, s: *ast.Stmt): void {
     mod.statements.set(i, s as *void);
 }
 
-def num_stmts(mod: *Module): i32 {
+def num_stmts(mod: *Module): usize {
     return mod.statements.len;
 }
 
-def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: i32): *ast.Stmt {
-    let idx = 0;
+def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: usize): *ast.Stmt {
+    let idx: usize = 0;
     if !indices.get(i, &idx as *void) {
         return null;
     }
@@ -82,11 +82,11 @@ def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: i32): *ast.Stmt {
     return s;
 }
 
-def num_imports(mod: *Module): i32 {
+def num_imports(mod: *Module): u32 {
     return mod.num_imports;
 }
 
-def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
+def push_stmt(mod: *Module, stmt: *ast.Stmt) {
     if ast.is_import_stmt(stmt) {
         mod.num_imports += 1;
     }
@@ -94,15 +94,13 @@ def push_stmt(mod: *Module, stmt: *ast.Stmt): void {
     mod.statements.push_ptr(stmt as *void);
 }
 
-def get_stmt(mod: *Module, i: i32): *ast.Stmt {
+def get_stmt(mod: *Module, i: usize): *ast.Stmt {
     return mod.statements.get(i) as *ast.Stmt;
 }
 
-def free_m(mod: *Module): void {
-    let i = 0;
-    while i < mod.statements.len {
+def free_m(mod: *Module) {
+    for let i: usize = 0; i < mod.statements.len; i += 1 {
         ast.stmt_free(get_stmt(mod, i));
-        i = i + 1;
     }
 
     mod.statements.free();
@@ -118,7 +116,7 @@ type Map struct {
     mod_paths: map.Map // full mod path -> index in mods
 }
 
-def map_with_cap(proj_root: path.Path, size: i32): Map {
+def map_with_cap(proj_root: path.Path, size: usize): Map {
     return Map {
         proj_root: proj_root,
         mods: ptrvec.with_cap(size),
@@ -126,14 +124,14 @@ def map_with_cap(proj_root: path.Path, size: i32): Map {
     };
 }
 
-def num_mods(mm: *Map): i32 {
-    return mm.mods.len;
+def num_mods(mm: *Map): u32 {
+    return mm.mods.len as u32;
 }
 
-def add_mod(mm: *Map, mod: *Module): void {
+def add_mod(mm: *Map, mod: *Module) {
     let idx = mm.mods.len;
     mm.mods.push_ptr(mod as *void);
-    mod.idx = idx;
+    mod.idx = idx as u32;
 
     // add one, to be able to tell null apart from 0
     let idx = std.int_to_ptr(idx + 1);
@@ -142,19 +140,19 @@ def add_mod(mm: *Map, mod: *Module): void {
     map.insert(&mm.mod_paths, key, idx);
 }
 
-def get_mod(mm: *Map, idx: i32): *Module {
-    return mm.mods.get(idx) as *Module;
+def get_mod(mm: *Map, idx: u32): *Module {
+    return mm.mods.get(idx as usize) as *Module;
 }
 
 // returns -1 if not found
-def get_mod_idx(mm: *Map, abs_path: *path.Path): i32 {
+def get_mod_idx(mm: *Map, abs_path: *path.Path): i64 {
     let key = map.create_key(abs_path.len, abs_path.inner);
     let ptr = map.get(&mm.mod_paths, key);
     if ptr == null {
         return -1;
     }
 
-    return std.ptr_to_int(ptr) - 1;
+    return std.ptr_to_int(ptr) as i64 - 1;
 }
 
 def get_mod_by_path(mm: *Map, abs_path: *path.Path): *Module {
@@ -162,16 +160,14 @@ def get_mod_by_path(mm: *Map, abs_path: *path.Path): *Module {
     if idx < 0 {
         return null;
     }
-    return get_mod(mm, idx);
+    return get_mod(mm, idx as u32);
 }
 
-def map_free(mm: *Map): void {
-    let i = 0;
-    while i < num_mods(mm) {
+def map_free(mm: *Map) {
+    for let i: u32 = 0; i < num_mods(mm); i += 1 {
         let m = get_mod(mm, i);
         free_m(m);
         delete m;
-        i = i + 1;
     }
     mm.mods.free();
     map.free_m(&mm.mod_paths);
@@ -203,7 +199,7 @@ def try_get_mod_from_import(
     // TODO(#7): extract errors to lib.h with the ususal error code system
 
     let plen = ident.len(&imp.mod);
-    let file_ending_len = 0;
+    let file_ending_len: usize = 0;
     let file_ending = source.kantan_file_ending(&file_ending_len);
     let path_str = std.format_str("%.*s%s", plen, ident.start(&imp.mod), file_ending);
     let p = path.create(path_str, plen + file_ending_len);

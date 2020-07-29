@@ -5,11 +5,11 @@ import "std";
 import "dbg";
 import "error";
 
-extern def getcwd(buf: string, buf_size: i32): string;
+extern def getcwd(buf: string, buf_size: usize): string;
 extern def realpath(path: string, resolved: string): string;
 
 type Path struct {
-    len: i32,
+    len: usize,
     inner: string
 }
 
@@ -17,7 +17,7 @@ def empty(): Path {
     return Path { len: 0, inner: null };
 }
 
-def create(value: string, len: i32): Path {
+def create(value: string, len: usize): Path {
     return Path { len: len, inner: value };
 }
 
@@ -27,7 +27,7 @@ def sys_separator(): i8 {
 
 def from_str(s: string, p: *Path): error.CompileError {
     let len = std.strlen(s);
-    if len <= 0 {
+    if len == 0 {
         return error.CompileError.PathEmpty;
     }
 
@@ -35,8 +35,8 @@ def from_str(s: string, p: *Path): error.CompileError {
     return error.CompileError.OK;
 }
 
-def from_str_len(s: string, len: i32, p: *Path): error.CompileError {
-    if len <= 0 {
+def from_str_len(s: string, len: usize, p: *Path): error.CompileError {
+    if len == 0 {
         return error.CompileError.PathEmpty;
     }
 
@@ -72,24 +72,22 @@ def parent(p: *Path): Path {
 
     let lsp = last_separator_ptr(p);
     if lsp != null {
-        return create(p.inner, lsp - p.inner + 1);
+        return create(p.inner, (lsp - p.inner + 1) as usize);
     }
 
     return *p;
 }
 
-def count_overlap(first: *Path, second: *Path): i32 {
-    let i = 0;
+def count_overlap(first: *Path, second: *Path): usize {
     let len = first.len;
     if second.len < first.len {
         len = second.len;
     }
 
-    while i < len {
+    for let i: usize = 0; i < len; i += 1 {
         if *(first.inner + i) != *(second.inner + i) {
             return i;
         }
-        i = i + 1;
     }
 
     return len;
@@ -128,7 +126,7 @@ def to_string(p: *Path): string {
 }
 
 def get_cwd(): PathBuf {
-    let buf_size = 255;
+    let buf_size: usize = 255;
     let buf = std.malloc(buf_size * sizeof i8) as string;
 
     // TODO(#34): windows support
@@ -148,7 +146,7 @@ def new_path_buf(path: string): PathBuf {
     return create_path_buf(std.strdup(path));
 }
 
-def new_path_buf_l(len: i32, path: string): PathBuf {
+def new_path_buf_l(len: usize, path: string): PathBuf {
     let dup = std.strdup(path);
     return buf_from(create(dup, len));
 }
@@ -242,9 +240,8 @@ def common_parent(first: Path, second: Path): PathBuf {
 
     // TODO(#69): on windows paths start with a drive letter, so we need to adjust
     //  the code to handle this
-    let last_separator = 0;
-    let i = 0;
-    while i < smaller_len {
+    let last_separator: usize = 0;
+    for let i: usize = 0; i < smaller_len; i += 1 {
         let ptr = first.inner + i;
 
         if *ptr != *(second.inner + i) {
@@ -256,8 +253,6 @@ def common_parent(first: Path, second: Path): PathBuf {
         if *ptr == SYSTEM_SEPARATOR {
             last_separator = i;
         }
-
-        i = i + 1;
     }
 
     // both paths are either identical or one is a subpath of the other one

@@ -30,7 +30,7 @@ def (s: *Scope) name(): n.Ref {
     return s.scope_name.or_else(static);
 }
 
-def free_s(s: *Scope): void {
+def free_s(s: *Scope) {
     vmap.free_m(&s.bindings);
 }
 
@@ -47,7 +47,7 @@ def (s: *Scope) bind_ident(
 }
 
 def (s: *Scope) bind(
-    ident_len: i32,
+    ident_len: usize,
     ident: string,
     ty: *ty.Type,
     visibility: symbol.Visibility
@@ -65,7 +65,7 @@ def (s: *Scope) get_ident(ident: *ident.Ident): symbol.Data {
     return s.get(ident.len(), ident.start());
 }
 
-def (s: *Scope) get(key_len: i32, key: string): symbol.Data {
+def (s: *Scope) get(key_len: usize, key: string): symbol.Data {
     let ptr = vmap.get_ptr(&s.bindings, map.create_key(key_len, key)) as *symbol.WithVisibility;
     return ptr.or_empty().with_scope(s);
 }
@@ -84,7 +84,7 @@ def create_stack(): ScopeStack {
     };
 }
 
-def free_stack(s: *ScopeStack, start_idx: i32): void {
+def free_stack(s: *ScopeStack, start_idx: usize) {
     let i = start_idx; // dont free global scopes
     // since all opened scopes are also closed, this code will never be
     // executed, should be remove it or keep it here, just to be sure?
@@ -97,27 +97,27 @@ def free_stack(s: *ScopeStack, start_idx: i32): void {
     s.scopes.free();
 }
 
-def open_scope(s: *ScopeStack): void {
+def open_scope(s: *ScopeStack) {
     let scope = new create();
     push_scope(s, scope);
 }
 
-def push_scope(s: *ScopeStack, scope: *Scope): void {
+def push_scope(s: *ScopeStack, scope: *Scope) {
     s.scopes.push_ptr(scope as *void);
 }
 
-def close_scope(s: *ScopeStack): void {
+def close_scope(s: *ScopeStack) {
     let top = top(s);
     free_s(top);
     delete top;
     s.scopes.len = s.scopes.len - 1;
 }
 
-def close_scope_no_free(s: *ScopeStack): void {
+def close_scope_no_free(s: *ScopeStack) {
     s.scopes.len = s.scopes.len - 1;
 }
 
-def scope_at(s: *ScopeStack, i: i32): *Scope {
+def scope_at(s: *ScopeStack, i: usize): *Scope {
     return s.scopes.get(i) as *Scope;
 }
 
@@ -133,12 +133,12 @@ def bind_private(s: *ScopeStack, ident: *ident.Ident, value: *ty.Type): symbol.W
     return top(s).bind_ident(ident, value, symbol.Visibility.Private);
 }
 
-def num_scopes(s: *ScopeStack): i32 {
+def num_scopes(s: *ScopeStack): usize {
     return s.scopes.len;
 }
 
 def lookup(s: *ScopeStack, ident: *ident.Ident): symbol.Data {
-    for let i = num_scopes(s) - 1; i >= 0; i -= 1 {
+    for let i = num_scopes(s) - 1; i as isize >= 0; i -= 1 {
         let scope = scope_at(s, i);
         let bound = scope.get_ident(ident);
         if bound.present() {

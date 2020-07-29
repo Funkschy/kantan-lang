@@ -7,7 +7,7 @@ import "file";
 import "source";
 import "error" as err;
 
-extern def num_builtin_files(): i32;
+extern def num_builtin_files(): usize;
 extern def get_builtin_files(): *string;
 
 type FileAddResult struct {
@@ -35,18 +35,18 @@ def create(): FileMap {
     };
 }
 
-def (m: *FileMap) num_files(): i32 {
+def (m: *FileMap) num_files(): usize {
     return m.files.len;
 }
 
-def (m: *FileMap) get_ptr_by_idx(idx: i32): *source.SourceFile {
+def (m: *FileMap) get_ptr_by_idx(idx: usize): *source.SourceFile {
     return m.files.get_ptr(idx) as *source.SourceFile;
 }
 
 def (m: *FileMap) get_ptr_from_span(span: span.Span): *source.SourceFile {
     // TODO(#60): this should use a binary search or some kind of tree
 
-    for let i = 0; i < m.files.len; i += 1 {
+    for let i: usize = 0; i < m.files.len; i += 1 {
         let file = m.get_ptr_by_idx(i);
         dbg.assert(file != null, "file was null");
 
@@ -59,7 +59,7 @@ def (m: *FileMap) get_ptr_from_span(span: span.Span): *source.SourceFile {
 }
 
 def (m: *FileMap) free() {
-    for let i = 0; i < m.files.len; i += 1 {
+    for let i: usize = 0; i < m.files.len; i += 1 {
         let s: source.SourceFile = undefined;
         if m.files.get(i, &s as *void) {
             s.free();
@@ -74,7 +74,7 @@ def (m: *FileMap) add_std_lib(rel_path: *path.Path, std_dir: string): FileAddRes
     let len = num_builtin_files();
     let file_names = get_builtin_files();
 
-    for let i = 0; i < len; i += 1 {
+    for let i: usize = 0; i < len; i += 1 {
         let file_name = *(file_names + i);
         let full_file_name = std.format_str("%s/%s", std_dir, file_name);
         defer delete full_file_name;
@@ -97,9 +97,9 @@ def (m: *FileMap) add_std_lib(rel_path: *path.Path, std_dir: string): FileAddRes
     return FileAddResult { file_name: null, err_code: err.CompileError.OK };
 }
 
-def (m: *FileMap) add_all(rel_path: *path.Path, len: i32, file_names: *string): FileAddResult {
+def (m: *FileMap) add_all(rel_path: *path.Path, len: usize, file_names: *string): FileAddResult {
     // TODO(#31): detect duplicate files
-    for let i = 0; i < len; i+= 1 {
+    for let i: usize = 0; i < len; i += 1 {
         let file_name = *(file_names + i);
         let res = m.add_file(rel_path, file_name, false);
         if res.is_not_ok() {

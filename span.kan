@@ -34,12 +34,12 @@ def create(start: string, end: string): Span {
 }
 
 // deprecated
-def len(span: Span): i32 {
-    return span.end - span.start;
+def len(span: Span): usize {
+    return (span.end - span.start) as usize;
 }
 
-def (s: Span) len(): i32 {
-    return s.end - s.start;
+def (s: Span) len(): usize {
+    return (s.end - s.start) as usize;
 }
 
 def (s: Span) merge(other: Span): Span {
