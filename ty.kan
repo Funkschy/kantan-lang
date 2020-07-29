@@ -130,7 +130,7 @@ def is_u8(t: *Type): bool {
 
 def new_u16(): *Type {
     let t = new_type(Kind.U16, null);
-    t.width = t.align = 1;
+    t.width = t.align = 2;
     return t;
 }
 
@@ -142,7 +142,7 @@ def is_u16(t: *Type): bool {
 
 def new_u32(): *Type {
     let t = new_type(Kind.U32, null);
-    t.width = t.align = 1;
+    t.width = t.align = 4;
     return t;
 }
 
@@ -154,7 +154,7 @@ def is_u32(t: *Type): bool {
 
 def new_u64(): *Type {
     let t = new_type(Kind.U64, null);
-    t.width = t.align = 1;
+    t.width = t.align = 8;
     return t;
 }
 
