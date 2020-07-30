@@ -1281,6 +1281,10 @@ def cast_kind(e: *ast.Expr): mir.CastKind {
         return mir.CastKind.Bit;
     }
 
+    if ty.is_bool(from) || ty.is_bool(into) {
+        return mir.CastKind.Bool;
+    }
+
     if from.is_integer() || into.is_integer() {
         return mir.CastKind.Int;
     }

@@ -1,0 +1,13 @@
+import "io";
+
+def to_upper(s: string, len: usize): string {
+    for let i: usize = 0; i < len; i += 1 {
+        let c = *(s + i);
+        *(s + i) = c - 32 * ((c >= 'a' && c <= 'z') as i8);
+    }
+    return s;
+}
+
+def main() {
+    io.printf("%s\n", to_upper("hello WORLD", 11));
+}

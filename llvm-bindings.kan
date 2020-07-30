@@ -426,6 +426,8 @@ extern def LLVMBuildInBoundsGEP(b: *Builder, pointer: *Value, indices: **Value, 
 
 extern def LLVMBuildStructGEP(b: *Builder, pointer: *Value, idx: u32, name: string): *Value;
 
+extern def LLVMBuildZExt(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value;
+
 extern def LLVMBuildFPToSI(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value;
 
 extern def LLVMBuildSIToFP(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value;
@@ -597,6 +599,10 @@ def build_in_bounds_gep(b: *Builder, pointer: *Value, indices: **Value, num_indi
 
 def build_struct_gep(b: *Builder, pointer: *Value, idx: u32, name: string): *Value {
     return LLVMBuildStructGEP(b, pointer, idx, name);
+}
+
+def build_z_ext(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value {
+    return LLVMBuildZExt(arg1, val, dest_ty, name);
 }
 
 def build_fp_to_si(arg1: *Builder, val: *Value, dest_ty: *Type, name: string): *Value {

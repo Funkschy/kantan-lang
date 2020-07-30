@@ -863,7 +863,10 @@ def is_comparable(t: *Type): bool {
 
 def can_be_casted(from: *Type, into: *Type): bool {
     return (is_ptr(from) && is_ptr(into))
-        || (from.is_num() && into.is_num());
+        || (from.is_num() && into.is_num())
+        || (from.is_integer() && is_bool(into))
+        || (is_bool(from) && into.is_integer())
+        || equals(from, into);
 }
 
 /////////// align utils ///////////

@@ -823,6 +823,10 @@ def compile_expr(
             return llvm.build_bit_cast(c.builder, addr, into, "");
         }
 
+        if cast.kind == mir.CastKind.Bool {
+            return llvm.build_z_ext(c.builder, addr, into, "");
+        }
+
         let from_int = cast.addr.ty.is_integer();
         let into_int = cast.into.is_integer();
 
@@ -844,6 +848,8 @@ def compile_expr(
         if from_float && into_float {
             return llvm.build_fp_cast(c.builder, addr, into, "");
         }
+
+        dbg.assert(false, "invalid cast");
     }
 
     if mir.is_expr_new(e) {

@@ -1046,7 +1046,7 @@ type ExprCast struct {
 }
 
 type CastKind enum {
-    Bit, IntNoLoad, Int, Float
+    Bit, IntNoLoad, Int, Float, Bool
 }
 
 def (k: CastKind) to_string(): string {
@@ -1061,6 +1061,9 @@ def (k: CastKind) to_string(): string {
     }
     if k == CastKind.Float {
         return "fas";
+    }
+    if k == CastKind.Bool {
+        return "bas";
     }
 
     return "invalid_cast";
