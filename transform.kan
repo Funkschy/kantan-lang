@@ -119,6 +119,9 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
     }
 
     let tm = target.create_target_machine(&t);
+    let data_layout = llvm.create_target_data_layout(tm.lltm);
+    defer llvm.dispose_target_data(data_layout);
+
     // the single context used for all modules
     let base_ctx = llvm.context_create();
     let base_mod = llvm.module_create_with_name_in_context(main_mod.name.data, base_ctx);
@@ -127,6 +130,8 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
     let dir = path.parent(&mod_path);
     let file = path.create(mod_path.inner + dir.len, mod_path.len - dir.len);
     llvm.set_source_file_name(base_mod, file.inner, file.len);
+
+    llvm.set_module_data_layout(base_mod, data_layout);
 
     let options = codegen.CompilationOptions {
         global_ctx: base_ctx,
@@ -153,6 +158,7 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
 #if LLVM_DUMP
         llvm.dump_module(llvm_context.llmod);
 #endif
+        llvm.set_module_data_layout(llvm_context.llmod, data_layout);
         llvm.verify_module(llvm_context.llmod, 0, null);
         optimize_single(llvm_context.llmod, comp_data.config.opt_level);
 
@@ -213,20 +219,22 @@ def optimize_single(module: *llvm.Module, opt_level: i8) {
     }
 
     // Per clang and rustc, we want to use both kinds.
-    let mpm = llvm.create_pass_manager();
     let fpm = llvm.create_function_pass_manager_for_module(module);
+    defer llvm.dispose_pass_manager(fpm);
+    let mpm = llvm.create_pass_manager();
+    defer llvm.dispose_pass_manager(mpm);
 
     let pm_builder = llvm.pass_manager_builder_create();
     llvm.pass_manager_builder_set_opt_level(pm_builder, opt_level);
+    defer llvm.pass_manager_builder_dispose(pm_builder);
 
     llvm.pass_manager_builder_populate_module_pass_manager(pm_builder, mpm);
     llvm.pass_manager_builder_populate_function_pass_manager(pm_builder, fpm);
-    llvm.pass_manager_builder_dispose(pm_builder);
 
-    llvm.initialize_function_pass_manager(fpm);
     llvm.add_promote_memory_to_register_pass(fpm);
     llvm.add_dead_store_elimination_pass(fpm);
 
+    llvm.initialize_function_pass_manager(fpm);
     // Iterate over functions, running the FPM over each
     let func = llvm.get_first_function(module);
     while func != null {
@@ -236,9 +244,5 @@ def optimize_single(module: *llvm.Module, opt_level: i8) {
     llvm.finalize_function_pass_manager(fpm);
 
     // Run the MPM over the module
-    // llvm.run_pass_manager(mpm, module);
-
-    // Clean up managers
-    llvm.dispose_pass_manager(fpm);
-    llvm.dispose_pass_manager(mpm);
+    llvm.run_pass_manager(mpm, module);
 }

@@ -58,7 +58,7 @@ def is_void(t: *Type): bool {
 
 def new_i8(): *Type {
     let t = new_type(Kind.I8, null);
-    t.width = (t.align = 1) as u64;
+    t.width = (t.align = 1) as i64;
     return t;
 }
 
@@ -70,7 +70,7 @@ def is_i8(t: *Type): bool {
 
 def new_i16(): *Type {
     let t = new_type(Kind.I16, null);
-    t.width = (t.align = 2) as u64;
+    t.width = (t.align = 2) as i64;
     return t;
 }
 
@@ -82,7 +82,7 @@ def is_i16(t: *Type): bool {
 
 def new_i32(): *Type {
     let t = new_type(Kind.I32, null);
-    t.width = (t.align = 4) as u64;
+    t.width = (t.align = 4) as i64;
     return t;
 }
 
@@ -94,7 +94,7 @@ def is_i32(t: *Type): bool {
 
 def new_i64(): *Type {
     let t = new_type(Kind.I64, null);
-    t.width = (t.align = 8) as u64;
+    t.width = (t.align = 8) as i64;
     return t;
 }
 
@@ -106,8 +106,8 @@ def is_i64(t: *Type): bool {
 
 def new_isize(width: usize): *Type {
     let t = new_type(Kind.ISize, null);
-    t.align = width as u32;
-    t.width = width as u64;
+    t.align = width as i32;
+    t.width = width as i64;
     return t;
 }
 
@@ -119,7 +119,7 @@ def is_isize(t: *Type): bool {
 
 def new_u8(): *Type {
     let t = new_type(Kind.U8, null);
-    t.width = (t.align = 1) as u64;
+    t.width = (t.align = 1) as i64;
     return t;
 }
 
@@ -131,7 +131,7 @@ def is_u8(t: *Type): bool {
 
 def new_u16(): *Type {
     let t = new_type(Kind.U16, null);
-    t.width = (t.align = 2) as u64;
+    t.width = (t.align = 2) as i64;
     return t;
 }
 
@@ -143,7 +143,7 @@ def is_u16(t: *Type): bool {
 
 def new_u32(): *Type {
     let t = new_type(Kind.U32, null);
-    t.width = (t.align = 4) as u64;
+    t.width = (t.align = 4) as i64;
     return t;
 }
 
@@ -155,7 +155,7 @@ def is_u32(t: *Type): bool {
 
 def new_u64(): *Type {
     let t = new_type(Kind.U64, null);
-    t.width = (t.align = 8) as u64;
+    t.width = (t.align = 8) as i64;
     return t;
 }
 
@@ -167,8 +167,8 @@ def is_u64(t: *Type): bool {
 
 def new_usize(width: usize): *Type {
     let t = new_type(Kind.USize, null);
-    t.align = width as u32;
-    t.width = width as u64;
+    t.align = width as i32;
+    t.width = width as i64;
     return t;
 }
 
@@ -180,7 +180,7 @@ def is_usize(t: *Type): bool {
 
 def new_f32(): *Type {
     let t = new_type(Kind.F32, null);
-    t.width = (t.align = 4) as u64;
+    t.width = (t.align = 4) as i64;
     return t;
 }
 
@@ -192,7 +192,7 @@ def is_f32(t: *Type): bool {
 
 def new_f64(): *Type {
     let t = new_type(Kind.F64, null);
-    t.width = (t.align = 8) as u64;
+    t.width = (t.align = 8) as i64;
     return t;
 }
 
@@ -204,7 +204,7 @@ def is_f64(t: *Type): bool {
 
 def new_bool(): *Type {
     let t = new_type(Kind.Bool, null);
-    t.width = (t.align = 1) as u64;
+    t.width = (t.align = 1) as i64;
     return t;
 }
 
@@ -243,7 +243,7 @@ def new_ptr(count: u32, inner: *Type): *Type {
     // pointers always have a size
     std.flag_unset(&t.flags, FLAG_UNSIZED);
     // TODO(#42): determine pointer width based on target
-    t.width = (t.align = 8) as u64;
+    t.width = (t.align = 8) as i64;
     return t;
 }
 
@@ -660,8 +660,8 @@ def as_mod(t: *Type): *Mod {
 
 type Type struct {
     kind: Kind,
-    width: u64, // width in bytes
-    align: u32,
+    width: i64, // width in bytes
+    align: i32,
     flags: i32,
     data: *void // extra data, eg. 'Struct' or 'Func'
 }
@@ -846,6 +846,14 @@ def (t: *Type) is_float(): bool {
     return is_f32(t) || is_f64(t);
 }
 
+def (t: *Type) width_in_bits(): u64 {
+    return t.width as u64 * 8;
+}
+
+def (t: *Type) align_in_bits(): u32 {
+    return t.align as u32 * 8;
+}
+
 def is_comparable(t: *Type): bool {
     return t.is_num()
         || is_ptr(t)
@@ -866,9 +874,9 @@ def width_was_calculated(t: *Type): bool {
 }
 
 // returns true, if the struct has uninitialized fields
-def calc_struct_width_align(s_ty: *Struct, width: *u64, align: *u32): bool {
-    let max_align: u32 = 1;
-    let width_sum: u64 = 0;
+def calc_struct_width_align(s_ty: *Struct, width: *i64, align: *i32): bool {
+    let max_align: i32 = 1;
+    let width_sum: i64 = 0;
 
     for let i: u32 = 0; i < s_ty.num_fields(); i += 1 {
         let f = s_ty.field_at(i);
@@ -884,21 +892,21 @@ def calc_struct_width_align(s_ty: *Struct, width: *u64, align: *u32): bool {
         // c: i8,    width: 1, align: 1, offset: 8,  padding: 0    , width_sum: 9
         // x: i32      width: 4, align: 4, offset: 12, padding: 4 - 1,
 
-        let padding: u64 = 0;
-        let rem = width_sum % (f.ty.align as u64);
+        let padding: i64 = 0;
+        let rem = width_sum % (f.ty.align as i64);
         if width_sum > 0 && rem != 0 {
-            padding = f.ty.align as u64 - rem;
+            padding = f.ty.align as i64 - rem;
         }
 
-        f.offset = width_sum + padding;
+        f.offset = (width_sum + padding) as u64;
 
         let real_width = f.ty.width + padding;
         width_sum = width_sum + real_width;
     }
 
-    let rem = width_sum % (max_align as u64);
+    let rem = width_sum % (max_align as i64);
     if rem != 0 {
-        width_sum = width_sum + (max_align as u64 - rem);
+        width_sum = width_sum + (max_align as i64 - rem);
     }
 
     *width = width_sum;
@@ -919,8 +927,8 @@ def fill_width_align(t: *Type): bool {
     }
 
     // if align is 0 at end of this function, use width as align
-    let align: u32 = 0;
-    let width: u64 = WIDTH_UNKNOWN;
+    let align: i32 = 0;
+    let width: i64 = WIDTH_UNKNOWN;
     let has_unresolved_fields = false;
 
     if is_struct(t) {

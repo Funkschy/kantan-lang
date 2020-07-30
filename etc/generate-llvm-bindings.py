@@ -89,6 +89,7 @@ whitelist = set([
     'LLVMFloatTypeInContext',
     'LLVMFunctionType',
     'LLVMGetAlignment',
+    'LLVMSetAlignment',
     'LLVMGetFirstFunction',
     'LLVMGetInsertBlock',
     'LLVMGetNamedFunction',
@@ -132,9 +133,12 @@ whitelist = set([
     'LLVMInitializeX86Target',
     'LLVMInitializeX86TargetInfo',
     'LLVMInitializeX86TargetMC',
+    'LLVMSetModuleDataLayout',
+    'LLVMDisposeTargetData',
 
     # target machine
     'LLVMCreateTargetMachine',
+    'LLVMCreateTargetDataLayout',
     'LLVMDisposeTargetMachine',
     'LLVMGetTargetFromTriple',
     'LLVMTargetMachineEmitToFile',
@@ -383,6 +387,7 @@ typemap = {
     'LLVMJITEventListenerRef': ('*OpaqueJITEventListener', '*OpaqueJITEventListener', None, None),
     'LLVMAttributeRef': ('*OpaqueAttributeRef', '*OpaqueAttributeRef', None, None),
     'LLVMTargetMachineRef': ('*TargetMachine', '*TargetMachine', None, None),
+    'LLVMTargetDataRef': ('*Target', '*Target', None, None),
 
     'LLVMTargetRef': ('*Target', '*Target', None, None),
     '*mut LLVMTargetRef': ('**Target', '**Target', None, None),

@@ -271,7 +271,6 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
         struct_decl = llvm.struct_create_named(c.context.ctx, name.data);
         map.insert(&c.structs, key, struct_decl as *void);
-
         for let i: u32 = 0; i < num_fields; i += 1 {
             let field = s_ty.field_at(i);
 
@@ -289,7 +288,7 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
 def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     if t.is_integer() {
-        return llvm.int_type_in_context(c.context.ctx, t.width as u32 * 8);
+        return llvm.int_type_in_context(c.context.ctx, t.width_in_bits() as u32);
     }
 
     if ty.is_void(t) {
@@ -1175,7 +1174,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
 
     if ty.is_isize(t) {
         return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "isize", 5, t.width * 8, dw_ate_signed, 0
+            c.dbg.builder, "isize", 5, t.width_in_bits(), dw_ate_signed, 0
         );
     }
 
@@ -1205,7 +1204,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
 
     if ty.is_usize(t) {
         return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "usize", 5, t.width * 8, dw_ate_unsigned, 0
+            c.dbg.builder, "usize", 5, t.width_in_bits(), dw_ate_unsigned, 0
         );
     }
 
@@ -1248,7 +1247,11 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
 
             // TODO(#99): determine pointer size based on target pointer width
             inner = llvm.di_builder_create_pointer_type(
-                c.dbg.builder, inner, t.width * 8, t.align * 8, 0, name as string, star_count + inner_len
+                c.dbg.builder,
+                inner,
+                t.width_in_bits(), t.align_in_bits(),
+                0,
+                name as string, star_count + inner_len
             );
 
             delete name;
@@ -1304,7 +1307,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 c.dbg.builder, tag,
                 definition.name.data, definition.name.len,
                 scope, file, definition.meta.pos.lnr,
-                0, t.width * 8, t.align * 8,
+                0, t.width_in_bits(), t.align_in_bits(),
                 definition.name.data, definition.name.len
             );
             map.insert(&c.dbg.types, key, placeholder as *void);
@@ -1312,14 +1315,14 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             let field_types = ptrvec.with_cap(s_ty.num_fields() as usize);
             for let i: u32 = 0; i < s_ty.num_fields(); i += 1 {
                 let field = s_ty.field_at(i);
-                let width_bits = field.ty.width * 8;
+                let width_bits = field.ty.width_in_bits();
                 let offset_in_bits = field.offset * 8;
 
                 let member = llvm.di_builder_create_member_type(
                     c.dbg.builder, scope,
                     ident.start(&field.name), ident.len(&field.name),
                     file, definition.meta.pos.lnr, // TODO(#97): line number of field
-                    width_bits, field.ty.align * 8, offset_in_bits,
+                    width_bits, field.ty.align_in_bits(), offset_in_bits,
                     0, dbg_translate_type(c, field.ty)
                 );
 
@@ -1330,7 +1333,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 c.dbg.builder, scope,
                 definition.name.data, definition.name.len,
                 file, definition.meta.pos.lnr,
-                t.width * 8, t.align * 8, 0, placeholder,
+                t.width_in_bits(), t.align_in_bits(), 0, placeholder,
                 field_types.elements as **llvm.MetaData, field_types.len as u32,
                 0, null,
                 definition.name.data, definition.name.len
@@ -1365,7 +1368,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 scope,
                 definition.name.data, definition.name.len,
                 file, definition.meta.pos.lnr,
-                t.width * 8, t.align * 8,
+                t.width_in_bits(), t.align_in_bits(),
                 enumerators.elements as **llvm.MetaData, enumerators.len as u32,
                 null // class ty
             );

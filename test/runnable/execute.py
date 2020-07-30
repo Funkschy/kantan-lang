@@ -53,7 +53,7 @@ def compile(filename):
     if isdir(filename):
         files = list(map(lambda f: join(test_path, filename ,f), listdir(filename)))
 
-    return subprocess.run([compiler, '-g', '-o', 'out.o'] + files, stdout=subprocess.PIPE).returncode
+    return subprocess.run([compiler, '-g', '-O1','-o', 'out.o'] + files, stdout=subprocess.PIPE).returncode
 
 
 def execute():

@@ -9,7 +9,7 @@ type Arch enum {
 }
 
 type Vendor enum {
-    Unknown, Apple
+    Unknown, PC, Apple
 }
 
 type Sys enum {
@@ -42,6 +42,9 @@ def arch_register(a: Arch): void {
 def vendor_to_name(v: Vendor): name.Ref {
     if v == Vendor.Unknown {
         return name.make_ref(7, "unknown");
+    }
+    if v == Vendor.PC {
+        return name.make_ref(2, "pc");
     }
     if v == Vendor.Apple {
         return name.make_ref(5, "apple");

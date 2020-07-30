@@ -49,7 +49,7 @@ def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
             return true;
         }
 
-        config.vendor = target.Vendor.Unknown;
+        config.vendor = target.Vendor.PC;
         if linux {
             config.sys = target.Sys.Linux;
             config.abi = target.Abi.Gnu;
@@ -70,7 +70,7 @@ def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
         return darwin;
     }
 
-    config.vendor = target.Vendor.Unknown;
+    config.vendor = target.Vendor.PC;
     if std.strcmp(options.target_os, "linux") == 0 {
         config.sys = target.Sys.Linux;
         config.abi = target.Abi.Gnu;

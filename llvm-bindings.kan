@@ -13,6 +13,7 @@ type Type struct {}
 type Value struct {}
 type Target struct {}
 type TargetMachine struct {}
+type TargetData struct {}
 type MemoryBuffer struct {}
 type PassManager struct {}
 type PassManagerBuilder struct {}
@@ -231,6 +232,8 @@ extern def LLVMSetUnnamedAddress(global: *Value, unnamed_addr: i32): void;
 
 extern def LLVMGetAlignment(v: *Value): u32;
 
+extern def LLVMSetAlignment(v: *Value, bytes: u32): void;
+
 extern def LLVMAddGlobal(m: *Module, ty: *Type, name: string): *Value;
 
 extern def LLVMGetNamedGlobal(m: *Module, name: string): *Value;
@@ -288,6 +291,10 @@ def set_unnamed_address(global: *Value, unnamed_addr: i32): void {
 
 def get_alignment(v: *Value): u32 {
     return LLVMGetAlignment(v);
+}
+
+def set_alignment(v: *Value, bytes: u32): void {
+    LLVMSetAlignment(v, bytes);
 }
 
 def add_global(m: *Module, ty: *Type, name: string): *Value {
@@ -748,6 +755,18 @@ def initialize_x86_asm_printer(): void {
 }
 
 
+extern def LLVMSetModuleDataLayout(m: *Module, r: *Target): void;
+
+extern def LLVMDisposeTargetData(td: *Target): void;
+
+// Set the data layout for a module.
+def set_module_data_layout(m: *Module, r: *Target): void {
+    LLVMSetModuleDataLayout(m, r);
+}
+
+def dispose_target_data(td: *Target): void {
+    LLVMDisposeTargetData(td);
+}
 
 
 // macros (wrappers/target.c).
@@ -758,6 +777,8 @@ extern def LLVMGetTargetFromTriple(triple: string, t: **Target, error_message: *
 extern def LLVMCreateTargetMachine(t: *Target, triple: string, cpu: string, features: string, level: i32, reloc: i32, code_model: i32): *TargetMachine;
 
 extern def LLVMDisposeTargetMachine(t: *TargetMachine): void;
+
+extern def LLVMCreateTargetDataLayout(t: *TargetMachine): *Target;
 
 extern def LLVMTargetMachineEmitToFile(t: *TargetMachine, m: *Module, filename: string, codegen: i32, error_message: *string): i32;
 
@@ -774,6 +795,10 @@ def create_target_machine(t: *Target, triple: string, cpu: string, features: str
 
 def dispose_target_machine(t: *TargetMachine): void {
     LLVMDisposeTargetMachine(t);
+}
+// Create a DataLayout based on the target machine.
+def create_target_data_layout(t: *TargetMachine): *Target {
+    return LLVMCreateTargetDataLayout(t);
 }
 
 def target_machine_emit_to_file(t: *TargetMachine, m: *Module, filename: string, codegen: i32, error_message: *string): bool {
