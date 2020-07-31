@@ -2285,7 +2285,7 @@ def check_expr_expect(
     // EXPR_NEW
     if ast.is_new_expr(e) {
         let n_e = ast.as_new_expr(e);
-        if ty.is_ptr(expected) {
+        if expected != null && ty.is_ptr(expected) {
             let p = ty.as_ptr(expected);
 
             if p.count == 1 {
