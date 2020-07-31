@@ -2285,7 +2285,17 @@ def check_expr_expect(
     // EXPR_NEW
     if ast.is_new_expr(e) {
         let n_e = ast.as_new_expr(e);
-        let inner = check_expr(tc, n_e.expr);
+        if ty.is_ptr(expected) {
+            let p = ty.as_ptr(expected);
+
+            if p.count == 1 {
+                expected = p.inner;
+            } else {
+                expected = push_tmp_ty(tc, ty.new_ptr(p.count - 1, p.inner));
+            }
+        }
+
+        let inner = check_expr_expect(tc, n_e.expr, expected, data);
 
         if inner == null {
             return null;
