@@ -138,3 +138,42 @@ def main() {
     let same_len = MyEnum.len == MyOtherEnum.len; // true
 }
 ```
+
+
+#### Methods
+```
+import "io";
+
+type Struct struct {
+    name: string
+}
+
+// the same file can have multiple methods with the same name. As long as they have different
+// receiver parameters
+def (s: Struct) method(i: i32) {
+    io.printf("%s\n", s.name);
+    io.printf("%d\n", i);
+}
+
+type Other struct {}
+
+def (s: *Other) method(i: i32) {
+    io.printf("%d\n", i);
+}
+
+def constructor(): Struct {
+    io.printf("...\n");
+    return Struct {name: "constructed"};
+}
+
+def main() {
+    Struct{name: "hello"}.method(1);
+    constructor().method(2);
+    let s = constructor();
+    s.method(3);
+
+    // variables are upgraded to pointers automatically
+    // they will not be automatically dereferenced though, since that may trigger a segfault
+    Other{}.method(4);
+}
+```
