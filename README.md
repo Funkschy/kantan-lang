@@ -177,3 +177,39 @@ def main() {
     Other{}.method(4);
 }
 ```
+
+
+#### Memory Management
+```
+// the canonical way to free memory is by using the defer statement.
+// defer moves the statement after it at the end of the scope.
+// it will be executed when:
+//   1) the scope ends '}'
+//   2) a return statement is executed
+//   3) if the defer was in a loop, when break/continue is executed
+type MyStruct struct {
+    buffer: *usize // needs to be freed
+}
+
+def my_struct(): MyStruct {
+    return MyStruct {
+        buffer: new 42 // allocate a word on the heap
+    };
+}
+
+def (ms: *MyStruct) free() {
+    delete ms.buffer;
+}
+
+def main() {
+    let ms = my_struct();
+    defer ms.free();
+
+    if 1 == 1 {
+        // ms.free() will be called here
+        return;
+    }
+
+    // it would have been freed here if we didn't return inside the if
+}
+```
