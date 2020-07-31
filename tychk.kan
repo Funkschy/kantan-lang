@@ -814,6 +814,68 @@ def bind_value_private(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type) {
     scope.bind_private(&tc.ctx.values, ident, ty);
 }
 
+type FieldState enum { None, Error, Waiting }
+
+def (tc: *TypeChecker) check_field(
+    t: *ty.Type,
+    field_name: ident.Ident,
+    field_tyid: *tyid.Type,
+    offset: i32
+): FieldState {
+    let mod: *mod.Module = null;
+    let field_ty: *ty.Type = null;
+    if checked_type_lookup(tc, &field_tyid.ident, &field_ty, &mod) == ERROR {
+        // push fake field here, so that the offset is not out of bounds
+        push_field_into_ty(t, field_name, null);
+        return FieldState.Error;
+    }
+
+    // pointers are ok, because their size is known
+    let is_ptr = tyid.is_ptr(field_tyid);
+    if field_ty == null {
+        wait_for_field(tc, mod, field_name, field_tyid, offset, t);
+        if !is_ptr {
+            return FieldState.Waiting;
+        }
+
+        return FieldState.None;
+    }
+
+    let is_struct = ty.is_struct(field_ty);
+    if ty.is_initialized(field_ty) {
+        defer push_field_into_ty(t, field_name, field_ty);
+
+        if is_ptr {
+            field_ty = ty.new_ptr(field_tyid.pointer_count, field_ty);
+            push_tmp_ty(tc, field_ty);
+        }
+
+        if !ty.is_sized(field_ty) {
+            push_unsized_field_error(tc, field_ty, field_tyid.ident.span);
+            return FieldState.Error;
+        }
+
+        return FieldState.None;
+    } else if is_struct {
+        // a struct that has not been initialized
+        wait_for_field(tc, mod, field_name, field_tyid, offset, t);
+        if !is_ptr {
+            return FieldState.Waiting;
+        }
+    } else {
+        // struct types should be the only uninitialized
+        push_internal_error(tc, field_name.span, "reached unreachable code");
+        return FieldState.Error;
+    }
+}
+
+// TODO: remove this, when we have either function pointers or generics
+def push_field_into_ty(structured_type: *ty.Type, field_name: ident.Ident, field_ty: *ty.Type) {
+    if ty.is_struct(structured_type) {
+        ty.push_field(ty.as_struct(structured_type), field_name, field_ty);
+    }
+}
+
 def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type) {
     let s_ty = ty.as_struct(t);
 
@@ -833,61 +895,17 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
             return;
         }
 
-        let mod: *mod.Module = null;
-        let field_ty: *ty.Type = null;
-        if checked_type_lookup(tc, &f.ty.ident, &field_ty, &mod) == ERROR {
-            // push fake field here, so that the offset is not out of bounds
-            ty.push_field(s_ty, f.ident, null);
-            error = true;
-            continue;
-        }
+        let field_name = f.ident;
+        let field_tyid = &f.ty;
 
-        // pointers are ok, because their size is known
-        let is_ptr = tyid.is_ptr(&f.ty);
-        if field_ty == null {
-            wait_for_struct_field(tc, mod, f.ty.ident, &f, i as i32, t);
-            if !is_ptr {
-                waiting = true;
-            }
-
-            continue;
-        }
-
-        let is_struct = ty.is_struct(field_ty);
-        if ty.is_initialized(field_ty) {
-            if is_ptr {
-                field_ty = ty.new_ptr(f.ty.pointer_count, field_ty);
-                push_tmp_ty(tc, field_ty);
-            }
-
-            if !ty.is_sized(field_ty) {
-                push_unsized_field_error(tc, field_ty, f.ty.ident.span);
-                error = true;
-            }
-
-            ty.push_field(s_ty, f.ident, field_ty);
-        } else if is_struct {
-            // a struct that has not been initialized
-            wait_for_struct_field(tc, mod, f.ty.ident, &f, i as i32, t);
-            if !is_ptr {
-                waiting = true;
-            }
-        } else {
-            // struct types should be the only uninitialized
-            push_internal_error(tc, f.ident.span, "reached unreachable code");
-            return;
-        }
+        let state = tc.check_field(t, field_name, field_tyid, i as i32);
+        error |= state == FieldState.Error;
+        waiting |= state == FieldState.Waiting;
     }
 
     if !error && !waiting {
         ty.fill_width_align(t);
-
-        // let s = ident.to_string(&s_decl.name);
-        // io.printf("DBG: %s has a width of %d, align of %d\n", s, t.width, t.align);
-        // delete s;
-
         update_all_waiting(tc, tc.ctx.mod, t, &s_ty.super.original_name);
-        return;
     }
 }
 
@@ -929,23 +947,23 @@ def func_wait_for_type(
     );
 }
 
-def wait_for_struct_field(
+def wait_for_field(
     tc: *TypeChecker,
     mod: *mod.Module,
-    waiting_for: ident.Ident,
-    field: *record.Field,
+    field_name: ident.Ident,
+    waiting_for: *tyid.Type,
     offset: i32,
     s_ty: *ty.Type
 ) {
     let field_ty: *ty.Type = null;
     let kind = WaitingKind.Type;
 
-    if tyid.is_ptr(&field.ty) {
+    if tyid.is_ptr(waiting_for) {
         kind = WaitingKind.TypePtr;
-        field_ty = ty.new_ptr(field.ty.pointer_count, null);
+        field_ty = ty.new_ptr(waiting_for.pointer_count, null);
         push_tmp_ty(tc, field_ty);
     }
-    ty.push_field(ty.as_struct(s_ty), field.ident, field_ty);
+    ty.push_field(ty.as_struct(s_ty), field_name, field_ty);
 
     dbg.assert(offset as u32 < ty.as_struct(s_ty).num_fields(), "offset too big");
 
@@ -954,7 +972,7 @@ def wait_for_struct_field(
         kind,
         s_ty,
         tc.ctx.mod,
-        waiting_for,
+        waiting_for.ident,
         mod,
         offset
     );
