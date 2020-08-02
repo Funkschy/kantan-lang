@@ -1,0 +1,38 @@
+import "io";
+
+type Union union {
+    one: Struct1, two: Struct2
+}
+
+type Tag enum {
+    One, Two
+}
+
+type Struct1 struct {
+    i: i32
+}
+
+type Struct2 struct {
+    s: string
+}
+
+type Data struct {
+    tag: Tag,
+    inner: Union
+}
+
+def one(i: i32): Data {
+    return Data {
+        tag: Tag.One,
+        inner: Union { one: Struct1 { i: i } }
+    };
+}
+
+def main() {
+    let first = one(42);
+    io.printf("%d\n", first.inner.one.i);
+
+    first.tag = Tag.Two;
+    first.inner.two = Struct2 { s: "hello" };
+    io.printf("%s\n", first.inner.two.s);
+}

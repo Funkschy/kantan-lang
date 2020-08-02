@@ -36,7 +36,7 @@ type ModuleCompiler struct {
     irmod: *mir.Module,
     builder: *llvm.Builder,
     dbg: *DebugInfo,
-    structs: map.Map,  // map.Map<mir.RefName, *llvm.Type>
+    user_types: map.Map,  // map.Map<mir.RefName, *llvm.Type>
     functions: vmap.Map // map.Map<mir.RefName, LLVMFunction>
 }
 
@@ -58,7 +58,7 @@ def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
         irmod: irmod,
         builder: builder,
         dbg: null,
-        structs: map.create(),
+        user_types: map.create(),
         functions: vmap.create(sizeof LLVMFunction)
     };
 }
@@ -66,7 +66,7 @@ def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
 def free_compiler(c: *ModuleCompiler): void {
     llvm.dispose_builder(c.builder);
 
-    map.free_m(&c.structs);
+    map.free_m(&c.user_types);
     vmap.free_m(&c.functions);
 }
 
@@ -265,14 +265,14 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     let name = s_ty.super.mangled_name;
     let key = map.create_key(name.len, name.data);
-    let struct_decl = map.get(&c.structs, key) as *llvm.Type;
+    let struct_decl = map.get(&c.user_types, key) as *llvm.Type;
 
     if struct_decl == null {
         let num_fields = s_ty.num_fields();
         let fields = ptrvec.with_cap(num_fields as usize);
 
         struct_decl = llvm.struct_create_named(c.context.ctx, name.data);
-        map.insert(&c.structs, key, struct_decl as *void);
+        map.insert(&c.user_types, key, struct_decl as *void);
         for let i: u32 = 0; i < num_fields; i += 1 {
             let field = s_ty.field_at(i);
 
@@ -294,12 +294,13 @@ def lookup_or_declare_union(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     let name = u_ty.super.mangled_name;
     let key = map.create_key(name.len, name.data);
-    let union_decl = map.get(&c.structs, key) as *llvm.Type;
+    let union_decl = map.get(&c.user_types, key) as *llvm.Type;
 
     if union_decl == null {
         union_decl = llvm.struct_create_named(c.context.ctx, name.data);
         let content = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), t.width as u32);
         llvm.struct_set_body(union_decl, &content, 1, false);
+        map.insert(&c.user_types, key, union_decl as *void);
     }
 
     return union_decl;
