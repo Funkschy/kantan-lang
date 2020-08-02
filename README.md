@@ -17,7 +17,7 @@ Currently there are only structs, but a interface based system similar to Rusts 
 
 ## Getting started
 
-If you just want to try the language, simply dowload the latest [release](https://github.com/Funkschy/kantan-lang/releases) for you operating system (sorry, no windows support yet).
+If you just want to try the language, simply download the latest [release](https://github.com/Funkschy/kantan-lang/releases) for you operating system (sorry, no windows support yet).
 
 After downloading, just run ./kantan --help to view you options.
 
