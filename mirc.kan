@@ -221,8 +221,13 @@ def lookup_or_declare_type(c: *MirCompiler, t: *ty.Type): *mir.UserDefinedType {
 
         if ty.is_struct(t) {
             let s_ty = ty.as_struct(t);
-            for let i: u32 = 0; i < s_ty.num_fields(); i = i + 1 {
+            for let i: u32 = 0; i < s_ty.num_fields(); i += 1 {
                 declare_type(c, s_ty.field_at(i).ty);
+            }
+        } else if ty.is_union(t) {
+            let u_ty = ty.as_union(t);
+            for let i: u32 = 0; i < u_ty.num_fields(); i += 1 {
+                declare_type(c, u_ty.field_at(i).ty);
             }
         }
     }
@@ -265,7 +270,7 @@ def declare_type(c: *MirCompiler, t: *ty.Type) {
     }
 
     // the order here is important, since lookup_or_declare_type does an
-    // explicit check for is_struct
+    // explicit check for is_struct/is_union
     if ty.is_user_defined(t) {
         lookup_or_declare_type(c, t);
     }
@@ -295,6 +300,19 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         let mir_enum = lookup_or_declare_type(c, decl.enum_ty);
         let meta = get_meta(c, decl.name.span);
         mir_enum.meta = meta;
+
+        return;
+    }
+
+    if ast.is_union_decl_stmt(s) {
+        let decl_stmt = ast.as_union_decl_stmt(s);
+        let decl = &decl_stmt.decl;
+
+        // override the meta information, since it could be wrong, if the union
+        // was used before it was declared
+        let mir_union = lookup_or_declare_type(c, decl.union_ty);
+        let meta = get_meta(c, decl.name.span);
+        mir_union.meta = meta;
 
         return;
     }
@@ -396,7 +414,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         push_decl(c, name, value_ty, meta);
         let target = mir.make_addr_name(name, value_ty);
 
-        if ty.is_struct(value_ty) {
+        if ty.is_struct(value_ty) || ty.is_union(value_ty) {
             // structs must be zero initialized
             // TODO: this should use usize
             let i64_ty = lookup_global_type(c, 3, "i64");
@@ -921,7 +939,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     }
 
     // the only other option currently is a module, which we can't really compile
-    if !ty.is_struct(access.left.ty) && !ty.is_ptr(access.left.ty) {
+    if !ty.is_struct(access.left.ty) && !ty.is_ptr(access.left.ty) && !ty.is_union(access.left.ty) {
         return compile_expr(c, access.right as *ast.Expr, rhs);
     }
 
@@ -942,6 +960,16 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         );
 
         left_ty = ty.as_ptr(left_ty).inner;
+    }
+
+    if ty.is_union(left_ty) {
+        let field_ty = ty.as_union(left_ty).field_with_name(ident);
+        let access = mir.new_expr_union_access(left_addr, field_ty);
+        let a = mir.create_addr_empty();
+        // Deref by default. This copy has to be removed if the value
+        // should be assigned
+        push_temp_assign(c, access, field_ty, left_meta, &a);
+        return mir.new_expr_copy(a);
     }
 
     dbg.assert_fmt(

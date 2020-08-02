@@ -125,7 +125,7 @@ def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleCon
     return context;
 }
 
-def add_forward_declarations(c: *ModuleCompiler): void {
+def add_forward_declarations(c: *ModuleCompiler) {
     // add struct declarations
     let t_iter = map.iter(&c.irmod.user_defined_types);
     let item = map.iter_next(&t_iter);
@@ -133,6 +133,8 @@ def add_forward_declarations(c: *ModuleCompiler): void {
         let t = item.value as *mir.UserDefinedType;
         if ty.is_struct(t.ty) {
             lookup_or_declare_struct(c, t.ty);
+        } else if ty.is_union(t.ty) {
+            lookup_or_declare_union(c, t.ty);
         }
         item = map.iter_next(&t_iter);
     }
@@ -286,6 +288,23 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     return struct_decl;
 }
 
+def lookup_or_declare_union(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
+    dbg.assert(ty.is_union(t), "non union type passed");
+    let u_ty = ty.as_union(t);
+
+    let name = u_ty.super.mangled_name;
+    let key = map.create_key(name.len, name.data);
+    let union_decl = map.get(&c.structs, key) as *llvm.Type;
+
+    if union_decl == null {
+        union_decl = llvm.struct_create_named(c.context.ctx, name.data);
+        let content = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), t.width as u32);
+        llvm.struct_set_body(union_decl, &content, 1, false);
+    }
+
+    return union_decl;
+}
+
 def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
     if t.is_integer() {
         return llvm.int_type_in_context(c.context.ctx, t.width_in_bits() as u32);
@@ -313,6 +332,10 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     if ty.is_enum(t) {
         return translate_type(c, ty.as_enum(t).base_ty);
+    }
+
+    if ty.is_union(t) {
+        return lookup_or_declare_union(c, t);
     }
 
     if ty.is_ptr(t) {
@@ -757,13 +780,25 @@ def compile_struct_init_assign(c: *ModuleCompiler, func: *FunctionData, inst: *m
     let storage = translate_addr_load(c, func, &assign.dest, false);
     dbg.assert(storage != null, "null storage for struct init");
 
-    for let i: u32 = 0; i < init.args.len as u32; i += 1 {
-        let arg = mir.init_arg_at(init, i);
+    if ty.is_union(assign.dest.ty) {
+        // union assigns only have a single argument
+        let arg = mir.init_arg_at(init, 0);
         let arg_addr = translate_addr(c, func, arg);
 
-        let field = llvm.build_struct_gep(c.builder, storage, i, "");
-        let store = llvm.build_store(c.builder, arg_addr, field);
+        let dest_ptr_ty = llvm.pointer_type(translate_type(c, arg.ty), 0);
+        storage = llvm.build_bit_cast(c.builder, storage, dest_ptr_ty, "");
+
+        let store = llvm.build_store(c.builder, arg_addr, storage);
         llvm.set_inst_debug_location(c.builder, store);
+    } else {
+        for let i: u32 = 0; i < init.args.len as u32; i += 1 {
+            let arg = mir.init_arg_at(init, i);
+            let arg_addr = translate_addr(c, func, arg);
+
+            let field = llvm.build_struct_gep(c.builder, storage, i, "");
+            let store = llvm.build_store(c.builder, arg_addr, field);
+            llvm.set_inst_debug_location(c.builder, store);
+        }
     }
 
     if mir.assign_has_original_ident(assign) {
@@ -871,6 +906,14 @@ def compile_expr(
         let ty = translate_type(c, so.ty);
 
         return llvm.size_of(ty);
+    }
+
+    if mir.is_expr_union_access(e) {
+        let access = mir.as_expr_union_access(e);
+        let union_addr = translate_addr_load(c, func, &access.addr, false);
+
+        let dest_ptr_ty = llvm.pointer_type(translate_type(c, access.as_type), 0);
+        return llvm.build_bit_cast(c.builder, union_addr, dest_ptr_ty, "");
     }
 
     dbg.assert_fmt(false, "invalid expression kind %d", e.kind);
@@ -1319,6 +1362,8 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             map.insert(&c.dbg.types, key, placeholder as *void);
 
             let field_types = ptrvec.with_cap(s_ty.num_fields() as usize);
+            defer field_types.free();
+
             for let i: u32 = 0; i < s_ty.num_fields(); i += 1 {
                 let field = s_ty.field_at(i);
                 let width_bits = field.ty.width_in_bits();
@@ -1345,10 +1390,47 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 definition.name.data, definition.name.len
             );
 
-            field_types.free();
             map.insert(&c.dbg.types, key, llvm_struct_ty as *void);
 
             return llvm_struct_ty;
+        }
+
+        if ty.is_union(t) {
+            let u_ty = ty.as_union(t);
+
+            let field_types = ptrvec.with_cap(u_ty.num_fields() as usize);
+            defer field_types.free();
+
+            for let i: u32 = 0; i < u_ty.num_fields(); i += 1 {
+                let field = u_ty.field_at(i);
+                let width_bits = field.ty.width_in_bits();
+                let offset_in_bits: u64 = 0;
+
+                let member = llvm.di_builder_create_member_type(
+                    c.dbg.builder, scope,
+                    ident.start(&field.name), ident.len(&field.name),
+                    file, definition.meta.pos.lnr, // TODO(#97): line number of field
+                    width_bits, field.ty.align_in_bits(), offset_in_bits,
+                    0, dbg_translate_type(c, field.ty)
+                );
+
+                field_types.push_ptr(member as *void);
+            }
+
+            let union_type = llvm.di_builder_create_union_type(
+                c.dbg.builder,
+                scope,
+                definition.name.data, definition.name.len,
+                file, definition.meta.pos.lnr,
+                t.width_in_bits(), t.align_in_bits(),
+                0, // flags
+                field_types.elements as **llvm.MetaData, field_types.len as u32,
+                0, // run_time_lang
+                definition.name.data, definition.name.len
+            );
+
+            map.insert(&c.dbg.types, key, union_type as *void);
+            return union_type;
         }
 
         if ty.is_enum(t) {
@@ -1378,6 +1460,8 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 enumerators.elements as **llvm.MetaData, enumerators.len as u32,
                 null // class ty
             );
+
+            map.insert(&c.dbg.types, key, enumeration as *void);
 
             enumerators.free();
             return enumeration;

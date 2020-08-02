@@ -15,7 +15,16 @@ extern def type2str(kind: Kind): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
-    Error, Ptr, Bool, I8, I16, I32, I64, ISize, U8, U16, U32, U64, USize, F32, F64, Void, Func, Mod, Struct, Enum
+    Error,
+    Ptr,
+    Bool,
+    I8, I16, I32, I64, ISize,
+    U8, U16, U32, U64, USize,
+    F32, F64,
+    Void,
+    Func,
+    Mod,
+    Struct, Enum, Union
 }
 
 #define WIDTH_UNKNOWN -1
@@ -299,7 +308,7 @@ def is_user_defined(t: *Type): bool {
         return ptr.count == 1 && is_user_defined(ptr.inner);
     }
 
-    return is_struct(t) || is_enum(t);
+    return is_struct(t) || is_enum(t) || is_union(t);
 }
 
 def get_user_defined(t: *Type): *UserDefinedType {
@@ -387,6 +396,70 @@ def (t: *Struct) num_fields(): u32 {
 
 def as_struct(t: *Type): *Struct {
     return t.data as *Struct;
+}
+
+/////////// union type ///////////
+
+type UnionField struct {
+    name: ident.Ident,
+    ty: *Type
+}
+
+type Union struct {
+    super: UserDefinedType,
+    fields: vec.Vec // <UnionField>
+}
+
+// this function is used to initialize placeholder unions of tychk
+def init_union(t: *Type, name: ident.Ident, mangled_name: name.Owned, declared_in: *mod.Module) {
+    let s = new Union {
+        super: UserDefinedType {
+            name: name,
+            mangled_name: mangled_name,
+            scope: scope.with_name(name.ref()),
+            declared_in: declared_in
+        },
+        fields: vec.create(sizeof UnionField)
+    };
+
+    t.data = s as *void;
+    t.width = WIDTH_UNKNOWN;
+    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
+}
+
+def is_union(t: *Type): bool {
+    return t.kind == Kind.Union;
+}
+
+def (t: *Union) push_field(name: ident.Ident, ty: *Type) {
+    let field = UnionField { name: name, ty: ty };
+    t.fields.push(&field as *void);
+    t.super.scope.bind_public_ident(&name, ty);
+}
+
+def (t: *Union) update_field_ty(field: *UnionField) {
+    t.super.scope.bind_public_ident(&field.name, field.ty);
+}
+
+def (t: *Union) field_at(i: u32): *UnionField {
+    return t.fields.get_ptr(i as usize) as *UnionField;
+}
+
+def (t: *Union) num_fields(): u32 {
+    return t.fields.len as u32;
+}
+
+def (t: *Union) field_with_name(name: ident.Ident): *Type {
+    let field = t.super.scope.get_ident(&name);
+    if !field.present() {
+        return null;
+    }
+
+    return field.ty_or_null();
+}
+
+def as_union(t: *Type): *Union {
+    return t.data as *Union;
 }
 
 /////////// enum type ///////////
@@ -764,6 +837,14 @@ def free_ty(t: *Type): void {
         delete t.data;
     }
 
+    if is_union(t) {
+        let u_ty = as_union(t);
+        free_user_defined_type(&u_ty.super);
+        // the inner types are garbage collected by tychk
+        u_ty.fields.free();
+        delete t.data;
+    }
+
     if is_mod(t) {
         let m_ty = as_mod(t);
         scope.free_s(&m_ty.values);
@@ -918,6 +999,32 @@ def calc_struct_width_align(s_ty: *Struct, width: *i64, align: *i32): bool {
     return false;
 }
 
+// returns true, if the union has uninitialized fields
+def calc_union_width_align(u_ty: *Union, width: *i64, align: *i32): bool {
+    let max_width: i64 = 0;
+    let max_align: i32 = 1;
+
+    for let i: u32 = 0; i < u_ty.num_fields(); i += 1 {
+        let f = u_ty.field_at(i);
+        if f == null || !is_initialized(f.ty) {
+            return true;
+        }
+
+        if f.ty.align > max_align {
+            max_align = f.ty.align;
+        }
+
+        if f.ty.width > max_width {
+            max_width = f.ty.width;
+        }
+    }
+
+    *width = max_width;
+    *align = max_align;
+
+    return false;
+}
+
 // TODO(#38): implement either lookup table or full method dispatching for Type
 // returns true, if the types width/alignment could be calculated
 def fill_width_align(t: *Type): bool {
@@ -942,6 +1049,9 @@ def fill_width_align(t: *Type): bool {
         fill_width_align(e_ty.base_ty);
         width = e_ty.base_ty.width;
         align = e_ty.base_ty.align;
+    } else if is_union(t) {
+        let u_ty = as_union(t);
+        has_unresolved_fields = calc_union_width_align(u_ty, &width, &align);
     }
 
     if has_unresolved_fields {

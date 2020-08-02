@@ -28,6 +28,7 @@ type TokenType enum {
     Type,
     Struct,
     Enum,
+    Union,
     As,
     Extern,
     Sizeof,
@@ -286,6 +287,17 @@ def ident_type(l: *Lexer): TokenType {
         } else if next == 'i' {
             return check_keyword(l, 2, 4, "zeof", TokenType.Sizeof);
         }
+    } else if start == 'u' && l.current - l.start > 4 {
+        let next = 0;
+        len += std.read_char(l.start + len, l.source.len - bytes_until - len, &next) as usize;
+        // read third char
+        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+
+        if next == 'i' {
+            return check_keyword(l, 1, 4, "nion", TokenType.Union);
+        } else if next == 'd' {
+            return check_keyword(l, 1, 8, "ndefined", TokenType.Undefined);
+        }
     } else if start == 'w' {
         return check_keyword(l, 1, 4, "hile", TokenType.While);
     } else if start == 't' {
@@ -296,8 +308,6 @@ def ident_type(l: *Lexer): TokenType {
         return check_keyword(l, 1, 1, "s", TokenType.As);
     } else if start == 'f' {
         return check_keyword(l, 1, 2, "or", TokenType.For);
-    } else if start == 'u' {
-        return check_keyword(l, 1, 8, "ndefined", TokenType.Undefined);
     } else if start == 'c' {
         return check_keyword(l, 1, 7, "ontinue", TokenType.Continue);
     } else if start == 'b' {

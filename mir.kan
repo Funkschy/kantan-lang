@@ -88,7 +88,7 @@ def dump_module(m: *Module): void {
             s_extern = "extern ";
         }
 
-        io.printf("%s%.*s { ", s_extern, t.name.len, t.name.data);
+        io.printf("%s%s %.*s { ", ty.to_static_string(t.ty), s_extern, t.name.len, t.name.data);
 
         if ty.is_struct(t.ty) {
             let s_ty = ty.as_struct(t.ty);
@@ -98,6 +98,28 @@ def dump_module(m: *Module): void {
                 }
 
                 let field = s_ty.field_at(i);
+
+                let ty_s = "";
+                let free_ty_s = ty.to_string(field.ty, &ty_s);
+                io.printf(
+                    "%.*s: %s",
+                    ident.len(&field.name),
+                    ident.start(&field.name),
+                    ty_s
+                );
+
+                if free_ty_s {
+                    delete ty_s;
+                }
+            }
+        } else if ty.is_union(t.ty) {
+            let u_ty = ty.as_union(t.ty);
+            for let i: u32 = 0; i < u_ty.num_fields(); i += 1 {
+                if i > 0 {
+                    io.printf(", ");
+                }
+
+                let field = u_ty.field_at(i);
 
                 let ty_s = "";
                 let free_ty_s = ty.to_string(field.ty, &ty_s);
@@ -983,6 +1005,24 @@ def is_expr_gep(e: *Expression): bool {
     return e.kind == ExprKind.Gep;
 }
 
+type ExprUnionAccess struct {
+    addr: Address,
+    as_type: *ty.Type
+}
+
+def new_expr_union_access(addr: Address, as_type: *ty.Type): Expression {
+    let union_access = (new ExprUnionAccess { addr: addr, as_type: as_type }) as *void;
+    return create_expr(ExprKind.UnionAccess, union_access);
+}
+
+def as_expr_union_access(e: *Expression): *ExprUnionAccess {
+    return e.data as *ExprUnionAccess;
+}
+
+def is_expr_union_access(e: *Expression): bool {
+    return e.kind == ExprKind.UnionAccess;
+}
+
 type ExprStructInit struct {
     name: name.Ref,
     args: vec.Vec // Vec<Address>
@@ -1093,6 +1133,7 @@ type ExprKind enum {
     Copy,
     Call,
     Gep,
+    UnionAccess,
     StructInit,
     New,
     SizeOf,
@@ -1236,6 +1277,26 @@ def expr_to_name(e: *Expression): name.Owned {
         let s = std.l_format_str(
             &len, "gep(%.*s, %d)", addr_n.len, addr_n.data, gep.idx
         );
+
+        name.free_owned(&addr_n);
+        return name.make_owned(len, s);
+    }
+
+    if is_expr_union_access(e) {
+        let union_access = as_expr_union_access(e);
+        let addr_n = addr_to_name(&union_access.addr);
+
+        let ty_s = "";
+        let free_ty_s = ty.to_string(union_access.as_type, &ty_s);
+
+        let len: usize = 0;
+        let s = std.l_format_str(
+            &len, "union_access(%.*s, %s)", addr_n.len, addr_n.data, ty_s
+        );
+
+        if free_ty_s {
+            delete ty_s;
+        }
 
         name.free_owned(&addr_n);
         return name.make_owned(len, s);

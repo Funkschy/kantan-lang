@@ -450,6 +450,10 @@ def parse_type_stmt(p: *Parser): *ast.Stmt {
         return parse_enum_decl(p, ident_token, type_tok);
     }
 
+    if peek(p).ty == l.TokenType.Union {
+        return parse_union_decl(p, ident_token, type_tok);
+    }
+
     return parse_struct_decl(p, ident_token, type_tok);
 }
 
@@ -467,6 +471,25 @@ def parse_struct_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast
     let struct_span = span.merge(type_tok.span, closing_brace.span);
     return ast.new_struct_decl_stmt(
         struct_span,
+        ident.create(ident_token),
+        fields
+    );
+}
+
+def parse_union_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast.Stmt {
+    CONSUME_RET_NULL(l.TokenType.Union);
+    CONSUME_RET_NULL(l.TokenType.LBrace);
+
+    let closing_brace = l.empty_token();
+    let fields = parse_field_list(p, &closing_brace);
+    if closing_brace.ty == l.TokenType.UnknownErr {
+        fields.free();
+        return null;
+    }
+
+    let union_span = span.merge(type_tok.span, closing_brace.span);
+    return ast.new_union_decl_stmt(
+        union_span,
         ident.create(ident_token),
         fields
     );

@@ -187,6 +187,7 @@ whitelist = set([
     'LLVMDIBuilderCreatePointerType',
     'LLVMDIBuilderCreateStructType',
     'LLVMDIBuilderCreateSubroutineType',
+    'LLVMDIBuilderCreateUnionType',
     'LLVMDIBuilderFinalize',
     'LLVMDIBuilderInsertDeclareBefore',
     'LLVMDisposeDIBuilder',

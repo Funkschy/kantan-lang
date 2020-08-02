@@ -400,7 +400,10 @@ def check(tc: *TypeChecker): CheckResult {
                 // }
                 // DBG END
 
-                dbg.assert(ty.is_struct(incomplete_ty), "incomplete_ty wasn't a struct");
+                dbg.assert(
+                    ty.is_struct(incomplete_ty) || ty.is_union(incomplete_ty),
+                    "incomplete_ty was neither struct nor union"
+                );
 
                 let s_ty = ty.as_struct(incomplete_ty);
                 push_incomplete_ty_error(tc, &s_ty.super.original_name);
@@ -873,6 +876,8 @@ def (tc: *TypeChecker) check_field(
 def push_field_into_ty(structured_type: *ty.Type, field_name: ident.Ident, field_ty: *ty.Type) {
     if ty.is_struct(structured_type) {
         ty.push_field(ty.as_struct(structured_type), field_name, field_ty);
+    } else if ty.is_union(structured_type) {
+        ty.as_union(structured_type).push_field(field_name, field_ty);
     }
 }
 
@@ -906,6 +911,35 @@ def fill_struct_fields(tc: *TypeChecker, s_decl: *record.StructDecl, t: *ty.Type
     if !error && !waiting {
         ty.fill_width_align(t);
         update_all_waiting(tc, tc.ctx.mod, t, &s_ty.super.original_name);
+    }
+}
+
+def fill_union_fields(tc: *TypeChecker, s_decl: *record.UnionDecl, t: *ty.Type) {
+    let u_ty = ty.as_union(t);
+
+    let error = false;
+    let waiting = false;
+
+    let nf = s_decl.num_fields();
+    u_ty.fields = vec.with_cap(sizeof ty.UnionField, nf as usize);
+    for let i: u32 = 0; i < nf; i += 1 {
+        let f = record.empty_field();
+        if !s_decl.field_at(i, &f) {
+            push_internal_error(tc, s_decl.name.span, "could not get field");
+            return;
+        }
+
+        let field_name = f.ident;
+        let field_tyid = &f.ty;
+
+        let state = tc.check_field(t, field_name, field_tyid, i as i32);
+        error |= state == FieldState.Error;
+        waiting |= state == FieldState.Waiting;
+    }
+
+    if !error && !waiting {
+        ty.fill_width_align(t);
+        update_all_waiting(tc, tc.ctx.mod, t, &u_ty.super.original_name);
     }
 }
 
@@ -1024,25 +1058,37 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
     let waiting_mod = req.to_fill_mod;
 
     if req.kind == WaitingKind.Type || req.kind == WaitingKind.TypePtr {
+        if ty.is_union(waiting_ty) {
+            let waiting_u_ty = ty.as_union(waiting_ty);
+            let waiting_ident = &waiting_u_ty.super.original_name;
+
+            let field = waiting_u_ty.field_at(req.offset as u32);
+
+            if req.kind == WaitingKind.Type {
+                field.ty = resolved_ty;
+            } else if req.kind == WaitingKind.TypePtr {
+                if !ty.is_ptr(field.ty) {
+                    push_internal_error(tc, waiting_ident.span, "type is not a ptr");
+                    return;
+                }
+
+                ty.update_inner(field.ty, resolved_ty);
+            }
+
+            // overwrite old type in union
+            waiting_u_ty.update_field_ty(field);
+
+            let completely_initialized = ty.fill_width_align(waiting_ty);
+            if completely_initialized {
+                // recursively update types waiting for waiting_ty
+                update_all_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
+            }
+
+            return;
+        }
+
         let waiting_s_ty = ty.as_struct(waiting_ty);
         let waiting_ident = &waiting_s_ty.super.original_name;
-
-        // ----- DBG -----
-        // let resolved_name: string = null;
-        // if ty.is_struct(resolved_ty) {
-        //     resolved_name = ident.to_string(&ty.as_struct(resolved_ty).name);
-        // } else {
-        //     resolved_name = std.strdup("type");
-        // }
-
-        // let waiting_name = ident.to_string(waiting_ident);
-        // io.printf(
-        //     "DBG: %s was waiting for %s (%d %d)\n", waiting_name, resolved_name,
-        //     resolved_ty.width, resolved_ty.align
-        // );
-        // delete waiting_name;
-        // delete resolved_name;
-        // -----
 
         let field = waiting_s_ty.field_at(req.offset as u32);
 
@@ -1196,7 +1242,6 @@ def check_import(
 def check_struct_decl(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
     let ty = declare_struct(tc, sd);
     if ty == null {
-        // TODO(#46): output an actual error message here, instead of just failing silently
         return null;
     }
 
@@ -1217,6 +1262,31 @@ def declare_struct(tc: *TypeChecker, sd: *record.StructDecl): *ty.Type {
 
     let owned_name = mangle_type_name(tc, &sd.name);
     ty.init_struct(definition, sd.name, owned_name, tc.ctx.mod);
+    return definition;
+}
+
+def check_union_decl(tc: *TypeChecker, sd: *record.UnionDecl): *ty.Type {
+    let ty = declare_union(tc, sd);
+    if ty == null {
+        return null;
+    }
+
+    fill_union_fields(tc, sd, ty);
+    return ty;
+}
+
+def declare_union(tc: *TypeChecker, sd: *record.UnionDecl): *ty.Type {
+    let prev = lookup_type(tc, &sd.name);
+    if prev.present() {
+        push_duplicate_def_error(tc, &sd.name);
+        return null;
+    }
+
+    let definition = ty.new_type(ty.Kind.Union, null);
+    push_tmp_ty(tc, definition);
+
+    let owned_name = mangle_type_name(tc, &sd.name);
+    ty.init_union(definition, sd.name, owned_name, tc.ctx.mod);
     return definition;
 }
 
@@ -1532,6 +1602,25 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         bind_type(tc, &ed.name, ty);
         bind_value_public(tc, &ed.name, ty);
         ed.enum_ty = ty;
+
+        return s;
+    }
+
+    // STMT_UNION_DECL
+    if ast.is_union_decl_stmt(s) {
+        let sd = &ast.as_union_decl_stmt(s).decl;
+
+        if !tc.decl_only_pass {
+            return s;
+        }
+
+        let ty = check_union_decl(tc, sd);
+        if ty == null {
+            return null;
+        }
+
+        bind_type(tc, &sd.name, ty);
+        sd.union_ty = ty;
 
         return s;
     }
@@ -2447,14 +2536,45 @@ def check_expr_expect(
     if ast.is_init_expr(e) {
         let i_e = ast.as_init_expr(e);
         let data = create_lookup_data(LookupKind.Types, null);
-        let left = check_expr_expect(tc, i_e.struct_ty, expected, &data);
+        let left = check_expr_expect(tc, i_e.identifier, expected, &data);
         if left == null {
             return null;
         }
 
-         if !ty.is_struct(left.ty) {
-            push_init_non_struct_error(tc, left.ty, e.span);
+        if !(ty.is_struct(left.ty) || ty.is_union(left.ty)) {
+            push_init_invalid_type_error(tc, left.ty, e.span);
             return null;
+        }
+
+        if ty.is_union(left.ty) {
+            let union_ty = ty.as_union(left.ty);
+            let inits = &i_e.inits;
+
+            if inits.count() != 1 {
+                push_union_init_multiple_error(tc, e.span);
+                return null;
+            }
+
+            let init = inits.get_ptr(0);
+            let field_ty = union_ty.field_with_name(init.ident);
+            if field_ty == null {
+                push_not_defined_error(tc, &init.ident, "field", &union_ty.super.scope);
+                return null;
+            }
+
+            let checked_init_expr = check_expr_expect(tc, init.expr, field_ty, null);
+            if checked_init_expr == null {
+                return null;
+            }
+            init.expr = checked_init_expr;
+
+            if !ty.equals(field_ty, init.expr.ty) {
+                push_union_init_invalid_error(tc, init, union_ty);
+            }
+
+            i_e.identifier = left;
+            e.ty = left.ty;
+            return e;
         }
 
         // TODO(#76): check names of fields and reorder if necessary
@@ -2487,7 +2607,7 @@ def check_expr_expect(
         }
 
         // TODO(#54): those names are really confusing
-        i_e.struct_ty = left;
+        i_e.identifier = left;
         e.ty = left.ty;
         return e;
     }
@@ -2965,10 +3085,40 @@ def push_missing_return_error(tc: *TypeChecker, span: span.Span) {
     push_mk_err(tc, text, span);
 }
 
-def push_init_non_struct_error(tc: *TypeChecker, actual_ty: *ty.Type, span: span.Span) {
-    let ty_s = ty.to_static_string(actual_ty);
-    let text = error.err2str(error.CompileError.InitNonStructType, ty_s);
+def push_union_init_multiple_error(tc: *TypeChecker, span: span.Span) {
+    let text = error.err2str(error.CompileError.UnionInitInvalidCount);
     push_mk_err(tc, text, span);
+}
+
+def push_init_invalid_type_error(tc: *TypeChecker, actual_ty: *ty.Type, span: span.Span) {
+    let ty_s = ty.to_static_string(actual_ty);
+    let text = error.err2str(error.CompileError.InitInvalidType, ty_s);
+    push_mk_err(tc, text, span);
+}
+
+def push_union_init_invalid_error(tc: *TypeChecker, init: *ast.Init, union_ty: *ty.Union) {
+    let actual_ty_s = "";
+    let free_actual_ty_s = tc.ty_to_string(init.expr.ty, &actual_ty_s);
+
+    let expected_ty_s = "";
+    let free_expected_ty_s = tc.ty_to_string(union_ty.field_with_name(init.ident), &expected_ty_s);
+
+    let text = error.err2str(
+        error.CompileError.UnionInitInvalid,
+        init.ident.len(), init.ident.start(),
+        union_ty.super.original_name.len(), union_ty.super.original_name.start(),
+        expected_ty_s, actual_ty_s
+    );
+
+    if free_actual_ty_s {
+        delete actual_ty_s;
+    }
+
+    if free_expected_ty_s {
+        delete expected_ty_s;
+    }
+
+    push_mk_err(tc, text, init.expr.span);
 }
 
 def push_could_not_infer_error(tc: *TypeChecker, span: span.Span) {

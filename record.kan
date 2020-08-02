@@ -104,7 +104,7 @@ def create_struct(name: ident.Ident, fields: vec.Vec): StructDecl {
     return StructDecl { name: name, fields: fields, struct_ty: null };
 }
 
-def free_struct(s: *StructDecl) {
+def (s: *StructDecl) free() {
     free_fields(&s.fields);
 }
 
@@ -116,26 +116,27 @@ def (s: *StructDecl) field_at(i: u32, dest: *Field): bool {
     return fields_get_field_at(&s.fields, i, dest);
 }
 
-def field_by_ident(s: *StructDecl, name: ident.Ident, dest: *Field): bool {
-    // since the map can only save pointers, the i32 is inside a *void
-    let ptr = map.get(&s.fields.field_map, map.key_from_ident(&name));
-    if ptr == null {
-        return false;
-    }
-
-    let idx = std.ptr_to_int(ptr) - 1;
-    return s.field_at(idx as u32, dest);
+type UnionDecl struct {
+    name: ident.Ident,
+    fields: Fields,
+    union_ty: *ty.Type
 }
 
-def to_string(s: *StructDecl): string {
-    let name = ident.to_string(&s.name);
-    let fields = fields_to_string(&s.fields);
-    let s = std.format_str("type %s struct { %s }", name, fields);
+def create_union(name: ident.Ident, fields: vec.Vec): UnionDecl {
+    let fields = create_fields(fields);
+    return UnionDecl { name: name, fields: fields, union_ty: null };
+}
 
-    delete name;
-    delete fields;
+def (s: *UnionDecl) free() {
+    free_fields(&s.fields);
+}
 
-    return s;
+def (s: *UnionDecl) num_fields(): u32 {
+    return s.fields.fields.len as u32;
+}
+
+def (s: *UnionDecl) field_at(i: u32, dest: *Field): bool {
+    return fields_get_field_at(&s.fields, i, dest);
 }
 
 type EnumDecl struct {
@@ -148,15 +149,6 @@ def create_enum(name: ident.Ident, values: vec.Vec): EnumDecl {
     return EnumDecl { name: name, values: values, enum_ty: null };
 }
 
-def free_enum(e: *EnumDecl) {
+def (e: *EnumDecl) free() {
     e.values.free();
 }
-
-def num_values(e: *EnumDecl): usize {
-    return e.values.len;
-}
-
-def value_at(e: *EnumDecl, i: usize, dest: *ident.Ident): bool {
-    return e.values.get(i, dest as *void);
-}
-

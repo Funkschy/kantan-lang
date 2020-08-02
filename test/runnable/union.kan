@@ -1,0 +1,29 @@
+import "io";
+
+type Test union {
+    i: i8,
+    s: string
+}
+
+type Same union {
+    i: i32,
+    j: i32
+}
+
+def main() {
+    let t = Test { i: 42 };
+    io.printf("%d\n", t.i);
+    t = Test { s: "hello" };
+    io.printf("%s\n", t.s);
+
+    t.i = 33;
+    io.printf("%d\n", t.i);
+
+    let p = &t.i;
+    *p = 2;
+    io.printf("%d\n", *p);
+
+    let same = Same { i: 42 };
+    io.printf("%d\n", same.j);
+}
+

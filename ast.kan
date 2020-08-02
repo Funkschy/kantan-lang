@@ -22,6 +22,7 @@ type StmtKind enum {
     FuncDecl,
     StructDecl,
     EnumDecl,
+    UnionDecl,
     Block,
     If,
     While,
@@ -406,6 +407,28 @@ def as_struct_decl_stmt(s: *Stmt): *StructDeclStmt {
     return s as *StructDeclStmt;
 }
 
+/////////// Union Decl stmt ///////////
+
+type UnionDeclStmt struct {
+    s: Stmt,
+    decl: record.UnionDecl
+}
+
+def new_union_decl_stmt(span: span.Span, name: ident.Ident, fields: vec.Vec): *Stmt {
+    return (new UnionDeclStmt {
+        s: Stmt { tag: StmtKind.UnionDecl, span: span },
+        decl: record.create_union(name, fields)
+    }) as *Stmt;
+}
+
+def is_union_decl_stmt(s: *Stmt): bool {
+    return s.tag == StmtKind.UnionDecl;
+}
+
+def as_union_decl_stmt(s: *Stmt): *UnionDeclStmt {
+    return s as *UnionDeclStmt;
+}
+
 /////////// Enum Decl stmt ///////////
 
 type EnumDeclStmt struct {
@@ -549,11 +572,14 @@ def stmt_free(s: *Stmt): void {
         stmt_free(for_stmt.block as *Stmt);
     } else if is_struct_decl_stmt(s) {
         let s_stmt = as_struct_decl_stmt(s);
-        record.free_struct(&s_stmt.decl);
+        s_stmt.decl.free();
     } else if is_enum_decl_stmt(s) {
         let e_stmt = as_enum_decl_stmt(s);
-        record.free_enum(&e_stmt.decl);
+        e_stmt.decl.free();
         expr_free(e_stmt.start_value);
+    } else if is_union_decl_stmt(s) {
+        let u_stmt = as_union_decl_stmt(s);
+        u_stmt.decl.free();
     }
 
     delete s;
@@ -660,14 +686,14 @@ def as_call_expr(e: *Expr): *CallExpr {
 
 type InitExpr struct {
     e: Expr,
-    struct_ty: *Expr,
+    identifier: *Expr,
     inits: InitList
 }
 
-def new_init_expr(span: span.Span, struct_ty: *Expr, inits: InitList): *Expr {
+def new_init_expr(span: span.Span, identifier: *Expr, inits: InitList): *Expr {
     return (new InitExpr {
         e: create_expr(ExprKind.StructLiteral, span),
-        struct_ty: struct_ty,
+        identifier: identifier,
         inits: inits
     }) as *Expr;
 }
@@ -1003,7 +1029,7 @@ def expr_free(e: *Expr): void {
         free_al(&c_expr.args);
     } else if is_init_expr(e) {
         let i_expr = as_init_expr(e);
-        expr_free(i_expr.struct_ty);
+        expr_free(i_expr.identifier);
         free_il(&i_expr.inits);
     } else if is_unary_expr(e) {
         expr_free(as_unary_expr(e).right);
@@ -1155,7 +1181,7 @@ def expr_to_string(e: *Expr): string {
     if is_init_expr(e) {
         let i_expr = as_init_expr(e);
 
-        let ident = expr_to_string(i_expr.struct_ty);
+        let ident = expr_to_string(i_expr.identifier);
         let inits = init_list_to_string(&i_expr.inits);
 
         let s = std.format_str("%s{%s}", ident, inits);
@@ -1275,6 +1301,10 @@ def set_init_expr_at(il: *InitList, i: u32, value: *Expr) {
 
 def init_at(il: *InitList, i: u32, dest: *Init): bool {
     return il.inits.get(i as usize, dest as *void);
+}
+
+def (il: *InitList) get_ptr(i: u32): *Init {
+    return il.inits.get_ptr(i as usize) as *Init;
 }
 
 def push_init(il: *InitList, init: Init): void {

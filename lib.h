@@ -36,6 +36,7 @@ static char const *const token_strings[] = {
     "type",
     "struct",
     "enum",
+    "union",
     "as",
     "extern",
     "sizeof",
@@ -153,6 +154,7 @@ static char const *const stmt_type_strings[] = {
     "function declaration",
     "structured type declaration",
     "enum type declaration",
+    "union type declaration",
     "block",
     "if",
     "while",
@@ -187,7 +189,8 @@ static char const *const type_type_strings[] = {
     "function",
     "module",
     "struct",
-    "enum"
+    "enum",
+    "union"
 };
 
 static size_t const len_type_strings = sizeof(type_type_strings) / sizeof(char *);
@@ -226,7 +229,9 @@ static char const *const error_texts[] = {
     "Type '%s' is not callable",
     "Wrong number of arguments. Expected '%u', but got '%u'",
     "Wrong argument type. Expected '%s', but got '%s'",
-    "Expected the name of a struct, but got '%s'",
+    "Expected the name of a struct or union, but got '%s'",
+    "Unions can only be initialized with one value",
+    "The field '%.*s' in '%.*s' was declared with type '%s', but was initialized with '%s'",
     "Could not infer type",
     "'%s' cannot be casted into '%s'",
     "Invalid type for condition. Expected 'bool', but got '%s'",
