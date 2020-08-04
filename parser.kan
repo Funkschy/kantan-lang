@@ -807,8 +807,8 @@ def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
         peeked = peek(p);
 
         // consume separator
-        if peeked.ty == l.TokenType.Comma {
-            consume(p, l.TokenType.Comma);
+        if peeked.ty != l.TokenType.RBrace && !consume(p, l.TokenType.Comma) {
+            FAIL();
         }
     }
 
