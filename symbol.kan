@@ -34,7 +34,7 @@ type Visibility enum {
 }
 
 type WithVisibility struct {
-    visibility: Visibility
+    visibility: Visibility,
     ty: *ty.Type
 }
 
