@@ -10,6 +10,10 @@ def (data: *Data) present(): bool {
     return data != null && data.sym.present();
 }
 
+def (data: *Data) found(): bool {
+    return data != null && data.sym.visibility != Visibility.NotFound;
+}
+
 def empty(): Data {
     return create(null, Visibility.Private).with_scope(null);
 }
@@ -26,7 +30,7 @@ def (data: *Data) is_private(): bool {
 }
 
 type Visibility enum {
-    Private, Public
+    Private, Public, NotFound // this is a bit of a hack...
 }
 
 type WithVisibility struct {
@@ -52,7 +56,7 @@ def (sym: *WithVisibility) present(): bool {
 
 def (sym: *WithVisibility) or_empty(): WithVisibility {
     if sym == null {
-        return empty().sym;
+        return create(null, Visibility.NotFound);
     }
     return create(sym.ty, sym.visibility);
 }

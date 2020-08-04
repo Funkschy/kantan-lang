@@ -1,0 +1,2 @@
+type U union { i: S, i: S }
+type S struct { i: i32, i: i32 }

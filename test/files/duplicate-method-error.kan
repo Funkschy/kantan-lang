@@ -1,0 +1,14 @@
+def (s: *Struct1) method() {
+
+}
+
+def (s: Struct1) method() {
+
+}
+
+type Struct1 struct {
+}
+
+def main() {
+    Struct1 {}.method();
+}

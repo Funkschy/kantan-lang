@@ -293,13 +293,19 @@ type UserDefinedType struct {
     declared_in: *mod.Module
 }
 
-def bind_method(t: *Type, name: ident.Ident, method: *Type) {
+// returns true, if duplicated
+def bind_method(t: *Type, name: ident.Ident, method: *Type): bool {
     dbg.assert(is_user_defined(t), "Trying to bind method on non user defined type");
     dbg.assert(method != null, "Trying to bind null method");
     dbg.assert(is_func(method), "Trying to bind non func type as method");
 
     let value_scope = get_value_scope(t);
+    if value_scope.get_ident(&name).present() {
+        return true;
+    }
+
     value_scope.bind_public_ident(&name, method);
+    return false;
 }
 
 def is_user_defined(t: *Type): bool {
@@ -358,10 +364,16 @@ def is_struct(t: *Type): bool {
     return t.kind == Kind.Struct;
 }
 
-def push_field(t: *Struct, name: ident.Ident, ty: *Type): void {
+def push_field(t: *Struct, name: ident.Ident, ty: *Type): bool {
     let field = StructField { name: name, ty: ty, offset: 0 };
     t.fields.push(&field as *void);
+
+    if t.super.scope.get_ident(&name).found() {
+        return true;
+    }
+
     t.super.scope.bind_public_ident(&name, ty);
+    return false;
 }
 
 // get the index of the field with name 'name'
@@ -431,10 +443,16 @@ def is_union(t: *Type): bool {
     return t.kind == Kind.Union;
 }
 
-def (t: *Union) push_field(name: ident.Ident, ty: *Type) {
+def (t: *Union) push_field(name: ident.Ident, ty: *Type): bool {
     let field = UnionField { name: name, ty: ty };
     t.fields.push(&field as *void);
+
+    if t.super.scope.get_ident(&name).found() {
+        return true;
+    }
+
     t.super.scope.bind_public_ident(&name, ty);
+    return false;
 }
 
 def (t: *Union) update_field_ty(field: *UnionField) {

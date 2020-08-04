@@ -730,8 +730,8 @@ def fill_func_def(
                 let span = tyid.ident_span(&f_decl.receiver.ty);
                 push_primitive_receiver_type_error(tc, receiver_ty, span);
                 error = true;
-            } else {
-                ty.bind_method(receiver_ty, f_decl.name, t);
+            } else if ty.bind_method(receiver_ty, f_decl.name, t) {
+                push_duplicate_def_error(tc, &f_decl.name);
             }
         }
 
@@ -829,7 +829,7 @@ def (tc: *TypeChecker) check_field(
     let field_ty: *ty.Type = null;
     if checked_type_lookup(tc, &field_tyid.ident, &field_ty, &mod) == ERROR {
         // push fake field here, so that the offset is not out of bounds
-        push_field_into_ty(t, field_name, null);
+        tc.push_field_into_ty(t, field_name, null);
         return FieldState.Error;
     }
 
@@ -844,9 +844,9 @@ def (tc: *TypeChecker) check_field(
         return FieldState.None;
     }
 
-    let is_struct = ty.is_struct(field_ty);
+    let is_user_defined = ty.is_user_defined(field_ty);
     if ty.is_initialized(field_ty) {
-        defer push_field_into_ty(t, field_name, field_ty);
+        defer tc.push_field_into_ty(t, field_name, field_ty);
 
         if is_ptr {
             field_ty = ty.new_ptr(field_tyid.pointer_count, field_ty);
@@ -859,8 +859,8 @@ def (tc: *TypeChecker) check_field(
         }
 
         return FieldState.None;
-    } else if is_struct {
-        // a struct that has not been initialized
+    } else if is_user_defined {
+        // a user defined type that has not been initialized
         wait_for_field(tc, mod, field_name, field_tyid, offset, t);
         if !is_ptr {
             return FieldState.Waiting;
@@ -873,11 +873,19 @@ def (tc: *TypeChecker) check_field(
 }
 
 // TODO: remove this, when we have either function pointers or generics
-def push_field_into_ty(structured_type: *ty.Type, field_name: ident.Ident, field_ty: *ty.Type) {
+def (tc: *TypeChecker) push_field_into_ty(
+    structured_type: *ty.Type,
+    field_name: ident.Ident,
+    field_ty: *ty.Type
+) {
     if ty.is_struct(structured_type) {
-        ty.push_field(ty.as_struct(structured_type), field_name, field_ty);
+        if ty.push_field(ty.as_struct(structured_type), field_name, field_ty) {
+            push_duplicate_def_error(tc, &field_name);
+        }
     } else if ty.is_union(structured_type) {
-        ty.as_union(structured_type).push_field(field_name, field_ty);
+        if ty.as_union(structured_type).push_field(field_name, field_ty) {
+            push_duplicate_def_error(tc, &field_name);
+        }
     }
 }
 
@@ -987,7 +995,7 @@ def wait_for_field(
     field_name: ident.Ident,
     waiting_for: *tyid.Type,
     offset: i32,
-    s_ty: *ty.Type
+    t: *ty.Type
 ) {
     let field_ty: *ty.Type = null;
     let kind = WaitingKind.Type;
@@ -997,14 +1005,13 @@ def wait_for_field(
         field_ty = ty.new_ptr(waiting_for.pointer_count, null);
         push_tmp_ty(tc, field_ty);
     }
-    ty.push_field(ty.as_struct(s_ty), field_name, field_ty);
 
-    dbg.assert(offset as u32 < ty.as_struct(s_ty).num_fields(), "offset too big");
+    tc.push_field_into_ty(t, field_name, field_ty);
 
     let request = create_waiting_request(
         tc,
         kind,
-        s_ty,
+        t,
         tc.ctx.mod,
         waiting_for.ident,
         mod,
@@ -1127,48 +1134,45 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 to_update = &waiting_f_ty.receiver.ty;
             }
 
-            if *to_update != null {
+            if *to_update == null {
+                *to_update = resolved_ty;
+            } else if ty.is_ptr(*to_update) {
                 // if the type is a pointer, there will already be ty.Ptr with
                 // an empty inner type here, so we just fill in the resolved
                 // inner type into the existing one
-                if ty.is_ptr(*to_update) {
-                    ty.update_inner(*to_update, resolved_ty);
-                    if req.offset == OFFSET_RECEIVER_TYPE {
-                        ty.bind_method(*to_update, waiting_f_ty.name, waiting_ty);
-                    }
+                ty.update_inner(*to_update, resolved_ty);
+            } else {
+                push_internal_error(tc, waiting_ident.span, "type is not a ptr");
+                return;
+            }
+
+            if req.offset != OFFSET_RECEIVER_TYPE {
+                return;
+            }
+
+            if ty.bind_method(*to_update, waiting_f_ty.name, waiting_ty) {
+                push_duplicate_def_error(tc, &waiting_f_ty.name);
+            }
+
+            return;
+        }
+
+        let p = waiting_f_ty.param_at(req.offset as u32);
+        // if there was an error during function initialization, there may
+        // be no params, but the error should already have been propagated
+        if p != null {
+            if p.ty != null {
+                if ty.is_ptr(p.ty) {
+                    ty.update_inner(p.ty, resolved_ty);
                 } else {
                     push_internal_error(tc, waiting_ident.span, "type is not a ptr");
                     return;
                 }
             } else {
-                *to_update = resolved_ty;
-                if req.offset == OFFSET_RECEIVER_TYPE {
-                    ty.bind_method(*to_update, waiting_f_ty.name, waiting_ty);
-                }
-            }
-        } else {
-            let p = waiting_f_ty.param_at(req.offset as u32);
-            // if there was an error during function initialization, there may
-            // be no params, but the error should already have been propagated
-            if p != null {
-                if p.ty != null {
-                    if ty.is_ptr(p.ty) {
-                        ty.update_inner(p.ty, resolved_ty);
-                    } else {
-                        push_internal_error(tc, waiting_ident.span, "type is not a ptr");
-                        return;
-                    }
-                } else {
-                    p.ty = resolved_ty;
-                }
+                p.ty = resolved_ty;
             }
         }
 
-        // if ty.func_is_initalized(waiting_f_ty) {
-        //     let s = ident.to_string(&waiting_f_ty.name);
-        //     io.printf("DBG: %s is fully initialized\n", s);
-        //     delete s;
-        // }
         return;
     }
 
