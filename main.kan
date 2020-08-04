@@ -164,21 +164,32 @@ def print_type_errors(tc: *tychk.TypeChecker, fm: *reader.FileMap, abs_path: *pa
     }
 }
 
-def printf_spanned(s: span.Span, file: *source.SourceFile) {
+def print_spanned(line_info: source.LineSpan, file: *source.SourceFile) {
     io.printf(" | ");
+    let s = line_info.span;
 
     let ptr = s.start;
     let len = s.len();
+    let num_lines = 1;
     while (ptr - s.start) as usize < len {
         let c = *ptr;
         io.putchar(c as i32);
         if c == '\n' {
             io.printf(" | ");
+            num_lines += 1;
         }
         ptr = ptr + 1;
     }
 
     io.putchar('\n');
+
+    if num_lines == 1 {
+        io.printf(" | ");
+        for let i: u32 = 1; i < line_info.pos.col; i += 1 {
+            io.putchar(' ');
+        }
+        io.printf("^\n");
+    }
 }
 
 def print_error(err_text: string, span: span.Span, file: *source.SourceFile, abs_path: *path.Path) {
@@ -208,7 +219,7 @@ def print_error(err_text: string, span: span.Span, file: *source.SourceFile, abs
         line_info.pos.col
     );
 
-    printf_spanned(line_info.span, file);
+    print_spanned(line_info, file);
     io.printf("\n");
 
     delete name;
