@@ -1285,15 +1285,15 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     if ty.is_ptr(t) {
         let ptr = ty.as_ptr(t);
         let inner = dbg_translate_type(c, ptr.inner);
-        let inner_name = "";
-        let free_inner_name = ty.to_string(ptr.inner, &inner_name);
-        let inner_len = std.strlen(inner_name);
+
+        let inner_name = ty.to_string(ptr.inner);
+        defer inner_name.free();
 
         for let i: usize = 0; i < ptr.count as usize; i += 1 {
             let star_count = i + 1;
-            let name = std.malloc(star_count + inner_len);
+            let name = std.malloc(star_count + inner_name.len());
             std.memset(name, '*', star_count);
-            std.memcpy(name + star_count, inner_name as *void, inner_len);
+            std.memcpy(name + star_count, inner_name.cstring() as *void, inner_name.len());
 
             // TODO(#99): determine pointer size based on target pointer width
             inner = llvm.di_builder_create_pointer_type(
@@ -1301,14 +1301,10 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 inner,
                 t.width_in_bits(), t.align_in_bits(),
                 0,
-                name as string, star_count + inner_len
+                name as string, star_count + inner_name.len()
             );
 
             delete name;
-        }
-
-        if free_inner_name {
-            delete inner_name;
         }
 
         return inner;

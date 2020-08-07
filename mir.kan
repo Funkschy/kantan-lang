@@ -1,6 +1,7 @@
 import "io";
 import "ty";
 import "std";
+import "str";
 import "vec";
 import "str";
 import "map";
@@ -99,18 +100,15 @@ def dump_module(m: *Module): void {
 
                 let field = s_ty.field_at(i);
 
-                let ty_s = "";
-                let free_ty_s = ty.to_string(field.ty, &ty_s);
+                let ty_s = ty.to_string(field.ty);
+                defer ty_s.free();
+
                 io.printf(
                     "%.*s: %s",
                     ident.len(&field.name),
                     ident.start(&field.name),
-                    ty_s
+                    ty_s.cstring()
                 );
-
-                if free_ty_s {
-                    delete ty_s;
-                }
             }
         } else if ty.is_union(t.ty) {
             let u_ty = ty.as_union(t.ty);
@@ -121,18 +119,15 @@ def dump_module(m: *Module): void {
 
                 let field = u_ty.field_at(i);
 
-                let ty_s = "";
-                let free_ty_s = ty.to_string(field.ty, &ty_s);
+                let ty_s = ty.to_string(field.ty);
+                defer ty_s.free();
+
                 io.printf(
                     "%.*s: %s",
                     ident.len(&field.name),
                     ident.start(&field.name),
-                    ty_s
+                    ty_s.cstring()
                 );
-
-                if free_ty_s {
-                    delete ty_s;
-                }
             }
         } else if ty.is_enum(t.ty) {
             let e_ty = ty.as_enum(t.ty);
@@ -156,8 +151,8 @@ def dump_module(m: *Module): void {
     while item != null {
         let g = item.value as *GlobalVar;
 
-        let ty_s: string = null;
-        let free_ty_s = ty.to_string(g.ty, &ty_s);
+        let ty_s = ty.to_string(g.ty);
+        defer ty_s.free();
 
         let quote = "";
         let quote_len = 0;
@@ -171,15 +166,11 @@ def dump_module(m: *Module): void {
         io.printf(
             "%.*s: %s = %.*s%.*s%.*s\n",
             g.mangled_name.len, g.mangled_name.data,
-            ty_s,
+            ty_s.cstring(),
             quote_len, quote,
             g.value.len, g.value.data,
             quote_len, quote
         );
-
-        if free_ty_s {
-            delete ty_s;
-        }
 
         item = map.iter_next(&g_iter);
     }
@@ -1286,17 +1277,13 @@ def expr_to_name(e: *Expression): name.Owned {
         let union_access = as_expr_union_access(e);
         let addr_n = addr_to_name(&union_access.addr);
 
-        let ty_s = "";
-        let free_ty_s = ty.to_string(union_access.as_type, &ty_s);
+        let ty_s = ty.to_string(union_access.as_type);
+        defer ty_s.free();
 
         let len: usize = 0;
         let s = std.l_format_str(
-            &len, "union_access(%.*s, %s)", addr_n.len, addr_n.data, ty_s
+            &len, "union_access(%.*s, %s)", addr_n.len, addr_n.data, ty_s.cstring()
         );
-
-        if free_ty_s {
-            delete ty_s;
-        }
 
         name.free_owned(&addr_n);
         return name.make_owned(len, s);
@@ -1342,33 +1329,29 @@ def expr_to_name(e: *Expression): name.Owned {
 
     if is_expr_sizeof(e) {
         let so = as_expr_sizeof(e);
-        let ty_s: string = null;
-        let free_ty_s = ty.to_string(so.ty, &ty_s);
+
+        let ty_s = ty.to_string(so.ty);
+        defer ty_s.free();
 
         let len: usize = 0;
-        let s = std.l_format_str(&len, "sizeof(%s)", ty_s);
+        let s = std.l_format_str(&len, "sizeof(%s)", ty_s.cstring());
 
-        if free_ty_s {
-            delete ty_s;
-        }
         return name.make_owned(len, s);
     }
 
     if is_expr_cast(e) {
         let cast = as_expr_cast(e);
         let addr_n = addr_to_name(&cast.addr);
-        let ty_s: string = null;
-        let free_ty_s = ty.to_string(cast.into, &ty_s);
+
+        let ty_s = ty.to_string(cast.into);
+        defer ty_s.free();
 
         let len: usize = 0;
         let s = std.l_format_str(
-            &len, "(%.*s %s %s)", addr_n.len, addr_n.data, cast.kind.to_string(),ty_s
+            &len, "(%.*s %s %s)", addr_n.len, addr_n.data, cast.kind.to_string(), ty_s.cstring()
         );
 
         name.free_owned(&addr_n);
-        if free_ty_s {
-            delete ty_s;
-        }
 
         return name.make_owned(len, s);
     }
@@ -1639,8 +1622,8 @@ def inst_changes_ip(inst: *Inst): bool {
 def inst_to_name(inst: *Inst): name.Owned {
     if is_inst_decl(inst) {
         let decl = as_inst_decl(inst);
-        let ty_s: string = null;
-        let free_ty_s = ty.to_string(decl.ty, &ty_s);
+        let ty_s = ty.to_string(decl.ty);
+        defer ty_s.free();
 
         let len: usize = 0;
         let s = std.l_format_str(
@@ -1648,12 +1631,8 @@ def inst_to_name(inst: *Inst): name.Owned {
             "let %.*s: %s",
             decl.name.len,
             decl.name.data,
-            ty_s
+            ty_s.cstring()
         );
-
-        if free_ty_s {
-            delete ty_s;
-        }
 
         return name.make_owned(len, s);
     }
@@ -1663,21 +1642,17 @@ def inst_to_name(inst: *Inst): name.Owned {
         let a_n = addr_to_name(&assign.dest);
         let e_n = expr_to_name(&assign.value);
 
-        let ty_s: string = "void";
-        let free_ty_s = false;
+        let ty_s = str.from("void");
+        defer ty_s.free();
         if !is_addr_empty(&assign.dest) {
-            free_ty_s = ty.to_string(assign.dest.ty, &ty_s);
+            ty_s = ty.to_string(assign.dest.ty);
         }
 
         let len: usize = 0;
         let s = std.l_format_str(
             &len,
-            "%.*s: %s = %.*s", a_n.len, a_n.data, ty_s, e_n.len, e_n.data
+            "%.*s: %s = %.*s", a_n.len, a_n.data, ty_s.cstring(), e_n.len, e_n.data
         );
-
-        if free_ty_s {
-            delete ty_s;
-        }
 
         name.free_owned(&a_n);
         name.free_owned(&e_n);

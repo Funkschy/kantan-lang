@@ -54,45 +54,6 @@ def fields_get_field_at(fs: *Fields, i: u32, dest: *Field): bool {
     return fs.fields.get(i as usize, dest as *void);
 }
 
-def fields_to_string(fs: *Fields): string {
-    let fields = (new '\0') as string;
-
-    for let i: u32 = 0; i < fs.fields.len as u32; i += 1 {
-        let f = empty_field();
-        if !fields_get_field_at(fs, i, &f) {
-            delete fields;
-            return null;
-        }
-        let n = ident.to_string(&f.ident);
-        let t = tyid.to_string(&f.ty);
-
-        let extra_len: usize = 2; // ': '
-        if i > 0 {
-            extra_len = 4; // ': ..., '
-        }
-
-        let new_len = std.strlen(fields) + std.strlen(n) + std.strlen(t) + 1 + extra_len;
-        let new_fields = std.malloc(new_len) as string;
-        let old_fields = fields;
-        fields = std.strcpy(new_fields, fields);
-        delete old_fields;
-
-        if extra_len > 2 {
-            fields = std.strcat(fields, ", ");
-        }
-
-        fields = std.strcat(fields, n);
-        fields = std.strcat(fields, ": ");
-        fields = std.strcat(fields, t);
-        delete n;
-        delete t;
-
-        i = i + 1;
-    }
-
-    return fields;
-}
-
 type StructDecl struct {
     name: ident.Ident,
     fields: Fields,

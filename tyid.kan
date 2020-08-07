@@ -38,14 +38,13 @@ def is_ptr(t: *Type): bool {
 }
 
 def to_string(ty: *Type): string {
-    let ident = ident.to_string(&ty.ident);
-    let ident_len = std.strlen(ident);
+    let ident = ty.ident.to_string();
+    defer ident.free();
 
-    let len = ty.pointer_count as usize + ident_len + 1;
+    let len = ty.pointer_count as usize + ident.len() + 1;
     let buffer = std.malloc(len);
     std.memset(buffer, '*', ty.pointer_count as usize);
-    std.memcpy(buffer + ty.pointer_count, ident as *void, ident_len);
-    delete ident;
+    std.memcpy(buffer + ty.pointer_count, ident.cstring() as *void, ident.len());
 
     let buffer = buffer as string;
     *(buffer + len - 1) = '\0';

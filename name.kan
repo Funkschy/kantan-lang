@@ -1,3 +1,4 @@
+import "str";
 import "mod";
 import "dbg";
 import "std";
@@ -32,6 +33,10 @@ def (n: *Owned) clone(): Owned {
 
 def (n: *Owned) ref(): Ref {
     return ref(*n);
+}
+
+def (n: *Owned) to_string(): str.String {
+    return str.from_l(n.data, n.len);
 }
 
 type Ref struct {

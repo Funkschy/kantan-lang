@@ -1,4 +1,5 @@
 import "ty";
+import "str";
 import "ast";
 import "vec";
 import "mod";
@@ -696,10 +697,6 @@ def fill_func_def(
     t: *ty.Type
 ): i32 {
     let f_ty = ty.as_func(t);
-
-    let name = ident.to_string(&f_ty.name);
-    // io.printf("DBG: Filling '%s'\n", name);
-    delete name;
 
     let error = false;
     let waiting = true;
@@ -2880,8 +2877,8 @@ def free_tc(tc: *TypeChecker): void {
     scope.free_s(&tc.global_values);
 }
 
-def (tc: *TypeChecker) ty_to_string(t: *ty.Type, out: *string): bool {
-    return ty.to_string_mangled(t, !t.is_declared_in(tc.ctx.mod), out);
+def (tc: *TypeChecker) ty_to_string(t: *ty.Type): str.String {
+    return ty.to_string_mangled(t, !t.is_declared_in(tc.ctx.mod));
 }
 
 def push_internal_error(tc: *TypeChecker, span: span.Span, text: string): void {
@@ -2976,18 +2973,14 @@ def push_duplicate_enum_value_error(tc: *TypeChecker, e: *ty.Enum, value_name: *
 }
 
 def push_invalid_enum_start_value_error(tc: *TypeChecker, e: *ty.Enum, start_value: *ast.Expr) {
-    let s_start_ty = "";
-    let free_s_start_ty = tc.ty_to_string(start_value.ty, &s_start_ty);
+    let s_start_ty = tc.ty_to_string(start_value.ty);
+    defer s_start_ty.free();
 
     let text = error.err2str(
         error.CompileError.InvalidEnumStartValue,
-        s_start_ty,
+        s_start_ty.cstring(),
         e.super.mangled_name.len, e.super.mangled_name.data
     );
-
-    if free_s_start_ty {
-        delete s_start_ty;
-    }
 
     push_mk_err(tc, text, start_value.span);
 }
@@ -2998,21 +2991,17 @@ def push_bin_invalid_types_error(
     second: *ty.Type,
     span: span.Span
 ): void {
-    let s_first = "";
-    let free_s_first = tc.ty_to_string(first, &s_first);
-    let s_second = "";
-    let free_s_second = tc.ty_to_string(second, &s_second);
+    let s_first = tc.ty_to_string(first);
+    defer s_first.free();
 
-    let text = error.err2str(error.CompileError.BinInvalidTypes, s_first, s_second);
+    let s_second = tc.ty_to_string(second);
+    defer s_second.free();
 
-    if free_s_first {
-        delete s_first;
-    }
-
-    if free_s_second {
-        delete s_second;
-    }
-
+    let text = error.err2str(
+        error.CompileError.BinInvalidTypes,
+        s_first.cstring(),
+        s_second.cstring()
+    );
     push_mk_err(tc, text, span);
 }
 
@@ -3021,7 +3010,7 @@ def push_wrong_arg_type_error(
     expected: *ty.Type,
     actual: *ty.Type,
     span: span.Span
-): void {
+) {
     push_wrong_type_error(tc, error.CompileError.WrongArgType, expected, actual, span);
 }
 
@@ -3030,7 +3019,7 @@ def push_wrong_let_type_error(
     expected: *ty.Type,
     actual: *ty.Type,
     span: span.Span
-): void {
+) {
     push_wrong_type_error(tc, error.CompileError.LetDifferentTypes, expected, actual, span);
 }
 
@@ -3040,48 +3029,29 @@ def push_wrong_type_error(
     expected: *ty.Type,
     actual: *ty.Type,
     span: span.Span
-): void {
-    let expected_ty_s: string = null;
-    let free_expected_ty_s = tc.ty_to_string(expected, &expected_ty_s);
-    let actual_ty_s: string = null;
-    let free_actual_ty_s = tc.ty_to_string(actual, &actual_ty_s);
+) {
+    let expected_ty_s = tc.ty_to_string(expected);
+    defer expected_ty_s.free();
 
-    if actual_ty_s == null {
-        actual_ty_s = "unknown type";
-        free_actual_ty_s = false;
-    }
+    let actual_ty_s = tc.ty_to_string(actual);
+    defer actual_ty_s.free();
 
-    if expected_ty_s == null {
-        expected_ty_s = "unknown type";
-        free_expected_ty_s = false;
-    }
-
-    let text = error.err2str(err_kind, expected_ty_s, actual_ty_s);
-    if free_expected_ty_s {
-        delete expected_ty_s;
-    }
-    if free_actual_ty_s {
-        delete actual_ty_s;
-    }
-
+    let text = error.err2str(err_kind, expected_ty_s.cstring(), actual_ty_s.cstring());
     push_mk_err(tc, text, span);
 }
 
 
 def push_wrong_return_type_error(tc: *TypeChecker, span: span.Span, actual: *ty.Type) {
-    let ret_ty_s = "";
-    let free_ret_ty_s = tc.ty_to_string(tc.ctx.current_func.ret, &ret_ty_s);
-    let ty_s = "";
-    let free_ty_s = tc.ty_to_string(actual, &ty_s);
+    let ret_ty_s = tc.ty_to_string(tc.ctx.current_func.ret);
+    defer ret_ty_s.free();
+    let ty_s = tc.ty_to_string(actual);
+    defer ty_s.free();
 
-    let text = error.err2str(error.CompileError.WrongReturnType, ret_ty_s, ty_s);
-    if free_ty_s {
-        delete ty_s;
-    }
-    if free_ret_ty_s {
-        delete ret_ty_s;
-    }
-
+    let text = error.err2str(
+        error.CompileError.WrongReturnType,
+        ret_ty_s.cstring(),
+        ty_s.cstring()
+    );
     push_mk_err(tc, text, span);
 }
 
@@ -3107,27 +3077,18 @@ def push_init_invalid_type_error(tc: *TypeChecker, actual_ty: *ty.Type, span: sp
 }
 
 def push_union_init_invalid_error(tc: *TypeChecker, init: *ast.Init, union_ty: *ty.Union) {
-    let actual_ty_s = "";
-    let free_actual_ty_s = tc.ty_to_string(init.expr.ty, &actual_ty_s);
+    let actual_ty_s = tc.ty_to_string(init.expr.ty);
+    defer actual_ty_s.free();
 
-    let expected_ty_s = "";
-    let free_expected_ty_s = tc.ty_to_string(union_ty.field_with_name(init.ident), &expected_ty_s);
+    let expected_ty_s = tc.ty_to_string(union_ty.field_with_name(init.ident));
+    defer expected_ty_s.free();
 
     let text = error.err2str(
         error.CompileError.UnionInitInvalid,
         init.ident.len(), init.ident.start(),
         union_ty.super.original_name.len(), union_ty.super.original_name.start(),
-        expected_ty_s, actual_ty_s
+        expected_ty_s.cstring(), actual_ty_s.cstring()
     );
-
-    if free_actual_ty_s {
-        delete actual_ty_s;
-    }
-
-    if free_expected_ty_s {
-        delete expected_ty_s;
-    }
-
     push_mk_err(tc, text, init.expr.span);
 }
 
@@ -3152,29 +3113,25 @@ def push_invalid_cast_error(
     dest: *ty.Type,
     span: span.Span
 ): void {
-    let src_ty_s = "";
-    let free_src_ty_s = tc.ty_to_string(src, &src_ty_s);
-    let dest_ty_s = "";
-    let free_dest_ty_s = tc.ty_to_string(dest, &dest_ty_s);
+    let src_ty_s = tc.ty_to_string(src);
+    defer src_ty_s.free();
 
-    let text = error.err2str(error.CompileError.InvalidCast, src_ty_s, dest_ty_s);
-    if free_dest_ty_s {
-        delete dest_ty_s;
-    }
-    if free_src_ty_s {
-        delete src_ty_s;
-    }
+    let dest_ty_s = tc.ty_to_string(dest);
+    defer dest_ty_s.free();
 
+    let text = error.err2str(
+        error.CompileError.InvalidCast,
+        src_ty_s.cstring(),
+        dest_ty_s.cstring()
+    );
     push_mk_err(tc, text, span);
 }
 
 def push_simple_error(tc: *TypeChecker, kind: error.CompileError, t: *ty.Type, s: span.Span) {
-    let ty_s = "";
-    let free_ty_s = tc.ty_to_string(t, &ty_s);
-    let text = error.err2str(kind, ty_s);
-    if free_ty_s {
-        delete ty_s;
-    }
+    let ty_s = tc.ty_to_string(t);
+    defer ty_s.free();
+
+    let text = error.err2str(kind, ty_s.cstring());
     push_mk_err(tc, text, s);
 }
 
@@ -3221,11 +3178,9 @@ def push_expr_not_assignable_error(tc: *TypeChecker, e: *ast.Expr) {
 }
 
 def push_delete_non_ptr_error(tc: *TypeChecker, e: *ast.Expr) {
-    let ty_s = "";
-    let free_ty_s = tc.ty_to_string(e.ty, &ty_s);
-    let text = error.err2str(error.CompileError.DeleteNonPtr, ty_s);
-    if free_ty_s {
-        delete ty_s;
-    }
+    let ty_s = tc.ty_to_string(e.ty);
+    defer ty_s.free();
+
+    let text = error.err2str(error.CompileError.DeleteNonPtr, ty_s.cstring());
     push_mk_err(tc, text, e.span);
 }

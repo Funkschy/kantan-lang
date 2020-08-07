@@ -7,6 +7,7 @@ extern def strndup(s: string, len: usize): string;
 extern def strdup(s: string): string;
 extern def strlen(s: string): usize;
 extern def strcat(first: string, second: string): string;
+extern def strncat(first: string, second: string, len: usize): string;
 extern def strcpy(dest: string, src: string): string;
 extern def strchr(haystack: string, needle: i32): string;
 extern def strrchr(haystack: string, needle: i32): string;

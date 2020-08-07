@@ -219,7 +219,9 @@ def try_get_mod_from_import(
         let mod_path = get_path(mod);
         let p = path.parent(&mod_path);
         let mod_s = path.to_string(&p);
-        let imp_s = ident.to_string(&imp.mod);
+
+        let imp_s = imp.mod.to_string();
+        defer imp_s.free();
 
         if errdest != null {
             // TODO(#68): the error message produced for a 'file not found' error
@@ -236,7 +238,6 @@ def try_get_mod_from_import(
             *errdest = err;
         }
 
-        delete imp_s;
         delete mod_s;
 
         return null;

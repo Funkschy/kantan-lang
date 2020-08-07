@@ -32,7 +32,7 @@ def from_l(s: string, len: usize): String {
         str.len_ = len << 1;
 
         memcpy((&str as *void) + 1, s as *void, len);
-        *(((&s as *i8) + sizeof String) - 1) = '\0';
+        *(&str as *i8 + 1 + len) = '\0';
     } else {
         str.cap_ = len;
         // least significant len bit == 1 => heap allocated string

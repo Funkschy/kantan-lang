@@ -1,7 +1,8 @@
-import "span";
+import "str";
 import "std";
-import "lexer";
+import "span";
 import "name";
+import "lexer";
 
 type Ident struct {
     span: span.Span
@@ -78,7 +79,6 @@ def index_of(id: *Ident, ident_len: usize, c: i8): isize {
 }
 
 // this does a strdup and needs to be freed
-def to_string(i: *Ident): string {
-    let len = len(i);
-    return std.strndup(i.span.start, len);
+def (i: *Ident) to_string(): str.String {
+    return str.from_l(i.start(), i.len());
 }

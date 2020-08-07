@@ -1082,21 +1082,21 @@ def fill_width_align(t: *Type): bool {
 }
 
 // returns true if the string needs to be freed
-def to_string(t: *Type, out: *string): bool {
-    return to_string_mangled(t, true, out);
+def to_string(t: *Type): str.String {
+    return to_string_mangled(t, true);
 }
 
 // returns true if the string needs to be freed
-def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
+def to_string_mangled(t: *Type, use_mangled: bool): str.String {
     if t == null {
-        *out = null;
-        return false;
+        return str.create();
     }
 
     if is_func(t) {
         let f_ty = as_func(t);
-        let s_ret = ")";
-        let free_ret = to_string(f_ty.ret, &s_ret);
+
+        let s_ret = to_string_mangled(f_ty.ret, use_mangled);
+        defer s_ret.free();
 
         let params_string = str.create();
         defer params_string.free();
@@ -1108,65 +1108,54 @@ def to_string_mangled(t: *Type, use_mangled: bool, out: *string): bool {
 
             let p = f_ty.param_at(i);
 
-            let p_ty_s = "";
-            let free_p_ty_s = to_string_mangled(p.ty, use_mangled, &p_ty_s);
-            let len = std.strlen(p_ty_s);
+            let p_ty_s = to_string_mangled(p.ty, use_mangled);
+            defer p_ty_s.free();
 
-            params_string.push(str.view(len as usize, p_ty_s));
-
-            if free_p_ty_s {
-                delete p_ty_s;
-            }
+            params_string.push(p_ty_s.view());
         }
 
-        let s = std.format_str("(%s) -> %s", params_string.cstring(), s_ret);
-        if free_ret {
-            delete s_ret;
-        }
+        let len: usize = 0;
+        let s = std.l_format_str(&len, "(%s) -> %s", params_string.cstring(), s_ret.cstring());
+        defer delete s;
 
-        *out = s;
-        return true;
+        return str.from_l(s, len);
     }
 
     if is_ptr(t) {
         let p_ty = as_ptr(t);
         let count = p_ty.count;
 
-        let s_inner = "";
-        let free_inner = false;
+        let s_inner = str.create();
+        defer s_inner.free();
 
         if p_ty.inner != null && is_i8(p_ty.inner) {
             count = count - 1;
-            s_inner = "string";
+            s_inner = str.from_l("string", 6);
         } else {
-            free_inner = to_string_mangled(p_ty.inner, use_mangled, &s_inner);
+            s_inner = to_string_mangled(p_ty.inner, use_mangled);
         }
 
         let asterisks = std.malloc(count as usize) as string;
         std.memset(asterisks as *void, '*', count as usize);
-        let s = std.format_str("%.*s%s", count, asterisks, s_inner);
 
-        if free_inner {
-            delete s_inner;
-        }
+        let len: usize = 0;
+        let s = std.l_format_str(&len, "%.*s%s", count, asterisks, s_inner.cstring());
+        defer delete s;
+
         delete asterisks;
 
-        *out = s;
-        return true;
+        return str.from_l(s, len);
     }
 
     if is_user_defined(t) {
         if use_mangled {
-            *out = get_user_defined(t).mangled_name.data;
-            return false;
+            return get_user_defined(t).mangled_name.to_string();
         }
 
-        *out = ident.to_string(&get_user_defined(t).original_name);
-        return true;
+        return get_user_defined(t).original_name.to_string();
     }
 
-    *out = to_static_string(t);
-    return false;
+    return str.from(to_static_string(t));
 }
 
 def to_static_string(t: *Type): string {
