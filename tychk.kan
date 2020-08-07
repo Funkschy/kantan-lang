@@ -1976,6 +1976,9 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             }
 
             return s;
+        } else if ty.is_void(tc.ctx.current_func.ret) {
+            push_return_in_void_func_error(tc, r_s.expr.span);
+            return null;
         }
 
         let expr = check_expr_expect(tc, r_s.expr, tc.ctx.current_func.ret, null);
@@ -3084,6 +3087,11 @@ def push_wrong_return_type_error(tc: *TypeChecker, span: span.Span, actual: *ty.
 
 def push_missing_return_error(tc: *TypeChecker, span: span.Span) {
     let text = error.err2str(error.CompileError.MissingReturn);
+    push_mk_err(tc, text, span);
+}
+
+def push_return_in_void_func_error(tc: *TypeChecker, span: span.Span) {
+    let text = error.err2str(error.CompileError.ReturnWithValueInVoid);
     push_mk_err(tc, text, span);
 }
 

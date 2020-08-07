@@ -31,6 +31,7 @@ type CompileError enum {
     UnaryOpNotDefined,
     WrongReturnType,
     MissingReturn,
+    ReturnWithValueInVoid,
     UsingOpOnTy_decl,
     CallingNonFunction,
     WrongNumberOfArgs,

@@ -225,6 +225,7 @@ static char const *const error_texts[] = {
     "Unary operator '%s' not defined for '%s'",
     "Wrong return type for function. Expected '%s', but got '%s'",
     "Missing return statement",
+    "Trying to return a value inside a 'void' function",
     "Illegal use of declared type",
     "Type '%s' is not callable",
     "Wrong number of arguments. Expected '%u', but got '%u'",

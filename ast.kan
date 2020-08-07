@@ -326,8 +326,8 @@ def stmt_at(b: *BlockStmt, i: usize): *Stmt {
     return b.stmts.get(i) as *Stmt;
 }
 
-def set_stmt_at(b: *BlockStmt, i: usize, s: *Stmt): void {
-    return b.stmts.set(i, s as *void);
+def set_stmt_at(b: *BlockStmt, i: usize, s: *Stmt) {
+    b.stmts.set(i, s as *void);
 }
 
 def (b: *BlockStmt) push(s: *Stmt) {
