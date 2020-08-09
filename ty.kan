@@ -347,7 +347,7 @@ def init_struct(
 ): void {
     let s = new Struct {
         super: UserDefinedType {
-            name: name,
+            original_name: name,
             mangled_name: mangled_name,
             scope: scope.with_name(name.ref()),
             declared_in: declared_in
@@ -426,7 +426,7 @@ type Union struct {
 def init_union(t: *Type, name: ident.Ident, mangled_name: name.Owned, declared_in: *mod.Module) {
     let s = new Union {
         super: UserDefinedType {
-            name: name,
+            original_name: name,
             mangled_name: mangled_name,
             scope: scope.with_name(name.ref()),
             declared_in: declared_in
@@ -505,7 +505,7 @@ def init_enum(
 
     let s = new Enum {
         super: UserDefinedType {
-            name: name,
+            original_name: name,
             mangled_name: mangled_name,
             scope: scope.with_name(name.ref()),
             declared_in: declared_in

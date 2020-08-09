@@ -494,7 +494,7 @@ def create_string_literal(
 
     return GlobalVar {
         original_name: ident.empty(),
-        name: mangled_name,
+        mangled_name: mangled_name,
         meta: meta,
         ty: t,
         value: buffer_from_owned(value, false)

@@ -291,7 +291,7 @@ def create_result(
         had_errors: had_errors,
         types: types,
         mods: mods,
-        globals_types: global_types,
+        global_types: global_types,
         main_func: main_func
     };
 }

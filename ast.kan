@@ -942,7 +942,7 @@ def new_binary_expr(
     return (new BinaryExpr {
         e: create_expr(ExprKind.Binary, span),
         kind: kind,
-        dont_free_left: true,
+        free_left: true,
         left: left,
         right: right,
         op_span: op_span
