@@ -2593,9 +2593,14 @@ def check_expr_expect(
 
         for let i: u32 = 0; i < expected_num_args; i += 1 {
             let param = struct_ty.field_at(i);
-            let arg = ast.init_expr_at(inits, i);
+            let arg = ast.init_at(inits, i);
 
-            let checked_arg = check_expr_expect(tc, arg, param.ty, null);
+            if !param.name.equals(arg.ident) {
+                push_wrong_field_error(tc, param.name, arg.ident);
+                return null;
+            }
+
+            let checked_arg = check_expr_expect(tc, arg.expr, param.ty, null);
             if checked_arg == null {
                 return null;
             }
@@ -3105,6 +3110,15 @@ def push_non_const_expr_error(tc: *TypeChecker, span: span.Span) {
 def push_outside_loop_error(tc: *TypeChecker, span: span.Span, keyword: string) {
     let text = error.err2str(error.CompileError.BreakOrContinueOutsideLoop, keyword);
     push_mk_err(tc, text, span);
+}
+
+def push_wrong_field_error(tc: *TypeChecker, expected: ident.Ident, actual: ident.Ident) {
+    let text = error.err2str(
+        error.CompileError.WrongStructField,
+        expected.len(), expected.start(),
+        actual.len(), actual.start()
+    );
+    push_mk_err(tc, text, actual.span);
 }
 
 def push_invalid_cast_error(

@@ -44,6 +44,10 @@ def (i: Ident) ref(): name.Ref {
     return name.make_ref(i.len(), i.start());
 }
 
+def (i: Ident) equals(other: Ident): bool {
+    return eq_value(&i, &other);
+}
+
 def char_at(i: *Ident, pos: usize): i8 {
     return *(i.span.start + pos);
 }

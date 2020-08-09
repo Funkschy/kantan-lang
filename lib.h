@@ -255,6 +255,7 @@ static char const *const error_texts[] = {
     "Expression cannot be evaluated at compile time",
     "Trying to access private symbol '%.*s' from '%.*s'",
     "%s statements may not be used outside of loops",
+    "Wrong field. Expected '%.*s', but got '%.*s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);

@@ -1090,10 +1090,6 @@ def create_init(ident: ident.Ident, expr: *Expr): Init {
     return Init { ident: ident, expr: expr };
 }
 
-def empty_init(): Init {
-    return Init { ident: ident.empty(), expr: null };
-}
-
 type InitList struct {
     inits: vec.Vec
 }
@@ -1107,8 +1103,8 @@ def (il: *InitList) count(): u32 {
 }
 
 def init_expr_at(il: *InitList, i: u32): *Expr {
-    let init = empty_init();
-    if !init_at(il, i, &init) {
+    let init: *Init = null;
+    if (init = init_at(il, i)) == null {
         return null;
     }
     return init.expr;
@@ -1118,23 +1114,21 @@ def set_init_expr_at(il: *InitList, i: u32, value: *Expr) {
     (il.inits.get_ptr(i as usize) as *Init).expr = value;
 }
 
-def init_at(il: *InitList, i: u32, dest: *Init): bool {
-    return il.inits.get(i as usize, dest as *void);
+def init_at(il: *InitList, i: u32): *Init {
+    return il.inits.get_ptr(i as usize) as *Init;
 }
 
 def (il: *InitList) get_ptr(i: u32): *Init {
     return il.inits.get_ptr(i as usize) as *Init;
 }
 
-def push_init(il: *InitList, init: Init): void {
+def push_init(il: *InitList, init: Init) {
     il.inits.push(&init as *void);
 }
 
-def free_il(il: *InitList): void {
+def free_il(il: *InitList) {
     for let i: u32 = 0; i < il.count(); i += 1 {
-        let init = empty_init();
-        init_at(il, i, &init);
-        expr_free(init.expr);
+        expr_free(init_at(il, i).expr);
     }
 
     il.inits.free();

@@ -1,0 +1,4 @@
+type S struct { i: i32, j: i32 }
+def main() {
+    S { i: 0, i: 0 };
+}

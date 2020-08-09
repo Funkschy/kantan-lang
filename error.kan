@@ -60,7 +60,8 @@ type CompileError enum {
     IllegalExprForUnary,
     NonConstExpressionInConstContext,
     AccessingPrivateSymbol,
-    BreakOrContinueOutsideLoop
+    BreakOrContinueOutsideLoop,
+    WrongStructField
 }
 
 extern def err2str(code: CompileError, ...): string;
