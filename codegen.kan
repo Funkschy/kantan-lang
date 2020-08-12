@@ -941,7 +941,7 @@ def compile_unary(
         return llvm.build_neg(c.builder, value, "");
     }
 
-    if unary.kind == mir.UnaryKind.BoolNeg {
+    if unary.kind == mir.UnaryKind.Not {
         return llvm.build_not(c.builder, value, "");
     }
 
@@ -1012,6 +1012,8 @@ def compile_binary(
         return llvm.build_shl(c.builder, left, right, "");
     } else if binary.kind == mir.BinaryKind.RShift {
         return llvm.build_a_shr(c.builder, left, right, "");
+    } else if binary.kind == mir.BinaryKind.BitXor {
+        return llvm.build_xor(c.builder, left, right, "");
     } else {
         let ptr = left;
         let scalar = right;

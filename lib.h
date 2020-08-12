@@ -66,6 +66,7 @@ static char const *const token_strings[] = {
     "%=",
     "&=",
     "|=",
+    "^=",
     "<",
     "<=",
     ">",
@@ -74,6 +75,8 @@ static char const *const token_strings[] = {
     "&&",
     "|",
     "||",
+    "^",
+    "~",
     "<<",
     ">>",
     "(",
@@ -97,6 +100,7 @@ static char const *const binary_type_ops[] = {
     "%",  // BINARY_MOD
     "&",
     "|",
+    "^",
     "<",  // BINARY_ST
     "<=", // BINARY_SE
     ">",  // BINARY_GT
@@ -117,7 +121,8 @@ static char const *const unary_type_ops[] = {
     "&",
     "*",
     "!",
-    "-"
+    "-",
+    "~"
 };
 
 static size_t const len_unary_strings = sizeof(unary_type_ops) / sizeof(char *);

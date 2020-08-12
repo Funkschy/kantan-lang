@@ -400,6 +400,8 @@ extern def LLVMBuildAnd(arg1: *Builder, lhs: *Value, rhs: *Value, name: string):
 
 extern def LLVMBuildOr(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value;
 
+extern def LLVMBuildXor(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value;
+
 extern def LLVMBuildNeg(arg1: *Builder, v: *Value, name: string): *Value;
 
 extern def LLVMBuildFNeg(arg1: *Builder, v: *Value, name: string): *Value;
@@ -547,6 +549,10 @@ def build_and(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {
 
 def build_or(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {
     return LLVMBuildOr(arg1, lhs, rhs, name);
+}
+
+def build_xor(arg1: *Builder, lhs: *Value, rhs: *Value, name: string): *Value {
+    return LLVMBuildXor(arg1, lhs, rhs, name);
 }
 
 def build_neg(arg1: *Builder, v: *Value, name: string): *Value {

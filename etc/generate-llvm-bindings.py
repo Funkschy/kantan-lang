@@ -68,6 +68,7 @@ whitelist = set([
     'LLVMBuildStore',
     'LLVMBuildStructGEP',
     'LLVMBuildSub',
+    'LLVMBuildXor',
     'LLVMBuildZExt',
     'LLVMConstInt',
     'LLVMConstIntOfString',

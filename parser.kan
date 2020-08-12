@@ -1092,6 +1092,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
     UNARY(l.TokenType.Star, ast.UnaryKind.Deref);
     UNARY(l.TokenType.Bang, ast.UnaryKind.NegBool);
     UNARY(l.TokenType.Minus, ast.UnaryKind.NegNum);
+    UNARY(l.TokenType.Tilde, ast.UnaryKind.BitNot);
 
     if token.ty == l.TokenType.LParen {
         // ignore no_struct, because it's in parens
@@ -1218,6 +1219,9 @@ def infix(p: *Parser, token: *l.Token, left: *ast.Expr, no_struct: bool): *ast.E
     } else if token.ty == l.TokenType.Pipe {
         found = true;
         ty = ast.BinaryKind.BitOr;
+    } else if token.ty == l.TokenType.Caret {
+        found = true;
+        ty = ast.BinaryKind.BitXor;
     }
 
     // a pattern matched

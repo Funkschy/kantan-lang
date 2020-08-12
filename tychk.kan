@@ -2636,11 +2636,6 @@ def check_binary_expr(
 #define RET_INVALID_TYS() push_bin_invalid_types_error(tc, first, second, op_span); \
             return null
 
-    dbg.assert_fmt(
-        kind >= ast.BinaryKind.Add && kind <= ast.BinaryKind.RShift,
-        "Invalid binary expression: %d\n", kind
-    );
-
     if first == null || second == null {
         push_internal_error(tc, span, "types were null");
         return null;
@@ -2727,11 +2722,6 @@ def check_unary_expr(
     span: span.Span,
     lookup_data: *LookupData
 ): *ty.Type {
-    dbg.assert_fmt(
-        kind >= ast.UnaryKind.Ref && kind <= ast.UnaryKind.NegNum,
-        "Invalid unary expression: %d\n", kind
-    );
-
     if expr.ty == null {
         push_internal_error(tc, span, "Unary expr type was null");
         return null;
@@ -2821,6 +2811,17 @@ def check_unary_expr(
         if !expr.ty.is_num() {
             let s_ty = ty.to_static_string(expr.ty);
             let text = error.err2str(error.CompileError.UnaryOpNotDefined, "-", s_ty);
+            push_mk_err(tc, text, span);
+            return null;
+        }
+
+        return expr.ty;
+    }
+
+    if kind == ast.UnaryKind.BitNot {
+        if !expr.ty.is_num() {
+            let s_ty = ty.to_static_string(expr.ty);
+            let text = error.err2str(error.CompileError.UnaryOpNotDefined, "~", s_ty);
             push_mk_err(tc, text, span);
             return null;
         }

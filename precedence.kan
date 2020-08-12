@@ -46,7 +46,8 @@ def get(token_type: l.TokenType): Precedence {
         || token_type == l.TokenType.SmallerSmaller
         || token_type == l.TokenType.Ampersand
         || token_type == l.TokenType.Pipe
-        || token_type == l.TokenType.GreaterGreater {
+        || token_type == l.TokenType.GreaterGreater
+        || token_type == l.TokenType.Caret {
         return Precedence.Product;
     }
 

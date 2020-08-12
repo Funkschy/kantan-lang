@@ -814,8 +814,8 @@ def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         return mir.new_expr_copy(ref);
     }
 
-    if unary.kind == ast.UnaryKind.NegBool {
-        return mir.new_expr_unary_bool_neg(value_addr);
+    if unary.kind == ast.UnaryKind.NegBool || unary.kind == ast.UnaryKind.BitNot {
+        return mir.new_expr_unary_not(value_addr);
     }
 
     if unary.kind == ast.UnaryKind.NegNum {

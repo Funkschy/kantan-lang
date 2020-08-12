@@ -1,0 +1,15 @@
+import "io";
+
+def main() {
+    io.printf("%d\n", ~1); // -2
+    io.printf("%d\n", ~-2); // 1
+    io.printf("%d\n", 3 ^ 1); // 2
+    io.printf("%d\n", 3 ^ 3); // 0
+    io.printf("%hhx\n", true ^ true); // 0
+    io.printf("%hhx\n", true ^ false); // 1
+    io.printf("%hhx\n", false ^ false); // 0
+
+    let i = 5;
+    i ^= 4;
+    io.printf("%d\n", 1); // 1
+}

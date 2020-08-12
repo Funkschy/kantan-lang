@@ -836,6 +836,7 @@ type BinaryKind enum {
     Mod,
     BitAnd,
     BitOr,
+    BitXor,
 
     ST,
     SE,
@@ -878,7 +879,7 @@ def is_expr_binary(e: *Expression): bool {
 }
 
 type UnaryKind enum {
-    BoolNeg = 1,
+    Not = 1,
     NumNeg,
     Deref
 }
@@ -898,8 +899,8 @@ def new_expr_unary_num_neg(addr: Address): Expression {
     return create_expr(ExprKind.Unary, unary);
 }
 
-def new_expr_unary_bool_neg(addr: Address): Expression {
-    let unary = (new ExprUnary { kind: UnaryKind.BoolNeg, addr: addr }) as *void;
+def new_expr_unary_not(addr: Address): Expression {
+    let unary = (new ExprUnary { kind: UnaryKind.Not, addr: addr }) as *void;
     return create_expr(ExprKind.Unary, unary);
 }
 

@@ -61,6 +61,7 @@ type TokenType enum {
     PercentEq,
     AmpersandEq,
     PipeEq,
+    CaretEq,
 
     Smaller,
     SmallerEq,
@@ -71,6 +72,8 @@ type TokenType enum {
     DoubleAmpersand,
     Pipe,
     DoublePipe,
+    Caret, // ^
+    Tilde, // ~
 
     SmallerSmaller,
     GreaterGreater,
@@ -131,7 +134,7 @@ def token_to_string(token: *Token, dest: *string): bool {
 }
 
 def is_assign(ty: TokenType): bool {
-    return ty >= TokenType.Eq && ty <= TokenType.PipeEq;
+    return ty >= TokenType.Eq && ty <= TokenType.CaretEq;
 }
 
 // Lexer
@@ -626,6 +629,18 @@ def get_next_token(l: *Lexer): Token {
             return token_from_start(l, TokenType.DoublePipe);
         }
         return token_from_start(l, TokenType.Pipe);
+    }
+
+    if c == '^' {
+        if current(l) == '=' {
+            advance(l);
+            return token_from_start(l, TokenType.CaretEq);
+        }
+        return token_from_start(l, TokenType.Caret);
+    }
+
+    if c == '~' {
+        return token_from_start(l, TokenType.Tilde);
     }
 
     if c == '=' {
