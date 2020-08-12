@@ -1,0 +1,7 @@
+import "io";
+
+def main() {
+    let test = "test";
+    test += 1;
+    io.printf("%s\n", test);
+}

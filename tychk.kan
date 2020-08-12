@@ -2321,6 +2321,23 @@ def check_expr_expect(
             return null;
         }
 
+        if a_e.assign_type != ast.AssignType.Normal {
+            // TODO: remove this, when casting between enums and their base type is implemented
+            let kind = *(&a_e.assign_type as *ast.BinaryKind);
+
+            let new_rhs = ast.new_binary_expr(
+                right.span, kind, a_e.assign_span, left, right
+            );
+            ast.as_binary_expr(new_rhs).free_left = false;
+
+            right = check_expr_expect(tc, new_rhs, left.ty, data);
+            if right == null {
+                ast.expr_free(new_rhs);
+                a_e.right = null;
+                return null;
+            }
+        }
+
         if !ty.equals(left.ty, right.ty) {
             push_bin_invalid_types_error(tc, left.ty, right.ty, e.span);
             return null;
@@ -2329,20 +2346,6 @@ def check_expr_expect(
         if !ty.is_sized(right.ty) {
             push_type_not_assignable_error(tc, right);
             return null;
-        }
-
-        // TODO: += does not work for pointers right now ptr += 1 is not valid;
-        if a_e.assign_type != ast.AssignType.Normal {
-            // TODO: remove this, when casting between enums and their base type is implemented
-            let kind = *(&a_e.assign_type as *ast.BinaryKind);
-
-            let new_rhs = ast.new_binary_expr(
-                right.span, kind, a_e.assign_span, left, right
-            );
-
-            ast.as_binary_expr(new_rhs).free_left = false;
-            new_rhs.ty = right.ty;
-            right = new_rhs;
         }
 
         a_e.left = left;
@@ -2668,7 +2671,7 @@ def check_binary_expr(
         }
 
         if kind.is_bit_op() {
-            if first.is_integer() {
+            if first.is_integer() || ty.is_bool(first) {
                 return first;
             }
 
