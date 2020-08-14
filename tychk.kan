@@ -61,20 +61,21 @@ def create_waiting_request(
     kind: WaitingKind,
     to_fill: *ty.Type,
     to_fill_mod: *mod.Module,
-    waiting_for: ident.Ident,
+    waiting_for: *tyid.Type,
     waiting_for_mod: *mod.Module,
     offset: i32
 ): WaitingRequest {
+    let waiting_for = *waiting_for;
     // it is easier to pass things like mymod.Mytype to this function and just
     // remove the 'mymod.' here instead of on the calling site
-    patch_waiting_for(tc, &waiting_for, waiting_for_mod);
+    patch_waiting_for(tc, &waiting_for.ident, waiting_for_mod);
 
     return WaitingRequest {
         kind: kind,
         offset: offset,
         to_fill: to_fill,
         to_fill_mod: to_fill_mod,
-        waiting_for: waiting_for,
+        waiting_for: waiting_for.ident,
         waiting_for_mod: waiting_for_mod
     };
 }
@@ -589,6 +590,7 @@ def lookup_type(tc: *TypeChecker, name: *ident.Ident): symbol.Data {
     return scope.lookup(&tc.ctx.types, name);
 }
 
+// never call this helper function directly, use lookup_tyid instead
 // if the ident has a '.' inside it like 'mymod.test', out_mod will be set to a
 // reference to the correspoding module (mymod) this will happen, even if out_mod
 // does not contain the actual type (test)
@@ -620,6 +622,7 @@ def m_lookup_type(
     return m.lookup_type(len - dot_index - 1, ident.start(name) + dot_index + 1);
 }
 
+// never call this helper function directly, use lookup_tyid instead
 def checked_type_lookup(
     tc: *TypeChecker,
     name: *ident.Ident,
@@ -642,52 +645,60 @@ def checked_type_lookup(
     return OK;
 }
 
-def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): *ty.Type {
-    let out: *ty.Type = null;
-    let out_mod: *mod.Module = null;
-    if checked_type_lookup(tc, &name.ident, &out, &out_mod) == ERROR
-        || out == null
-            || out_mod == null {
+type TypeLookupResult struct {
+    module_does_not_exist: bool,
+    found_type: bool,
+    ty: *ty.Type,
+    module: *mod.Module
+}
 
-                push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
-                return null;
-            }
+def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
+    let result = TypeLookupResult {
+        module_does_not_exist: false, found_type: false, ty: null, module: null
+    };
 
-    if tyid.is_ptr(name) {
-        return push_tmp_ty(tc, ty.new_ptr(name.pointer_count, out));
+    if checked_type_lookup(tc, &name.ident, &result.ty, &result.module) == ERROR {
+        push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
+        result.module_does_not_exist = true;
+        return result;
     }
 
-    return out;
+    result.found_type = result.ty != null;
+    result.module_does_not_exist = false;
+
+    // if this is not the decl_only_pass, the types should be resolved
+    if !tc.decl_only_pass && result.ty == null {
+        push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
+        return result;
+    }
+
+    if tyid.is_ptr(name) {
+        result.ty = push_tmp_ty(tc, ty.new_ptr(name.pointer_count, result.ty));
+    }
+
+    return result;
 }
 
 def check_func_tyid(
     tc: *TypeChecker,
-    t: *ty.Type,
+    func_ty: *ty.Type,
     id: *tyid.Type,
     offset: i32,
     waiting: *bool,
     out: **ty.Type
 ): bool {
-    let ty_mod: *mod.Module = null;
-
-    if checked_type_lookup(tc, &id.ident, out, &ty_mod) == ERROR {
-        // module does not exist
+    let data = lookup_tyid(tc, id);
+    if data.module_does_not_exist {
         return true;
     }
 
-    let checked = *out;
-    if tyid.is_ptr(id) {
-        checked = ty.new_ptr(id.pointer_count, checked);
-        push_tmp_ty(tc, checked);
-    }
-
-    // types mod does exist, but the type itself has not yet been resolved
-    if *out == null {
-        func_wait_for_type(tc, ty_mod, id.ident, offset, t);
+    *out = data.ty;
+    if !data.found_type {
+        // types mod does exist, but the type itself has not yet been resolved
+        func_wait_for_type(tc, data.module, id, offset, func_ty);
         *waiting = true;
     }
 
-    *out = checked;
     return false;
 }
 
@@ -747,38 +758,30 @@ def fill_func_def(
             continue;
         }
 
-        let p_mod: *mod.Module = null;
-        let p_ty_name = p.ty.ident;
-        let p_ty: *ty.Type = null;
-
-        if checked_type_lookup(tc, &p_ty_name, &p_ty, &p_mod) == ERROR {
+        let data = lookup_tyid(tc, &p.ty);
+        if data.module_does_not_exist {
             error = true;
             continue;
         }
 
-        if p_ty == null && p_mod != null {
-            func_wait_for_type(tc, p_mod, p_ty_name, i as i32, t);
+        if !data.found_type {
+            func_wait_for_type(tc, data.module, &p.ty, i as i32, t);
             waiting = true;
         }
 
-        if tyid.is_ptr(&p.ty) {
-            p_ty = ty.new_ptr(p.ty.pointer_count, p_ty);
-            push_tmp_ty(tc, p_ty);
-        }
-
-        if p_ty != null && !ty.is_sized(p_ty) {
-            push_unsized_param_error(tc, p_ty, tyid.ident_span(&p.ty));
+        if data.ty != null && !ty.is_sized(data.ty) {
+            push_unsized_param_error(tc, data.ty, tyid.ident_span(&p.ty));
             error = true;
         }
 
-        let f_param = ty.create_param(p.name, p_ty);
+        let f_param = ty.create_param(p.name, data.ty);
         params.push(&f_param as *void);
     }
 
     if !error {
         f_ty.params = params;
         f_ty.ret = ret_ty;
-        f_ty.receiver = ty.Param{ name: f_decl.receiver.name, ty: receiver_ty };
+        f_ty.receiver = ty.Param { name: f_decl.receiver.name, ty: receiver_ty };
     } else {
         params.free();
         return ERROR;
@@ -822,9 +825,9 @@ def (tc: *TypeChecker) check_field(
     field_tyid: *tyid.Type,
     offset: i32
 ): FieldState {
-    let mod: *mod.Module = null;
-    let field_ty: *ty.Type = null;
-    if checked_type_lookup(tc, &field_tyid.ident, &field_ty, &mod) == ERROR {
+    let data = lookup_tyid(tc, field_tyid);
+
+    if data.module_does_not_exist {
         // push fake field here, so that the offset is not out of bounds
         tc.push_field_into_ty(t, field_name, null);
         return FieldState.Error;
@@ -832,8 +835,8 @@ def (tc: *TypeChecker) check_field(
 
     // pointers are ok, because their size is known
     let is_ptr = tyid.is_ptr(field_tyid);
-    if field_ty == null {
-        wait_for_field(tc, mod, field_name, field_tyid, offset, t);
+    if !data.found_type {
+        wait_for_field(tc, data.module, field_name, field_tyid, offset, t);
         if !is_ptr {
             return FieldState.Waiting;
         }
@@ -841,14 +844,10 @@ def (tc: *TypeChecker) check_field(
         return FieldState.None;
     }
 
+    let field_ty = data.ty;
     let is_user_defined = ty.is_user_defined(field_ty);
     if ty.is_initialized(field_ty) {
         defer tc.push_field_into_ty(t, field_name, field_ty);
-
-        if is_ptr {
-            field_ty = ty.new_ptr(field_tyid.pointer_count, field_ty);
-            push_tmp_ty(tc, field_ty);
-        }
 
         if !ty.is_sized(field_ty) {
             push_unsized_field_error(tc, field_ty, field_tyid.ident.span);
@@ -858,7 +857,7 @@ def (tc: *TypeChecker) check_field(
         return FieldState.None;
     } else if is_user_defined {
         // a user defined type that has not been initialized
-        wait_for_field(tc, mod, field_name, field_tyid, offset, t);
+        wait_for_field(tc, data.module, field_name, field_tyid, offset, t);
         if !is_ptr {
             return FieldState.Waiting;
         }
@@ -952,7 +951,7 @@ def wait_for_type(
     tc: *TypeChecker,
     kind: WaitingKind,
     waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
-    waiting_for: ident.Ident,
+    waiting_for: *tyid.Type,
     offset: i32,
     to_fill: *ty.Type
 ) {
@@ -972,7 +971,7 @@ def wait_for_type(
 def func_wait_for_type(
     tc: *TypeChecker,
     waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
-    waiting_for: ident.Ident,
+    waiting_for: *tyid.Type,
     offset: i32,
     to_fill: *ty.Type
 ) {
@@ -1010,7 +1009,7 @@ def wait_for_field(
         kind,
         t,
         tc.ctx.mod,
-        waiting_for.ident,
+        waiting_for,
         mod,
         offset
     );
@@ -1688,10 +1687,11 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         let expected_ty: *ty.Type = null;
         if ast.has_type_decl(l_s) {
-            expected_ty = lookup_tyid(tc, &l_s.ty);
-            if expected_ty == null {
+            let lookup_data = lookup_tyid(tc, &l_s.ty);
+            if !lookup_data.found_type {
                 return null;
             }
+            expected_ty = lookup_data.ty;
 
             value = check_expr_expect(tc, l_s.value, expected_ty, null);
         } else {
@@ -2407,10 +2407,11 @@ def check_expr_expect(
     if ast.is_sizeof_expr(e) {
         let s_e = ast.as_sizeof_expr(e);
 
-        let actual_ty = lookup_tyid(tc, &s_e.ty);
-        if actual_ty == null {
+        let lookup_data = lookup_tyid(tc, &s_e.ty);
+        if !lookup_data.found_type {
             return null;
         }
+        let actual_ty = lookup_data.ty;
 
         if !ty.is_sized(actual_ty) {
             push_unsized_sizeof_error(tc, actual_ty, e.span);
@@ -2426,10 +2427,11 @@ def check_expr_expect(
     if ast.is_as_expr(e) {
         let a_e = ast.as_as_expr(e);
 
-        let dest_ty = lookup_tyid(tc, &a_e.ty);
-        if dest_ty == null {
+        let lookup_data = lookup_tyid(tc, &a_e.ty);
+        if !lookup_data.found_type {
             return null;
         }
+        let dest_ty = lookup_data.ty;
 
         let expr = check_expr_expect(tc, a_e.expr, dest_ty, data);
         if expr == null {
