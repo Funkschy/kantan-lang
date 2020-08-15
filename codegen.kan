@@ -239,17 +239,18 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
 }
 
 def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): LLVMFunction {
-    dbg.assert(ty.is_func(t), "non func type passed");
+    dbg.assert(ty.is_signature(t), "non function signature type passed");
+    let sig = ty.as_signature(t);
     let f_ty = ty.as_func(t);
 
-    let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
+    let key = map.create_key(sig.mangled_name.len, sig.mangled_name.data);
     let func_ptr = vmap.get_ptr(&c.functions, key) as *LLVMFunction;
 
     if func_ptr == null {
         let func_type = translate_type(c, t);
         dbg.assert(func_type != null, "could not translate function type");
 
-        let name = f_ty.mangled_name.data;
+        let name = sig.mangled_name.data;
         let func_val = llvm.add_function(c.context.llmod, name, func_type);
         let func = LLVMFunction { ty: func_type, val: func_val };
         func_ptr = &func;
@@ -1127,8 +1128,7 @@ type DebugInfo struct {
     cu: *llvm.MetaData,
     file: *llvm.MetaData,
     std_dir: string,
-    types: map.Map, // map.Map<mir.Refname, *llvm.MetaData>
-    functions: map.Map // map.Map<mir.Refname, *llvm.MetaData>
+    types: map.Map // map.Map<mir.Refname, *llvm.MetaData>
 }
 
 def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
@@ -1174,8 +1174,7 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
         cu: cu,
         file: llfile,
         std_dir: std_dir,
-        types: map.create(),
-        functions: map.create()
+        types: map.create()
     };
 }
 
@@ -1469,16 +1468,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
 
     if ty.is_callable(t) {
         let f_ty = ty.callable_as_func(t);
-        let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
-
-        let cached = map.get(&c.dbg.functions, key) as *llvm.MetaData;
-        if cached != null {
-            return cached;
-        }
-
-        let f_ty = dbg_create_subroutine_type(c, f_ty);
-        map.insert(&c.dbg.functions, key, f_ty as *void);
-        return f_ty;
+        return dbg_create_subroutine_type(c, f_ty);
     }
 
     dbg.assert_fmt(false, "unhandled type %d", t.kind);
@@ -1550,9 +1540,6 @@ def dbg_create_function(c: *ModuleCompiler, ir_f: *mir.Func, ll_f: *llvm.Type): 
         0,               // flags
         false            // is optimized
     );
-
-    let key = map.create_key(f_ty.mangled_name.len, f_ty.mangled_name.data);
-    map.insert(&c.dbg.functions, key, ll_ty as *void);
 
     c.dbg.scopes.set(ir_f.meta.scope.id as usize, sub_program as *void);
     return sub_program;
@@ -1677,5 +1664,4 @@ def free_dbg_info(info: *DebugInfo) {
     llvm.dispose_di_builder(info.builder);
     info.scopes.free();
     map.free_m(&info.types);
-    map.free_m(&info.functions);
 }

@@ -192,6 +192,7 @@ static char const *const type_type_strings[] = {
     "f64",
     "void",
     "function",
+    "function",
     "module",
     "struct",
     "enum",

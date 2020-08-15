@@ -236,16 +236,18 @@ def lookup_or_declare_type(c: *MirCompiler, t: *ty.Type): *mir.UserDefinedType {
 }
 
 def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
-    dbg.assert(ty.is_func(t), "non function type passed to lookup");
+    dbg.assert(ty.is_signature(t), "non function signature type passed to lookup");
 
+    let sig = ty.as_signature(t);
     let f_ty = ty.as_func(t);
     ty.patch_receiver_into_params(f_ty);
-    let mangled_name = name.ref(f_ty.mangled_name);
+
+    let mangled_name = name.ref(sig.mangled_name);
     let mir_func = lookup_function(c, mangled_name);
 
     if mir_func == null {
-        let is_extern = f_ty.declared_in != c.mod || f_ty.is_extern;
-        let is_main = std.strcmp(f_ty.mangled_name.data, "main") == 0;
+        let is_extern = sig.declared_in != c.mod || f_ty.is_extern;
+        let is_main = std.strcmp(sig.mangled_name.data, "main") == 0;
 
         // "patch" main return type to be i32
         if is_main {
@@ -254,7 +256,7 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 
         // we may override this, in compile_stmt, if the function was called, before
         // it was declared
-        let meta = get_meta_mod(c, f_ty.name.span, f_ty.declared_in);
+        let meta = get_meta_mod(c, sig.name.span, sig.declared_in);
         mir_func = new mir.create_func(t, mangled_name, meta, is_extern);
         add_function(c, mir_func);
     }
@@ -322,7 +324,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         let decl = &decl_stmt.decl;
 
         open_func_scope(c);
-        let mir_func = lookup_or_declare_function(c, decl.func_ty);
+        let mir_func = lookup_or_declare_function(c, decl.signature);
         // override the meta information, since it could be wrong, if the function
         // was called before it was declared
         let meta = get_meta(c, decl.name.span);
@@ -333,7 +335,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
             c.current_func = mir_func;
 
-            let f_ty = ty.as_func(decl.func_ty);
+            let f_ty = ty.as_func(decl.signature);
             declare_type(c, f_ty.ret);
 
             ty.patch_receiver_into_params(f_ty);
@@ -1133,7 +1135,7 @@ def expr_instruction_decl(
 // a name, or an rvalue. If it is, returns true and fills the out parameter
 // with the correct address
 def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
-    if ty.is_func(e.ty) {
+    if ty.is_signature(e.ty) {
         // all functions are static, function pointers are no functions, but pointers, so they
         // are not compiled here
 

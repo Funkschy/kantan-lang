@@ -42,7 +42,7 @@ type FuncDef struct {
     receiver: Param,
     ret_ty: tyid.Type,
     params: ParamList,
-    func_ty: *ty.Type
+    signature: *ty.Type
 }
 
 def create_func(
@@ -58,7 +58,7 @@ def create_func(
         receiver: undefined,
         ret_ty: ret_ty,
         params: params,
-        func_ty: null
+        signature: null
     };
 }
 
@@ -76,7 +76,7 @@ def create_method(
         receiver: receiver,
         ret_ty: ret_ty,
         params: params,
-        func_ty: null
+        signature: null
     };
 }
 

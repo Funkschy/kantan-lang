@@ -681,7 +681,7 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
 
 def check_func_tyid(
     tc: *TypeChecker,
-    func_ty: *ty.Type,
+    signature: *ty.Type,
     id: *tyid.Type,
     offset: i32,
     waiting: *bool,
@@ -695,19 +695,15 @@ def check_func_tyid(
     *out = data.ty;
     if !data.found_type {
         // types mod does exist, but the type itself has not yet been resolved
-        func_wait_for_type(tc, data.module, id, offset, func_ty);
+        func_wait_for_type(tc, data.module, id, offset, signature);
         *waiting = true;
     }
 
     return false;
 }
 
-def fill_func_def(
-    tc: *TypeChecker,
-    f_decl: *func.FuncDef,
-    t: *ty.Type
-): i32 {
-    let f_ty = ty.as_func(t);
+def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type): i32 {
+    let f_ty = ty.as_func(signature);
 
     let error = false;
     let waiting = true;
@@ -719,7 +715,7 @@ def fill_func_def(
         ret_ty = get_global_type(tc, 4, "void");
     } else {
         error = check_func_tyid(
-            tc, t, &f_decl.ret_ty, OFFSET_RETURN_TYPE, &waiting, &ret_ty
+            tc, signature, &f_decl.ret_ty, OFFSET_RETURN_TYPE, &waiting, &ret_ty
         );
     }
 
@@ -729,7 +725,7 @@ def fill_func_def(
 
         let recv_waiting = false;
         error = check_func_tyid(
-            tc, t, &f_decl.receiver.ty, OFFSET_RECEIVER_TYPE, &recv_waiting, &receiver_ty
+            tc, signature, &f_decl.receiver.ty, OFFSET_RECEIVER_TYPE, &recv_waiting, &receiver_ty
         );
 
         if !(error || recv_waiting) {
@@ -738,7 +734,7 @@ def fill_func_def(
                 let span = tyid.ident_span(&f_decl.receiver.ty);
                 push_primitive_receiver_type_error(tc, receiver_ty, span);
                 error = true;
-            } else if ty.bind_method(receiver_ty, f_decl.name, t) {
+            } else if ty.bind_method(receiver_ty, f_decl.name, signature) {
                 push_duplicate_def_error(tc, &f_decl.name);
             }
         }
@@ -765,7 +761,7 @@ def fill_func_def(
         }
 
         if !data.found_type {
-            func_wait_for_type(tc, data.module, &p.ty, i as i32, t);
+            func_wait_for_type(tc, data.module, &p.ty, i as i32, signature);
             waiting = true;
         }
 
@@ -1120,8 +1116,9 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
     }
 
     if req.kind == WaitingKind.FuncDef {
+        let waiting_sig_ty = ty.as_signature(waiting_ty);
+        let waiting_ident = &waiting_sig_ty.name;
         let waiting_f_ty = ty.as_func(waiting_ty);
-        let waiting_ident = &waiting_f_ty.name;
 
         if req.offset < 0 {
             let to_update = &waiting_f_ty.ret;
@@ -1146,8 +1143,8 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
                 return;
             }
 
-            if ty.bind_method(*to_update, waiting_f_ty.name, waiting_ty) {
-                push_duplicate_def_error(tc, &waiting_f_ty.name);
+            if ty.bind_method(*to_update, waiting_sig_ty.name, waiting_ty) {
+                push_duplicate_def_error(tc, &waiting_sig_ty.name);
             }
 
             return;
@@ -1367,16 +1364,16 @@ def declare_enum(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
 }
 
 def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
-    let ty = declare_func(tc, fd);
-    if ty == null {
+    let signature = declare_func(tc, fd);
+    if signature == null {
         return null;
     }
 
-    if fill_func_def(tc, fd, ty) == ERROR {
+    if fill_func_def(tc, fd, signature) == ERROR {
         return null;
     }
 
-    return ty;
+    return signature;
 }
 
 def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
@@ -1385,11 +1382,11 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
         return null;
     }
 
-    let definition = ty.new_type(ty.Kind.Func, null);
-    push_tmp_ty(tc, definition);
+    let signature = ty.new_type(ty.Kind.Signature, null);
+    push_tmp_ty(tc, signature);
 
     let mangled_name = mangle_func_name(tc, fd);
-    ty.init_func(definition, fd.name, mangled_name, tc.ctx.mod, fd.is_extern);
+    ty.init_signature(signature, fd.name, mangled_name, tc.ctx.mod, fd.is_extern);
 
     if ident.eq_lit(&fd.name, "main") {
         if tc.main_func != null {
@@ -1399,20 +1396,20 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
             return null;
         }
 
-        tc.main_func = definition;
-        let f_ty = ty.as_func(definition);
+        tc.main_func = signature;
+        let sig = ty.as_signature(signature);
 
         // "demangle" main name
-        name.free_owned(&f_ty.mangled_name);
-        f_ty.mangled_name = name.make_copied(4, "main");
+        name.free_owned(&sig.mangled_name);
+        sig.mangled_name = name.make_copied(4, "main");
     }
 
-    return definition;
+    return signature;
 }
 
 def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     let f_name = &f_s.decl.name;
-    let f_ty = f_s.decl.func_ty;
+    let f_ty = f_s.decl.signature;
 
     if f_ty == null {
         push_not_defined_error(tc, f_name, LookupKind.Values.to_string(), null);
@@ -1637,7 +1634,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
                 return null;
             }
 
-            fd.func_ty = ty;
+            fd.signature = ty;
             if !fd.is_method {
                 bind_value_public(tc, &fd.name, ty);
             }
@@ -1648,7 +1645,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         // at this point, all the types inside the function signature have to be resolved,
         // so it is safe to access the receiver type
         if fd.is_method {
-            let receiver_ty = ty.as_func(fd.func_ty).receiver.ty;
+            let receiver_ty = ty.as_func(fd.signature).receiver.ty;
             if receiver_ty == null {
                 return null;
             }
