@@ -516,7 +516,7 @@ def as_let_stmt(s: *Stmt): *LetStmt {
 }
 
 def has_type_decl(s: *LetStmt): bool {
-    return !tyid.is_empty(&s.ty);
+    return !s.ty.is_empty();
 }
 
 /////////// base stmt ///////////

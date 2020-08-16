@@ -37,9 +37,6 @@ def create_fields(fields: vec.Vec): Fields {
         let field = empty_field();
         fields.get(i, &field as *void);
 
-        let s = tyid.to_string(&field.ty);
-        delete s;
-
         let key = map.key_from_ident(&field.ident);
         // add one, to be able to tell null apart from 0
         let index = std.int_to_ptr(i) + 1;

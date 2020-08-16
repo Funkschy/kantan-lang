@@ -1,53 +1,55 @@
-import "ident";
-import "span";
 import "std";
+import "str";
+import "span";
+import "ident";
+
+type TypeData union {
+    path: ident.Ident
+}
 
 type Type struct {
     pointer_count: u32,
-    ident: ident.Ident
+    data: TypeData
 }
 
 def empty(): Type {
-    return create(ident.empty());
+    return create_path(ident.empty());
 }
 
-def is_empty(t: *Type): bool {
-    return t.pointer_count == 0 && ident.start(&t.ident) == null;
+def create_path(ident: ident.Ident): Type {
+    return create_path_ptr(ident, 0);
 }
 
-def create(ident: ident.Ident): Type {
-    return Type {
-        pointer_count: 0,
-        ident: ident
-    };
-}
-
-def ident_span(t: *Type): span.Span {
-    return t.ident.span;
-}
-
-def create_ptr(ident: ident.Ident, pointer_count: u32): Type {
+def create_path_ptr(ident: ident.Ident, pointer_count: u32): Type {
     return Type {
         pointer_count: pointer_count,
-        ident: ident
+        data: TypeData {
+            path: ident
+        }
     };
 }
 
-def is_ptr(t: *Type): bool {
+def (t: *Type) is_empty(): bool {
+    return t.pointer_count == 0 && ident.is_empty(&t.data.path);
+}
+
+def (t: *Type) span(): span.Span {
+    return t.data.path.span;
+}
+
+def (t: *Type) is_ptr(): bool {
     return t.pointer_count > 0;
 }
 
-def to_string(ty: *Type): string {
-    let ident = ty.ident.to_string();
+def (t: *Type) to_string(): str.String {
+    let ident = t.data.path.to_string();
     defer ident.free();
 
-    let len = ty.pointer_count as usize + ident.len() + 1;
-    let buffer = std.malloc(len);
-    std.memset(buffer, '*', ty.pointer_count as usize);
-    std.memcpy(buffer + ty.pointer_count, ident.cstring() as *void, ident.len());
+    let s = str.from("");
+    for let i: u32 = 0; i < t.pointer_count; i += 1 {
+        s.push(str.view(1, "*"));
+    }
+    s.push(ident.view());
 
-    let buffer = buffer as string;
-    *(buffer + len - 1) = '\0';
-
-    return buffer;
+    return s;
 }

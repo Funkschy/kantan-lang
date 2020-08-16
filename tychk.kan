@@ -65,17 +65,17 @@ def create_waiting_request(
     waiting_for_mod: *mod.Module,
     offset: i32
 ): WaitingRequest {
-    let waiting_for = *waiting_for;
+    let waiting_for = waiting_for.data.path;
     // it is easier to pass things like mymod.Mytype to this function and just
     // remove the 'mymod.' here instead of on the calling site
-    patch_waiting_for(tc, &waiting_for.ident, waiting_for_mod);
+    patch_waiting_for(tc, &waiting_for, waiting_for_mod);
 
     return WaitingRequest {
         kind: kind,
         offset: offset,
         to_fill: to_fill,
         to_fill_mod: to_fill_mod,
-        waiting_for: waiting_for.ident,
+        waiting_for: waiting_for,
         waiting_for_mod: waiting_for_mod
     };
 }
@@ -657,8 +657,10 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
         module_does_not_exist: false, found_type: false, ty: null, module: null
     };
 
-    if checked_type_lookup(tc, &name.ident, &result.ty, &result.module) == ERROR {
-        push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
+    let ident = &name.data.path;
+
+    if checked_type_lookup(tc, ident, &result.ty, &result.module) == ERROR {
+        push_not_defined_error(tc, ident, LookupKind.Types.to_string(), null);
         result.module_does_not_exist = true;
         return result;
     }
@@ -668,11 +670,11 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
 
     // if this is not the decl_only_pass, the types should be resolved
     if !tc.decl_only_pass && result.ty == null {
-        push_not_defined_error(tc, &name.ident, LookupKind.Types.to_string(), null);
+        push_not_defined_error(tc, ident, LookupKind.Types.to_string(), null);
         return result;
     }
 
-    if tyid.is_ptr(name) {
+    if name.is_ptr() {
         result.ty = push_tmp_ty(tc, ty.new_ptr(name.pointer_count, result.ty));
     }
 
@@ -711,7 +713,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
     let ret_ty: *ty.Type = null;
 
     // no return type == implicit void
-    if tyid.is_empty(&f_decl.ret_ty) {
+    if f_decl.ret_ty.is_empty() {
         ret_ty = get_global_type(tc, 4, "void");
     } else {
         error = check_func_tyid(
@@ -731,7 +733,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
         if !(error || recv_waiting) {
             // You can only declare methods on user defined types (not on stuff like i32, f32 ...)
             if !ty.is_user_defined(receiver_ty) {
-                let span = tyid.ident_span(&f_decl.receiver.ty);
+                let span = f_decl.receiver.ty.span();
                 push_primitive_receiver_type_error(tc, receiver_ty, span);
                 error = true;
             } else if ty.bind_method(receiver_ty, f_decl.name, signature) {
@@ -766,7 +768,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
         }
 
         if data.ty != null && !ty.is_sized(data.ty) {
-            push_unsized_param_error(tc, data.ty, tyid.ident_span(&p.ty));
+            push_unsized_param_error(tc, data.ty, p.ty.span());
             error = true;
         }
 
@@ -830,7 +832,7 @@ def (tc: *TypeChecker) check_field(
     }
 
     // pointers are ok, because their size is known
-    let is_ptr = tyid.is_ptr(field_tyid);
+    let is_ptr = field_tyid.is_ptr();
     if !data.found_type {
         wait_for_field(tc, data.module, field_name, field_tyid, offset, t);
         if !is_ptr {
@@ -846,7 +848,7 @@ def (tc: *TypeChecker) check_field(
         defer tc.push_field_into_ty(t, field_name, field_ty);
 
         if !ty.is_sized(field_ty) {
-            push_unsized_field_error(tc, field_ty, field_tyid.ident.span);
+            push_unsized_field_error(tc, field_ty, field_tyid.span());
             return FieldState.Error;
         }
 
@@ -992,7 +994,7 @@ def wait_for_field(
     let field_ty: *ty.Type = null;
     let kind = WaitingKind.Type;
 
-    if tyid.is_ptr(waiting_for) {
+    if waiting_for.is_ptr() {
         kind = WaitingKind.TypePtr;
         field_ty = ty.new_ptr(waiting_for.pointer_count, null);
         push_tmp_ty(tc, field_ty);
@@ -1651,7 +1653,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             }
 
             if ty.get_user_defined(receiver_ty).declared_in != tc.ctx.mod {
-                push_receiver_different_module_error(tc, tyid.ident_span(&fd.receiver.ty));
+                push_receiver_different_module_error(tc, fd.receiver.ty.span());
                 return null;
             }
         }
@@ -2842,12 +2844,14 @@ def mangle_func_name(tc: *TypeChecker, fd: *func.FuncDef): name.Owned {
     }
 
     if fd.is_method {
-        let recv_ty_name = &fd.receiver.ty.ident;
+        let recv_ty_name = fd.receiver.ty.to_string();
+        defer recv_ty_name.free();
+
         let len: usize = 0;
         let with_receiver = std.l_format_str(
             &len,
             "%.*s.%.*s",
-            ident.len(recv_ty_name), ident.start(recv_ty_name),
+            recv_ty_name.len(), recv_ty_name.cstring(),
             ident.len(&fd.name), ident.start(&fd.name)
         );
 

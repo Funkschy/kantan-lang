@@ -197,7 +197,7 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
 
         return false;
     }
-    *dest = tyid.create_ptr(ident.create(ty), pointer_count);
+    *dest = tyid.create_path_ptr(ident.create(ty), pointer_count);
     return true;
 }
 
@@ -576,7 +576,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
             return null;
         }
 
-        end_span = tyid.ident_span(&ret_ty);
+        end_span = ret_ty.span();
     }
 
     let block: *ast.Stmt = null;
@@ -1078,7 +1078,7 @@ def prefix(p: *Parser, no_struct: bool): *ast.Expr {
             return null;
         }
 
-        let merged_span = span.merge(token.span, tyid.ident_span(&ty));
+        let merged_span = span.merge(token.span, ty.span());
         return ast.new_sizeof_expr(merged_span, ty);
     }
 
@@ -1159,7 +1159,7 @@ def infix(p: *Parser, token: *l.Token, left: *ast.Expr, no_struct: bool): *ast.E
             return null;
         }
 
-        let merged_span = span.merge(left.span, tyid.ident_span(&ty));
+        let merged_span = span.merge(left.span, ty.span());
         return ast.new_as_expr(merged_span, left, ty);
     }
 
