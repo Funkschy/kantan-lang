@@ -219,6 +219,7 @@ def try_get_mod_from_import(
         let mod_path = get_path(mod);
         let p = path.parent(&mod_path);
         let mod_s = path.to_string(&p);
+        defer delete mod_s;
 
         let imp_s = imp.mod.to_string();
         defer imp_s.free();
@@ -231,14 +232,12 @@ def try_get_mod_from_import(
                 // TODO: handle file errors in a platform independent way
                 std.strerror(*(&ret_val as *i32)),
                 mod_s,
-                imp_s,
+                imp_s.cstring(),
                 file_ending
             );
 
             *errdest = err;
         }
-
-        delete mod_s;
 
         return null;
     }
