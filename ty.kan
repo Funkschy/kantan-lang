@@ -1153,8 +1153,13 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
             params_string.push(p_ty_s.view());
         }
 
+        let s_extern = "";
+        if f_ty.is_extern {
+            s_extern = "extern ";
+        }
+
         let len: usize = 0;
-        let s = std.l_format_str(&len, "(%s) -> %s", params_string.cstring(), s_ret.cstring());
+        let s = std.l_format_str(&len, "%s(%s) -> %s", s_extern, params_string.cstring(), s_ret.cstring());
         defer delete s;
 
         return str.from_l(s, len);
@@ -1230,6 +1235,10 @@ def equals(first: *Type, second: *Type): bool {
     if is_func(first) && is_func(second) {
         let first = as_func(first);
         let second = as_func(second);
+
+        if first.is_extern != second.is_extern {
+            return false;
+        }
 
         if !equals(first.ret, second.ret) {
             return false;
