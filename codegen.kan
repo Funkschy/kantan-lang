@@ -870,6 +870,8 @@ def compile_expr(
         let from_float = cast.addr.ty.is_float();
         let into_float = cast.into.is_float();
 
+        // TODO: clang will emit a zext for u16 -> i32 cast, but kantan will use sext
+
         if from_int && into_int {
             return llvm.build_int_cast(c.builder, addr, into, "");
         }
