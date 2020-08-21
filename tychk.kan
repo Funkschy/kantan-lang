@@ -767,6 +767,15 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
             waiting = true;
         }
 
+        let is_aggregate_type = (data.ty == null || ty.is_struct(data.ty) || ty.is_union(data.ty));
+        if is_aggregate_type && f_ty.is_extern && !p.ty.is_ptr() {
+            // TODO: implement proper argument/return type coercion
+            // Trying to pass an aggregate type to an extern function
+            let s = "Kantan currently does not implement the C abi, so you cannot pass a struct to a c function";
+            push_internal_error(tc, p.ty.span(), s);
+            error = true;
+        }
+
         if data.ty != null && !ty.is_sized(data.ty) {
             push_unsized_param_error(tc, data.ty, p.ty.span());
             error = true;
