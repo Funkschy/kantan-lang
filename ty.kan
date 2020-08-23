@@ -11,15 +11,14 @@ import "ident";
 import "symbol";
 import "ptrvec";
 
-extern def type2str(kind: Kind): string;
+extern def type2str(kind: i32): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
     Error,
     Ptr,
     Bool,
-    I8, I16, I32, I64, ISize,
-    U8, U16, U32, U64, USize,
+    Integer,
     F32, F64,
     Void,
     Func, Signature,
@@ -63,126 +62,35 @@ def is_void(t: *Type): bool {
     return t.kind == Kind.Void;
 }
 
-/////////// i8 type ///////////
+/////////// int type ///////////
 
-def new_i8(): *Type {
-    let t = new_type(Kind.I8, null);
-    t.width = (t.align = 1) as i64;
-    return t;
+type Integer struct {
+    signed: bool,
+    target_dependent: bool
 }
 
-def is_i8(t: *Type): bool {
-    return t.kind == Kind.I8;
-}
+def new_integer(width: usize, signed: bool, target_dependent: bool): *Type {
+    let t = new_type(
+        Kind.Integer, (new Integer {
+            signed: signed, target_dependent: target_dependent
+        }) as *void
+    );
 
-/////////// i16 type ///////////
-
-def new_i16(): *Type {
-    let t = new_type(Kind.I16, null);
-    t.width = (t.align = 2) as i64;
-    return t;
-}
-
-def is_i16(t: *Type): bool {
-    return t.kind == Kind.I16;
-}
-
-/////////// i32 type ///////////
-
-def new_i32(): *Type {
-    let t = new_type(Kind.I32, null);
-    t.width = (t.align = 4) as i64;
-    return t;
-}
-
-def is_i32(t: *Type): bool {
-    return t.kind == Kind.I32;
-}
-
-/////////// i64 type ///////////
-
-def new_i64(): *Type {
-    let t = new_type(Kind.I64, null);
-    t.width = (t.align = 8) as i64;
-    return t;
-}
-
-def is_i64(t: *Type): bool {
-    return t.kind == Kind.I64;
-}
-
-/////////// isize type ///////////
-
-def new_isize(width: usize): *Type {
-    let t = new_type(Kind.ISize, null);
     t.align = width as i32;
     t.width = width as i64;
     return t;
 }
 
-def is_isize(t: *Type): bool {
-    return t.kind == Kind.ISize;
+def (t: *Type) is_integer(): bool {
+    return t.kind == Kind.Integer;
 }
 
-/////////// u8 type ///////////
-
-def new_u8(): *Type {
-    let t = new_type(Kind.U8, null);
-    t.width = (t.align = 1) as i64;
-    return t;
+def (t: *Type) as_integer(): *Integer {
+    return t.data as *Integer;
 }
 
-def is_u8(t: *Type): bool {
-    return t.kind == Kind.U8;
-}
-
-/////////// u16 type ///////////
-
-def new_u16(): *Type {
-    let t = new_type(Kind.U16, null);
-    t.width = (t.align = 2) as i64;
-    return t;
-}
-
-def is_u16(t: *Type): bool {
-    return t.kind == Kind.U16;
-}
-
-/////////// u32 type ///////////
-
-def new_u32(): *Type {
-    let t = new_type(Kind.U32, null);
-    t.width = (t.align = 4) as i64;
-    return t;
-}
-
-def is_u32(t: *Type): bool {
-    return t.kind == Kind.U32;
-}
-
-/////////// u64 type ///////////
-
-def new_u64(): *Type {
-    let t = new_type(Kind.U64, null);
-    t.width = (t.align = 8) as i64;
-    return t;
-}
-
-def is_u64(t: *Type): bool {
-    return t.kind == Kind.U64;
-}
-
-/////////// usize type ///////////
-
-def new_usize(width: usize): *Type {
-    let t = new_type(Kind.USize, null);
-    t.align = width as i32;
-    t.width = width as i64;
-    return t;
-}
-
-def is_usize(t: *Type): bool {
-    return t.kind == Kind.USize;
+def (t: *Type) is_signed(): bool {
+    return t.is_integer() && t.as_integer().signed;
 }
 
 /////////// f32 type ///////////
@@ -283,7 +191,12 @@ def as_ptr(t: *Type): *Ptr {
 }
 
 def is_string(t: *Type): bool {
-    return is_ptr(t) && as_ptr(t).count == 1 && is_i8(as_ptr(t).inner);
+    return is_ptr(t)
+        && as_ptr(t).count == 1
+        && as_ptr(t).inner != null
+        // is_i8
+        && as_ptr(t).inner.width == 1
+        && as_ptr(t).inner.is_integer();
 }
 
 type UserDefinedType struct {
@@ -906,7 +819,7 @@ def free_ty(t: *Type) {
         return;
     }
 
-    if is_ptr(t) {
+    if t.is_integer() || is_ptr(t) {
         delete t.data;
         return;
     }
@@ -968,14 +881,6 @@ def (t: *Type) is_num(): bool {
     return t.is_integer() || t.is_float();
 }
 
-def (t: *Type) is_integer(): bool {
-    return t.kind >= Kind.I8 && t.kind <= Kind.USize;
-}
-
-def (t: *Type) is_unsigned(): bool {
-    return t.kind >= Kind.U8 && t.kind <= Kind.USize;
-}
-
 def (t: *Type) is_float(): bool {
     return is_f32(t) || is_f64(t);
 }
@@ -991,7 +896,6 @@ def (t: *Type) align_in_bits(): u32 {
 def is_comparable(t: *Type): bool {
     return t.is_num()
         || is_ptr(t)
-        || is_i8(t)
         || is_enum(t);
 }
 
@@ -1127,6 +1031,25 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         return str.create();
     }
 
+    if t.is_integer() {
+        let s = str.from("");
+        if t.is_signed() {
+            s.push(str.view(1, "i"));
+        } else {
+            s.push(str.view(1, "u"));
+        }
+
+        if t.as_integer().target_dependent {
+            s.push(str.view(4, "size"));
+            return s;
+        }
+
+        let buffer = "  ";
+        let len = std.snprintf(buffer, 3 as usize, "%lu", t.width_in_bits()) as usize;
+        s.push(str.view(len, buffer));
+        return s;
+    }
+
     if is_signature(t) {
         return to_string_mangled(as_signature(t).func, use_mangled);
     }
@@ -1172,7 +1095,7 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         let s_inner = str.create();
         defer s_inner.free();
 
-        if p_ty.inner != null && is_i8(p_ty.inner) {
+        if is_string(t) {
             count = count - 1;
             s_inner = str.from_l("string", 6);
         } else {
@@ -1208,7 +1131,7 @@ def to_static_string(t: *Type): string {
         return "string";
     }
 
-    return type2str(t.kind);
+    return type2str(*(&t.kind as *i32));
 }
 
 def equals(first: *Type, second: *Type): bool {
@@ -1255,6 +1178,11 @@ def equals(first: *Type, second: *Type): bool {
         }
 
         return true;
+    }
+
+    if first.is_integer() {
+        return first.width == second.width
+            && first.as_integer().target_dependent == second.as_integer().target_dependent;
     }
 
     let was_pointer = false;

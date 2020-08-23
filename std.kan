@@ -19,6 +19,7 @@ extern def realloc(ptr: *void, size: usize): *void;
 extern def abort(): void;
 extern def strerror(err: i32): string;
 extern def getenv(name: string): string;
+extern def snprintf(str: string, size: usize, fmt: string, ...): i32;
 
 // in lib.c
 extern def get_errno(): i32;

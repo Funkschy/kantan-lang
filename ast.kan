@@ -9,10 +9,6 @@ import "tyid";
 import "ty";
 import "lexer";
 
-extern def binary2str(op: BinaryKind): string;
-extern def unary2str(op: UnaryKind): string;
-extern def expr2str(op: ExprKind): string;
-
 /////////// kinds ///////////
 
 type StmtKind enum {

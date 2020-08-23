@@ -2,7 +2,7 @@ import "std";
 import "span";
 import "source";
 
-extern def tok2str(ty: TokenType): string;
+extern def tok2str(ty: i32): string;
 
 // Token
 
@@ -113,7 +113,7 @@ def (token: *Token) len(): usize {
 
 // static (don't free!)
 def token_ty_to_static_string(ty: TokenType): string {
-    return tok2str(ty);
+    return tok2str(*(&ty as *i32));
 }
 
 // returned boolean indicates if the strings has to be freed
@@ -129,7 +129,7 @@ def token_to_string(token: *Token, dest: *string): bool {
         return true;
     }
 
-    *dest = tok2str(token.ty);
+    *dest = token_ty_to_static_string(token.ty);
     return false;
 }
 

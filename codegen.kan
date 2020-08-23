@@ -967,7 +967,7 @@ def compile_binary(
     let right = translate_addr(c, func, &binary.right);
 
     let signed_offset = 0;
-    if binary.left.ty.is_unsigned() {
+    if !binary.left.ty.is_signed() {
         // the unsiged int predicates are always 4 less, than their signed counterpart
         signed_offset = 4;
     }
@@ -1201,63 +1201,19 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     let dw_ate_unsigned_fixed  = 14;
     let dw_ate_decimal_float   = 15;
 
-    if ty.is_i8(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "i8", 2, 8, dw_ate_signed_char, 0
-        );
-    }
+    if t.is_integer() {
+        let encoding = dw_ate_unsigned;
 
-    if ty.is_i16(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "i16", 3, 16, dw_ate_signed, 0
-        );
-    }
+        let integer = t.as_integer();
+        if integer.signed {
+            encoding = dw_ate_signed;
+        }
 
-    if ty.is_i32(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "i32", 3, 32, dw_ate_signed, 0
-        );
-    }
+        let s = ty.to_string(t);
+        defer s.free();
 
-    if ty.is_i64(t) {
         return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "i64", 3, 64, dw_ate_signed, 0
-        );
-    }
-
-    if ty.is_isize(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "isize", 5, t.width_in_bits(), dw_ate_signed, 0
-        );
-    }
-
-    if ty.is_u8(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "u8", 2, 8, dw_ate_unsigned, 0
-        );
-    }
-
-    if ty.is_u16(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "u16", 3, 16, dw_ate_unsigned, 0
-        );
-    }
-
-    if ty.is_u32(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "u32", 3, 32, dw_ate_unsigned, 0
-        );
-    }
-
-    if ty.is_u64(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "u64", 3, 64, dw_ate_unsigned, 0
-        );
-    }
-
-    if ty.is_usize(t) {
-        return llvm.di_builder_create_basic_type(
-            c.dbg.builder, "usize", 5, t.width_in_bits(), dw_ate_unsigned, 0
+            c.dbg.builder, s.cstring(), s.len(), t.width_in_bits(), encoding, 0
         );
     }
 
