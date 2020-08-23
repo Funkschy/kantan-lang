@@ -1044,9 +1044,9 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
             return s;
         }
 
-        let buffer = "  ";
-        let len = std.snprintf(buffer, 3 as usize, "%lu", t.width_in_bits()) as usize;
-        s.push(str.view(len, buffer));
+        let buffer: i32 = 0;
+        let len = std.snprintf(&buffer as string, 3 as usize, "%lu", t.width_in_bits()) as usize;
+        s.push(str.view(len, &buffer as string));
         return s;
     }
 
