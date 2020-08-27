@@ -346,16 +346,16 @@ type FuncDeclStmt struct {
 }
 
 def new_func_decl_stmt(
+    kind: func.Kind,
     span: span.Span,
     ident: lexer.Token,
     params: func.ParamList,
     ret_ty: tyid.Type,
-    is_extern: bool,
     block: *BlockStmt
 ): *Stmt {
     return (new FuncDeclStmt {
         s: Stmt { tag: StmtKind.FuncDecl, span: span },
-        decl: func.create_func(ident, params, ret_ty, is_extern),
+        decl: func.create_func(ident, params, ret_ty, kind),
         block: block
     }) as *Stmt;
 }
@@ -366,12 +366,11 @@ def new_method_decl_stmt(
     receiver: func.Param,
     params: func.ParamList,
     ret_ty: tyid.Type,
-    is_extern: bool,
     block: *BlockStmt
 ): *Stmt {
     return (new FuncDeclStmt {
         s: Stmt { tag: StmtKind.FuncDecl, span: span },
-        decl: func.create_method(ident, receiver, params, ret_ty, is_extern),
+        decl: func.create_method(ident, receiver, params, ret_ty),
         block: block
     }) as *Stmt;
 }

@@ -39,6 +39,7 @@ static char const *const token_strings[] = {
     "union",
     "as",
     "extern",
+    "delegate",
     "sizeof",
     "for",
     "undefined",

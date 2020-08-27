@@ -1,0 +1,56 @@
+import "io";
+
+extern def strlen(s: string): usize;
+
+def map(s: string, mapper: CharMapper): string {
+    let len = strlen(s);
+    for let i: usize = 0; i < len; i += 1 {
+        *(s + i) = mapper(*(s + i));
+    }
+    return s;
+}
+
+def to_upper(c: i8): i8 {
+    return c - 32 * ((c >= 'a' && c <= 'z') as i8);
+}
+
+type Kek struct {
+}
+
+def (k: Kek) k1() {}
+def k2(k: Kek) {}
+
+def main() {
+    let mptr = &Kek.k1;
+    mptr = &k2;
+
+    io.printf("%s\n", map("hello", &to_upper));
+    io.printf("%s\n", map("HELLO", &to_lower));
+
+    let cb1 = CallbackData { id: 1, cb: &CallbackData.print };
+    let cb2 = CallbackData { id: 2, cb: &CallbackData.print_with_hello };
+
+    cb1.cb(&cb1);
+    cb2.cb(&cb2);
+}
+
+def to_lower(c: i8): i8 {
+    return c + 32 * ((c >= 'A' && c <= 'Z') as i8);
+}
+
+delegate def CharMapper(c: i8): i8;
+
+def (cb: *CallbackData) print() {
+    io.printf("%d\n", cb.id);
+}
+
+def (cb: *CallbackData) print_with_hello() {
+    io.printf("hello %d\n", cb.id);
+}
+
+delegate def Callback(data: *CallbackData);
+
+type CallbackData struct {
+    id: i32,
+    cb: Callback
+}

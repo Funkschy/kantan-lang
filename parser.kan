@@ -229,10 +229,14 @@ def top_level(p: *Parser): *ast.Stmt {
     let consume_semi = false;
 
     if peek.ty == l.TokenType.Def {
-        s = parse_func_def(p, false);
+        s = parse_func_def(p, func.Kind.Procedure);
     } else if peek.ty == l.TokenType.Extern {
         consume(p, l.TokenType.Extern);
-        s = parse_func_def(p, true);
+        s = parse_func_def(p, func.Kind.Extern);
+        consume_semi = true;
+    } else if peek.ty == l.TokenType.Delegate {
+        consume(p, l.TokenType.Delegate);
+        s = parse_func_def(p, func.Kind.Delegate);
         consume_semi = true;
     } else if peek.ty == l.TokenType.Type {
         s = parse_type_stmt(p);
@@ -517,14 +521,16 @@ def parse_enum_decl(p: *Parser, ident_token: l.Token, type_tok: l.Token): *ast.S
     );
 }
 
-def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
+def parse_func_def(p: *Parser, kind: func.Kind): *ast.Stmt {
     CONSUME_TOK_RET_NULL(def_tok, l.TokenType.Def);
 
+    let is_delegate = kind == func.Kind.Delegate;
+    let is_extern = kind == func.Kind.Extern;
     let has_receiver = false;
     let receiver: func.Param = undefined;
 
     // Receivers are only allow on non extern functions
-    if peek(p).ty == l.TokenType.LParen && !is_extern {
+    if peek(p).ty == l.TokenType.LParen && !is_extern && !is_delegate {
         CONSUME_TOK_RET_NULL(l_paren, l.TokenType.LParen);
         let closing_paren = l.empty_token();
         // don't allow varargs as receivers
@@ -580,7 +586,7 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
     }
 
     let block: *ast.Stmt = null;
-    if !is_extern {
+    if kind == func.Kind.Method || kind == func.Kind.Procedure {
         block = parse_block(p);
         if block == null {
             func.free_pl(&param_list);
@@ -598,17 +604,16 @@ def parse_func_def(p: *Parser, is_extern: bool): *ast.Stmt {
             receiver,
             param_list,
             ret_ty,
-            is_extern,
             ast.as_block_stmt(block)
         );
     }
 
     return ast.new_func_decl_stmt(
+        kind,
         func_span,
         ident,
         param_list,
         ret_ty,
-        is_extern,
         ast.as_block_stmt(block)
     );
 }

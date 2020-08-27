@@ -570,6 +570,8 @@ def (old_method: *Func) as_normal_function(): *Type {
         params.push(old_method.param_at(i) as *void);
     }
 
+    new_func.params = params;
+
     return new_type;
 }
 

@@ -65,7 +65,7 @@ def create_waiting_request(
     waiting_for_mod: *mod.Module,
     offset: i32
 ): WaitingRequest {
-    let waiting_for = waiting_for.data.path;
+    let waiting_for = waiting_for.path;
     // it is easier to pass things like mymod.Mytype to this function and just
     // remove the 'mymod.' here instead of on the calling site
     patch_waiting_for(tc, &waiting_for, waiting_for_mod);
@@ -657,7 +657,7 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
         module_does_not_exist: false, found_type: false, ty: null, module: null
     };
 
-    let ident = &name.data.path;
+    let ident = &name.path;
 
     if checked_type_lookup(tc, ident, &result.ty, &result.module) == ERROR {
         push_not_defined_error(tc, ident, LookupKind.Types.to_string(), null);
@@ -722,7 +722,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
     }
 
     let receiver_ty: *ty.Type = null;
-    if f_decl.is_method {
+    if f_decl.is_method() {
         f_ty.is_method = true;
 
         let recv_waiting = false;
@@ -1388,7 +1388,7 @@ def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
 }
 
 def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
-    if !fd.is_method && lookup_value(tc, &fd.name).present() {
+    if !fd.is_method() && lookup_value(tc, &fd.name).present() {
         push_duplicate_def_error(tc, &fd.name);
         return null;
     }
@@ -1397,7 +1397,7 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     push_tmp_ty(tc, signature);
 
     let mangled_name = mangle_func_name(tc, fd);
-    ty.init_signature(signature, fd.name, mangled_name, tc.ctx.mod, fd.is_extern);
+    ty.init_signature(signature, fd.name, mangled_name, tc.ctx.mod, fd.is_extern());
 
     if ident.eq_lit(&fd.name, "main") {
         if tc.main_func != null {
@@ -1434,21 +1434,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
 
     let f_ty = ty.as_func(f_ty);
     if !ty.func_is_initalized(f_ty) {
-        // --- DBG ---
-        //  let name_s = ident.to_string(f_name);
-        //  io.printf("DBG: %s is not fully initialized\n", name_s);
-        //  delete name_s;
-        // --- DBG ---
-
         // in this case, an error will be pushed later
-        return null;
-    }
-
-    // let name_s = ident.to_string(f_name);
-    // io.printf(">> DBG: Checking %s body\n", name_s);
-    // delete name_s;
-
-    if f_ty.is_extern {
         return null;
     }
 
@@ -1639,15 +1625,19 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         let fd = &f_s.decl;
 
         if tc.decl_only_pass {
-            let ty = check_func_decl(tc, fd);
+            let checked_ty = check_func_decl(tc, fd);
 
-            if ty == null {
+            if checked_ty == null {
                 return null;
             }
 
-            fd.signature = ty;
-            if !fd.is_method {
-                bind_value_public(tc, &fd.name, ty);
+            fd.signature = checked_ty;
+            if fd.is_procedure() || fd.is_extern() {
+                bind_value_public(tc, &fd.name, checked_ty);
+            } else if fd.is_delegate() {
+                let func_ptr_ty = ty.new_ptr(1, checked_ty);
+                bind_type(tc, &fd.name, push_tmp_ty(tc, func_ptr_ty));
+                update_all_waiting(tc, tc.ctx.mod, func_ptr_ty, &fd.name);
             }
 
             return s;
@@ -1655,7 +1645,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         // at this point, all the types inside the function signature have to be resolved,
         // so it is safe to access the receiver type
-        if fd.is_method {
+        if fd.is_method() {
             let receiver_ty = ty.as_func(fd.signature).receiver.ty;
             if receiver_ty == null {
                 return null;
@@ -1668,12 +1658,15 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         // only resolve the block in the actual pass
-        let block = check_func_body(tc, f_s);
-        if block == null && !f_s.decl.is_extern {
-            return null;
+        if fd.is_procedure() || fd.is_method() {
+            let block = check_func_body(tc, f_s);
+            if block == null {
+                return null;
+            }
+
+            f_s.block = block;
         }
 
-        f_s.block = block;
         return s;
     }
 
@@ -2846,14 +2839,14 @@ def check_unary_expr(
 def mangle_func_name(tc: *TypeChecker, fd: *func.FuncDef): name.Owned {
     dbg.assert(fd != null, "funcdef was null");
 
-    if fd.is_extern {
+    if fd.is_extern() {
         // the names must be owned, so just copy data here
         // there aren't many extern functions anyway
         let len = ident.len(&fd.name);
         return name.make_copied(len, ident.start(&fd.name));
     }
 
-    if fd.is_method {
+    if fd.is_method() {
         let recv_ty_name = fd.receiver.ty.to_string();
         defer recv_ty_name.free();
 

@@ -1,4 +1,5 @@
 import "ty";
+import "dbg";
 import "vec";
 import "std";
 import "span";
@@ -35,9 +36,12 @@ def add_param(pl: *ParamList, p: *Param): void {
     pl.params.push(p as *void);
 }
 
+type Kind enum {
+    Method, Procedure, Extern, Delegate
+}
+
 type FuncDef struct {
-    is_extern: bool,
-    is_method: bool,
+    kind: Kind,
     name: ident.Ident,
     receiver: Param,
     ret_ty: tyid.Type,
@@ -49,11 +53,12 @@ def create_func(
     name: lexer.Token,
     params: ParamList,
     ret_ty: tyid.Type,
-    is_extern: bool
+    kind: Kind
 ): FuncDef {
+    dbg.assert(kind != Kind.Method, "use create_method instead");
+
     return FuncDef {
-        is_extern: is_extern,
-        is_method: false,
+        kind: kind,
         name: ident.create(name),
         receiver: undefined,
         ret_ty: ret_ty,
@@ -66,12 +71,10 @@ def create_method(
     name: lexer.Token,
     receiver: Param,
     params: ParamList,
-    ret_ty: tyid.Type,
-    is_extern: bool
+    ret_ty: tyid.Type
 ): FuncDef {
     return FuncDef {
-        is_extern: is_extern,
-        is_method: true,
+        kind: Kind.Method,
         name: ident.create(name),
         receiver: receiver,
         ret_ty: ret_ty,
@@ -86,6 +89,22 @@ def (f: *FuncDef) get_param_ptr(i: u32): *Param {
 
 def (f: *FuncDef) num_params(): u32 {
     return f.params.params.len as u32;
+}
+
+def (f: *FuncDef) is_extern(): bool {
+    return f.kind == Kind.Extern;
+}
+
+def (f: *FuncDef) is_delegate(): bool {
+    return f.kind == Kind.Delegate;
+}
+
+def (f: *FuncDef) is_method(): bool {
+    return f.kind == Kind.Method;
+}
+
+def (f: *FuncDef) is_procedure(): bool {
+    return f.kind == Kind.Procedure;
 }
 
 def free_f(f: *FuncDef) {

@@ -3,13 +3,9 @@ import "str";
 import "span";
 import "ident";
 
-type TypeData union {
-    path: ident.Ident
-}
-
 type Type struct {
     pointer_count: u32,
-    data: TypeData
+    path: ident.Ident
 }
 
 def empty(): Type {
@@ -23,18 +19,16 @@ def create_path(ident: ident.Ident): Type {
 def create_path_ptr(ident: ident.Ident, pointer_count: u32): Type {
     return Type {
         pointer_count: pointer_count,
-        data: TypeData {
-            path: ident
-        }
+        path: ident
     };
 }
 
 def (t: *Type) is_empty(): bool {
-    return t.pointer_count == 0 && ident.is_empty(&t.data.path);
+    return t.pointer_count == 0 && ident.is_empty(&t.path);
 }
 
 def (t: *Type) span(): span.Span {
-    return t.data.path.span;
+    return t.path.span;
 }
 
 def (t: *Type) is_ptr(): bool {
@@ -42,7 +36,7 @@ def (t: *Type) is_ptr(): bool {
 }
 
 def (t: *Type) to_string(): str.String {
-    let ident = t.data.path.to_string();
+    let ident = t.path.to_string();
     defer ident.free();
 
     let s = str.from("");

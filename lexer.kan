@@ -31,6 +31,7 @@ type TokenType enum {
     Union,
     As,
     Extern,
+    Delegate,
     Sizeof,
     For,
     Undefined,
@@ -259,7 +260,11 @@ def ident_type(l: *Lexer): TokenType {
                 return check_keyword(l, 1, 4, "efer", TokenType.Defer);
             }
         } else if next == 'l' {
-            return check_keyword(l, 1, 5, "elete", TokenType.Delete);
+            if l.current - l.start == 6 {
+                return check_keyword(l, 1, 5, "elete", TokenType.Delete);
+            } else {
+                return check_keyword(l, 1, 7, "elegate", TokenType.Delegate);
+            }
         }
     } else if start == 'e' && l.current - l.start > 3 {
         let next = 0;
