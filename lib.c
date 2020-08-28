@@ -9,7 +9,6 @@
 
 #include "./lib.h"
 
-#define HASH_NUM 65599
 #define DEBUG_ASSERT 1
 
 // forward decls
@@ -151,19 +150,6 @@ int32_t read_char(char const *string, size_t s_len, int32_t *ch) {
     return c_len;
 }
 
-size_t hash(char const *const key, size_t len) {
-    size_t h = 0;
-    for (size_t i = 0; i < len; i++) {
-        h = h * HASH_NUM + key[i];
-    }
-    return h;
-}
-
-size_t get_map_index(size_t cap, char const *const key, size_t key_len) {
-    size_t h = hash(key, key_len);
-    return h & (cap - 1);
-}
-
 bool is_file(char const *path) {
     struct stat s;
     if (stat(path, &s) == 0) {
@@ -245,19 +231,6 @@ ssize_t vformat_str(char **dest, char const *fmt, va_list args){
 size_t int_num_digits(size_t i) {
     // pass NULL as str, so that we just get the size
     return snprintf(NULL, 0, "%lu", i);
-}
-
-uint64_t next_pow_of_2(uint64_t num) {
-    uint64_t n = num - 1;
-    n |= n >> 1;
-    n |= n >> 2;
-    n |= n >> 4;
-    n |= n >> 8;
-    n |= n >> 16;
-    n |= n >> 32;
-    // if n is 0 add 1
-    n += 1 + (n == 0);
-    return n;
 }
 
 void flag_set(uint32_t *flags, uint32_t flag) {

@@ -3,7 +3,7 @@ import "std";
 import "ident";
 import "span";
 
-extern def get_map_index(cap: usize, key: string, key_len: usize): usize;
+let hash_num: usize = 65599;
 
 type Map struct {
     len: usize,
@@ -95,6 +95,19 @@ def insert_all(map: *Map, other: *Map): void {
     }
 }
 
+def hash(key: string, len: usize): usize {
+    let h: usize = 0;
+    for let i: usize = 0; i < len; i += 1 {
+        h = h * hash_num + (*(key + i) as usize);
+    }
+    return h;
+}
+
+def (m: *Map) get_map_index(key: string, len: usize): usize {
+    let h = hash(key, len);
+    return h & (m.cap - 1);
+}
+
 // inserts value into map at key
 // returns the replaced value or null
 def insert(map: *Map, key: Key, value: *void): *void {
@@ -102,7 +115,7 @@ def insert(map: *Map, key: Key, value: *void): *void {
         resize(map);
     }
 
-    let index = get_map_index(map.cap, key.value, key.len);
+    let index = map.get_map_index(key.value, key.len);
     let item = map.items + index;
 
     // empty place
@@ -211,7 +224,7 @@ def get_item(map: *Map, key: Key): *Item {
         return null;
     }
 
-    let index = get_map_index(map.cap, key.value, key.len);
+    let index = map.get_map_index(key.value, key.len);
     let item = map.items + index;
 
     if item.key.value != null {
