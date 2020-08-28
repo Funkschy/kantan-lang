@@ -276,6 +276,17 @@ def declare_type(c: *MirCompiler, t: *ty.Type) {
     if ty.is_user_defined(t) {
         lookup_or_declare_type(c, t);
     }
+
+    if ty.is_ptr(t) && ty.is_func(ty.as_ptr(t).inner) {
+        let f_ty = ty.as_func(ty.as_ptr(t).inner);
+        declare_type(c, f_ty.ret);
+
+        // Declare arguments
+        for let i: u32= 0; i < f_ty.num_params(); i = i + 1 {
+            let p = f_ty.param_at(i);
+            declare_type(c, p.ty);
+        }
+    }
 }
 
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
@@ -323,12 +334,21 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         let decl_stmt = ast.as_func_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
-        if decl.is_delegate() {
-            return;
-        }
-
         open_func_scope(c);
         defer close_scope(c);
+
+        if decl.is_delegate() {
+            let f_ty = ty.as_func(decl.signature);
+            declare_type(c, f_ty.ret);
+
+            // Declare arguments
+            for let i: u32= 0; i < f_ty.num_params(); i = i + 1 {
+                let p = f_ty.param_at(i);
+                declare_type(c, p.ty);
+            }
+
+            return;
+        }
 
         let mir_func = lookup_or_declare_function(c, decl.signature);
         // override the meta information, since it could be wrong, if the function
