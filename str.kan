@@ -132,3 +132,13 @@ def view(len: usize, s: string): View {
         len: len, data: s
     };
 }
+
+def (v: View) eq(other: View): bool {
+    return v.len == other.len
+        && std.strncmp(v.data, other.data, v.len) == 0;
+}
+
+def (v: View) starts_with(prefix: View): bool {
+    return v.len >= prefix.len
+        && std.strncmp(v.data, prefix.data, prefix.len) == 0;
+}
