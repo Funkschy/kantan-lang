@@ -89,7 +89,7 @@ def dump_module(m: *Module): void {
             s_extern = "extern ";
         }
 
-        io.printf("%s%s %.*s { ", ty.to_static_string(t.ty), s_extern, t.name.len, t.name.data);
+        io.printf("%s%s %.*s { ", s_extern, ty.to_static_string(t.ty), t.name.len, t.name.data);
 
         if ty.is_struct(t.ty) {
             let s_ty = ty.as_struct(t.ty);
