@@ -1,0 +1,127 @@
+import "../ty";
+import "../ident";
+import "../symbol";
+import "../scope";
+import "tychk";
+
+type Kind enum {
+    Types, Values, Both
+}
+
+def (kind: Kind) to_string(): string {
+    if kind == Kind.Types {
+        return "type";
+    }
+    if kind == Kind.Types {
+        return "value";
+    }
+    return "value or type";
+}
+
+def value_name(tc: *tychk.TypeChecker, name: *ident.Ident): symbol.Data {
+    return scope.lookup(&tc.ctx.values, name);
+}
+
+def type_name(tc: *tychk.TypeChecker, name: *ident.Ident): symbol.Data {
+    return scope.lookup(&tc.ctx.types, name);
+}
+
+// used for resolving access and ident expressions
+type Data struct {
+    kind: Kind,
+    scope: *scope.Scope,
+    was_type: bool
+}
+
+def create_data(kind: Kind, scope: *scope.Scope): Data {
+    return Data {
+        kind: kind, scope: scope, was_type: false
+    };
+}
+
+def (d: *Data) copy(): Data {
+    if d == null {
+        return create_data(Kind.Values, null);
+    }
+    return *d;
+}
+
+def (d: *Data) to_string(): string {
+    if d == null || d.kind == Kind.Values {
+        return "value";
+    }
+    if d.kind == Kind.Types {
+        return "type";
+    }
+
+    return "value of type";
+}
+
+def (d: *Data) lookup_ident(tc: *tychk.TypeChecker, name: *ident.Ident): symbol.Data {
+    if d == null {
+        return value_name(tc, name);
+    }
+
+    if d.scope != null {
+        return d.scope.get_ident(name);
+    }
+
+    if d.kind == Kind.Types {
+        d.was_type = true;
+        return type_name(tc, name);
+    }
+
+    let value = value_name(tc, name);
+    if d.kind == Kind.Values {
+        return value;
+    }
+
+    if !value.present() {
+        d.was_type = true;
+        value = type_name(tc, name);
+    }
+
+    return value;
+}
+
+def (d: *Data) lookup_ident_in(t: *ty.Type, name: *ident.Ident): symbol.Data {
+    if d == null {
+        return ty.lookup_value_in(t, name);
+    }
+
+    if d.kind == Kind.Types {
+        d.was_type = true;
+        return ty.lookup_type_in(t, name);
+    }
+
+    let value = ty.lookup_value_in(t, name);
+    if d.kind == Kind.Values {
+        return value;
+    }
+
+    if !value.present() {
+        d.was_type = true;
+        value = ty.lookup_type_in(t, name);
+    }
+
+    return value;
+}
+
+def (d: *Data) was_type_decl(): bool {
+    return d != null && d.was_type;
+}
+
+def (d: *Data) is_type_accessible(t: *ty.Type): bool {
+    if d == null {
+        return ty.is_value_scoped(t);
+    }
+
+    let kind = d.kind;
+    let is_value_lookup = kind == Kind.Values || kind == Kind.Both;
+    let is_type_lookup = kind == Kind.Types || kind == Kind.Both;
+
+    let value_scoped = is_value_lookup && ty.is_value_scoped(t);
+    let type_scoped = is_type_lookup && ty.is_type_scoped(t);
+    return value_scoped || type_scoped;
+}
+

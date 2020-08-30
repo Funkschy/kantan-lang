@@ -35,10 +35,14 @@ K_FILES = ast.kan \
 		  target.kan \
 		  transform.kan \
 		  ty.kan \
-		  tychk.kan \
+		  tychk/tychk.kan \
+		  tychk/lookup.kan \
+		  tychk/waiting.kan \
 		  tyid.kan \
 		  vec.kan \
 		  vmap.kan
+PREPROCCESSOR_FILES = parser.kan transform.kan
+
 C_SRC_FILES = lib.c posixlink.c
 C_FILES = $(C_SRC_FILES) lib.h
 BUILD_FOLDER = build
@@ -64,6 +68,9 @@ KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
 $(BIN_NAME) : $(K_FILES) $(C_FILES)
 	mkdir -p $(BUILD_FOLDER) ;
 	for file in $(K_FILES) ; do \
+		cp -r --parents $$file $(BUILD_FOLDER)/; \
+	done
+	for file in $(PREPROCCESSOR_FILES) ; do \
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
 	pushd $(BUILD_FOLDER) ; \
@@ -77,7 +84,6 @@ $(BIN_NAME) : $(K_FILES) $(C_FILES)
 	else \
 		pwd ; \
 		popd ; \
-		rm -r $(BUILD_FOLDER) ; \
 	fi
 
 self : $(BIN_NAME) $(K_FILES) $(C_FILES)

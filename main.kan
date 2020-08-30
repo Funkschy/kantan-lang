@@ -11,7 +11,7 @@ import "span";
 import "source";
 import "mod";
 
-import "tychk";
+import "tychk/tychk";
 import "path";
 
 import "transform";

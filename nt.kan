@@ -1,10 +1,5 @@
 // This modules defines NameTables which are used by mirc to define variable names.
 
-// This define toogles between debug and prod NameTable
-// the debug NT uses the original names from the source code (with some
-// minor changes), while the prod one just uses numbers as variable names
-#define DBG_MIR_NAMES 1
-
 import "map";
 import "vec";
 import "dbg";
@@ -43,9 +38,6 @@ def get_in(ns: *NameScope, name: name.Ref, out: *usize): bool {
     *out = std.ptr_to_int(index) - 1;
     return true;
 }
-
-// Debug NameTable
-#if DBG_MIR_NAMES
 
 // A NameTable for human readable names
 // Binds the original name of a variable to a new one, to allow scopes.
@@ -166,5 +158,3 @@ def lookup(nt: *NameTable, needle: name.Ref, out: *name.Ref): bool {
 
     return false;
 }
-
-#endif

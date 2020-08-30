@@ -1,13 +1,17 @@
 import "io";
 import "std";
 
-extern def assert_fmt(condition: bool, fmt: string, ...): void;
+extern def assert_fmt(condition: bool, fmt: string, ...);
 
-def assert(condition: bool, err_text: string): void {
+def assert(condition: bool, err_text: string) {
     assert_fmt(condition, err_text);
 }
 
-def not_implemented(): void {
+def unreachable() {
+    assert(false, "reached unreachable code");
+}
+
+def not_implemented() {
     io.printf("not implemented\n");
     std.abort();
 }

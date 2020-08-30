@@ -1,0 +1,291 @@
+import "../ty";
+import "../mod";
+import "../std";
+import "../dbg";
+import "../vec";
+import "../map";
+import "../tyid";
+import "../span";
+import "../ident";
+
+import "tychk";
+
+type WaitingKind enum {
+    Type = 1, TypePtr
+}
+
+// Used as some kind of callback
+// When we resolve statements it may happen, that the statement uses type we
+// have not yet resolved. In this case a waiting request will be placed for the
+// correspoding type in the correspoding module.
+// After a type has been resolved, tychk will check if there are pending requests
+// for this type and resolve them accordingly.
+type Request struct {
+    kind: WaitingKind,
+    offset: i32, // e.g. index of field in Struct type
+    to_fill: *ty.Type,
+    to_fill_mod: *mod.Module,
+    waiting_for: ident.Ident,
+    waiting_for_mod: *mod.Module
+}
+
+def create_request(
+    tc: *tychk.TypeChecker,
+    kind: WaitingKind,
+    to_fill: *ty.Type,
+    to_fill_mod: *mod.Module,
+    waiting_for: *tyid.Type,
+    waiting_for_mod: *mod.Module,
+    offset: i32
+): Request {
+    let waiting_for = waiting_for.ident();
+    // it is easier to pass things like mymod.Mytype to this function and just
+    // remove the 'mymod.' here instead of on the calling site
+    patch_waiting_for(tc, &waiting_for, waiting_for_mod);
+
+    return Request {
+        kind: kind,
+        offset: offset,
+        to_fill: to_fill,
+        to_fill_mod: to_fill_mod,
+        waiting_for: waiting_for,
+        waiting_for_mod: waiting_for_mod
+    };
+}
+
+def patch_waiting_for(tc: *tychk.TypeChecker, waiting_for: *ident.Ident, waiting_for_mod: *mod.Module) {
+    if waiting_for_mod == tc.ctx.mod {
+        return;
+    }
+
+    let len = waiting_for.len();
+    let dot_index = ident.index_of(waiting_for, len, '.');
+    if dot_index > 0 {
+        let ident_mod = tychk.get_mod_by_alias(tc.ctx, dot_index as usize, waiting_for.start());
+        if ident_mod != waiting_for_mod {
+            dbg.assert_fmt(
+                ident_mod != null,
+                "Result.Error: alias '%.*s' was null\n", dot_index, waiting_for.start()
+            );
+        }
+
+        // remove the module path: 'mymod.test' => 'test'
+        let old_span = waiting_for.span;
+        let start = old_span.start + dot_index + 1;
+        let end = old_span.end;
+
+        let new_span = span.create(start, end);
+        *waiting_for = ident.from_span(new_span);
+    }
+}
+
+def (r: *Request) waiting_for_ident(): *ident.Ident {
+    return &r.waiting_for;
+}
+
+type RequestMap struct {
+    init_flag: i32, // used to check if this is zeroed memory
+    requests: vec.Vec, // Vec<Vec<Request>>
+    request_map: map.Map // Map<Type Ident, index into requests>
+}
+
+def create_request_map(): RequestMap {
+    let map = RequestMap {
+        init_flag: 1,
+        requests: vec.create(sizeof vec.Vec),
+        request_map: map.create()
+    };
+
+    return map;
+}
+
+def (wrm: *RequestMap) add_request(request: Request) {
+    let requests: *vec.Vec = null;
+
+    let wanted_ident = request.waiting_for_ident();
+    let key = map.key_from_ident(wanted_ident);
+    let request_idx = map.get(&wrm.request_map, key);
+    let idx: usize = -1;
+
+    if request_idx == null || std.ptr_to_int(request_idx) == 0 {
+        // create new vector
+        idx = wrm.requests.len;
+        let v = vec.create(sizeof Request);
+        wrm.requests.push(&v as *void);
+
+        // TODO(#83): replace with vmap.Map
+        // push its idx into the map
+        request_idx = std.int_to_ptr(idx);
+        // add one, to be able to tell null apart from 0
+        map.insert(&wrm.request_map, key, request_idx + 1);
+    } else {
+        idx = std.ptr_to_int(request_idx) - 1;
+    }
+
+    requests = wrm.requests.get_ptr(idx) as *vec.Vec;
+    requests.push(&request as *void);
+}
+
+def (wrm: *RequestMap) get_waiting(ident: *ident.Ident): *vec.Vec {
+    let key = map.key_from_ident(ident);
+    let request_idx = map.get_and_remove(&wrm.request_map, key);
+
+    if request_idx == null || std.ptr_to_int(request_idx) == 0 {
+        return null;
+    }
+
+    let idx = std.ptr_to_int(request_idx) - 1;
+    return wrm.requests.get_ptr(idx) as *vec.Vec;
+}
+
+def (wrm: *RequestMap) free() {
+    for let i: usize = 0; i < wrm.requests.len; i += 1 {
+        let v = wrm.requests.get_ptr(i) as *vec.Vec;
+        v.free();
+    }
+
+    wrm.requests.free();
+    map.free_m(&wrm.request_map);
+}
+
+def wait_for_type(
+    tc: *tychk.TypeChecker,
+    kind: WaitingKind,
+    waiting_for_mod: *mod.Module, // 'waiting_for' will be defined here
+    waiting_for: *tyid.Type,
+    offset: i32,
+    to_fill: *ty.Type
+) {
+    let request = create_request(
+        tc,
+        kind,
+        to_fill,
+        tc.ctx.mod,
+        waiting_for,
+        waiting_for_mod,
+        offset
+    );
+
+    wait_for(tc, request);
+}
+
+def wait_for_field(
+    tc: *tychk.TypeChecker,
+    mod: *mod.Module,
+    field_name: ident.Ident,
+    waiting_for: *tyid.Type,
+    offset: i32,
+    t: *ty.Type
+) {
+    let field_ty: *ty.Type = null;
+    let kind = WaitingKind.Type;
+
+    if waiting_for.is_ptr() {
+        kind = WaitingKind.TypePtr;
+        field_ty = ty.new_ptr(waiting_for.pointer_count, null);
+        tychk.push_tmp_ty(tc, field_ty);
+    }
+
+    tc.push_field_into_ty(t, field_name, field_ty);
+
+    let request = create_request(
+        tc,
+        kind,
+        t,
+        tc.ctx.mod,
+        waiting_for,
+        mod,
+        offset
+    );
+
+    wait_for(tc, request);
+}
+
+def wait_for(tc: *tychk.TypeChecker, req: Request) {
+    let idx = req.waiting_for_mod.idx;
+    let map = tc.requests.get_ptr(idx as usize) as *RequestMap;
+
+    if map.init_flag == 0 {
+        *map = create_request_map();
+    }
+
+    map.add_request(req);
+}
+
+def update_all(
+    tc: *tychk.TypeChecker,
+    mod: *mod.Module,
+    resolved_ty: *ty.Type,
+    resolved_name: *ident.Ident
+) {
+    // only execute this once
+    if ty.was_touched_by_tychk(resolved_ty) {
+        return;
+    }
+    ty.tychk_touch(resolved_ty);
+
+    let waiting_map = tc.get_waiting_map(mod);
+    let waiting = waiting_map.get_waiting(resolved_name);
+
+    if waiting == null {
+        return;
+    }
+
+    for let i: usize = 0; i < waiting.len; i = i + 1 {
+        let req = waiting.get_ptr(i) as *Request;
+        update(tc, req, resolved_ty);
+    }
+}
+
+def update(tc: *tychk.TypeChecker, req: *Request, resolved_ty: *ty.Type) {
+    let waiting_ty = req.to_fill;
+    let waiting_mod = req.to_fill_mod;
+
+    if req.kind == WaitingKind.Type || req.kind == WaitingKind.TypePtr {
+        let field_ty: **ty.Type = null;
+        let field_name: *ident.Ident = null;
+        let user_defined: *ty.UserDefinedType = null;
+
+        if ty.is_union(waiting_ty) {
+            let waiting_u_ty = ty.as_union(waiting_ty);
+            user_defined = &waiting_u_ty.super;
+
+            let field = waiting_u_ty.field_at(req.offset as u32);
+            field_ty = &field.ty;
+            field_name = &field.name;
+        } else {
+            let waiting_s_ty = ty.as_struct(waiting_ty);
+            user_defined = &waiting_s_ty.super;
+
+            let field = waiting_s_ty.field_at(req.offset as u32);
+            field_ty = &field.ty;
+            field_name = &field.name;
+        }
+
+        if req.kind == WaitingKind.Type {
+            *field_ty = resolved_ty;
+        } else if req.kind == WaitingKind.TypePtr {
+            if !ty.is_ptr(*field_ty) {
+                tychk.push_internal_error(tc, user_defined.original_name.span, "type is not a ptr");
+                return;
+            }
+
+            ty.update_inner(*field_ty, resolved_ty);
+        }
+
+        // overwrite old type
+        user_defined.update_field_ty(field_name, *field_ty);
+
+        // TODO(#43): calling this all the time is very inefficient
+        let completely_initialized = ty.fill_width_align(waiting_ty);
+        if completely_initialized {
+            // recursively update types waiting for waiting_ty
+            update_all(tc, waiting_mod, waiting_ty, &user_defined.original_name);
+        }
+
+        return;
+    }
+
+    dbg.unreachable();
+}
+

@@ -27,21 +27,23 @@ type Kind enum {
     Struct, Enum, Union
 }
 
-#define WIDTH_UNKNOWN -1
+def width_unknown(): i64 {
+    return -1;
+}
 
 // These flags have to be powers of 2
-#define FLAG_TYPE_SCOPED   1
-#define FLAG_VALUE_SCOPED  2
-#define FLAG_UNSIZED       4
+let flag_type_scoped = 1;
+let flag_value_scoped = 2;
+let flag_unsized = 4;
 // this gets set, when tychk visits a type for the first time and gets unset
 // when the type is fully resolved
-#define FLAG_TYCHK_TOUCHED 8
+let flag_tychk_touched = 8;
 
 /////////// error type ///////////
 
 def new_error(): *Type {
     let t = new_type(Kind.Error, null);
-    std.flag_set(&t.flags, FLAG_UNSIZED);
+    std.flag_set(&t.flags, flag_unsized);
     return t;
 }
 
@@ -55,7 +57,7 @@ def is_error(t: *Type): bool {
 
 def new_void(): *Type {
     let t = new_type(Kind.Void, null);
-    std.flag_set(&t.flags, FLAG_UNSIZED);
+    std.flag_set(&t.flags, flag_unsized);
     return t;
 }
 
@@ -141,7 +143,7 @@ def new_array(len: i64, inner: *Type): *Type {
     let arr = new Array { len: len, inner: inner };
     let t = new_type(Kind.Array, arr as *void);
 
-    std.flag_unset(&t.flags, FLAG_UNSIZED);
+    std.flag_unset(&t.flags, flag_unsized);
     t.align = inner.align;
     t.width = len * inner.width;
     return t;
@@ -184,7 +186,7 @@ def new_ptr(count: u32, inner: *Type): *Type {
     }
 
     // pointers always have a size
-    std.flag_unset(&t.flags, FLAG_UNSIZED);
+    std.flag_unset(&t.flags, flag_unsized);
     // TODO(#42): determine pointer width based on target
     t.width = (t.align = 8) as i64;
     return t;
@@ -205,7 +207,7 @@ def update_inner(ptr_ty: *Type, inner: *Type): void {
         ptr_ty.flags = inner.flags;
     }
     // pointers always have a size
-    std.flag_unset(&ptr_ty.flags, FLAG_UNSIZED);
+    std.flag_unset(&ptr_ty.flags, flag_unsized);
 }
 
 def is_ptr(t: *Type): bool {
@@ -307,8 +309,8 @@ def init_struct(
     };
 
     t.data = s as *void;
-    t.width = WIDTH_UNKNOWN;
-    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
+    t.width = width_unknown();
+    std.flag_set(&t.flags, flag_value_scoped);
 }
 
 def is_struct(t: *Type): bool {
@@ -382,8 +384,8 @@ def init_union(t: *Type, name: ident.Ident, mangled_name: name.Owned, declared_i
     };
 
     t.data = s as *void;
-    t.width = WIDTH_UNKNOWN;
-    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
+    t.width = width_unknown();
+    std.flag_set(&t.flags, flag_value_scoped);
 }
 
 def is_union(t: *Type): bool {
@@ -458,7 +460,7 @@ def init_enum(
     };
 
     t.data = s as *void;
-    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
+    std.flag_set(&t.flags, flag_value_scoped);
     fill_width_align(t);
 }
 
@@ -564,7 +566,7 @@ def init_signature(
     };
 
     let func = new_type(Kind.Func, func as *void);
-    std.flag_set(&func.flags, FLAG_UNSIZED);
+    std.flag_set(&func.flags, flag_unsized);
 
     let sig = new Signature {
         func: func,
@@ -573,7 +575,7 @@ def init_signature(
         mangled_name: mangled_name
     };
 
-    std.flag_set(&t.flags, FLAG_UNSIZED);
+    std.flag_set(&t.flags, flag_unsized);
     t.data = sig as *void;
 }
 
@@ -589,7 +591,7 @@ def (old_method: *Func) as_normal_function(): *Type {
         ret: old_method.ret,
         params: vec.create(sizeof Param)
     };
-    std.flag_set(&new_type.flags, FLAG_UNSIZED);
+    std.flag_set(&new_type.flags, flag_unsized);
     new_type.data = func as *void;
 
     let new_func = as_func(new_type);
@@ -699,9 +701,9 @@ def new_mod(name: name.Ref): *Type {
 
     let t = new_type(Kind.Mod, m as *void);
 
-    std.flag_set(&t.flags, FLAG_TYPE_SCOPED);
-    std.flag_set(&t.flags, FLAG_VALUE_SCOPED);
-    std.flag_set(&t.flags, FLAG_UNSIZED);
+    std.flag_set(&t.flags, flag_type_scoped);
+    std.flag_set(&t.flags, flag_value_scoped);
+    std.flag_set(&t.flags, flag_unsized);
 
     return t;
 }
@@ -729,21 +731,21 @@ def new_type(kind: Kind, data: *void): *Type {
 }
 
 def was_touched_by_tychk(t: *Type): bool {
-    return std.flag_get(&t.flags, FLAG_TYCHK_TOUCHED);
+    return std.flag_get(&t.flags, flag_tychk_touched);
 }
 
 def tychk_touch(t: *Type): void {
-    std.flag_set(&t.flags, FLAG_TYCHK_TOUCHED);
+    std.flag_set(&t.flags, flag_tychk_touched);
 }
 
 def tychk_untouch(t: *Type): void {
-    std.flag_unset(&t.flags, FLAG_TYCHK_TOUCHED);
+    std.flag_unset(&t.flags, flag_tychk_touched);
 }
 
 def create_type(kind: Kind, data: *void): Type {
     return Type {
         kind: kind,
-        width: WIDTH_UNKNOWN,
+        width: width_unknown(),
         align: 0,
         flags: 0,
         data: data
@@ -751,14 +753,14 @@ def create_type(kind: Kind, data: *void): Type {
 }
 
 def is_sized(t: *Type): bool {
-    return !std.flag_get(&t.flags, FLAG_UNSIZED);
+    return !std.flag_get(&t.flags, flag_unsized);
 }
 
 // if the type is not unsized and the with is unknown it wasn't
 // constructed correctly
 def is_initialized(t: *Type): bool {
     return t != null
-        && ((t.width != WIDTH_UNKNOWN && t.align > 0) || std.flag_get(&t.flags, FLAG_UNSIZED));
+        && ((t.width != width_unknown() && t.align > 0) || std.flag_get(&t.flags, flag_unsized));
 }
 
 def is_type_scoped(t: *Type): bool {
@@ -766,7 +768,7 @@ def is_type_scoped(t: *Type): bool {
         return false;
     }
 
-    return std.flag_get(&t.flags, FLAG_TYPE_SCOPED);
+    return std.flag_get(&t.flags, flag_type_scoped);
 }
 
 def is_value_scoped(t: *Type): bool {
@@ -774,7 +776,7 @@ def is_value_scoped(t: *Type): bool {
         return false;
     }
 
-    return std.flag_get(&t.flags, FLAG_VALUE_SCOPED);
+    return std.flag_get(&t.flags, flag_value_scoped);
 }
 
 def free_user_defined_type(user_defined: *UserDefinedType) {
@@ -884,7 +886,7 @@ def lookup_type_in(t: *Type, name: *ident.Ident): symbol.Data {
     return type_scope.get_ident(name);
 }
 
-// looks for an ident in types with FLAG_VALUE_SCOPED
+// looks for an ident in types with flag_value_scoped
 def get_value_scope(t: *Type): *scope.Scope {
     if is_user_defined(t) {
         return &get_user_defined(t).scope;
@@ -1017,7 +1019,7 @@ def calc_union_width_align(u_ty: *Union, width: *i64, align: *i32): bool {
 // TODO(#38): implement either lookup table or full method dispatching for Type
 // returns true, if the types width/alignment could be calculated
 def fill_width_align(t: *Type): bool {
-    if std.flag_get(&t.flags, FLAG_UNSIZED) {
+    if std.flag_get(&t.flags, flag_unsized) {
         return false;
     }
 
@@ -1027,7 +1029,7 @@ def fill_width_align(t: *Type): bool {
 
     // if align is 0 at end of this function, use width as align
     let align: i32 = 0;
-    let width: i64 = WIDTH_UNKNOWN;
+    let width: i64 = width_unknown();
     let has_unresolved_fields = false;
 
     if is_struct(t) {

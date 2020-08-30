@@ -1,5 +1,5 @@
 // TODO(#8): should be platform dependant
-#define SYSTEM_SEPARATOR '/'
+let system_separator: i8  = 47; // '/'
 
 import "std";
 import "dbg";
@@ -22,7 +22,7 @@ def create(value: string, len: usize): Path {
 }
 
 def sys_separator(): i8 {
-    return SYSTEM_SEPARATOR;
+    return system_separator;
 }
 
 def from_str(s: string, p: *Path): error.CompileError {
@@ -57,7 +57,7 @@ def last_separator_ptr(p: *Path): string {
     let ptr = p.inner + p.len - 1;
     while ptr > p.inner {
         ptr = ptr - 1;
-        if *ptr == SYSTEM_SEPARATOR {
+        if *ptr == system_separator {
             return ptr;
         }
     }
@@ -113,7 +113,7 @@ def canonicalize(p: *Path, dest: *PathBuf): error.CompileError {
 
 def is_abs(p: *Path): bool {
     // TODO(#23): windows support
-    return *p.inner == SYSTEM_SEPARATOR || *p.inner == '~';
+    return *p.inner == system_separator || *p.inner == '~';
 }
 
 def is_root(p: *Path): bool {
@@ -195,7 +195,7 @@ def merge_abs_rel_suffix(
             "%.*s%c%.*s%s",
             base.len,
             base.inner,
-            SYSTEM_SEPARATOR,
+            system_separator,
             child.len,
             child.inner,
             suffix
@@ -205,7 +205,7 @@ def merge_abs_rel_suffix(
             "%.*s%c%.*s",
             base.len,
             base.inner,
-            SYSTEM_SEPARATOR,
+            system_separator,
             child.len,
             child.inner
         );
@@ -250,7 +250,7 @@ def common_parent(first: Path, second: Path): PathBuf {
             return new_path_buf_l(len, first.inner);
         }
 
-        if *ptr == SYSTEM_SEPARATOR {
+        if *ptr == system_separator {
             last_separator = i;
         }
     }
