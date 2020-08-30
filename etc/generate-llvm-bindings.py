@@ -25,6 +25,7 @@ whitelist = set([
     'LLVMAddModuleFlag',
     'LLVMAppendBasicBlockInContext',
     'LLVMArrayType',
+    'LLVMArrayType',
     'LLVMBasicBlockAsValue',
     'LLVMBuildAShr',
     'LLVMBuildAdd',

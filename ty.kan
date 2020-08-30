@@ -17,6 +17,7 @@ extern def type2str(kind: i32): string;
 type Kind enum {
     Error,
     Ptr,
+    Array,
     Bool,
     Integer,
     F32, F64,
@@ -129,6 +130,31 @@ def is_bool(t: *Type): bool {
     return t.kind == Kind.Bool;
 }
 
+/////////// array type ///////////
+
+type Array struct {
+    len: i64,
+    inner: *Type
+}
+
+def new_array(len: i64, inner: *Type): *Type {
+    let arr = new Array { len: len, inner: inner };
+    let t = new_type(Kind.Array, arr as *void);
+
+    std.flag_unset(&t.flags, FLAG_UNSIZED);
+    t.align = inner.align;
+    t.width = len * inner.width;
+    return t;
+}
+
+def (t: *Type) is_array(): bool {
+    return t.kind == Kind.Array;
+}
+
+def (t: *Type) as_array(): *Array {
+    return t.data as *Array;
+}
+
 /////////// pointer type ///////////
 
 // TODO(#22): remember to make the result of pointer subtraction dependent on the
@@ -227,6 +253,10 @@ def is_user_defined(t: *Type): bool {
         return ptr.count == 1 && is_user_defined(ptr.inner);
     }
 
+    if t.is_array() {
+        return is_user_defined(t.as_array().inner);
+    }
+
     return is_struct(t) || is_enum(t) || is_union(t);
 }
 
@@ -235,7 +265,15 @@ def get_user_defined(t: *Type): *UserDefinedType {
         return get_user_defined(as_ptr(t).inner);
     }
 
+    if t.is_array() {
+        return get_user_defined(t.as_array().inner);
+    }
+
     return t.data as *UserDefinedType;
+}
+
+def (t: *UserDefinedType) update_field_ty(field_name: *ident.Ident, field_ty: *Type) {
+    t.scope.bind_public_ident(field_name, field_ty);
 }
 
 /////////// struct type ///////////
@@ -307,10 +345,6 @@ def field_idx(t: *Struct, name: ident.Ident, out_field_ty: **Type): i64 {
     return -1;
 }
 
-def update_field_ty(t: *Struct, field: *StructField): void {
-    t.super.scope.bind_public_ident(&field.name, field.ty);
-}
-
 def (t: *Struct) field_at(i: u32): *StructField {
     return t.fields.get_ptr(i as usize) as *StructField;
 }
@@ -366,10 +400,6 @@ def (t: *Union) push_field(name: ident.Ident, ty: *Type): bool {
 
     t.super.scope.bind_public_ident(&name, ty);
     return false;
-}
-
-def (t: *Union) update_field_ty(field: *UnionField) {
-    t.super.scope.bind_public_ident(&field.name, field.ty);
 }
 
 def (t: *Union) field_at(i: u32): *UnionField {
@@ -821,7 +851,7 @@ def free_ty(t: *Type) {
         return;
     }
 
-    if t.is_integer() || is_ptr(t) {
+    if t.is_integer() || is_ptr(t) || t.is_array() {
         delete t.data;
         return;
     }
@@ -1116,6 +1146,17 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         return str.from_l(s, len);
     }
 
+    if t.is_array() {
+        let arr_ty = t.as_array();
+        let s = str.from_l("[]", 2);
+
+        let inner = to_string_mangled(arr_ty.inner, use_mangled);
+        defer inner.free();
+
+        s.push(inner.view());
+        return s;
+    }
+
     if is_user_defined(t) {
         if use_mangled {
             return get_user_defined(t).mangled_name.to_string();
@@ -1180,6 +1221,11 @@ def equals(first: *Type, second: *Type): bool {
         }
 
         return true;
+    }
+
+    if first.is_array() {
+        return first.as_array().len == second.as_array().len
+            && equals(first.as_array().inner, second.as_array().inner);
     }
 
     if first.is_integer() {

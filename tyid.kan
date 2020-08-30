@@ -1,15 +1,32 @@
+import "ast";
 import "std";
 import "str";
 import "span";
 import "ident";
 
+type Kind enum {
+    Path, Array
+}
+
+type ArrayData struct {
+    len: *ast.Expr,
+    inner: Type
+}
+
+type TypeData union {
+    path: ident.Ident,
+    array: *ArrayData
+}
+
 type Type struct {
+    kind: Kind,
     pointer_count: u32,
-    path: ident.Ident
+    data: TypeData
 }
 
 def empty(): Type {
-    return create_path(ident.empty());
+    let empty = create_path(ident.empty());
+    return empty;
 }
 
 def create_path(ident: ident.Ident): Type {
@@ -18,31 +35,69 @@ def create_path(ident: ident.Ident): Type {
 
 def create_path_ptr(ident: ident.Ident, pointer_count: u32): Type {
     return Type {
+        kind: Kind.Path,
         pointer_count: pointer_count,
-        path: ident
+        data: TypeData {
+            path: ident
+        }
+    };
+}
+
+def create_array_ptr(inner: Type, len: *ast.Expr, pointer_count: u32): Type {
+    return Type {
+        kind: Kind.Array,
+        pointer_count: pointer_count,
+        data: TypeData {
+            array: new ArrayData { len: len, inner: inner }
+        }
     };
 }
 
 def (t: *Type) is_empty(): bool {
-    return t.pointer_count == 0 && ident.is_empty(&t.path);
+    return t.pointer_count == 0 && t.kind == Kind.Path && ident.is_empty(&t.data.path);
 }
 
 def (t: *Type) span(): span.Span {
-    return t.path.span;
+    return t.ident().span;
+}
+
+def (t: *Type) ident(): ident.Ident {
+    if t.kind == Kind.Array {
+        return t.data.array.inner.ident();
+    }
+
+    return t.data.path;
 }
 
 def (t: *Type) is_ptr(): bool {
     return t.pointer_count > 0;
 }
 
+def (t: *Type) is_array(): bool {
+    return t.kind == Kind.Array;
+}
+
+def (t: *Type) free() {
+    if t.kind == Kind.Array {
+        ast.expr_free(t.data.array.len);
+        t.data.array.inner.free();
+        delete t.data.array;
+    }
+}
+
 def (t: *Type) to_string(): str.String {
-    let ident = t.path.to_string();
+    let ident = t.ident().to_string();
     defer ident.free();
 
     let s = str.from("");
     for let i: u32 = 0; i < t.pointer_count; i += 1 {
         s.push(str.view(1, "*"));
     }
+
+    if t.kind == Kind.Array {
+        s.push(str.view(3, "[x]"));
+    }
+
     s.push(ident.view());
 
     return s;

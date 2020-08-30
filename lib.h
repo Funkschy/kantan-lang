@@ -84,6 +84,8 @@ static char const *const token_strings[] = {
     ")",
     "{",
     "}",
+    "[",
+    "]",
     "string",
     "char",
     "EOF"
@@ -178,6 +180,7 @@ static size_t const len_stmt_strings = sizeof(stmt_type_strings) / sizeof(char *
 static char const *const type_type_strings[] = {
     "error",
     "pointer",
+    "array",
     "bool",
     "int",
     "f32",

@@ -529,6 +529,7 @@ def stmt_free(s: *Stmt): void {
     if is_expr_stmt(s) {
         expr_free(as_expr_stmt(s).expr);
     } else if is_let_stmt(s) {
+        as_let_stmt(s).ty.free();
         expr_free(as_let_stmt(s).value);
     } else if is_delete_stmt(s) {
         expr_free(as_delete_stmt(s).expr);
@@ -538,8 +539,7 @@ def stmt_free(s: *Stmt): void {
         expr_free(as_return_stmt(s).expr);
     } else if is_func_decl_stmt(s) {
         let f_decl = as_func_decl_stmt(s);
-        let decl = f_decl.decl;
-        func.free_f(&decl);
+        f_decl.decl.free();
         stmt_free(f_decl.block as *Stmt);
     } else if is_block_stmt(s) {
         let stmts = as_block_stmt(s).stmts;
@@ -1032,9 +1032,12 @@ def expr_free(e: *Expr): void {
     } else if is_unary_expr(e) {
         expr_free(as_unary_expr(e).right);
     } else if is_as_expr(e) {
+        as_as_expr(e).ty.free();
         expr_free(as_as_expr(e).expr);
     } else if is_new_expr(e) {
         expr_free(as_new_expr(e).expr);
+    } else if is_sizeof_expr(e) {
+        as_sizeof_expr(e).ty.free();
     }
 
     delete e;

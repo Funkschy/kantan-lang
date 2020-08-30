@@ -20,6 +20,10 @@ def is_varargs_param(p: *Param): bool {
     return std.memcmp(ident.start(&p.name) as *void, "..." as *void, 3) == 0;
 }
 
+def (p: *Param) free() {
+    p.ty.free();
+}
+
 type ParamList struct {
     params: vec.Vec
 }
@@ -28,11 +32,14 @@ def pl_from_vec(params: vec.Vec): ParamList {
     return ParamList { params: params };
 }
 
-def free_pl(pl: *ParamList): void {
+def free_pl(pl: *ParamList) {
+    for let i: usize = 0; i < pl.params.len; i += 1 {
+        (pl.params.get_ptr(i) as *Param).free();
+    }
     pl.params.free();
 }
 
-def add_param(pl: *ParamList, p: *Param): void {
+def add_param(pl: *ParamList, p: *Param) {
     pl.params.push(p as *void);
 }
 
@@ -107,6 +114,10 @@ def (f: *FuncDef) is_procedure(): bool {
     return f.kind == Kind.Procedure;
 }
 
-def free_f(f: *FuncDef) {
+def (f: *FuncDef) free() {
     free_pl(&f.params);
+    if f.kind == Kind.Method {
+        f.receiver.free();
+    }
+    f.ret_ty.free();
 }

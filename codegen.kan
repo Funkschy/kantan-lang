@@ -357,6 +357,13 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         return t;
     }
 
+    if t.is_array() {
+        let arr_ty = t.as_array();
+        let inner = translate_type(c, arr_ty.inner);
+
+        return llvm.array_type(inner, arr_ty.len as u32);
+    }
+
     if ty.is_callable(t) {
         let f_ty = ty.callable_as_func(t);
         let num_params = f_ty.params.len as u32;

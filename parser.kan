@@ -182,6 +182,27 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
         pointer_count = pointer_count + 1;
     }
 
+    if peek(p).ty == l.TokenType.LBracket {
+        consume(p, l.TokenType.LBracket);
+        let len_expr = expression(p, false);
+        if len_expr == null {
+            return false;
+        }
+
+        if !consume(p, l.TokenType.RBracket) {
+            ast.expr_free(len_expr);
+            return false;
+        }
+
+        if !consume_type(p, dest) {
+            ast.expr_free(len_expr);
+            return false;
+        }
+
+        *dest = tyid.create_array_ptr(*dest, len_expr, pointer_count);
+        return true;
+    }
+
     let ty = l.empty_token();
     let illegal_type_err = empty_err();
     if !consume_type_ident(p, &ty, &illegal_type_err) {
@@ -431,10 +452,14 @@ def parse_let_stmt(p: *Parser): *ast.Stmt {
         }
     }
 
-    CONSUME_RET_NULL(l.TokenType.Eq);
+    if !consume(p, l.TokenType.Eq) {
+        ty.free();
+        return null;
+    }
 
     let e = expression(p, false);
     if e == null {
+        ty.free();
         return null;
     }
 
@@ -590,6 +615,7 @@ def parse_func_def(p: *Parser, kind: func.Kind): *ast.Stmt {
         block = parse_block(p);
         if block == null {
             func.free_pl(&param_list);
+            ret_ty.free();
             return null;
         }
         end_span = block.span;
@@ -785,25 +811,27 @@ def parse_block(p: *Parser): *ast.Stmt {
 }
 
 def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
-#define FAIL() fields.free(); return vec.create(0)
-
     let fields = vec.create(sizeof record.Field);
+    let error = false;
 
     let peeked = peek(p);
     while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RBrace {
         let ident_token = l.empty_token();
         if !consume_ident(p, &ident_token) {
-            FAIL();
+            error = true;
+            break;
         }
         let ident = ident.create(ident_token);
 
         if !consume(p, l.TokenType.Colon) {
-            FAIL();
+            error = true;
+            break;
         }
 
         let ty = tyid.empty();
         if !consume_type(p, &ty) {
-            FAIL();
+            error = true;
+            break;
         }
 
         let field = record.create_field(ident, ty);
@@ -813,17 +841,24 @@ def parse_field_list(p: *Parser, closing_brace: *l.Token): vec.Vec {
 
         // consume separator
         if peeked.ty != l.TokenType.RBrace && !consume(p, l.TokenType.Comma) {
-            FAIL();
+            error = true;
+            break;
         }
     }
 
     if !consume_token(p, l.TokenType.RBrace, closing_brace) {
-        FAIL();
+        error = true;
+    }
+
+    if error {
+        for let i: usize = 0; i < fields.len; i += 1 {
+            (fields.get_ptr(i) as *record.Field).free();
+        }
+        fields.free();
+        return vec.create(0);
     }
 
     return fields;
-
-#undef FAIL
 }
 
 def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Expr): vec.Vec {
@@ -869,9 +904,8 @@ def parse_enum_values(p: *Parser, closing_brace: *l.Token, start_value: **ast.Ex
 }
 
 def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.Vec {
-#define FAIL() params.free(); return vec.create(0)
-
     let params = vec.create(sizeof func.Param);
+    let error = false;
 
     let peeked = peek(p);
     while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RParen {
@@ -883,15 +917,18 @@ def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.V
         } else {
             ident_token = l.empty_token();
             if !consume_ident(p, &ident_token) {
-                FAIL();
+                error = true;
+                break;
             }
 
             if !consume(p, l.TokenType.Colon) {
-                FAIL();
+                error = true;
+                break;
             }
 
             if !consume_type(p, &ty) {
-                FAIL();
+                error = true;
+                break;
             }
         }
 
@@ -908,12 +945,19 @@ def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.V
     }
 
     if !consume_token(p, l.TokenType.RParen, closing_paren) {
-        FAIL();
+        error = true;
+    }
+
+    if error {
+        for let i: usize = 0; i < params.len; i += 1 {
+            (params.get_ptr(i) as *func.Param).free();
+        }
+
+        params.free();
+        return vec.create(0);
     }
 
     return params;
-
-#undef FAIL
 }
 
 // returns false on error

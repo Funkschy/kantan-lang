@@ -19,14 +19,21 @@ def create_field(ident: ident.Ident, ty: tyid.Type): Field {
     return Field { ident: ident, ty: ty };
 }
 
+def (f: *Field) free() {
+    f.ty.free();
+}
+
 // TODO(#82): replace with vmap.Map
 type Fields struct {
     field_map: map.Map, // from ident to index into fields
     fields: vec.Vec // actual fields
 }
 
-def free_fields(fs: *Fields): void {
+def free_fields(fs: *Fields) {
     map.free_m(&fs.field_map);
+    for let i: usize = 0; i < fs.fields.len; i += 1 {
+        (fs.fields.get_ptr(i) as *Field).free();
+    }
     fs.fields.free();
 }
 

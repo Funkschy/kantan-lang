@@ -65,7 +65,7 @@ def create_waiting_request(
     waiting_for_mod: *mod.Module,
     offset: i32
 ): WaitingRequest {
-    let waiting_for = waiting_for.path;
+    let waiting_for = waiting_for.ident();
     // it is easier to pass things like mymod.Mytype to this function and just
     // remove the 'mymod.' here instead of on the calling site
     patch_waiting_for(tc, &waiting_for, waiting_for_mod);
@@ -85,13 +85,13 @@ def patch_waiting_for(tc: *TypeChecker, waiting_for: *ident.Ident, waiting_for_m
         return;
     }
 
-    let len = ident.len(waiting_for);
+    let len = waiting_for.len();
     let dot_index = ident.index_of(waiting_for, len, '.');
     if dot_index > 0 {
-        let ident_mod = get_mod_by_alias(tc.ctx, dot_index as usize, ident.start(waiting_for));
+        let ident_mod = get_mod_by_alias(tc.ctx, dot_index as usize, waiting_for.start());
         if ident_mod != waiting_for_mod {
             if ident_mod == null {
-                io.printf("ERROR: alias '%.*s' was null\n", dot_index, ident.start(waiting_for));
+                io.printf("ERROR: alias '%.*s' was null\n", dot_index, waiting_for.start());
             }
             // not recoverable and probably unreachable
             std.abort();
@@ -131,18 +131,6 @@ def add_request(wrm: *WaitingRequestMap, request: WaitingRequest) {
     let requests: *vec.Vec = null;
 
     let wanted_ident = req_waiting_for_ident(&request);
-    // ------
-    //  let s = ident.to_string(wanted_ident);
-    //  let kind_s = "struct";
-    //  if request.kind == WAITING_TYPE_PTR {
-    //      kind_s = "ptr";
-    //  } else if request.kind == WAITING_FUNC_DEF {
-    //      kind_s = "func";
-    //  }
-    //  io.printf("DBG: >>> Adding %s request for '%s'\n ", kind_s, s);
-    //  delete s;
-    // ------
-
     let key = map.key_from_ident(wanted_ident);
     let request_idx = map.get(&wrm.request_map, key);
     let idx: usize = -1;
@@ -381,27 +369,6 @@ def check(tc: *TypeChecker): CheckResult {
         while next != null {
             let incomplete_ty = m.lookup_type(next.key.len, next.key.value).sym.ty;
             if incomplete_ty != null {
-                // DBG START
-                // io.printf("----\n");
-                // let idx = std.ptr_to_int(next.value) - 1;
-                // let waiting_for = vec.get_ptr(&wrm.requests, idx) as *vec.Vec;
-                // if waiting_for == null {
-                //     std.abort();
-                // }
-
-                // let j = 0;
-                // while j < waiting_for.len {
-                //     let waiting_for_ty = (vec.get_ptr(waiting_for, j) as *WaitingRequest).to_fill;
-                //     let s: string = null;
-                //     let free_this = ty.to_string(waiting_for_ty, &s);
-                //     io.printf("DBG: !!!!!!!!!!! is still waiting: %s\n", s);
-                //     if free_this {
-                //         delete s;
-                //     }
-                //     j = j + 1;
-                // }
-                // DBG END
-
                 dbg.assert(
                     ty.is_struct(incomplete_ty) || ty.is_union(incomplete_ty),
                     "incomplete_ty was neither struct nor union"
@@ -646,31 +613,54 @@ def checked_type_lookup(
 }
 
 type TypeLookupResult struct {
-    module_does_not_exist: bool,
+    error: bool,
     found_type: bool,
     ty: *ty.Type,
     module: *mod.Module
 }
 
 def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
+    if name.is_array() {
+        let result = lookup_tyid(tc, &name.data.array.inner);
+        if result.error {
+            return result;
+        }
+
+        let len_expr = name.data.array.len;
+        if !ast.is_int_expr(len_expr) {
+            // TODO: real error
+            push_internal_error(tc, len_expr.span, "Array length must be an int literal");
+            result.error = true;
+            result.ty = null;
+            return result;
+        }
+
+        let value_span = len_expr.span;
+        let value_end = value_span.end;
+        // this does no error checks, since the lexer/parser should ensure the correctness.
+        let len = strtol(value_span.start, &value_end, 10);
+        result.ty = push_tmp_ty(tc, ty.new_array(len, result.ty));
+        return result;
+    }
+
     let result = TypeLookupResult {
-        module_does_not_exist: false, found_type: false, ty: null, module: null
+        error: false, found_type: false, ty: null, module: null
     };
 
-    let ident = &name.path;
+    let ident = name.ident();
 
-    if checked_type_lookup(tc, ident, &result.ty, &result.module) == ERROR {
-        push_not_defined_error(tc, ident, LookupKind.Types.to_string(), null);
-        result.module_does_not_exist = true;
+    if checked_type_lookup(tc, &ident, &result.ty, &result.module) == ERROR {
+        push_not_defined_error(tc, &ident, LookupKind.Types.to_string(), null);
+        result.error = true;
         return result;
     }
 
     result.found_type = result.ty != null;
-    result.module_does_not_exist = false;
+    result.error = false;
 
     // if this is not the decl_only_pass, the types should be resolved
     if !tc.decl_only_pass && result.ty == null {
-        push_not_defined_error(tc, ident, LookupKind.Types.to_string(), null);
+        push_not_defined_error(tc, &ident, LookupKind.Types.to_string(), null);
         return result;
     }
 
@@ -690,7 +680,7 @@ def check_func_tyid(
     out: **ty.Type
 ): bool {
     let data = lookup_tyid(tc, id);
-    if data.module_does_not_exist {
+    if data.error {
         return true;
     }
 
@@ -757,7 +747,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
         }
 
         let data = lookup_tyid(tc, &p.ty);
-        if data.module_does_not_exist {
+        if data.error {
             error = true;
             continue;
         }
@@ -834,7 +824,7 @@ def (tc: *TypeChecker) check_field(
 ): FieldState {
     let data = lookup_tyid(tc, field_tyid);
 
-    if data.module_does_not_exist {
+    if data.error {
         // push fake field here, so that the offset is not out of bounds
         tc.push_field_into_ty(t, field_name, null);
         return FieldState.Error;
@@ -1040,27 +1030,13 @@ def update_all_waiting(
     let waiting = get_waiting(waiting_map, resolved_name);
 
     if waiting == null {
-        // let name = ident.to_string(resolved_name);
-        // io.printf(
-        //     "DBG: no other types waiting for %s width: %d, align: %d\n",
-        //     name, resolved_ty.width, resolved_ty.align
-        // );
-        // delete name;
         return;
     }
-
-    // let name = ident.to_string(resolved_name);
-    // io.printf("DBG: %d types waiting for %s\n", waiting.len, name);
-    // delete name;
 
     for let i: usize = 0; i < waiting.len; i = i + 1 {
         let req = waiting.get_ptr(i) as *WaitingRequest;
         update_waiting(tc, req, resolved_ty);
     }
-
-    // let s = ident.to_string(resolved_name);
-    // io.printf("DBG: ---- %s width: %d, align: %d\n", s, resolved_ty.width, resolved_ty.align);
-    // delete s;
 }
 
 def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type) {
@@ -1068,59 +1044,45 @@ def update_waiting(tc: *TypeChecker, req: *WaitingRequest, resolved_ty: *ty.Type
     let waiting_mod = req.to_fill_mod;
 
     if req.kind == WaitingKind.Type || req.kind == WaitingKind.TypePtr {
+        let field_ty: **ty.Type = null;
+        let field_name: *ident.Ident = null;
+        let user_defined: *ty.UserDefinedType = null;
+
         if ty.is_union(waiting_ty) {
             let waiting_u_ty = ty.as_union(waiting_ty);
-            let waiting_ident = &waiting_u_ty.super.original_name;
+            user_defined = &waiting_u_ty.super;
 
             let field = waiting_u_ty.field_at(req.offset as u32);
+            field_ty = &field.ty;
+            field_name = &field.name;
+        } else {
+            let waiting_s_ty = ty.as_struct(waiting_ty);
+            user_defined = &waiting_s_ty.super;
 
-            if req.kind == WaitingKind.Type {
-                field.ty = resolved_ty;
-            } else if req.kind == WaitingKind.TypePtr {
-                if !ty.is_ptr(field.ty) {
-                    push_internal_error(tc, waiting_ident.span, "type is not a ptr");
-                    return;
-                }
-
-                ty.update_inner(field.ty, resolved_ty);
-            }
-
-            // overwrite old type in union
-            waiting_u_ty.update_field_ty(field);
-
-            let completely_initialized = ty.fill_width_align(waiting_ty);
-            if completely_initialized {
-                // recursively update types waiting for waiting_ty
-                update_all_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
-            }
-
-            return;
+            let field = waiting_s_ty.field_at(req.offset as u32);
+            field_ty = &field.ty;
+            field_name = &field.name;
         }
 
-        let waiting_s_ty = ty.as_struct(waiting_ty);
-        let waiting_ident = &waiting_s_ty.super.original_name;
-
-        let field = waiting_s_ty.field_at(req.offset as u32);
-
         if req.kind == WaitingKind.Type {
-            field.ty = resolved_ty;
+            *field_ty = resolved_ty;
         } else if req.kind == WaitingKind.TypePtr {
-            if !ty.is_ptr(field.ty) {
-                push_internal_error(tc, waiting_ident.span, "type is not a ptr");
+            if !ty.is_ptr(*field_ty) {
+                push_internal_error(tc, user_defined.original_name.span, "type is not a ptr");
                 return;
             }
 
-            ty.update_inner(field.ty, resolved_ty);
+            ty.update_inner(*field_ty, resolved_ty);
         }
 
-        // overwrite old type in struct
-        ty.update_field_ty(waiting_s_ty, field);
+        // overwrite old type
+        user_defined.update_field_ty(field_name, *field_ty);
 
         // TODO(#43): calling this all the time is very inefficient
         let completely_initialized = ty.fill_width_align(waiting_ty);
         if completely_initialized {
             // recursively update types waiting for waiting_ty
-            update_all_waiting(tc, waiting_mod, waiting_ty, waiting_ident);
+            update_all_waiting(tc, waiting_mod, waiting_ty, &user_defined.original_name);
         }
 
         return;
@@ -1299,7 +1261,7 @@ def declare_union(tc: *TypeChecker, sd: *record.UnionDecl): *ty.Type {
 }
 
 // This is just temporary until compile time code execution is working, so it's not part of std.kan
-extern def strtol(start: string, end: *string, base: i32): i32;
+extern def strtol(start: string, end: *string, base: i32): i64;
 
 def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
     let ed = &decl_stmt.decl;
@@ -1336,7 +1298,7 @@ def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
         let literal_len = span.len(value_span);
         let value_end = value_span.end;
         // this does no error checks, since the lexer/parser should ensure the correctness.
-        start_value = strtol(value_span.start, &value_end, 10);
+        start_value = strtol(value_span.start, &value_end, 10) as i32;
     }
 
     for let i: usize = 0; i < ed.values.len; i += 1 {

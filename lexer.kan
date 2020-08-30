@@ -83,6 +83,8 @@ type TokenType enum {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     String,
     Char,
 
@@ -556,6 +558,14 @@ def get_next_token(l: *Lexer): Token {
 
     if c == '}' {
         return token_from_start(l, TokenType.RBrace);
+    }
+
+    if c == '[' {
+        return token_from_start(l, TokenType.LBracket);
+    }
+
+    if c == ']' {
+        return token_from_start(l, TokenType.RBracket);
     }
 
     if c == '%' {
