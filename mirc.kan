@@ -930,7 +930,7 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     if is_method {
         let access = ast.as_access_expr(call.callee);
         let recv_expr = access.left; // receiver should be lhs of the callee access
-        recv_addr = expr_instruction(c, recv_expr, rhs);
+        recv_addr = expr_instruction(c, recv_expr, true);
 
         if ty.should_auto_ref_receiver(f_ty) && !ty.is_ptr(recv_addr.ty) {
             let ref_name = mir.as_addr_name(&recv_addr).value;

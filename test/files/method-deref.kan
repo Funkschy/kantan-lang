@@ -1,0 +1,17 @@
+type Test struct {
+    inner_: Inner
+}
+
+type Inner struct {
+    i: i32
+}
+
+def (t: *Test) inner(): *Inner {
+    return &t.inner_;
+}
+
+def main() {
+    let t = undefined as *Test;
+    (*t).inner().i = 5;
+}
+
