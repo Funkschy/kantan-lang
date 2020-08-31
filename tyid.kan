@@ -13,6 +13,14 @@ type ArrayData struct {
     inner: Type
 }
 
+extern def strtol(start: string, end: *string, base: i32): i64;
+
+def (a: *ArrayData) unchecked_len(): i64 {
+    let value_span = a.len.span;
+    let value_end = value_span.end;
+    return strtol(value_span.start, &value_end, 10);
+}
+
 type TypeData union {
     path: ident.Ident,
     array: *ArrayData
@@ -86,19 +94,22 @@ def (t: *Type) free() {
 }
 
 def (t: *Type) to_string(): str.String {
-    let ident = t.ident().to_string();
-    defer ident.free();
-
     let s = str.from("");
     for let i: u32 = 0; i < t.pointer_count; i += 1 {
         s.push(str.view(1, "*"));
     }
 
     if t.kind == Kind.Array {
+        let inner = t.data.array.inner.to_string();
+        defer inner.free();
         s.push(str.view(3, "[x]"));
-    }
+        s.push(inner.view());
+    } else {
+        let ident = t.ident().to_string();
+        defer ident.free();
 
-    s.push(ident.view());
+        s.push(ident.view());
+    }
 
     return s;
 }

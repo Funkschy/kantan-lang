@@ -507,11 +507,13 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
             return result;
         }
 
-        let value_span = len_expr.span;
-        let value_end = value_span.end;
-        // this does no error checks, since the lexer/parser should ensure the correctness.
-        let len = strtol(value_span.start, &value_end, 10);
+        let len = name.data.array.unchecked_len();
         result.ty = push_tmp_ty(tc, ty.new_array(len, result.ty));
+
+        if name.is_ptr() {
+            result.ty = push_tmp_ty(tc, ty.new_ptr(name.pointer_count, result.ty));
+        }
+
         return result;
     }
 

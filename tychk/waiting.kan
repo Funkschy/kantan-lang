@@ -1,3 +1,5 @@
+import "io";
+
 import "../ty";
 import "../mod";
 import "../std";
@@ -11,7 +13,7 @@ import "../ident";
 import "tychk";
 
 type WaitingKind enum {
-    Type = 1, TypePtr
+    Type = 1, TypePtrOrArray
 }
 
 // Used as some kind of callback
@@ -169,6 +171,21 @@ def wait_for_type(
     wait_for(tc, request);
 }
 
+def init_ptr_or_array_field_ty(tc: *tychk.TypeChecker, typeident: *tyid.Type): *ty.Type {
+    if typeident.is_ptr() {
+        let copy = *typeident;
+        copy.pointer_count = 0;
+        let inner = init_ptr_or_array_field_ty(tc, &copy);
+        return tychk.push_tmp_ty(tc, ty.new_ptr(typeident.pointer_count, inner));
+    } else if typeident.is_array() {
+        let len = typeident.data.array.unchecked_len();
+        let inner = init_ptr_or_array_field_ty(tc, &typeident.data.array.inner);
+        return tychk.push_tmp_ty(tc, ty.new_array(len, inner));
+    }
+
+    return null;
+}
+
 def wait_for_field(
     tc: *tychk.TypeChecker,
     mod: *mod.Module,
@@ -180,10 +197,9 @@ def wait_for_field(
     let field_ty: *ty.Type = null;
     let kind = WaitingKind.Type;
 
-    if waiting_for.is_ptr() {
-        kind = WaitingKind.TypePtr;
-        field_ty = ty.new_ptr(waiting_for.pointer_count, null);
-        tychk.push_tmp_ty(tc, field_ty);
+    if waiting_for.is_array() || waiting_for.is_ptr() {
+        kind = WaitingKind.TypePtrOrArray;
+        field_ty = init_ptr_or_array_field_ty(tc, waiting_for);
     }
 
     tc.push_field_into_ty(t, field_name, field_ty);
@@ -241,51 +257,40 @@ def update(tc: *tychk.TypeChecker, req: *Request, resolved_ty: *ty.Type) {
     let waiting_ty = req.to_fill;
     let waiting_mod = req.to_fill_mod;
 
-    if req.kind == WaitingKind.Type || req.kind == WaitingKind.TypePtr {
-        let field_ty: **ty.Type = null;
-        let field_name: *ident.Ident = null;
-        let user_defined: *ty.UserDefinedType = null;
+    let field_ty: **ty.Type = null;
+    let field_name: *ident.Ident = null;
+    let user_defined: *ty.UserDefinedType = null;
 
-        if ty.is_union(waiting_ty) {
-            let waiting_u_ty = ty.as_union(waiting_ty);
-            user_defined = &waiting_u_ty.super;
+    if ty.is_union(waiting_ty) {
+        let waiting_u_ty = ty.as_union(waiting_ty);
+        user_defined = &waiting_u_ty.super;
 
-            let field = waiting_u_ty.field_at(req.offset as u32);
-            field_ty = &field.ty;
-            field_name = &field.name;
-        } else {
-            let waiting_s_ty = ty.as_struct(waiting_ty);
-            user_defined = &waiting_s_ty.super;
+        let field = waiting_u_ty.field_at(req.offset as u32);
+        field_ty = &field.ty;
+        field_name = &field.name;
+    } else {
+        let waiting_s_ty = ty.as_struct(waiting_ty);
+        user_defined = &waiting_s_ty.super;
 
-            let field = waiting_s_ty.field_at(req.offset as u32);
-            field_ty = &field.ty;
-            field_name = &field.name;
-        }
-
-        if req.kind == WaitingKind.Type {
-            *field_ty = resolved_ty;
-        } else if req.kind == WaitingKind.TypePtr {
-            if !ty.is_ptr(*field_ty) {
-                tychk.push_internal_error(tc, user_defined.original_name.span, "type is not a ptr");
-                return;
-            }
-
-            ty.update_inner(*field_ty, resolved_ty);
-        }
-
-        // overwrite old type
-        user_defined.update_field_ty(field_name, *field_ty);
-
-        // TODO(#43): calling this all the time is very inefficient
-        let completely_initialized = ty.fill_width_align(waiting_ty);
-        if completely_initialized {
-            // recursively update types waiting for waiting_ty
-            update_all(tc, waiting_mod, waiting_ty, &user_defined.original_name);
-        }
-
-        return;
+        let field = waiting_s_ty.field_at(req.offset as u32);
+        field_ty = &field.ty;
+        field_name = &field.name;
     }
 
-    dbg.unreachable();
+    if req.kind == WaitingKind.Type {
+        *field_ty = resolved_ty;
+    } else if req.kind == WaitingKind.TypePtrOrArray {
+        (*field_ty).update_inner(resolved_ty);
+    }
+
+    // overwrite old type
+    user_defined.update_field_ty(field_name, *field_ty);
+
+    // TODO(#43): calling this all the time is very inefficient
+    let completely_initialized = ty.fill_width_align(waiting_ty);
+    if completely_initialized {
+        // recursively update types waiting for waiting_ty
+        update_all(tc, waiting_mod, waiting_ty, &user_defined.original_name);
+    }
 }
 

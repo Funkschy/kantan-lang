@@ -1,0 +1,14 @@
+import "io";
+
+def main() {
+    io.printf("%ld\n", sizeof *[3]*[4]**Struct);
+    io.printf("%ld\n", sizeof [3]*[4]**Struct);
+    io.printf("%ld\n", sizeof [2]*[4]**Struct);
+    io.printf("%ld\n", sizeof [3][4]**Struct);
+    io.printf("%ld\n", sizeof [3][4]Struct);
+}
+
+type Struct struct {
+    i: i32
+}
+

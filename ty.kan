@@ -144,8 +144,10 @@ def new_array(len: i64, inner: *Type): *Type {
     let t = new_type(Kind.Array, arr as *void);
 
     std.flag_unset(&t.flags, flag_unsized);
-    t.align = inner.align;
-    t.width = len * inner.width;
+    if inner != null {
+        t.align = inner.align;
+        t.width = len * inner.width;
+    }
     return t;
 }
 
@@ -192,24 +194,6 @@ def new_ptr(count: u32, inner: *Type): *Type {
     return t;
 }
 
-def update_inner(ptr_ty: *Type, inner: *Type): void {
-    let p = as_ptr(ptr_ty);
-
-    if inner != null && is_ptr(inner) {
-        inner = as_ptr(inner).inner;
-        p.count = p.count + as_ptr(inner).count;
-    }
-
-    p.inner = inner;
-    // only auto deref once
-    if p.count < 2 {
-        // use flags from inner type, except for unsized and decl
-        ptr_ty.flags = inner.flags;
-    }
-    // pointers always have a size
-    std.flag_unset(&ptr_ty.flags, flag_unsized);
-}
-
 def is_ptr(t: *Type): bool {
     return t.kind == Kind.Ptr;
 }
@@ -225,6 +209,44 @@ def is_string(t: *Type): bool {
         // is_i8
         && as_ptr(t).inner.width == 1
         && as_ptr(t).inner.is_integer();
+}
+
+def (t: *Type) update_inner(inner: *Type) {
+    if t.is_array() {
+        let arr_ty = t.as_array();
+        if arr_ty.inner == null {
+            arr_ty.inner = inner;
+        } else {
+            arr_ty.inner.update_inner(inner);
+        }
+
+        t.align = arr_ty.inner.align;
+        t.width = arr_ty.len * arr_ty.inner.width;
+        return;
+    } else if !is_ptr(t) {
+        return;
+    }
+
+    let p = as_ptr(t);
+
+    if inner != null && is_ptr(inner) {
+        inner = as_ptr(inner).inner;
+        p.count = p.count + as_ptr(inner).count;
+    }
+
+    if p.inner != null && (is_ptr(p.inner) || p.inner.is_array()) {
+        p.inner.update_inner(inner);
+    } else {
+        p.inner = inner;
+    }
+
+    // only auto deref once
+    if p.count < 2 {
+        // use flags from inner type, except for unsized and decl
+        t.flags = inner.flags;
+    }
+    // pointers always have a size
+    std.flag_unset(&t.flags, flag_unsized);
 }
 
 type UserDefinedType struct {
