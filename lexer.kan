@@ -116,7 +116,7 @@ def (token: *Token) len(): usize {
 
 // static (don't free!)
 def token_ty_to_static_string(ty: TokenType): string {
-    return tok2str(*(&ty as *i32));
+    return tok2str(ty as i32);
 }
 
 // returned boolean indicates if the strings has to be freed

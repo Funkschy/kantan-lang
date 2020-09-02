@@ -867,7 +867,7 @@ def new_expr_binary(kind: BinaryKind, left: Address, right: Address): Expression
 }
 
 def binary_kind_to_static_string(kind: BinaryKind): string {
-    return mir_binary2str(*(&kind as *i32));
+    return mir_binary2str(kind as i32);
 }
 
 def as_expr_binary(e: *Expression): *ExprBinary {
@@ -905,7 +905,7 @@ def new_expr_unary_not(addr: Address): Expression {
 }
 
 def unary_kind_to_static_string(kind: UnaryKind): string {
-    return mir_unary2str(*(&kind as *i32));
+    return mir_unary2str(kind as i32);
 }
 
 def as_expr_unary(e: *Expression): *ExprUnary {

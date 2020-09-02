@@ -751,9 +751,7 @@ def new_assign_expr(
     left: *Expr,
     right: *Expr
 ): *Expr {
-    // TODO(#108): remove this, when casting between enums and their base type is implemented
-    let eq = lexer.TokenType.Eq;
-    let normalized = *(&assign_token.ty as *i32) - *(&eq as *i32);
+    let normalized = assign_token.ty as i32 - (lexer.TokenType.Eq as i32);
     let assign_type = *(&normalized as *AssignType);
 
     return (new AssignExpr {

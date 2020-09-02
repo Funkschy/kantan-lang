@@ -1207,7 +1207,7 @@ def to_static_string(t: *Type): string {
         return "string";
     }
 
-    return type2str(*(&t.kind as *i32));
+    return type2str(t.kind as i32);
 }
 
 def equals(first: *Type, second: *Type): bool {

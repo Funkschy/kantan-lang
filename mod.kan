@@ -230,7 +230,7 @@ def try_get_mod_from_import(
             let err = std.format_str(
                 "%s: %s%s%s",
                 // TODO(#114): handle file errors in a platform independent way
-                std.strerror(*(&ret_val as *i32)),
+                std.strerror(ret_val as i32),
                 mod_s,
                 imp_s.cstring(),
                 file_ending
