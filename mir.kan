@@ -766,7 +766,7 @@ def create_addr(kind: AddrKind, ty: *ty.Type, data_hi: *void, data_lo: *void): A
 
 def addr_to_name(a: *Address): name.Owned {
     if is_addr_name(a) {
-        let n= as_addr_name(a);
+        let n = as_addr_name(a);
         return name.make_copied(n.value.len, n.value.data);
     }
 
@@ -979,22 +979,40 @@ def is_expr_call(e: *Expression): bool {
     return e.kind == ExprKind.Call;
 }
 
-type ExprGep struct {
+type ExprStructGep struct {
     addr: Address,
     idx: u32
 }
 
-def new_expr_gep(addr: Address, idx: u32): Expression {
-    let gep = (new ExprGep { addr: addr, idx: idx }) as *void;
-    return create_expr(ExprKind.Gep, gep);
+def new_expr_struct_gep(addr: Address, idx: u32): Expression {
+    let gep = (new ExprStructGep { addr: addr, idx: idx }) as *void;
+    return create_expr(ExprKind.StructGep, gep);
 }
 
-def as_expr_gep(e: *Expression): *ExprGep {
-    return e.data as *ExprGep;
+def as_expr_struct_gep(e: *Expression): *ExprStructGep {
+    return e.data as *ExprStructGep;
 }
 
-def is_expr_gep(e: *Expression): bool {
-    return e.kind == ExprKind.Gep;
+def is_expr_struct_gep(e: *Expression): bool {
+    return e.kind == ExprKind.StructGep;
+}
+
+type ExprIndex struct {
+    addr: Address,
+    indices: vec.Vec // vec.Vec<Address>
+}
+
+def new_expr_index(addr: Address, indices: vec.Vec): Expression {
+    let gep = (new ExprIndex { addr: addr, indices: indices }) as *void;
+    return create_expr(ExprKind.Index, gep);
+}
+
+def as_expr_index(e: *Expression): *ExprIndex {
+    return e.data as *ExprIndex;
+}
+
+def is_expr_index(e: *Expression): bool {
+    return e.kind == ExprKind.Index;
 }
 
 type ExprUnionAccess struct {
@@ -1124,7 +1142,8 @@ type ExprKind enum {
     Unary,
     Copy,
     Call,
-    Gep,
+    StructGep,
+    Index,
     UnionAccess,
     StructInit,
     New,
@@ -1171,13 +1190,16 @@ def empty_expr(): Expression {
     return create_expr(ExprKind.Error, null);
 }
 
-def free_expr(e: *Expression): void {
+def free_expr(e: *Expression) {
     if is_expr_call(e) {
         let c_expr = as_expr_call(e);
         c_expr.args.free();
     } else if is_expr_struct_init(e) {
         let i_expr = as_expr_struct_init(e);
         i_expr.args.free();
+    } else if is_expr_index(e) {
+        let i_expr = as_expr_index(e);
+        i_expr.indices.free();
     }
 
     if e.data != null {
@@ -1261,13 +1283,37 @@ def expr_to_name(e: *Expression): name.Owned {
         return name.make_owned(len, s);
     }
 
-    if is_expr_gep(e) {
-        let gep = as_expr_gep(e);
+    if is_expr_struct_gep(e) {
+        let gep = as_expr_struct_gep(e);
         let addr_n = addr_to_name(&gep.addr);
 
         let len: usize = 0;
         let s = std.l_format_str(
             &len, "gep(%.*s, %d)", addr_n.len, addr_n.data, gep.idx
+        );
+
+        name.free_owned(&addr_n);
+        return name.make_owned(len, s);
+    }
+
+    if is_expr_index(e) {
+        let index = as_expr_index(e);
+        let addr_n = addr_to_name(&index.addr);
+        let idx_s = str.from("");
+        defer idx_s.free();
+
+        for let i: usize = 0; i < index.indices.len; i += 1 {
+            let idx_n = addr_to_name(index.indices.get_ptr(i) as *Address);
+            if i > 0 {
+                idx_s.push(str.view(2, ", "));
+            }
+            idx_s.push(str.view(idx_n.len, idx_n.data));
+            name.free_owned(&idx_n);
+        }
+
+        let len: usize = 0;
+        let s = std.l_format_str(
+            &len, "gep(%.*s, %s)", addr_n.len, addr_n.data, idx_s.cstring()
         );
 
         name.free_owned(&addr_n);

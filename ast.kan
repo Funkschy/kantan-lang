@@ -46,7 +46,8 @@ type ExprKind enum {
     Access,
     As,
     New,
-    SizeOf
+    SizeOf,
+    Index // array[i]
 }
 
 // These have to match their respective MirBinaryKind
@@ -610,6 +611,32 @@ def as_access_expr(e: *Expr): *AccessExpr {
     return e as *AccessExpr;
 }
 
+/////////// index expr ///////////
+
+// first[second][third]
+type IndexExpr struct {
+    e: Expr,
+    // left could be another IndexExpr
+    left: *Expr,
+    right: *Expr
+}
+
+def new_index_expr(span: span.Span, left: *Expr, right: *Expr): *Expr {
+    return (new IndexExpr {
+        e: create_expr(ExprKind.Index, span),
+        left: left,
+        right: right
+    }) as *Expr;
+}
+
+def is_index_expr(e: *Expr): bool {
+    return e.kind == ExprKind.Index;
+}
+
+def as_index_expr(e: *Expr): *IndexExpr {
+    return e as *IndexExpr;
+}
+
 /////////// as expr ///////////
 
 type AsExpr struct {
@@ -993,6 +1020,7 @@ def create_expr(kind: ExprKind, span: span.Span): Expr {
 
 def is_assignable(e: *Expr): bool {
     let assignable = is_access_expr(e)
+        || is_index_expr(e)
         || is_ident_expr(e);
 
     if is_unary_expr(e) {
@@ -1021,6 +1049,10 @@ def expr_free(e: *Expr): void {
         let a_expr = as_access_expr(e);
         expr_free(a_expr.left);
         expr_free(a_expr.right as *Expr);
+    } else if is_index_expr(e) {
+        let i_expr = as_index_expr(e);
+        expr_free(i_expr.left);
+        expr_free(i_expr.right);
     } else if is_call_expr(e) {
         let c_expr = as_call_expr(e);
         expr_free(c_expr.callee);

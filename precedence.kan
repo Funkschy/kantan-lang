@@ -55,7 +55,7 @@ def get(token_type: l.TokenType): Precedence {
         return Precedence.Call;
     }
 
-    if token_type == l.TokenType.Dot {
+    if token_type == l.TokenType.Dot || token_type == l.TokenType.LBracket {
         return Precedence.Access;
     }
 

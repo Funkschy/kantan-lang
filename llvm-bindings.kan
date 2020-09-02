@@ -916,6 +916,8 @@ extern def LLVMDIBuilderCreateEnumerationType(builder: *DbgBuilder, scope: *Meta
 
 extern def LLVMDIBuilderCreateUnionType(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_number: u32, size_in_bits: u64, align_in_bits: u32, flags: i32, elements: **MetaData, num_elements: u32, run_time_lang: u32, unique_id: string, unique_id_len: usize): *MetaData;
 
+extern def LLVMDIBuilderCreateArrayType(builder: *DbgBuilder, size: u64, align_in_bits: u32, ty: *MetaData, subscripts: **MetaData, num_subscripts: u32): *MetaData;
+
 extern def LLVMDIBuilderCreateBasicType(builder: *DbgBuilder, name: string, name_len: usize, size_in_bits: u64, encoding: i32, flags: i32): *MetaData;
 
 extern def LLVMDIBuilderCreatePointerType(builder: *DbgBuilder, pointee_ty: *MetaData, size_in_bits: u64, align_in_bits: u32, address_space: u32, name: string, name_len: usize): *MetaData;
@@ -987,6 +989,10 @@ def di_builder_create_enumeration_type(builder: *DbgBuilder, scope: *MetaData, n
 // Create debugging information entry for a union.
 def di_builder_create_union_type(builder: *DbgBuilder, scope: *MetaData, name: string, name_len: usize, file: *MetaData, line_number: u32, size_in_bits: u64, align_in_bits: u32, flags: i32, elements: **MetaData, num_elements: u32, run_time_lang: u32, unique_id: string, unique_id_len: usize): *MetaData {
     return LLVMDIBuilderCreateUnionType(builder, scope, name, name_len, file, line_number, size_in_bits, align_in_bits, flags, elements, num_elements, run_time_lang, unique_id, unique_id_len);
+}
+// Create debugging information entry for an array.
+def di_builder_create_array_type(builder: *DbgBuilder, size: u64, align_in_bits: u32, ty: *MetaData, subscripts: **MetaData, num_subscripts: u32): *MetaData {
+    return LLVMDIBuilderCreateArrayType(builder, size, align_in_bits, ty, subscripts, num_subscripts);
 }
 // Create debugging information entry for a basic type.
 def di_builder_create_basic_type(builder: *DbgBuilder, name: string, name_len: usize, size_in_bits: u64, encoding: i32, flags: i32): *MetaData {

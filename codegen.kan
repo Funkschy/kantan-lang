@@ -845,10 +845,31 @@ def compile_expr(
         return compile_call(c, func, e);
     }
 
-    if mir.is_expr_gep(e) {
-        let gep = mir.as_expr_gep(e);
+    if mir.is_expr_struct_gep(e) {
+        let gep = mir.as_expr_struct_gep(e);
         let addr = translate_addr_load(c, func, &gep.addr, false);
         return llvm.build_struct_gep(c.builder, addr, gep.idx, "");
+    }
+
+    if mir.is_expr_index(e) {
+        let index = mir.as_expr_index(e);
+        dbg.assert(index.addr.ty.is_array(), "trying to index non array type");
+
+        let left = translate_addr_load(c, func, &index.addr, false);
+
+        let indices = ptrvec.with_cap(index.indices.len + 1);
+        defer indices.free();
+
+        let int_ty = llvm.int32_type_in_context(c.context.ctx);
+        indices.push_ptr(llvm.const_int(int_ty, 0, false) as *void);
+        for let i: usize = 0; i < index.indices.len; i += 1 {
+            let idx = translate_addr(c, func, index.indices.get_ptr(i) as *mir.Address);
+            indices.push_ptr(idx as *void);
+        }
+
+        return llvm.build_in_bounds_gep(
+            c.builder, left, indices.elements as **llvm.Value, indices.len as u32, ""
+        );
     }
 
     if mir.is_expr_cast(e) {
@@ -1187,7 +1208,6 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
     };
 }
 
-// TODO: this seems to be completely broken for some reason
 def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     dbg.assert(c.dbg != null, "called dbg_translate_type in non-debug mode");
 
@@ -1274,6 +1294,19 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         }
 
         return inner;
+    }
+
+    // TODO: add subranges for dbg array types
+    if t.is_array() {
+        let arr_ty = t.as_array();
+        let inner = dbg_translate_type(c, arr_ty.inner);
+
+        return llvm.di_builder_create_array_type(
+            c.dbg.builder,
+            t.width_in_bits(), t.align_in_bits(),
+            inner,
+            null, 0
+        );
     }
 
     if ty.is_user_defined(t) {

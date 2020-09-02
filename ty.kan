@@ -211,6 +211,14 @@ def is_string(t: *Type): bool {
         && as_ptr(t).inner.is_integer();
 }
 
+def (t: *Type) inner_type(): *Type {
+    if is_ptr(t) {
+        return as_ptr(t).inner;
+    }
+
+    return t.as_array().inner;
+}
+
 def (t: *Type) update_inner(inner: *Type) {
     if t.is_array() {
         let arr_ty = t.as_array();

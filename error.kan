@@ -61,7 +61,8 @@ type CompileError enum {
     NonConstExpressionInConstContext,
     AccessingPrivateSymbol,
     BreakOrContinueOutsideLoop,
-    WrongStructField
+    WrongStructField,
+    WrongIndexType
 }
 
 extern def err2str(code: CompileError, ...): string;

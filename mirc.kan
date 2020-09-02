@@ -1012,12 +1012,54 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let field_idx = ty.field_idx(struct_ty, ident, &field_ty);
     dbg.assert(field_idx >= 0, "no field with this name");
 
-    let gep = mir.new_expr_gep(left_addr, field_idx as u32);
+    let gep = mir.new_expr_struct_gep(left_addr, field_idx as u32);
     let a = mir.create_addr_empty();
     // Deref by default. This copy has to be removed if the value
     // should be assigned
     push_temp_assign(c, gep, field_ty, left_meta, &a);
     return mir.new_expr_copy(a);
+}
+
+def index_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
+    let index = ast.as_index_expr(e);
+    let meta = get_meta(c, e.span);
+
+    if ty.is_ptr(index.left.ty) {
+        let left_addr = expr_instruction(c, index.left, true);
+        let left_ty = left_addr.ty;
+
+        let right_addr = expr_instruction(c, index.right, true);
+
+        // generate ptr + index
+        let addition = mir.new_expr_binary(mir.BinaryKind.AddScalar, left_addr, right_addr);
+
+        // generate *(ptr + index)
+        if rhs {
+            push_temp_assign(c, addition, left_ty, meta, &left_addr);
+            return mir.new_expr_unary_deref(left_addr);
+        } else {
+            return addition;
+        }
+    }
+
+    let indices = vec.create(sizeof mir.Address);
+
+    let current = e;
+    while ast.is_index_expr(current) {
+        let current_index = ast.as_index_expr(current);
+        let index_addr = expr_instruction(c, current_index.right, true);
+        indices.push(&index_addr as *void);
+        current = current_index.left;
+    }
+
+    let inner = expr_instruction(c, current, rhs);
+    let mir_index = mir.new_expr_index(inner, indices);
+    if rhs {
+        push_temp_assign(c, mir_index, current.ty, meta, &inner);
+        return mir.new_expr_unary_deref(inner);
+    }
+
+    return mir_index;
 }
 
 def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
@@ -1061,6 +1103,11 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     // EXPR_ACCESS
     if ast.is_access_expr(e) {
         return access_expr(c, e, rhs);
+    }
+
+    // EXPR_INDEX
+    if ast.is_index_expr(e) {
+        return index_expr(c, e, rhs);
     }
 
     // EXPR_BINARY

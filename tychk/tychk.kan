@@ -1747,7 +1747,7 @@ def check_expr_expect(
         if !data.is_type_accessible(left_ty) {
             // TODO(#52): the span here is the span of the entire left access, which
             //  is probably not what we want...
-            push_not_accessible_with_error(tc, a_e.left);
+            push_not_accessible_with_error(tc, a_e.left, ".");
             return null;
         }
 
@@ -1763,7 +1763,45 @@ def check_expr_expect(
             return null;
         }
 
-        e.ty = right.ty_or_null();
+        a_e.right.e.ty = right.ty_or_null();
+        e.ty = a_e.right.e.ty;
+        return e;
+    }
+
+    // EXPR_INDEX
+    if ast.is_index_expr(e) {
+        let idx_e = ast.as_index_expr(e);
+
+        let left = check_expr_expect(tc, idx_e.left, expected, data);
+        if left == null {
+            return null;
+        }
+
+        idx_e.left = left;
+        let left_ty = idx_e.left.ty;
+
+        if !(ty.is_ptr(left_ty) || left_ty.is_array()) {
+            push_not_accessible_with_error(tc, idx_e.left, "index");
+            return null;
+        }
+
+        let right = check_expr(tc, idx_e.right);
+        if right == null {
+            return null;
+        }
+
+        if !right.ty.is_integer() {
+            push_wrong_index_type_error(tc, left_ty, right.ty, e.span);
+            return null;
+        }
+
+        idx_e.right = right;
+        if ty.is_ptr(left_ty) && ty.as_ptr(left_ty).count > 1 {
+            let p_ty = ty.as_ptr(left_ty);
+            e.ty = push_tmp_ty(tc, ty.new_ptr(p_ty.count - 1, p_ty.inner));
+        } else {
+            e.ty = left_ty.inner_type();
+        }
         return e;
     }
 
@@ -2442,10 +2480,10 @@ def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident, kind_s: string,
     push_mk_err(tc, text, name.span);
 }
 
-def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr) {
+def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr, op: string) {
     let ty_s = ty.to_string(e.ty);
     defer ty_s.free();
-    let error = error.err2str(error.CompileError.NotAccessibleWithOp, ty_s.cstring(), ".");
+    let error = error.err2str(error.CompileError.NotAccessibleWithOp, ty_s.cstring(), op);
 
     push_mk_err(tc, error, e.span);
 }
@@ -2524,6 +2562,16 @@ def push_bin_invalid_types_error(
     );
     push_mk_err(tc, text, span);
 }
+
+def push_wrong_index_type_error(
+    tc: *TypeChecker,
+    array_type: *ty.Type,
+    index_type: *ty.Type,
+    span: span.Span
+) {
+    push_wrong_type_error(tc, error.CompileError.WrongIndexType, array_type, index_type, span);
+}
+
 
 def push_wrong_arg_type_error(
     tc: *TypeChecker,

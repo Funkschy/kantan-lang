@@ -1,0 +1,50 @@
+import "io";
+
+extern def malloc(size: usize): *void;
+
+def main() {
+    let arr = malloc(5 * 5 * sizeof string) as **string;
+    defer delete arr;
+
+    let s = "hello";
+    arr[0] = &s;
+    arr[0][0] = "hello";
+    arr[0][0][1] = 'a';
+    io.printf("%s\n", arr[0][0]);
+
+    let a: [2][2]i8 = undefined;
+    a[0][0] = 'a';
+    io.printf("%c\n", a[0][0]);
+
+    let b: [2]i8 = undefined;
+    b[0] = 'b';
+    io.printf("%c\n", b[0]);
+
+    for let i = 0; i < 2; i += 1 {
+        for let j = 0; j < 2; j += 1 {
+            a[i][j] = (i * 2 + j) as i8;
+        }
+    }
+    for let i = 0; i < 2; i += 1 {
+        for let j = 0; j < 2; j += 1 {
+            io.printf("%d\n", a[i][j] as i32);
+        }
+    }
+
+    let test = Test { i: undefined };
+    test.i[0] = 10;
+    test.i[1] = 20;
+
+    let p = &test;
+    io.printf("%d\n", p[0].i[1]);
+
+    let arr: [2]*Test = undefined;
+    arr[0] = arr[1] = p;
+
+    io.printf("%d\n", arr[0][0].i[0]);
+}
+
+type Test struct {
+    i: [2]i32
+}
+

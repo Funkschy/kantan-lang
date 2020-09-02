@@ -1172,6 +1172,23 @@ def infix(p: *Parser, token: *l.Token, left: *ast.Expr, no_struct: bool): *ast.E
         return ast.new_access_expr(merged_span, left, ast.as_ident_expr(right));
     }
 
+    // index expr
+    if token.ty == l.TokenType.LBracket {
+        let right = expression(p, false);
+        if right == null {
+            return null;
+        }
+
+        let closing_bracket = l.empty_token();
+        if !consume_token(p, l.TokenType.RBracket, &closing_bracket) {
+            ast.expr_free(right);
+            return null;
+        }
+
+        let merged_span = span.merge(left.span, closing_bracket.span);
+        return ast.new_index_expr(merged_span, left, right);
+    }
+
     // call expr
     if token.ty == l.TokenType.LParen {
         let args = ast.create_arg_list();

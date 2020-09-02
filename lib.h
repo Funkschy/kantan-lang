@@ -148,7 +148,8 @@ static char const *const expr_type_strings[] = {
     "access expression",
     "cast expression",
     "new expression",
-    "sizeof expression"
+    "sizeof expression",
+    "index expression"
 };
 
 static size_t const len_expr_strings = sizeof(expr_type_strings) / sizeof(char *);
@@ -256,7 +257,8 @@ static char const *const error_texts[] = {
     "Expression cannot be evaluated at compile time",
     "Trying to access private symbol '%.*s' from '%.*s'",
     "%s statements may not be used outside of loops",
-    "Wrong field. Expected '%.*s', but got '%.*s'"
+    "Wrong field. Expected '%.*s', but got '%.*s'",
+    "Expression of type '%s' cannot be indexed with type '%s'"
 };
 
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
@@ -271,6 +273,7 @@ static char const *const mir_binary_kind_strings[] = {
     "%",  // MIR_BIN_MOD
     "&",
     "|",
+    "^",
     "<",  // MIR_BIN_ST
     "<=", // MIR_BIN_SE
     ">",  // MIR_BIN_GT
