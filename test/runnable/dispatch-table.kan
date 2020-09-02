@@ -1,0 +1,57 @@
+import "io";
+
+type AnimalKind enum {
+    Dog, Cat
+}
+
+type Animal struct {
+    kind: AnimalKind
+}
+
+def (a: *Animal) greet(table: [2]Greeter) {
+    table[*(&a.kind as *i32)](a);
+}
+
+delegate def Greeter(a: *Animal);
+
+
+type Dog struct {
+    animal: Animal,
+    fav_toy: string
+}
+
+def dog(): Dog {
+    return Dog { animal: Animal { kind: AnimalKind.Dog }, fav_toy: "ball" };
+}
+
+def (d: *Dog) greet() {
+    io.printf("My favorite toy is a %s\n", d.fav_toy);
+}
+
+type Cat struct {
+    animal: Animal,
+    fav_food: string
+}
+
+def cat(): Cat {
+    return Cat { animal: Animal { kind: AnimalKind.Cat }, fav_food: "mice" };
+}
+
+def (c: *Cat) greet() {
+    io.printf("My favorite food are %s\n", c.fav_food);
+}
+
+def main() {
+    let dispatch_table: [2]Greeter = undefined;
+    dispatch_table[0] = &Dog.greet as Greeter;
+    dispatch_table[1] = &Cat.greet as Greeter;
+
+    let dog = dog();
+    let cat = cat();
+
+    let dog = &dog as *Animal;
+    let cat = &cat as *Animal;
+
+    dog.greet(dispatch_table);
+    cat.greet(dispatch_table);
+}
