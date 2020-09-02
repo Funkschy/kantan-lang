@@ -159,7 +159,7 @@ def add_forward_declarations(c: *ModuleCompiler) {
         item = map.iter_next(&g_iter);
     }
 
-    // TODO: keep global order
+    // TODO(#107): keep global order
     // globals, which reference other globals have to be initialized after the others
     for let i: usize = 0; i < ref_globals.len; i += 1 {
         let var = ref_globals.get(i) as *mir.GlobalVar;
@@ -898,7 +898,7 @@ def compile_expr(
         let from_float = cast.addr.ty.is_float();
         let into_float = cast.into.is_float();
 
-        // TODO: clang will emit a zext for u16 -> i32 cast, but kantan will use sext
+        // TODO(#110): clang will emit a zext for u16 -> i32 cast, but kantan will use sext
 
         if from_int && into_int {
             return llvm.build_int_cast(c.builder, addr, into, "");
@@ -932,7 +932,7 @@ def compile_expr(
         return storage;
     }
 
-    // TODO: remove codegen for sizeof entirely, when we have a mir interpretation stage
+    // TODO(#111): remove codegen for sizeof entirely, when we have a mir interpretation stage
     if mir.is_expr_sizeof(e) {
         let so = mir.as_expr_sizeof(e);
         let ty = translate_type(c, so.ty);
@@ -1211,7 +1211,7 @@ def create_dbg_info(c: *ModuleCompiler, std_dir: string): DebugInfo {
 def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
     dbg.assert(c.dbg != null, "called dbg_translate_type in non-debug mode");
 
-    // TODO: enum
+    // TODO(#129): convert this to an enum
     let dw_ate_address         = 1;
     let dw_ate_boolean         = 2;
     let dw_ate_complex_float   = 3;
@@ -1296,7 +1296,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         return inner;
     }
 
-    // TODO: add subranges for dbg array types
+    // TODO(#118): add subranges for dbg array types
     if t.is_array() {
         let arr_ty = t.as_array();
         let inner = dbg_translate_type(c, arr_ty.inner);

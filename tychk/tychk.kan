@@ -500,7 +500,7 @@ def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
 
         let len_expr = name.data.array.len;
         if !ast.is_int_expr(len_expr) {
-            // TODO: real error
+            // TODO(#130): create a real error type for this
             push_internal_error(tc, len_expr.span, "Array length must be an int literal");
             result.error = true;
             result.ty = null;
@@ -605,7 +605,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
 
         let is_aggregate_type = ty.is_struct(data.ty) || ty.is_union(data.ty);
         if is_aggregate_type && f_ty.is_extern && !p.ty.is_ptr() {
-            // TODO: implement proper argument/return type coercion
+            // TODO(#121): implement proper argument/return type coercion
             // Trying to pass an aggregate type to an extern function
             let s = "Kantan currently does not implement the C abi, so you cannot pass a struct to a c function";
             push_internal_error(tc, p.ty.span(), s);
@@ -711,7 +711,7 @@ def (tc: *TypeChecker) check_field(
     }
 }
 
-// TODO: remove this, when we have either function pointers or generics
+// TODO(#122): remove this, when we have either function pointers or generics
 def (tc: *TypeChecker) push_field_into_ty(
     structured_type: *ty.Type,
     field_name: ident.Ident,
@@ -924,7 +924,7 @@ def check_enum_decl(tc: *TypeChecker, decl_stmt: *ast.EnumDeclStmt): *ty.Type {
             return null;
         }
 
-        // TODO: allow enums of i64, i16...
+        // TODO(#123): allow enums of i64, i16...
         // currently only i32, no other integer types
         if !(init.ty.is_integer() && init.ty.width == 4) {
             push_invalid_enum_start_value_error(tc, e_ty, init);
@@ -1651,7 +1651,7 @@ def check_expr_expect(
 ): *ast.Expr {
     // EXPR_INT || EXPR_CHAR
     if ast.is_int_expr(e) || ast.is_char_expr(e) {
-        // TODO: check size of literal to determine correct integer width
+        // TODO(#124): check size of literal to determine correct integer width
         if expected != null {
             if expected.is_integer() {
                 e.ty = expected;
@@ -1861,7 +1861,7 @@ def check_expr_expect(
         }
 
         if a_e.assign_type != ast.AssignType.Normal {
-            // TODO: remove this, when casting between enums and their base type is implemented
+            // TODO(#125): remove this, when casting between enums and their base type is implemented
             let kind = *(&a_e.assign_type as *ast.BinaryKind);
 
             let new_rhs = ast.new_binary_expr(
@@ -2738,8 +2738,8 @@ def push_primitive_receiver_type_error(tc: *TypeChecker, recv: *ty.Type, span: s
 }
 
 def push_method_ptr_from_instance_error(tc: *TypeChecker, instanceof: *ty.Type, span: span.Span) {
-    // TODO: implement proper hint system
-    // TODO: use import alias for mangling
+    // TODO(#126): implement proper hint system
+    // TODO(#127): use import alias for mangling
     push_simple_error(tc, error.CompileError.MethodPtrFromInstance, instanceof, span);
 }
 

@@ -511,7 +511,7 @@ def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
     let e_ty = as_enum(t);
     let key = vmap.key_from_ident(&name);
 
-    // TODO: instead of a fake "len" value, we should just have a len() compile time function
+    // TODO(#119): instead of a fake "len" value, we should just have a len() compile time function
     if vmap.get_ptr(&e_ty.values, key) != null || ident.eq_lit(&name, "len") {
         return true;
     }

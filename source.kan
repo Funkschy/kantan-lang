@@ -30,7 +30,7 @@ def empty_pos(): SourcePos {
 
 type SourceFile struct {
     is_std_lib: bool,
-    // TODO: use str.String
+    // TODO(#116): use str.String
     len: usize,
     code: string,
     file: file.File,

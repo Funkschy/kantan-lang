@@ -1430,7 +1430,7 @@ def as_inst_decl(inst: *Inst): *InstDecl {
 type InstAssign struct {
     dest: Address,
     value: Expression,
-    // TODO: convert this to a union
+    // TODO(#113): convert this to a union
     param_idx: isize, // -1 if this is not a param
     var_scope: Scope, // every variable opens an implicit scope, after it was assigned
     original_ident: ident.Ident

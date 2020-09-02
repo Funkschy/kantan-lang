@@ -53,7 +53,7 @@ type CompilerState enum {
 }
 
 // Compiles a single *mod.Module to a mir.Module
-// TODO: make single context like in tychk
+// TODO(#109): make single context like in tychk
 type MirCompiler struct {
     state: CompilerState,
     label_count: usize,
@@ -109,7 +109,7 @@ def compile(c: *MirCompiler): mir.Module {
 
     close_scope(c);
 
-    // TODO: theses things should probably be a struct
+    // TODO(#128): these things should probably be a struct
     return mir.create_mod(c.globals, c.functions, c.user_defined_types, c.scopes, c.mod);
 }
 
@@ -290,7 +290,7 @@ def declare_type(c: *MirCompiler, t: *ty.Type) {
 }
 
 def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
-    // TODO: remove duplicate code
+    // TODO(#112): remove duplicate code
     if ast.is_struct_decl_stmt(s) {
         let decl_stmt = ast.as_struct_decl_stmt(s);
         let decl = &decl_stmt.decl;
@@ -445,7 +445,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
         if ty.is_struct(value_ty) || ty.is_union(value_ty) {
             // structs must be zero initialized
-            // TODO: this should use usize
+            // TODO(#115): this should use usize
             let i64_ty = lookup_global_type(c, 3, "i64");
             let i8_ty = lookup_global_type(c, 2, "i8");
 
@@ -1318,7 +1318,7 @@ def string_lit(c: *MirCompiler, e: *ast.Expr): name.Ref {
 }
 
 def (c: *MirCompiler) eval_expr(e: *ast.Expr): mir.ValueBuffer {
-    // TODO: this should be a real vm
+    // TODO(#120): this should be a real vm
     if ast.is_string_expr(e) {
         let lit_name = string_lit(c, e);
         return mir.buffer_from_ref(lit_name, true);

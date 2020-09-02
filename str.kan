@@ -1,6 +1,6 @@
 import "std";
 
-// TODO: remove these, when we finally have an isize/usize type
+// TODO(#117): remove these, when we finally have an isize/usize type
 extern def strlen(s: string): usize;
 extern def memcpy(dest: *void, src: *void, n: usize);
 extern def strndup(s: string, n: usize): string;
