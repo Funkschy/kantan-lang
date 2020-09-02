@@ -1,11 +1,5 @@
 import "std";
 
-// TODO(#117): remove these, when we finally have an isize/usize type
-extern def strlen(s: string): usize;
-extern def memcpy(dest: *void, src: *void, n: usize);
-extern def strndup(s: string, n: usize): string;
-extern def malloc(size: usize): *void;
-
 type String struct {
     // don't access directly
     len_: usize,
@@ -18,7 +12,7 @@ def create(): String {
 }
 
 def from(s: string): String {
-    return from_l(s, strlen(s));
+    return from_l(s, std.strlen(s));
 }
 
 def from_l(s: string, len: usize): String {
@@ -31,13 +25,13 @@ def from_l(s: string, len: usize): String {
         // least significant len bit == 0 => optimized string
         str.len_ = len << 1;
 
-        memcpy((&str as *void) + 1, s as *void, len);
+        std.memcpy((&str as *void) + 1, s as *void, len);
         *(&str as *i8 + 1 + len) = '\0';
     } else {
         str.cap_ = len;
         // least significant len bit == 1 => heap allocated string
         str.len_ = (len << 1) | 1;
-        str.data_ = strndup(s, len);
+        str.data_ = std.strndup(s, len);
     }
 
     return str;
@@ -67,14 +61,14 @@ def (s: *String) push(other: View) {
 
         if  new_len <= max_storage {
             *(&s.len_ as *i8) = (new_len << 1) as i8;
-            memcpy((s as *void + 1) + len, other.data as *void, other.len);
+            std.memcpy((s as *void + 1) + len, other.data as *void, other.len);
             *(s as *i8 + 1 + new_len) = '\0';
         } else {
             let cap = std.next_pow_of_2(new_len as i64 + 1) as usize;
-            let data = malloc(cap);
+            let data = std.malloc(cap);
 
-            memcpy(data, s as *void + 1, len);
-            memcpy(data + len, other.data as *void, other.len);
+            std.memcpy(data, s as *void + 1, len);
+            std.memcpy(data + len, other.data as *void, other.len);
 
             s.data_ = data as string;
             *(s.data_ + new_len) = '\0';
@@ -87,17 +81,17 @@ def (s: *String) push(other: View) {
     }
 
     if new_len < s.cap_ {
-        memcpy(s.data_ as *void + len, other.data as *void, other.len);
+        std.memcpy(s.data_ as *void + len, other.data as *void, other.len);
         *(s.data_ + new_len) = '\0';
         s.len_ = (new_len << 1) | 1;
         return;
     }
 
     let cap = std.next_pow_of_2(new_len as i64 + 1) as usize;
-    let data = malloc(cap);
+    let data = std.malloc(cap);
 
-    memcpy(data, s.data_ as *void, len);
-    memcpy(data + len, other.data as *void, other.len);
+    std.memcpy(data, s.data_ as *void, len);
+    std.memcpy(data + len, other.data as *void, other.len);
 
     delete s.data_;
     s.data_ = data as string;
