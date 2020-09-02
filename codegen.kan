@@ -892,7 +892,7 @@ def compile_expr(
             return llvm.build_z_ext(c.builder, addr, into, "");
         }
 
-        let from_int = cast.addr.ty.is_integer();
+        let from_int = cast.addr.ty.is_integer() || ty.is_enum(cast.addr.ty);
         let into_int = cast.into.is_integer();
 
         let from_float = cast.addr.ty.is_float();

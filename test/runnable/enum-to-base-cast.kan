@@ -1,0 +1,10 @@
+import "io";
+
+type Test enum { One = 1, Two }
+
+def main() {
+    let test = Test.One;
+    io.printf("%d\n", test as i32);
+    io.printf("%d\n", Test.Two as i32);
+    let test: i32 = Test.One as i32;
+}

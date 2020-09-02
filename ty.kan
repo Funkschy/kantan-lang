@@ -968,6 +968,7 @@ def can_be_casted(from: *Type, into: *Type): bool {
         || (from.is_num() && into.is_num())
         || (from.is_integer() && is_bool(into))
         || (is_bool(from) && into.is_integer())
+        || (is_enum(from) && equals(as_enum(from).base_ty, into))
         || equals(from, into);
 }
 

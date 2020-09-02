@@ -9,7 +9,7 @@ type Animal struct {
 }
 
 def (a: *Animal) greet(table: [2]Greeter) {
-    table[*(&a.kind as *i32)](a);
+    table[a.kind as i32](a);
 }
 
 delegate def Greeter(a: *Animal);
