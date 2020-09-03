@@ -88,10 +88,19 @@ def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
 
 def from_options(options: *opt.Options): Config {
     let target_conf: TargetConfig = undefined;
-    // we currently don't support cross compilation for arch
     target_conf.ptr_width_bytes = sizeof *void;
     target_conf.arch = target.Arch.X86_64;
     let is_same_target_as_os = fill_os_info(options, &target_conf);
+
+    // TODO: support proper cross compilation for architecture
+    if options.target_arch != null && std.strcmp(options.target_arch, "wasm32") == 0 {
+        is_same_target_as_os = false;
+        target_conf.ptr_width_bytes = 4;
+        target_conf.arch = target.Arch.Wasm32;
+        target_conf.vendor = target.Vendor.None;
+        target_conf.sys = target.Sys.None;
+        target_conf.abi = target.Abi.None;
+    }
 
     let out_name = "out.o";
     let out_len: usize = 5;

@@ -749,6 +749,14 @@ extern def LLVMInitializeX86TargetMC(): void;
 
 extern def LLVMInitializeX86AsmPrinter(): void;
 
+extern def LLVMInitializeWebAssemblyTargetInfo(): void;
+
+extern def LLVMInitializeWebAssemblyTarget(): void;
+
+extern def LLVMInitializeWebAssemblyTargetMC(): void;
+
+extern def LLVMInitializeWebAssemblyAsmPrinter(): void;
+
 
 def initialize_x86_target_info(): void {
     LLVMInitializeX86TargetInfo();
@@ -764,6 +772,24 @@ def initialize_x86_target_mc(): void {
 
 def initialize_x86_asm_printer(): void {
     LLVMInitializeX86AsmPrinter();
+}
+// No AsmPrinter
+// No AsmParser
+// No Disassembler
+def initialize_web_assembly_target_info(): void {
+    LLVMInitializeWebAssemblyTargetInfo();
+}
+
+def initialize_web_assembly_target(): void {
+    LLVMInitializeWebAssemblyTarget();
+}
+
+def initialize_web_assembly_target_mc(): void {
+    LLVMInitializeWebAssemblyTargetMC();
+}
+
+def initialize_web_assembly_asm_printer(): void {
+    LLVMInitializeWebAssemblyAsmPrinter();
 }
 
 

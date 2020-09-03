@@ -176,7 +176,7 @@ def init_ptr_or_array_field_ty(tc: *tychk.TypeChecker, typeident: *tyid.Type): *
         let copy = *typeident;
         copy.pointer_count = 0;
         let inner = init_ptr_or_array_field_ty(tc, &copy);
-        return tychk.push_tmp_ty(tc, ty.new_ptr(typeident.pointer_count, inner));
+        return tc.create_ptr_ty(typeident.pointer_count, inner);
     } else if typeident.is_array() {
         let len = typeident.data.array.unchecked_len();
         let inner = init_ptr_or_array_field_ty(tc, &typeident.data.array.inner);

@@ -53,7 +53,7 @@ C_OBJ_FILES = $(C_SRC_FILES:.c=.c.o)
 LLVM_PATH = $(HOME)/Downloads/llvm/llvm-10.0.0.src/build
 LLVM_CONFIG = $(LLVM_PATH)/bin/llvm-config
 
-LLVM_LIB_NAMES = core target analysis support x86codegen linker passes
+LLVM_LIB_NAMES = core target analysis support x86codegen webassemblycodegen linker passes
 
 LLVM_C_FLAGS = $(shell $(LLVM_CONFIG) --cflags)
 LLVM_LD_FLAGS = $(shell $(LLVM_CONFIG) --ldflags)

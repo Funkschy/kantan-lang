@@ -112,13 +112,15 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
         target_conf.sys,
         target_conf.abi
     );
+    defer t.free();
 
     if t.is_error {
-        io.printf("%s\n", t.triple_or_error);
+        io.printf("%s\n", t.triple_or_error.cstring());
         return;
     }
 
     let tm = target.create_target_machine(&t);
+    defer tm.free();
     let data_layout = llvm.create_target_data_layout(tm.lltm);
     defer llvm.dispose_target_data(data_layout);
 
@@ -180,9 +182,6 @@ def compile_all_sequential(comp_data: *CompilationData, types: ptrvec.Vec) {
 
     llvm.dispose_module(base_mod);
     llvm.context_dispose(base_ctx);
-
-    target.free_target_machine(&tm);
-    target.free_target(&t);
 #endif
 }
 

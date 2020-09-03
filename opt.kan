@@ -10,7 +10,8 @@ type Options struct {
     files: ptrvec.Vec,
     opt_level: i8,
     output_filename: string,
-    target_os: string
+    target_os: string,
+    target_arch: string
 }
 
 def parse(argc: i32, argv: *string): Options {
@@ -21,7 +22,8 @@ def parse(argc: i32, argv: *string): Options {
         files: ptrvec.with_cap(argc as usize),
         opt_level: 0,
         output_filename: null,
-        target_os: null
+        target_os: null,
+        target_arch: null
     };
 
     for let i = 1; i < argc; i = i + 1 {
@@ -110,6 +112,11 @@ def parse_long(options: *Options, arg: string, set_to_next: **string): bool {
         return true;
     }
 
+    if std.strcmp(arg, "arch") == 0 {
+        *set_to_next = &options.target_arch;
+        return true;
+    }
+
     io.printf("ERROR: Invalid flag '%s'\n", arg);
     options.had_errors = true;
     return false;
@@ -126,6 +133,15 @@ def error_in_config_values(options: *Options): bool {
         else if std.strcmp(options.target_os, "darwin") == 0 {}
         else {
             io.printf("ERROR: Invalid target system '%s'\n", options.target_os);
+            return true;
+        }
+    }
+
+    if options.target_arch != null {
+        if std.strcmp(options.target_arch, "x86_64") == 0 {}
+        else if std.strcmp(options.target_arch, "wasm32") == 0 {}
+        else {
+            io.printf("ERROR: Invalid target architecture '%s'\n", options.target_arch);
             return true;
         }
     }

@@ -109,6 +109,10 @@ def (s: *String) view(): View {
     return view(s.len(), s.cstring());
 }
 
+def (s: *String) clone(): String {
+    return from_l(s.cstring(), s.len());
+}
+
 def (s: *String) free() {
     if s.is_optimized() {
         return;

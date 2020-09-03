@@ -170,7 +170,7 @@ type Ptr struct {
 
 // TODO(#28): don't allow pointers to Mod or other non-runtime abstractions (e.g Types)
 //  should we actually check this here, or just in the typechecker itself?
-def new_ptr(count: u32, inner: *Type): *Type {
+def new_ptr(width: usize, count: u32, inner: *Type): *Type {
     if inner != null && is_ptr(inner) {
         count = count + as_ptr(inner).count;
         inner = as_ptr(inner).inner;
@@ -189,8 +189,8 @@ def new_ptr(count: u32, inner: *Type): *Type {
 
     // pointers always have a size
     std.flag_unset(&t.flags, flag_unsized);
-    // TODO(#42): determine pointer width based on target
-    t.width = (t.align = 8) as i64;
+    t.width = width as i64;
+    t.align = width as u32;
     return t;
 }
 

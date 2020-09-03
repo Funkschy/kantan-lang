@@ -36,11 +36,13 @@ type ModuleCompiler struct {
     irmod: *mir.Module,
     builder: *llvm.Builder,
     dbg: *DebugInfo,
+    options: *CompilationOptions,
     user_types: map.Map,  // map.Map<mir.RefName, *llvm.Type>
     functions: vmap.Map // map.Map<mir.RefName, LLVMFunction>
 }
 
-def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
+def create_compiler(irmod: *mir.Module, options: *CompilationOptions): ModuleCompiler {
+    let ctx = options.global_ctx;
     // ctx is only null, if we want to use multiple threads
     if ctx == null {
         // since this can run in parallel, but llvm.Context is not threadsafe,
@@ -58,6 +60,7 @@ def create_compiler(irmod: *mir.Module, ctx: *llvm.Context): ModuleCompiler {
         irmod: irmod,
         builder: builder,
         dbg: null,
+        options: options,
         user_types: map.create(),
         functions: vmap.create(sizeof LLVMFunction)
     };
@@ -76,7 +79,7 @@ def free_context(ctx: *ModuleContext): void {
 }
 
 def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleContext {
-    let compiler = create_compiler(irmod, options.global_ctx);
+    let compiler = create_compiler(irmod, options);
 
     let dbg: *DebugInfo = null;
     if options.debug_info {
@@ -89,7 +92,7 @@ def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleCon
     compile_functions(&compiler);
 
     let t = options.target;
-    llvm.set_target(compiler.context.llmod, t.triple_or_error);
+    llvm.set_target(compiler.context.llmod, t.triple_or_error.cstring());
 
     if options.debug_info {
         let module_flag_warning = 1;
@@ -937,7 +940,10 @@ def compile_expr(
         let so = mir.as_expr_sizeof(e);
         let ty = translate_type(c, so.ty);
 
-        return llvm.size_of(ty);
+        let size = llvm.size_of(ty);
+        let width = c.options.target.pointer_width_bits();
+        let int_ty = llvm.int_type_in_context(c.context.ctx, width);
+        return llvm.build_int_cast(c.builder, size, int_ty, "");
     }
 
     if mir.is_expr_union_access(e) {
@@ -1005,13 +1011,13 @@ def compile_binary(
     } else if binary.kind == mir.BinaryKind.Sub {
         // pointer subtraction (both types have to be equal for mir.BinaryKind.Sub)
         if ty.is_ptr(binary.left.ty) {
-            let int64_ty = llvm.int64_type_in_context(c.context.ctx);
-            left = llvm.build_ptr_to_int(c.builder, left, int64_ty, "");
-            right = llvm.build_ptr_to_int(c.builder, right, int64_ty, "");
+            let width = c.options.target.pointer_width_bits();
+            let int_ty = llvm.int_type_in_context(c.context.ctx, width);
 
-            let sub = llvm.build_sub(c.builder, left, right, "");
-            let int32_ty = llvm.int32_type_in_context(c.context.ctx);
-            return sub;
+            left = llvm.build_ptr_to_int(c.builder, left, int_ty, "");
+            right = llvm.build_ptr_to_int(c.builder, right, int_ty, "");
+
+            return llvm.build_sub(c.builder, left, right, "");
         }
 
         return llvm.build_sub(c.builder, left, right, "");
@@ -1281,7 +1287,6 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             std.memset(name, '*', star_count);
             std.memcpy(name + star_count, inner_name.cstring() as *void, inner_name.len());
 
-            // TODO(#99): determine pointer size based on target pointer width
             inner = llvm.di_builder_create_pointer_type(
                 c.dbg.builder,
                 inner,

@@ -136,6 +136,10 @@ whitelist = set([
     'LLVMInitializeX86Target',
     'LLVMInitializeX86TargetInfo',
     'LLVMInitializeX86TargetMC',
+    'LLVMInitializeWebAssemblyAsmPrinter',
+    'LLVMInitializeWebAssemblyTarget',
+    'LLVMInitializeWebAssemblyTargetInfo',
+    'LLVMInitializeWebAssemblyTargetMC',
     'LLVMSetModuleDataLayout',
     'LLVMDisposeTargetData',
 

@@ -1,33 +1,36 @@
 import "dbg";
 import "std";
-import "name";
+import "str";
 import "path";
 import "llvm-bindings" as llvm;
 
 type Arch enum {
-    X86_64
+    X86_64, Wasm32
 }
 
 type Vendor enum {
-    Unknown, PC, Apple
+    None, Unknown, PC, Apple
 }
 
 type Sys enum {
-    Linux, Darwin, Win32
+    None, Linux, Darwin, Win32
 }
 
 type Abi enum {
-    Empty, Gnu, Msvc
+    None, Empty, Gnu, Msvc
 }
 
-def arch_to_name(a: Arch): name.Ref {
+def (a: Arch) to_string(): str.String {
     if a == Arch.X86_64 {
-        return name.make_ref(6, "x86_64");
+        return str.from("x86_64");
     }
-    return name.make_ref(0, null);
+    if a == Arch.Wasm32 {
+        return str.from("wasm32");
+    }
+    return str.from("");
 }
 
-def arch_register(a: Arch): void {
+def (a: Arch) register() {
     if a == Arch.X86_64 {
         llvm.initialize_x86_target_info();
         llvm.initialize_x86_target();
@@ -36,43 +39,61 @@ def arch_register(a: Arch): void {
         return;
     }
 
+    if a == Arch.Wasm32 {
+        llvm.initialize_web_assembly_target_info();
+        llvm.initialize_web_assembly_target();
+        llvm.initialize_web_assembly_target_mc();
+        llvm.initialize_web_assembly_asm_printer();
+        return;
+    }
+
     dbg.assert_fmt(0 == 1, "unknown target architecture: %d", a);
 }
 
-def vendor_to_name(v: Vendor): name.Ref {
+def (a: Arch) pointer_width_bits(): u32 {
+    if a == Arch.X86_64 {
+        return 64;
+    }
+    return 32;
+}
+
+def (v: Vendor) to_string(): str.String {
     if v == Vendor.Unknown {
-        return name.make_ref(7, "unknown");
+        return str.from("unknown");
     }
     if v == Vendor.PC {
-        return name.make_ref(2, "pc");
+        return str.from("pc");
     }
     if v == Vendor.Apple {
-        return name.make_ref(5, "apple");
+        return str.from("apple");
     }
-    return name.make_ref(0, null);
+
+    return str.from("");
 }
 
-def sys_to_name(s: Sys): name.Ref {
+def (s: Sys) to_string(): str.String {
     if s == Sys.Linux {
-        return name.make_ref(5, "linux");
+        return str.from("linux");
     }
     if s == Sys.Darwin {
-        return name.make_ref(6, "darwin");
+        return str.from("darwin");
     }
     if s == Sys.Win32 {
-        return name.make_ref(5, "win32");
+        return str.from("win32");
     }
-    return name.make_ref(0, null);
+
+    return str.from("");
 }
 
-def abi_to_name(a: Abi): name.Ref {
+def (a: Abi) to_string(): str.String {
     if a == Abi.Gnu {
-        return name.make_ref(3, "gnu");
+        return str.from("gnu");
     }
     if a == Abi.Msvc {
-        return name.make_ref(4, "msvc");
+        return str.from("msvc");
     }
-    return name.make_ref(0, null);
+
+    return str.from("");
 }
 
 type Target struct {
@@ -82,7 +103,7 @@ type Target struct {
     sys: Sys,
     abi: Abi,
     lltarget: *llvm.Target,
-    triple_or_error: string // llvm message
+    triple_or_error: str.String // llvm message
 }
 
 def create_and_register_target(a: Arch, v: Vendor, sys: Sys, abi: Abi): Target {
@@ -93,55 +114,53 @@ def create_and_register_target(a: Arch, v: Vendor, sys: Sys, abi: Abi): Target {
         sys: sys,
         abi: abi,
         lltarget: null,
-        triple_or_error: null
+        triple_or_error: undefined
     };
 
-    arch_register(a);
+    a.register();
 
-    let arch = arch_to_name(a);
-    let vendor = vendor_to_name(v);
-    let sys = sys_to_name(sys);
-    let abi = abi_to_name(abi);
+    let target_arr: [4]str.String = undefined;
+    target_arr[0] = a.to_string();
+    target_arr[1] = v.to_string();
+    target_arr[2] = sys.to_string();
+    target_arr[3] = abi.to_string();
 
-    let triple = "";
-    // abi can be empty (for example on darwin)
-    if abi.data != null {
-        triple = std.format_str(
-            "%.*s-%.*s-%.*s-%.*s",
-            arch.len, arch.data,
-            vendor.len, vendor.data,
-            sys.len, sys.data,
-            abi.len, abi.data
-        );
-    } else {
-        triple = std.format_str(
-            "%.*s-%.*s-%.*s",
-            arch.len, arch.data,
-            vendor.len, vendor.data,
-            sys.len, sys.data
-        );
+    let triple = str.from("");
+    defer triple.free();
+
+    for let i = 0; i < 4; i += 1 {
+        let part = &target_arr[i];
+        if part.len() == 0 {
+            continue;
+        }
+
+        if i > 0 {
+            triple.push(str.view(1, "-"));
+        }
+
+        triple.push(part.view());
     }
 
     let lltarget: *llvm.Target = null;
     let error: string = null;
-    if llvm.get_target_from_triple(triple, &lltarget, &error) {
-        delete triple;
+    if llvm.get_target_from_triple(triple.cstring(), &lltarget, &error) {
         target.is_error = true;
-        target.triple_or_error = error;
+        target.triple_or_error = str.from(error);
+        llvm.dispose_message(error);
         return target;
     }
 
     target.lltarget = lltarget;
-    target.triple_or_error = triple;
+    target.triple_or_error = triple.clone();
     return target;
 }
 
-def free_target(t: *Target): void {
-    if t.is_error {
-        llvm.dispose_message(t.triple_or_error);
-    } else {
-        delete t.triple_or_error;
-    }
+def (t: *Target) pointer_width_bits(): u32 {
+    return t.arch.pointer_width_bits();
+}
+
+def (t: *Target) free() {
+    t.triple_or_error.free();
 }
 
 type TargetMachine struct {
@@ -159,7 +178,7 @@ def create_target_machine(target: *Target): TargetMachine {
 
     let tm = llvm.create_target_machine(
         target.lltarget,
-        target.triple_or_error,
+        target.triple_or_error.cstring(),
         "generic", // cpu type
         "", // features
         default_code_opt_level,
@@ -174,7 +193,7 @@ def create_target_machine(target: *Target): TargetMachine {
     };
 }
 
-def free_target_machine(tm: *TargetMachine): void {
+def (tm: *TargetMachine) free() {
     llvm.dispose_target_machine(tm.lltm);
 }
 
