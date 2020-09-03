@@ -220,6 +220,18 @@ def (ds: *DeferedStmts) get(idx: usize): *Inst {
     return ds.instructions.get_ptr(idx) as *Inst;
 }
 
+def (ds: *DeferedStmts) reorder_last(n: usize) {
+    let len = ds.len();
+    let start = len - n;
+    let end = len - 1;
+
+    for let i: usize = 0; i < n / 2; i += 1 {
+        let temp = *ds.get(end - i);
+        *ds.get(end - i) = *ds.get(start + i);
+        *ds.get(start + i) = temp;
+    }
+}
+
 type Scopes struct {
     mir_scopes: vec.Vec, // vec.Vec<Scope>
     defered: vec.Vec // vec.Vec<DeferedStmts>

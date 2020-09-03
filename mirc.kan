@@ -562,7 +562,14 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
         let old_state = c.state;
         c.state = CompilerState.Defer;
+
+        let defered = c.scopes.defered_for(c.current_scope);
+        let old_len = defered.len();
+
         compile_stmt(c, defer_stmt.stmt);
+
+        // reverse order of new defered statements
+        defered.reorder_last(defered.len() - old_len);
         c.state = old_state;
 
         return;
