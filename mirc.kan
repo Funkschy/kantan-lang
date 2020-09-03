@@ -814,7 +814,7 @@ def compile_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 def assign_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let assign = ast.as_assign_expr(e);
     let value = compile_expr(c, assign.right, true);
-    let target = expr_instruction_decl(c, assign.left, false, false);
+    let target = expr_instruction_decl(c, assign.left, null, false, false);
 
     let meta = get_meta(c, e.span);
     push_assign(c, target, value, meta);
@@ -823,9 +823,14 @@ def assign_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
 def unary_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let unary = ast.as_unary_expr(e);
-    let value_addr = expr_instruction(c, unary.right, rhs);
     let meta = get_meta(c, e.span);
 
+    if unary.kind == ast.UnaryKind.Ref && ast.is_index_expr(unary.right) {
+        let value_addr = expr_instruction_decl(c, unary.right, e.ty, false, true);
+        return mir.new_expr_copy(value_addr);
+    }
+
+    let value_addr = expr_instruction(c, unary.right, rhs);
     if unary.kind == ast.UnaryKind.Deref {
         // Expressions on the right side of an assignment have to be derefed twice
         // since a deref is just load instruction
@@ -1047,12 +1052,16 @@ def index_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let current = e;
     while ast.is_index_expr(current) {
         let current_index = ast.as_index_expr(current);
+        if !current_index.left.ty.is_array() {
+            break;
+        }
+
         let index_addr = expr_instruction(c, current_index.right, true);
         indices.push(&index_addr as *void);
         current = current_index.left;
     }
 
-    let inner = expr_instruction(c, current, rhs);
+    let inner = expr_instruction_decl(c, current, null, rhs, false);
     let mir_index = mir.new_expr_index(inner, indices);
     if rhs {
         push_temp_assign(c, mir_index, current.ty, meta, &inner);
@@ -1164,12 +1173,13 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 // creates one or multiple instructions for the given expression and returns
 // the address of the result
 def expr_instruction(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Address {
-    return expr_instruction_decl(c, e, rhs, true);
+    return expr_instruction_decl(c, e, null, rhs, true);
 }
 
 def expr_instruction_decl(
     c: *MirCompiler,
     e: *ast.Expr,
+    overwrite_type: *ty.Type,
     rhs: bool,
     decl: bool
 ): mir.Address {
@@ -1197,10 +1207,15 @@ def expr_instruction_decl(
         }
     }
 
-    push_temp_assign(c, mir_expr, e.ty, meta, &a);
+    if overwrite_type != null {
+        push_temp_assign(c, mir_expr, overwrite_type, meta, &a);
+    } else {
+        push_temp_assign(c, mir_expr, e.ty, meta, &a);
+    }
+
     if decl {
         dbg.assert(mir.is_addr_name(&a), "address should be a name");
-        push_decl(c, mir.as_addr_name(&a).value, e.ty, meta);
+        push_decl(c, mir.as_addr_name(&a).value, a.ty, meta);
     }
     return a;
 }

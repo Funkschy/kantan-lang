@@ -257,6 +257,10 @@ def (t: *Type) update_inner(inner: *Type) {
     std.flag_unset(&t.flags, flag_unsized);
 }
 
+def (t: *Type) is_indexable(): bool {
+    return t.is_array() || is_ptr(t);
+}
+
 type UserDefinedType struct {
     original_name: ident.Ident,
     mangled_name: name.Owned,

@@ -6,12 +6,6 @@ def main() {
     let arr = malloc(5 * 5 * sizeof string) as **string;
     defer delete arr;
 
-    let s = "hello";
-    arr[0] = &s;
-    arr[0][0] = "hello";
-    arr[0][0][1] = 'a';
-    io.printf("%s\n", arr[0][0]);
-
     let a: [2][2]i8 = undefined;
     a[0][0] = 'a';
     io.printf("%c\n", a[0][0]);
@@ -36,12 +30,28 @@ def main() {
     test.i[1] = 20;
 
     let p = &test;
-    io.printf("%d\n", p[0].i[1]);
+    io.printf("%d\n", (*p).i[1]);
 
     let arr: [2]*Test = undefined;
     arr[0] = arr[1] = p;
 
-    io.printf("%d\n", arr[0][0].i[0]);
+    io.printf("%d\n", (*arr[0]).i[0]);
+
+    let nums: [1][1]i32 = undefined;
+    nums[0][0] = 1;
+    io.printf("%d\n", nums[0][0]);
+
+    let i = &nums[0][0];
+    *i = 2;
+    io.printf("%d\n", nums[0][0]);
+
+    let p: *[1]i32 = &nums[0];
+    p[0][0] = 3;
+    io.printf("%d\n", nums[0][0]);
+
+    let p = &nums;
+    p[0][0][0] = 4;
+    io.printf("%d\n", nums[0][0]);
 }
 
 type Test struct {

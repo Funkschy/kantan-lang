@@ -1780,7 +1780,7 @@ def check_expr_expect(
         idx_e.left = left;
         let left_ty = idx_e.left.ty;
 
-        if !(ty.is_ptr(left_ty) || left_ty.is_array()) {
+        if !left_ty.is_indexable() {
             push_not_accessible_with_error(tc, idx_e.left, "index");
             return null;
         }
@@ -1802,6 +1802,7 @@ def check_expr_expect(
         } else {
             e.ty = left_ty.inner_type();
         }
+
         return e;
     }
 
@@ -2271,12 +2272,12 @@ def check_unary_expr(
     }
 
     if kind == ast.UnaryKind.Ref {
-        if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr)
-            || ast.is_access_expr(expr) && ty.is_enum(ast.as_access_expr(expr).left.ty) {
+        if !ast.is_ident_expr(expr) && !ast.is_access_expr(expr) && !ast.is_index_expr(expr)
+           || ast.is_access_expr(expr) && ty.is_enum(ast.as_access_expr(expr).left.ty) {
                 let text = error.err2str(error.CompileError.UnaryRefRValue);
                 push_mk_err(tc, text, span);
                 return null;
-            }
+        }
 
         let is_method_ptr = ty.is_func(expr.ty) && ty.as_func(expr.ty).is_method;
         if lookup_data.was_type_decl() && is_method_ptr {
