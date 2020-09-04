@@ -989,7 +989,6 @@ def declare_enum(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
 def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let signature = fd.signature;
     if signature == null {
-        push_internal_error(tc, fd.name.span, "Signature was null");
         return null;
     }
 
@@ -2381,7 +2380,7 @@ def check_unary_expr(
 def mangle_func_name(tc: *TypeChecker, fd: *func.FuncDef): name.Owned {
     dbg.assert(fd != null, "funcdef was null");
 
-    if fd.is_extern() {
+    if fd.is_extern() || fd.is_exported() {
         // the names must be owned, so just copy data here
         // there aren't many extern functions anyway
         let len = ident.len(&fd.name);

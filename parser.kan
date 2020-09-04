@@ -241,7 +241,7 @@ def parse(p: *Parser): *mod.Module {
 }
 
 def top_level(p: *Parser): *ast.Stmt {
-    let peek = peek(p);
+    let peeked = peek(p);
 
     let prev_num_errs = num_errs(p);
     let start = l.current_ptr(&p.lexer);
@@ -249,22 +249,30 @@ def top_level(p: *Parser): *ast.Stmt {
     let s: *ast.Stmt = null;
     let consume_semi = false;
 
-    if peek.ty == l.TokenType.Def {
+    if peeked.ty == l.TokenType.Export {
+        consume(p, l.TokenType.Export);
         s = parse_func_def(p, func.Kind.Procedure);
-    } else if peek.ty == l.TokenType.Extern {
+
+        if s != null {
+            ast.as_func_decl_stmt(s).decl.exported = true;
+        }
+
+    } else if peeked.ty == l.TokenType.Def {
+        s = parse_func_def(p, func.Kind.Procedure);
+    } else if peeked.ty == l.TokenType.Extern {
         consume(p, l.TokenType.Extern);
         s = parse_func_def(p, func.Kind.Extern);
         consume_semi = true;
-    } else if peek.ty == l.TokenType.Delegate {
+    } else if peeked.ty == l.TokenType.Delegate {
         consume(p, l.TokenType.Delegate);
         s = parse_func_def(p, func.Kind.Delegate);
         consume_semi = true;
-    } else if peek.ty == l.TokenType.Type {
+    } else if peeked.ty == l.TokenType.Type {
         s = parse_type_stmt(p);
-    } else if peek.ty == l.TokenType.Import {
+    } else if peeked.ty == l.TokenType.Import {
         s = parse_import_stmt(p);
         consume_semi = true;
-    } else if peek.ty == l.TokenType.Let {
+    } else if peeked.ty == l.TokenType.Let {
         s = parse_let_stmt(p);
         consume_semi = true;
     }

@@ -31,6 +31,7 @@ type TokenType enum {
     Union,
     As,
     Extern,
+    Export,
     Delegate,
     Sizeof,
     For,
@@ -270,10 +271,17 @@ def ident_type(l: *Lexer): TokenType {
         }
     } else if start == 'e' && l.current - l.start > 3 {
         let next = 0;
-        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+        len += std.read_char(l.start + len, l.source.len - bytes_until - len, &next) as usize;
 
         if next == 'x' {
-            return check_keyword(l, 2, 4, "tern", TokenType.Extern);
+            // read third char
+            std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+
+            if next == 't' {
+                return check_keyword(l, 2, 4, "tern", TokenType.Extern);
+            } else {
+                return check_keyword(l, 2, 4, "port", TokenType.Export);
+            }
         } else if next == 'l' {
             return check_keyword(l, 2, 2, "se", TokenType.Else);
         } else if next == 'n' {
