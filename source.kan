@@ -47,6 +47,10 @@ def (sf: *SourceFile) name_dup(): string {
     return sf.file.name_dup();
 }
 
+def (sf: *SourceFile) end(): string {
+    return sf.code + sf.len;
+}
+
 def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): error.CompileError {
     let new_file = file.create(p);
     let s: string = null;
@@ -104,6 +108,9 @@ def (file: *SourceFile) line_info(
     // the \n at the end of the line with span in it
     if out_line_end != null {
         *out_line_end = std.find_char(target.end, '\n');
+        if *out_line_end == null {
+            *out_line_end = file.end();
+        }
     }
     if out_line_start != null {
         *out_line_start = last_nl + 1;
