@@ -985,7 +985,12 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     }
 
     let left_meta = get_meta(c, access.left.span);
-    let left_addr = expr_instruction(c, access.left, rhs);
+    let left_addr: mir.Address = undefined;
+    if ast.is_index_expr(access.left) {
+        left_addr = expr_instruction_decl(c, access.left, null, false, false);
+    } else {
+        left_addr = expr_instruction(c, access.left, rhs);
+    }
     let left_ty = left_addr.ty;
 
     if ty.is_ptr(left_ty) {
