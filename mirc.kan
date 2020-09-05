@@ -397,7 +397,7 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
             );
 
             let block_end = decl_stmt.s.span.end;
-            let meta = get_meta(c, span.create(block_end, block_end));
+            let meta = get_meta(c, span.create(block_end - 1, block_end));
 
             if is_main {
                 let ret_lit = "0";

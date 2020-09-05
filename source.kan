@@ -175,7 +175,7 @@ def (m: *SourceMap) find_line_in_srcmap(span: span.Span): i64 {
 
         if line_end == null {
             // no next line, so just search for the end of the string
-            line_end = std.strchr(line_start, 0);
+            line_end = std.strchrnul(line_start, 0);
         }
         line_end = line_end - 1;
 
