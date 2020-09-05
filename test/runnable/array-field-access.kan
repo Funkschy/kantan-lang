@@ -23,4 +23,12 @@ def main() {
     o[1].t.i = o[0].t.i = 1;
     io.printf("%d\n", o[0].t.i);
     io.printf("%d\n", o[1].t.i);
+
+    let a: [2][2]Type = undefined;
+    a[0][0] = Type { i: 42 };
+    a[0][1].i = (a[0][0].i = 4) + 1;
+    io.printf("%d\n", a[0][0].i);
+    io.printf("%d\n", a[0][1].i);
+    a[0][1].i += 1;
+    io.printf("%d\n", a[0][1].i);
 }
