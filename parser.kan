@@ -324,22 +324,31 @@ def statement(p: *Parser): *ast.Stmt {
 }
 
 def parse_statement(p: *Parser): *ast.Stmt {
-    let peek = peek(p);
+    let peeked = peek(p);
 
-    if peek.ty == l.TokenType.If {
+    if peeked.ty == l.TokenType.If {
         return parse_if_stmt(p);
     }
 
-    if peek.ty == l.TokenType.LBrace {
+    if peeked.ty == l.TokenType.LBrace {
         return parse_block(p);
     }
 
-    if peek.ty == l.TokenType.While {
+    if peeked.ty == l.TokenType.While {
         return parse_while_stmt(p);
     }
 
-    if peek.ty == l.TokenType.For {
+    if peeked.ty == l.TokenType.For {
         return parse_for_stmt(p);
+    }
+
+    if peeked.ty == l.TokenType.Import {
+        let imp = parse_import_stmt(p);
+        if imp != null && !consume(p, l.TokenType.Semi) {
+            ast.stmt_free(imp);
+            return null;
+        }
+        return imp;
     }
 
     let simple = parse_simple_stmt(p);

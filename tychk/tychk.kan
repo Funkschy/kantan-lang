@@ -1152,23 +1152,6 @@ def (tc: *TypeChecker) check_for_return_stmt(block: *ast.BlockStmt): Result {
 }
 
 def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
-    // STMT_IMPORT
-    if ast.is_import_stmt(s) {
-        let i_s = ast.as_import_stmt(s);
-
-        let alias: ident.Ident = ident.empty();
-        let ty: *ty.Type = null;
-
-        if !check_import(tc, i_s, &alias, &ty) {
-            return null;
-        }
-
-        // since types and/or values could be imported, imports live in both namespaces
-        bind_type(tc, &alias, ty);
-        bind_value_private(tc, &alias, ty);
-        return s;
-    }
-
     // STMT_STRUCT_DECL
     if ast.is_struct_decl_stmt(s) {
         let sd = &ast.as_struct_decl_stmt(s).decl;
@@ -1242,6 +1225,23 @@ def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 // returns the statement which should replace the old one
 // if a new statement is created, this function will free the old one
 def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
+    // STMT_IMPORT
+    if ast.is_import_stmt(s) {
+        let i_s = ast.as_import_stmt(s);
+
+        let alias: ident.Ident = ident.empty();
+        let ty: *ty.Type = null;
+
+        if !check_import(tc, i_s, &alias, &ty) {
+            return null;
+        }
+
+        // since types and/or values could be imported, imports live in both namespaces
+        bind_type(tc, &alias, ty);
+        bind_value_private(tc, &alias, ty);
+        return s;
+    }
+
     if tc.pass == PassMode.TypeDecl {
         return check_decl_stmt(tc, s);
     }
