@@ -353,7 +353,6 @@ def parse_statement(p: *Parser): *ast.Stmt {
 
     let simple = parse_simple_stmt(p);
     if simple != null && !consume(p, l.TokenType.Semi) {
-        sync(p);
         ast.stmt_free(simple);
         return null;
     }
@@ -803,7 +802,6 @@ def parse_block(p: *Parser): *ast.Stmt {
     while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RBrace {
         let s = statement(p);
         if s == null {
-            sync(p);
             had_error = true;
         } else {
             statements.push_ptr(s as *void);

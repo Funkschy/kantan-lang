@@ -158,7 +158,6 @@ def print_type_errors(tc: *tychk.TypeChecker, fm: *reader.FileMap, abs_path: *pa
     for let i: usize = 0; i < tychk.num_errs(tc); i += 1 {
         let err = tychk.get_err(tc, i);
         let src = fm.get_ptr_from_span(err.span);
-        io.printf("%.*s\n", src.file.path.inner.len, src.file.path.inner.inner);
 
         print_error(err.text, err.span, src, abs_path);
     }

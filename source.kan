@@ -191,7 +191,7 @@ def (m: *SourceMap) find_line_in_srcmap(span: span.Span): i64 {
         }
     }
 
-    return -1;
+    return end as i64 + 1;
 }
 
 def (m: *SourceMap) line_at(idx: u32): string {
