@@ -15,6 +15,7 @@ type CompileError enum {
     UnknownSymbol,
     CharLitLen,
     CouldNotParseStmt,
+    InvalidIdent,
     InvalidTypeIdent,
     InvalidEscapeSequence,
     InvalidReceiverCount,

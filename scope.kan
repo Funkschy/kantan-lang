@@ -70,6 +70,43 @@ def (s: *Scope) get(key_len: usize, key: string): symbol.Data {
     return ptr.or_empty().with_scope(s);
 }
 
+type ScopeItem struct {
+    name: ident.Ident,
+    symbol: symbol.Data
+}
+
+def (item: *ScopeItem) present(): bool {
+    return !ident.is_empty(&item.name);
+}
+
+type ScopeIter struct {
+    inner: map.Iter,
+    scope: *Scope
+}
+
+def (s: *Scope) iter(): ScopeIter {
+    return ScopeIter { inner: map.iter(&s.bindings.mappings), scope: s };
+}
+
+def (i: *ScopeIter) next(): ScopeItem {
+    let next = map.iter_next(&i.inner);
+    let symbol: symbol.Data = undefined;
+
+    // skip private symbols
+    while next != null && (symbol = i.scope.get(next.key.len, next.key.value)).is_private() {
+        next = map.iter_next(&i.inner);
+    }
+
+    if next == null {
+        return ScopeItem { name: ident.empty(), symbol: undefined };
+    }
+
+    return ScopeItem {
+        name: ident.from_span(span.create(next.key.value, next.key.value + next.key.len)),
+        symbol: symbol
+    };
+}
+
 type ScopeStack struct {
     scopes: ptrvec.Vec // vec of *Scopes
 }

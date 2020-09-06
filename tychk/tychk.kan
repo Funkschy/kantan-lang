@@ -653,8 +653,12 @@ def close_scope(tc: *TypeChecker) {
     scope.close_scope(&tc.ctx.values);
 }
 
-def bind_type(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type) {
+def bind_type_public(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type) {
     scope.bind_public(&tc.ctx.types, ident, ty);
+}
+
+def bind_type_private(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type) {
+    scope.bind_private(&tc.ctx.types, ident, ty);
 }
 
 def bind_value_public(tc: *TypeChecker, ident: *ident.Ident, ty: *ty.Type) {
@@ -843,18 +847,20 @@ def check_import(
         return false;
     }
 
-    let alias = get_import_alias(tc, i_s);
-    if ident.start(&alias) == null {
-        push_internal_error(tc, i_s.mod.span, "import alias was empty");
-        return false;
-    }
-    add_import_alias(tc, &alias, imported_mod);
-
     let mod_ty = imported_mod.ty;
     dbg.assert(mod_ty != null, "mod_ty should not be null");
-
-    *out_alias = alias;
     *out_ty = mod_ty;
+
+    if i_s.is_qualified() {
+        let alias = get_import_alias(tc, i_s);
+        if ident.start(&alias) == null {
+            push_internal_error(tc, i_s.mod.span, "import alias was empty");
+            return false;
+        }
+
+        add_import_alias(tc, &alias, imported_mod);
+        *out_alias = alias;
+    }
 
     return true;
 }
@@ -1161,7 +1167,7 @@ def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        bind_type(tc, &sd.name, ty);
+        bind_type_public(tc, &sd.name, ty);
         sd.struct_ty = ty;
 
         return s;
@@ -1178,7 +1184,7 @@ def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         }
 
         // the name of an enum can refer to both, the Enum scope (value) or the enum Type
-        bind_type(tc, &ed.name, ty);
+        bind_type_public(tc, &ed.name, ty);
         bind_value_public(tc, &ed.name, ty);
         ed.enum_ty = ty;
 
@@ -1194,7 +1200,7 @@ def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             return null;
         }
 
-        bind_type(tc, &sd.name, ty);
+        bind_type_public(tc, &sd.name, ty);
         sd.union_ty = ty;
 
         return s;
@@ -1214,7 +1220,7 @@ def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
             bind_value_public(tc, &fd.name, fd.signature);
         } else if fd.is_delegate() {
             let func_ptr_ty = tc.create_ptr_ty(1, fd.signature);
-            bind_type(tc, &fd.name, func_ptr_ty);
+            bind_type_public(tc, &fd.name, func_ptr_ty);
             waiting.update_all(tc, tc.ctx.mod, func_ptr_ty, &fd.name);
         }
     }
@@ -1229,16 +1235,35 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
     if ast.is_import_stmt(s) {
         let i_s = ast.as_import_stmt(s);
 
-        let alias: ident.Ident = ident.empty();
-        let ty: *ty.Type = null;
+        if i_s.mod_ty == null {
+            let alias: ident.Ident = ident.empty();
 
-        if !check_import(tc, i_s, &alias, &ty) {
-            return null;
+            if !check_import(tc, i_s, &alias, &i_s.mod_ty) {
+                return null;
+            }
+
+            if i_s.is_qualified() {
+                // since types and/or values could be imported, imports live in both namespaces
+                bind_type_private(tc, &alias, i_s.mod_ty);
+                bind_value_private(tc, &alias, i_s.mod_ty);
+            }
         }
 
-        // since types and/or values could be imported, imports live in both namespaces
-        bind_type(tc, &alias, ty);
-        bind_value_private(tc, &alias, ty);
+        if tc.pass == PassMode.Real && !i_s.is_qualified() {
+            // non qualified import
+            let mod_ty = ty.as_mod(i_s.mod_ty);
+
+            let iter = mod_ty.types.iter();
+            for let imported = iter.next(); imported.present(); imported = iter.next() {
+                bind_type_private(tc, &imported.name, imported.symbol.ty_or_null());
+            }
+
+            let iter = mod_ty.values.iter();
+            for let imported = iter.next(); imported.present(); imported = iter.next() {
+                bind_value_private(tc, &imported.name, imported.symbol.ty_or_null());
+            }
+        }
+
         return s;
     }
 

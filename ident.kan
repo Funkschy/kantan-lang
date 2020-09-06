@@ -53,6 +53,10 @@ def char_at(i: *Ident, pos: usize): i8 {
 }
 
 def eq_lit(id: *Ident, lit: string): bool {
+    if is_empty(id) {
+        return false;
+    }
+
     let len = len(id);
     if len != std.strlen(lit) {
         return false;

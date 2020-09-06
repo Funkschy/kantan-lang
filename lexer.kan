@@ -10,6 +10,7 @@ type TokenType enum {
     UnknownErr,
     CharErr,
     EscapeErr,
+    InvalidIdentifierErr,
 
     Int,
     Float,
@@ -106,9 +107,7 @@ def (tok: *Token) lexeme(): string {
 }
 
 def (tok: *Token) is_err(): bool {
-    return tok.ty == TokenType.UnknownErr
-        || tok.ty == TokenType.CharErr
-        || tok.ty == TokenType.EscapeErr;
+    return tok.ty <= TokenType.InvalidIdentifierErr;
 }
 
 def (token: *Token) len(): usize {
@@ -335,12 +334,15 @@ def ident_type(l: *Lexer): TokenType {
     return TokenType.Ident;
 }
 
-def lex_ident(l: *Lexer): Token {
+def lex_ident(l: *Lexer, out: *Token): bool {
+    let contains_letter = false;
     while is_letter(current(l)) || is_num(current(l)) || current(l) == '_' {
+        contains_letter |= is_letter(current(l));
         advance(l);
     }
 
-    return token_from_start(l, ident_type(l));
+    *out = token_from_start(l, ident_type(l));
+    return contains_letter;
 }
 
 def lex_num(l: *Lexer): Token {
@@ -504,8 +506,12 @@ def get_next_token(l: *Lexer): Token {
         return lex_num(l);
     }
 
-    if is_letter(c) {
-        return lex_ident(l);
+    if is_letter(c) || c == '_' {
+        let ident: Token = undefined;
+        if lex_ident(l, &ident) || is_letter(c) || (ident.span.len() == 1 && c == '_') {
+            return ident;
+        }
+        return token_from_start(l, TokenType.InvalidIdentifierErr);
     }
 
     if c == '"' {

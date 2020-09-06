@@ -1,0 +1,11 @@
+import "io" as _;
+
+def greeting(): string {
+    return "Wrong answer";
+}
+
+def main() {
+    // overwrite greeting
+    import "module" as _;
+    printf("%s\n", greeting());
+}
