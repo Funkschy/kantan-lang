@@ -2316,7 +2316,7 @@ def check_unary_expr(
 
     if kind == ast.UnaryKind.Deref {
         if !ty.is_ptr(expr.ty) {
-            let s_ty = ty.to_string(expr.ty);
+            let s_ty = tc.ty_to_string(expr.ty);
             defer s_ty.free();
             let text = error.err2str(error.CompileError.UnaryDerefNonPtr, s_ty.cstring());
             push_mk_err(tc, text, span);
@@ -2482,7 +2482,7 @@ def push_not_defined_error(tc: *TypeChecker, name: *ident.Ident, kind_s: string,
 }
 
 def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr, op: string) {
-    let ty_s = ty.to_string(e.ty);
+    let ty_s = tc.ty_to_string(e.ty);
     defer ty_s.free();
     let error = error.err2str(error.CompileError.NotAccessibleWithOp, ty_s.cstring(), op);
 
@@ -2490,7 +2490,7 @@ def push_not_accessible_with_error(tc: *TypeChecker, e: *ast.Expr, op: string) {
 }
 
 def push_not_callable_error(tc: *TypeChecker, span: span.Span, actual_ty: *ty.Type) {
-    let ty_s = ty.to_string(actual_ty);
+    let ty_s = tc.ty_to_string(actual_ty);
     defer ty_s.free();
     let text = error.err2str(error.CompileError.CallingNonFunction, ty_s.cstring());
     push_mk_err(tc, text, span);
@@ -2640,7 +2640,7 @@ def push_union_init_multiple_error(tc: *TypeChecker, span: span.Span) {
 }
 
 def push_init_invalid_type_error(tc: *TypeChecker, actual_ty: *ty.Type, span: span.Span) {
-    let ty_s = ty.to_string(actual_ty);
+    let ty_s = tc.ty_to_string(actual_ty);
     defer ty_s.free();
     let text = error.err2str(error.CompileError.InitInvalidType, ty_s.cstring());
     push_mk_err(tc, text, span);
