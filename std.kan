@@ -10,7 +10,6 @@ extern def strcat(first: string, second: string): string;
 extern def strncat(first: string, second: string, len: usize): string;
 extern def strcpy(dest: string, src: string): string;
 extern def strchr(haystack: string, needle: i32): string;
-extern def strchrnul(haystack: string, needle: i32): string;
 extern def strrchr(haystack: string, needle: i32): string;
 extern def memcmp(first: *void, second: *void, size: usize): i32;
 extern def memset(p: *void, val: i32, n: usize): *void;

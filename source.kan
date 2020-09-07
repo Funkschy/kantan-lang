@@ -142,6 +142,7 @@ def (file: *SourceFile) span_to_pos(target: span.Span): SourcePos {
 
 // This is used to convert Spans into SourcePos' quickly
 type SourceMap struct {
+    end_of_code: string,
     line_starts: ptrvec.Vec // ptrvec.Vec<string>
 }
 
@@ -159,7 +160,7 @@ def map_from_source(code: string, len: usize): SourceMap {
         }
     }
 
-    return SourceMap { line_starts: vec };
+    return SourceMap { end_of_code: code + len, line_starts: vec };
 }
 
 // does a binary search inside the SourceMap, to find the line number of the
@@ -174,8 +175,8 @@ def (m: *SourceMap) find_line_in_srcmap(span: span.Span): i64 {
         let line_end = m.line_at(idx + 1);
 
         if line_end == null {
-            // no next line, so just search for the end of the string
-            line_end = std.strchrnul(line_start, 0);
+            // no next line, so just use the end of the string
+            line_end = m.end_of_code;
         }
         line_end = line_end - 1;
 
