@@ -27,9 +27,7 @@ type Kind enum {
     Struct, Enum, Union
 }
 
-def width_unknown(): i64 {
-    return -1;
-}
+let width_unknown: i64 = -1;
 
 // These flags have to be powers of 2
 let flag_type_scoped = 1;
@@ -343,7 +341,7 @@ def init_struct(
     };
 
     t.data = s as *void;
-    t.width = width_unknown();
+    t.width = width_unknown;
     std.flag_set(&t.flags, flag_value_scoped);
 }
 
@@ -418,7 +416,7 @@ def init_union(t: *Type, name: ident.Ident, mangled_name: name.Owned, declared_i
     };
 
     t.data = s as *void;
-    t.width = width_unknown();
+    t.width = width_unknown;
     std.flag_set(&t.flags, flag_value_scoped);
 }
 
@@ -779,7 +777,7 @@ def tychk_untouch(t: *Type): void {
 def create_type(kind: Kind, data: *void): Type {
     return Type {
         kind: kind,
-        width: width_unknown(),
+        width: width_unknown,
         align: 0,
         flags: 0,
         data: data
@@ -794,7 +792,7 @@ def is_sized(t: *Type): bool {
 // constructed correctly
 def is_initialized(t: *Type): bool {
     return t != null
-        && ((t.width != width_unknown() && t.align > 0) || std.flag_get(&t.flags, flag_unsized));
+        && ((t.width != width_unknown && t.align > 0) || std.flag_get(&t.flags, flag_unsized));
 }
 
 def is_type_scoped(t: *Type): bool {
@@ -1064,7 +1062,7 @@ def fill_width_align(t: *Type): bool {
 
     // if align is 0 at end of this function, use width as align
     let align: i32 = 0;
-    let width: i64 = width_unknown();
+    let width = width_unknown;
     let has_unresolved_fields = false;
 
     if is_struct(t) {
