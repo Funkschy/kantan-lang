@@ -410,8 +410,16 @@ def buffer_from_ref(n: name.Ref, is_name: bool): ValueBuffer {
     };
 }
 
+def buffer_null(): ValueBuffer {
+    return ValueBuffer { is_name: false, needs_free: false, len: 0, data: null };
+}
+
 def (buf: *ValueBuffer) as_ref(): name.Ref {
     return name.make_ref(buf.len, buf.data as string);
+}
+
+def (buf: *ValueBuffer) is_null(): bool {
+    return buf.data == null;
 }
 
 def (buf: *ValueBuffer) free() {

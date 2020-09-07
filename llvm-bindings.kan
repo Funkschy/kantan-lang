@@ -222,6 +222,8 @@ extern def LLVMConstIntOfStringAndSize(int_ty: *Type, text: string, s_len: u32, 
 
 extern def LLVMConstRealOfString(real_ty: *Type, text: string): *Value;
 
+extern def LLVMConstRealOfStringAndSize(real_ty: *Type, text: string, s_len: u32): *Value;
+
 extern def LLVMConstStringInContext(c: *Context, str: string, length: u32, dont_null_terminate: i32): *Value;
 
 extern def LLVMSizeOf(ty: *Type): *Value;
@@ -271,6 +273,10 @@ def const_int_of_string_and_size(int_ty: *Type, text: string, s_len: u32, radix:
 
 def const_real_of_string(real_ty: *Type, text: string): *Value {
     return LLVMConstRealOfString(real_ty, text);
+}
+
+def const_real_of_string_and_size(real_ty: *Type, text: string, s_len: u32): *Value {
+    return LLVMConstRealOfStringAndSize(real_ty, text, s_len);
 }
 
 def const_string_in_context(c: *Context, str: string, length: u32, dont_null_terminate: bool): *Value {

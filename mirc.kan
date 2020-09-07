@@ -1351,9 +1351,24 @@ def (c: *MirCompiler) eval_expr(e: *ast.Expr): mir.ValueBuffer {
         return mir.buffer_from_ref(lit_name, true);
     }
 
-    if ast.is_int_expr(e) {
-        let lit_int = name.make_ref(e.span.len(), e.span.start);
-        return mir.buffer_from_ref(lit_int, false);
+    if ast.is_int_expr(e) || ast.is_float_expr(e) {
+        let lit = name.make_ref(e.span.len(), e.span.start);
+        return mir.buffer_from_ref(lit, false);
+    }
+
+    if ast.is_unary_expr(e) {
+        let inner = ast.as_unary_expr(e).right;
+        let len = inner.span.len() + 2;
+        let buf = std.malloc(len);
+        std.memcpy(buf + 1, inner.span.start as *void, inner.span.len());
+        let buf = buf as string;
+        buf[0] = '-';
+        buf[len - 1] = '\0';
+        return mir.buffer_from_owned(name.make_owned(len - 1, buf), false);
+    }
+
+    if ast.is_undefined_expr(e) || ast.is_null_expr(e) {
+        return mir.buffer_null();
     }
 
     dbg.assert(false, "invalid expression for compile time evaluation");

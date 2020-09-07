@@ -220,6 +220,10 @@ def (c: *ModuleCompiler) init_global(ir: *mir.GlobalVar, storage: *llvm.Value) {
 }
 
 def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Value {
+    if global.value.is_null() {
+        return llvm.const_null(translate_type(c, global.ty));
+    }
+
     if ty.is_string(global.ty) {
         let null_terminate = true;
         return llvm.const_string_in_context(
@@ -234,6 +238,13 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
         let llty = translate_type(c, global.ty);
         return llvm.const_int_of_string_and_size(
             llty, global.value.data as string, global.value.len as u32, 10
+        );
+    }
+
+    if global.ty.is_float() {
+        let llty = translate_type(c, global.ty);
+        return llvm.const_real_of_string_and_size(
+            llty, global.value.data as string, global.value.len as u32
         );
     }
 

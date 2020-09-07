@@ -1372,7 +1372,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         if is_global {
             // we currently have strong constraints for global vars
             // this will change when compile time code evaluation is introduced
-            if !(ast.is_string_expr(value) || ast.is_int_expr(value)) {
+            if !value.is_const_evaluatable() {
                 push_non_const_expr_error(tc, value.span);
                 return null;
             }

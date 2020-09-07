@@ -1034,6 +1034,22 @@ def is_assignable(e: *Expr): bool {
     return assignable;
 }
 
+def (e: *Expr) is_const_evaluatable(): bool {
+    if is_string_expr(e)
+       || is_int_expr(e) || is_float_expr(e)
+       || is_undefined_expr(e) || is_null_expr(e) {
+        return true;
+    }
+
+    if is_unary_expr(e) {
+        let unary = as_unary_expr(e);
+        return unary.kind == UnaryKind.NegNum
+            && (is_int_expr(unary.right) || is_float_expr(unary.right));
+    }
+
+    return false;
+}
+
 def expr_free(e: *Expr): void {
     if e == null {
         return;

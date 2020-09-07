@@ -76,6 +76,7 @@ whitelist = set([
     'LLVMConstIntOfStringAndSize',
     'LLVMConstNull',
     'LLVMConstRealOfString',
+    'LLVMConstRealOfStringAndSize',
     'LLVMConstStringInContext',
     'LLVMContextCreate',
     'LLVMContextDispose',

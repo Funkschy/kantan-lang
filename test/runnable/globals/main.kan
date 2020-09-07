@@ -4,6 +4,18 @@ import "other" as o;
 let x = "global";
 let i = 5;
 
+let g_f = -1.0;
+let g_s = "global";
+let g_i = -5;
+let g_a: [2]i32 = undefined;
+let g_p: *void = null;
+
+type Struct struct {
+    i: i32
+}
+
+let g_st: Struct = undefined;
+
 def main() {
     let y = x;
     x = "still global";
@@ -12,4 +24,12 @@ def main() {
     io.printf("%s %s\n", x, o.get_x());
     i += 2;
     io.printf("%d\n", i);
+
+    io.printf("%f\n", g_f);
+    io.printf("%s\n", g_s);
+    io.printf("%d\n", g_i);
+    io.printf("%d\n", g_a[0]);
+    g_a[0] = *(&g_a[1]) = 5;
+    io.printf("%d\n", g_a[0]);
+    io.printf("%d\n", g_st.i);
 }
