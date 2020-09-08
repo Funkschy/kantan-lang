@@ -45,8 +45,9 @@ C_SRC_FILES = lib.c posixlink.c
 C_FILES = $(C_SRC_FILES) lib.h
 BUILD_FOLDER = build
 START_FOLDER = $(shell pwd)
-NEW_C_FILES = $(addprefix $(START_FOLDER)/, $(C_FILES))
-C_OBJ_FILES = $(C_SRC_FILES:.c=.c.o)
+NEW_PREPROCESS_FILES = $(addprefix $(BUILD_FOLDER)/, $(PREPROCCESSOR_FILES))
+NEW_K_FILES = $(addprefix $(BUILD_FOLDER)/, $(K_FILES))
+C_OBJ_FILES = $(addprefix $(BUILD_FOLDER)/,$(C_SRC_FILES:.c=.c.o))
 
 LLVM_PATH = $(HOME)/Downloads/llvm/llvm-10.0.0.src/build
 LLVM_CONFIG = $(LLVM_PATH)/bin/llvm-config
@@ -63,32 +64,25 @@ KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDE
 KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
 KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
 
-$(BIN_NAME) : preprocess cdeps
-	pushd $(BUILD_FOLDER) ; \
-	if $(KANTAN_STABLE) $(K_FILES) $(PREPROCCESSOR_FILES) -o out.o; then \
+$(BIN_NAME) : $(NEW_PREPROCESS_FILES) $(NEW_K_FILES) $(C_OBJ_FILES)
+	if $(KANTAN_STABLE) $(NEW_K_FILES) $(NEW_PREPROCESS_FILES) -o out.o; then \
 		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
-		mv $(BIN_NAME) $(START_FOLDER) ; \
-	fi ; \
-	popd ;
+		rm out.o ; \
+	fi
 
-.PHONY: self
 self : $(BIN_NAME)
-	pushd $(BUILD_FOLDER) ; \
-	$(KANTAN_KANTAN) $(K_FILES) $(PREPROCCESSOR_FILES) -o out.o ; \
+	$(KANTAN_KANTAN) $(NEW_K_FILES) $(NEW_PREPROCESS_FILES) -o out.o ; \
 	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
-	mv self-hosted $(START_FOLDER)/self-hosted ; \
-	popd ;
+	rm out.o ; \
+	mv self-hosted $(START_FOLDER)/self
 
-.PHONY: cdeps
-cdeps : $(C_FILES)
-	pushd $(BUILD_FOLDER) ; \
+$(C_OBJ_FILES) : $(C_FILES)
 	for file in $(C_SRC_FILES) ; do \
-		gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
-	done; \
-	popd
+		gcc -Wall -c $$file -o $(BUILD_FOLDER)/$(addsuffix .o, $$file); \
+	done
 
-.PHONY: preprocess
-preprocess : $(K_FILES) $(PREPROCCESSOR_FILES)
+# This is needed because some Kantan files still need the C Preprocessor
+$(NEW_PREPROCESS_FILES) $(NEW_K_FILES) : $(K_FILES) $(PREPROCCESSOR_FILES)
 	mkdir -p $(BUILD_FOLDER) ;
 	for file in $(K_FILES) ; do \
 		cp -r --parents $$file $(BUILD_FOLDER)/; \

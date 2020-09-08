@@ -1,7 +1,7 @@
 compiler
 test/files/__pycache__
 test.*
-self-hosted
+self
 .vscode
 a.out
 build
