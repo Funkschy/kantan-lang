@@ -1,47 +1,45 @@
 SHELL := /bin/bash
 
 BIN_NAME = compiler
-K_FILES = ast.kan \
-		  codegen.kan \
-		  config.kan \
-		  dbg.kan \
-		  error.kan \
-		  file.kan \
-		  func.kan \
-		  ident.kan \
-		  lexer.kan \
-		  llvm-bindings.kan \
-		  main.kan \
-		  map.kan \
-		  mir.kan \
-		  mirc.kan \
-		  mod.kan \
-		  modsort.kan \
-		  name.kan \
-		  nt.kan \
-		  opt.kan \
-		  parser.kan \
-		  path.kan \
-		  precedence.kan \
-		  ptrvec.kan \
-		  reader.kan \
-		  record.kan \
-		  scope.kan \
-		  source.kan \
-		  span.kan \
-		  std.kan \
-		  str.kan \
-		  symbol.kan \
-		  target.kan \
-		  transform.kan \
-		  ty.kan \
-		  tychk/tychk.kan \
-		  tychk/lookup.kan \
-		  tychk/waiting.kan \
-		  tyid.kan \
-		  vec.kan \
-		  vmap.kan
-PREPROCCESSOR_FILES = parser.kan transform.kan
+K_FILES = src/ast.kan \
+		  src/codegen.kan \
+		  src/config.kan \
+		  src/dbg.kan \
+		  src/error.kan \
+		  src/file.kan \
+		  src/func.kan \
+		  src/ident.kan \
+		  src/lexer.kan \
+		  src/llvm-bindings.kan \
+		  src/main.kan \
+		  src/map.kan \
+		  src/mir.kan \
+		  src/mirc.kan \
+		  src/mod.kan \
+		  src/modsort.kan \
+		  src/name.kan \
+		  src/nt.kan \
+		  src/opt.kan \
+		  src/path.kan \
+		  src/precedence.kan \
+		  src/ptrvec.kan \
+		  src/reader.kan \
+		  src/record.kan \
+		  src/scope.kan \
+		  src/source.kan \
+		  src/span.kan \
+		  src/std.kan \
+		  src/str.kan \
+		  src/symbol.kan \
+		  src/target.kan \
+		  src/ty.kan \
+		  src/tychk/tychk.kan \
+		  src/tychk/lookup.kan \
+		  src/tychk/waiting.kan \
+		  src/tyid.kan \
+		  src/vec.kan \
+		  src/vmap.kan
+PREPROCCESSOR_FILES = src/parser.kan src/transform.kan
 
 C_SRC_FILES = lib.c posixlink.c
 C_FILES = $(C_SRC_FILES) lib.h
@@ -65,41 +63,42 @@ KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDE
 KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
 KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
 
-$(BIN_NAME) : $(K_FILES) $(C_FILES)
+$(BIN_NAME) : preprocess cdeps
+	pushd $(BUILD_FOLDER) ; \
+	if $(KANTAN_STABLE) $(K_FILES) $(PREPROCCESSOR_FILES) -o out.o; then \
+		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
+		mv $(BIN_NAME) $(START_FOLDER) ; \
+	fi ; \
+	popd ;
+
+.PHONY: self
+self : $(BIN_NAME)
+	pushd $(BUILD_FOLDER) ; \
+	$(KANTAN_KANTAN) $(K_FILES) $(PREPROCCESSOR_FILES) -o out.o ; \
+	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
+	mv self-hosted $(START_FOLDER)/self-hosted ; \
+	popd ;
+
+.PHONY: cdeps
+cdeps : $(C_FILES)
+	pushd $(BUILD_FOLDER) ; \
+	for file in $(C_SRC_FILES) ; do \
+		gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
+	done; \
+	popd
+
+.PHONY: preprocess
+preprocess : $(K_FILES) $(PREPROCCESSOR_FILES)
 	mkdir -p $(BUILD_FOLDER) ;
 	for file in $(K_FILES) ; do \
 		cp -r --parents $$file $(BUILD_FOLDER)/; \
 	done
 	for file in $(PREPROCCESSOR_FILES) ; do \
+		cp -r --parents $$file $(BUILD_FOLDER)/; \
 		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
 	done
-	pushd $(BUILD_FOLDER) ; \
-	if $(KANTAN_STABLE) $(K_FILES) -o out.o; then \
-		for file in $(C_SRC_FILES) ; do \
-			gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
-		done; \
-		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
-		mv $(BIN_NAME) $(START_FOLDER) ; \
-		popd ; \
-	else \
-		pwd ; \
-		popd ; \
-	fi
 
-self : $(BIN_NAME) $(K_FILES) $(C_FILES)
-	mkdir -p $(BUILD_FOLDER) ;
-	for file in $(K_FILES) ; do \
-		gpp $$file -C -o $(BUILD_FOLDER)/$$file ; \
-	done
-	pushd $(BUILD_FOLDER) ; \
-	$(KANTAN_KANTAN) $(K_FILES) -o out.o ; \
-	for file in $(C_SRC_FILES) ; do \
-		gcc -Wall -c ../$$file -o $(addsuffix .o, $$file); \
-	done; \
-	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
-	mv self-hosted $(START_FOLDER)/self-hosted ; \
-	popd ; \
-
+.PHONY: clean
 clean :
 	rm $(BIN_NAME) ; \
 	rm -r $(BUILD_FOLDER)

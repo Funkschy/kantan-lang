@@ -1,6 +1,6 @@
 compiler
 test/files/__pycache__
-test.kan
+test.*
 self-hosted
 .vscode
 a.out
