@@ -156,9 +156,10 @@ def print_usage() {
     io.printf("    kantan [OPTIONS] <source-file>...\n\n");
     io.printf("OPTIONS:\n");
     io.printf("    -o <file>\tthe output file (end with .s for assembly output)\n");
-    io.printf("    -O<level>\tthe optimization level\t[possible values 0, 1, 2, 3]\n");
+    io.printf("    -O<level>\tthe optimization level\t\t[possible values 0, 1, 2, 3]\n");
     io.printf("    -h / --help\tprint this message\n");
-    io.printf("    --sys\tset the target OS\t[possible values 'linux', 'darwin', 'win32']\n");
+    io.printf("    --sys\tset the target OS\t\t[possible values 'linux', 'darwin', 'win32']\n");
+    io.printf("    --arch\tset the target Architecture\t[possible values 'x86_64', 'wasm32']\n");
     io.printf("\n");
     io.printf("ARGS:\n");
     io.printf("    <source-file>...\n");
