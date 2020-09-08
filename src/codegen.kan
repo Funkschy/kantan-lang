@@ -102,18 +102,17 @@ def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleCon
             compiler.context.llmod, module_flag_warning, "Debug Info Version", 18, dbg_version
         );
 
+        let dwarf_version: *llvm.MetaData = null;
         if t.sys == target.Sys.Darwin {
             // Darwin only supports dwarf 2
-            let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 2, false));
-            llvm.add_module_flag(
-                compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
-            );
+            dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 2, false));
         } else {
-            let dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 4, false));
-            llvm.add_module_flag(
-                compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
-            );
+            dwarf_version = llvm.value_as_metadata(llvm.const_int(int_ty, 4, false));
         }
+
+        llvm.add_module_flag(
+            compiler.context.llmod, module_flag_warning, "Dwarf Version", 13, dwarf_version
+        );
 
         finalize(dbg);
     }
@@ -216,6 +215,15 @@ def (c: *ModuleCompiler) init_global(ir: *mir.GlobalVar, storage: *llvm.Value) {
         value = c.create_global_value(ir);
     }
 
+    // TODO(#132): enable this, when we can init strings as local arrays
+    //  in c this is valid:
+    //      char s[] = "test";
+    //      s[1] = '\0';
+    //  but this will segfault
+    //      char s* = "test";
+    //      s[1] = '\0';
+    //  however kantan is currently not able to properly make this distinction
+    // llvm.set_global_constant(storage, ty.is_string(ir.ty));
     llvm.set_initializer(storage, value);
 }
 
