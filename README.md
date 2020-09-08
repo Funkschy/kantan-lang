@@ -13,7 +13,8 @@ C like approach to issues like memory management and types.
 
 Memory management works like in C, but if you want to, you can also use the "new" and "delete"
 keywords, which are just a thin wrapper around malloc and free (no vtables i promise).
-Currently there are only structs, but a interface based system similar to Rusts traits or C++ 20's concepts is planned.
+Currently there are only structs, unions and enums, but a trait based system similar to C++ 20's
+concepts is planned.
 
 ## Getting started
 
@@ -80,8 +81,6 @@ def main(): i32 {
 
 #### Structs
 ```
-import "io";
-
 type Person struct {
     // strings are currently just pointers to null terminated char arrays, however, this will likely
     // change in the future
@@ -105,6 +104,8 @@ def make_person(name: string, city: string, age: i32): Person {
 
 // the ': void' is optional
 def main(): void {
+    import "io" as _; // it is also possible to perform a non qualified import
+
     let fmt = "%s, lives in %s in house number %s\n";
     let p = make_person("Peter", "Berlin", 20);
     // copy
@@ -112,8 +113,10 @@ def main(): void {
     hans.address.city = "Neuss";
     hans.address.hnr = "200";
     hans.name = "Hans";
-    io.printf(fmt, p.name, p.address.city, p.address.hnr);
-    io.printf(fmt, hans.name, hans.address.city, hans.address.hnr);
+
+    // printf can now be used without the "io."
+    printf(fmt, p.name, p.address.city, p.address.hnr);
+    printf(fmt, hans.name, hans.address.city, hans.address.hnr);
 }
 ```
 
