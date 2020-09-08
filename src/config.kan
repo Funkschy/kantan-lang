@@ -92,7 +92,7 @@ def from_options(options: *opt.Options): Config {
     target_conf.arch = target.Arch.X86_64;
     let is_same_target_as_os = fill_os_info(options, &target_conf);
 
-    // TODO: support proper cross compilation for architecture
+    // TODO(#131): support proper cross compilation for architecture
     if options.target_arch != null && std.strcmp(options.target_arch, "wasm32") == 0 {
         is_same_target_as_os = false;
         target_conf.ptr_width_bytes = 4;
