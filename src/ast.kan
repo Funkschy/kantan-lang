@@ -1,13 +1,14 @@
-import "std";
-import "span";
-import "ident";
-import "func";
-import "record";
-import "ptrvec";
-import "vec";
-import "tyid";
 import "ty";
+import "std";
+import "vec";
+import "func";
+import "span";
+import "name";
+import "tyid";
 import "lexer";
+import "ident";
+import "ptrvec";
+import "record";
 
 /////////// kinds ///////////
 
@@ -36,6 +37,7 @@ type ExprKind enum {
     NullLiteral,
     Undefined,
     StringLiteral,
+    ArrayStringLiteral,
     CharLiteral,
     Binary,
     Unary,
@@ -908,15 +910,48 @@ def as_sizeof_expr(e: *Expr): *SizeOfExpr {
     return e as *SizeOfExpr;
 }
 
+/////////// array string expr ///////////
+
+type ArrayStringExpr struct {
+    e: Expr,
+    // this will be used if the string literal is to interpreted as an array.
+    // in that case we already need to know the length during type checking, so we cache the
+    // result of escaping here
+    escaped: name.Owned
+}
+
+def new_array_string_expr(span: span.Span, escaped: name.Owned): *Expr {
+    return (new ArrayStringExpr {
+        e: create_expr(ExprKind.ArrayStringLiteral, span),
+        escaped: escaped
+    }) as *Expr;
+}
+
+def is_array_string_expr(e: *Expr): bool {
+    return e.kind == ExprKind.ArrayStringLiteral;
+}
+
+def as_array_string_expr(e: *Expr): *ArrayStringExpr {
+    return e as *ArrayStringExpr;
+}
+
 /////////// string expr ///////////
 
 type StringExpr struct {
-    e: Expr
+    e: Expr,
+    // in this case, the string literal will be put on the stack as an array
+    initialized_as_array: bool,
+    // this will be used if the string literal is to interpreted as an array.
+    // in that case we already need to know the length during type checking, so we cache the
+    // result of escaping here
+    escaped: name.Owned
 }
 
 def new_string_expr(span: span.Span): *Expr {
     return (new StringExpr {
-        e: create_expr(ExprKind.StringLiteral, span)
+        e: create_expr(ExprKind.StringLiteral, span),
+        initialized_as_array: false,
+        escaped: name.make_owned(0, "")
     }) as *Expr;
 }
 
@@ -1034,6 +1069,10 @@ def is_assignable(e: *Expr): bool {
     return assignable;
 }
 
+def (e: *Expr) can_init_array(): bool {
+    return  is_undefined_expr(e) || is_array_string_expr(e);
+}
+
 def (e: *Expr) is_const_evaluatable(): bool {
     if is_string_expr(e)
        || is_int_expr(e) || is_float_expr(e)
@@ -1090,6 +1129,9 @@ def expr_free(e: *Expr): void {
         expr_free(as_new_expr(e).expr);
     } else if is_sizeof_expr(e) {
         as_sizeof_expr(e).ty.free();
+    } else if is_array_string_expr(e) {
+        let a_e = as_array_string_expr(e);
+        name.free_owned(&a_e.escaped);
     }
 
     delete e;

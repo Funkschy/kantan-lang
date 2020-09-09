@@ -9,5 +9,6 @@ def to_upper(s: string, len: usize): string {
 }
 
 def main() {
-    io.printf("%s\n", to_upper("hello WORLD", 11));
+    let s: [12]i8 = "hello WORLD";
+    io.printf("%s\n", to_upper(&s[0], 11));
 }

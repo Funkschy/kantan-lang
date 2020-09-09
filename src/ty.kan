@@ -259,6 +259,10 @@ def (t: *Type) is_indexable(): bool {
     return t.is_array() || is_ptr(t);
 }
 
+def (t: *Type) is_assignable(): bool {
+    return !t.is_array() && is_sized(t);
+}
+
 type UserDefinedType struct {
     original_name: ident.Ident,
     mangled_name: name.Owned,
@@ -1183,7 +1187,11 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
 
     if t.is_array() {
         let arr_ty = t.as_array();
-        let s = str.from_l("[]", 2);
+
+        let len: usize = 0;
+        let s = std.l_format_str(&len, "[%lu]", arr_ty.len);
+        defer delete s;
+        let s = str.from_l(s, len);
 
         let inner = to_string_mangled(arr_ty.inner, use_mangled);
         defer inner.free();

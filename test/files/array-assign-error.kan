@@ -1,0 +1,12 @@
+def main() {
+    let s = "hello";
+    let p = s; // works fine
+
+    let s: [5]i8 = "hello"; // too short, forgot \0
+
+    let s: [6]i8 = "hello";
+    let p = s; // not assignable
+
+    let p: [6]i8 = undefined;
+    p = s; // not assignable
+}

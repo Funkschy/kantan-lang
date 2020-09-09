@@ -12,6 +12,7 @@ import "span";
 import "name";
 import "ident";
 import "source";
+import "escape";
 
 extern def mir_binary2str(kind: i32): string;
 extern def mir_unary2str(kind: i32): string;
@@ -452,56 +453,6 @@ def create_global_var(
     };
 }
 
-def escape_char(c: i8): i8 {
-    if c == '0' {
-        return '\0';
-    } else if c == 'n' {
-        return '\n';
-    } else if c == 'r' {
-        return '\r';
-    } else if c == 't' {
-        return '\t';
-    } else if c == '\\' {
-        return '\\';
-    } else if c == '"' {
-        return '"';
-    } else if c == '\'' {
-        return '\'';
-    }
-    return c;
-}
-
-def escape_string(start: string, end: string): name.Owned {
-    let value = name.make_copied((end - start) as usize, start);
-    let actual_len = value.len;
-
-    let out_pos: usize = 0;
-    let in_pos: usize = 0;
-
-    let n = (end - start) as usize;
-    while in_pos < n {
-        let c = *(start + in_pos);
-        let inc: usize = 1;
-
-        if c == '\\' {
-            // \x are 2 chars, but we replace it with 1 escaped byte
-            actual_len = actual_len - 1;
-            let next = *(start + in_pos + 1);
-            c = escape_char(next);
-
-            // skip next
-            inc = 2;
-        }
-
-        *(value.data + out_pos) = c;
-        in_pos = in_pos + inc;
-        out_pos = out_pos + 1;
-    }
-
-    value.len = actual_len;
-    return value;
-}
-
 def create_string_literal(
     mangled_name: name.Owned,
     meta: MetaData,
@@ -510,7 +461,7 @@ def create_string_literal(
 ): GlobalVar {
     dbg.assert(ty.is_string(t), "trying to create_const_string for non string");
 
-    let value = escape_string(s.start, s.end);
+    let value = escape.string_literal(s.start, s.end);
 
     return GlobalVar {
         original_name: ident.empty(),
@@ -672,20 +623,28 @@ def is_addr_const_value(a: *Address): bool {
 }
 
 type AddressGlobal struct {
+    generate_memcpy: bool,
     name: name.Ref
 }
 
-def make_addr_global(name: name.Ref, ty: *ty.Type): Address {
-    let hi = std.int_to_ptr(name.len);
+def make_addr_global(name: name.Ref, ty: *ty.Type, memcpy: bool): Address {
+    let len = name.len << 1;
+    // if this should generate a memcpy, the least significant bit is 1
+    len |= memcpy as usize;
+
+    let hi = std.int_to_ptr(len);
     let lo = name.data as *void;
     return create_addr(AddrKind.Global, ty, hi, lo);
 }
 
 def as_addr_global(a: *Address): AddressGlobal {
     let len = std.ptr_to_int(a.data_hi);
+    let memcpy = (len & 1) as bool;
+    len = len >> 1;
+
     let data = a.data_lo as string;
     let name = name.make_ref(len, data);
-    return AddressGlobal { name: name };
+    return AddressGlobal { generate_memcpy: memcpy, name: name };
 }
 
 def is_addr_global(a: *Address): bool {
@@ -1054,12 +1013,11 @@ def is_expr_union_access(e: *Expression): bool {
 }
 
 type ExprStructInit struct {
-    name: name.Ref,
     args: vec.Vec // Vec<Address>
 }
 
-def new_expr_struct_init(name: name.Ref, args: vec.Vec): Expression {
-    let init = (new ExprStructInit { name: name, args: args }) as *void;
+def new_expr_struct_init(args: vec.Vec): Expression {
+    let init = (new ExprStructInit { args: args }) as *void;
     return create_expr(ExprKind.StructInit, init);
 }
 
@@ -1374,11 +1332,8 @@ def expr_to_name(e: *Expression): name.Owned {
             name.free_owned(&arg_n);
         }
 
-        let n = init.name;
         let len: usize = 0;
-        let s = std.l_format_str(
-            &len, "%.*s{%s}", n.len, n.data, args_string.cstring()
-        );
+        let s = std.l_format_str(&len, "{%s}", args_string.cstring());
 
         return name.make_owned(len, s);
     }

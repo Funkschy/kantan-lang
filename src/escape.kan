@@ -1,0 +1,52 @@
+import "name";
+
+def char_literal(c: i8): i8 {
+    if c == '0' {
+        return '\0';
+    } else if c == 'n' {
+        return '\n';
+    } else if c == 'r' {
+        return '\r';
+    } else if c == 't' {
+        return '\t';
+    } else if c == '\\' {
+        return '\\';
+    } else if c == '"' {
+        return '"';
+    } else if c == '\'' {
+        return '\'';
+    }
+    return c;
+}
+
+def string_literal(start: string, end: string): name.Owned {
+    let value = name.make_copied((end - start) as usize, start);
+    let actual_len = value.len;
+
+    let out_pos: usize = 0;
+    let in_pos: usize = 0;
+
+    let n = (end - start) as usize;
+    while in_pos < n {
+        let c = start[in_pos];
+        let inc: usize = 1;
+
+        if c == '\\' {
+            // \x are 2 chars, but we replace it with 1 escaped byte
+            actual_len -= 1;
+            let next = start[in_pos + 1];
+            c = char_literal(next);
+
+            // skip next
+            inc = 2;
+        }
+
+        value.data[out_pos] = c;
+        in_pos += inc;
+        out_pos += 1;
+    }
+
+    value.len = actual_len;
+    return value;
+}
+

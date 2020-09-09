@@ -6,6 +6,7 @@ K_FILES = src/ast.kan \
 		  src/config.kan \
 		  src/dbg.kan \
 		  src/error.kan \
+		  src/escape.kan \
 		  src/file.kan \
 		  src/func.kan \
 		  src/ident.kan \
@@ -33,8 +34,8 @@ K_FILES = src/ast.kan \
 		  src/symbol.kan \
 		  src/target.kan \
 		  src/ty.kan \
-		  src/tychk/tychk.kan \
 		  src/tychk/lookup.kan \
+		  src/tychk/tychk.kan \
 		  src/tychk/waiting.kan \
 		  src/tyid.kan \
 		  src/vec.kan \

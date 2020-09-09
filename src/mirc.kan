@@ -15,6 +15,7 @@ import "ident";
 import "scope";
 import "config";
 import "source";
+import "escape";
 
 // Data which is shared between all the MirCompiler instances
 type CompilationData struct {
@@ -1097,7 +1098,7 @@ def init_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         inits.push(&init_addr as *void);
     }
 
-    return mir.new_expr_struct_init(mir_struct.name, inits);
+    return mir.new_expr_struct_init(inits);
 }
 
 def new_expr(c: *MirCompiler, e: *ast.Expr): mir.Expression {
@@ -1272,7 +1273,7 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         let key = map.create_key(id.len(), id.start());
         let global = map.get(&c.global_names, key) as *mir.GlobalVar;
         if global != null {
-            *out = mir.make_addr_global(global.mangled_name.ref(), e.ty);
+            *out = mir.make_addr_global(global.mangled_name.ref(), e.ty, false);
             return true;
         }
 
@@ -1306,9 +1307,10 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         return true;
     }
 
-    if ast.is_string_expr(e) {
+    if ast.is_string_expr(e) || ast.is_array_string_expr(e) {
         let name = string_lit(c, e);
-        *out = mir.make_addr_global(name, e.ty);
+        let generate_memcy = ast.is_array_string_expr(e);
+        *out = mir.make_addr_global(name, e.ty, generate_memcy);
         return true;
     }
 
@@ -1316,8 +1318,8 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         let char_expr = ast.as_char_expr(e);
 
         if *char_expr.ptr == '\\' {
-            let next = *(char_expr.ptr + 1);
-            let c = mir.escape_char(next);
+            let next = char_expr.ptr[1];
+            let c = escape.char_literal(next);
 
             *out = mir.make_addr_const_value(e.ty, c as i64);
             return true;
@@ -1337,7 +1339,16 @@ def string_lit(c: *MirCompiler, e: *ast.Expr): name.Ref {
     let mangled_name = s_mangle(c, s_len, s);
 
     let meta = get_meta(c, e.span);
-    let lit = new mir.create_string_literal(mangled_name, meta, e.ty, e.span);
+    let lit: *mir.GlobalVar = null;
+    if ast.is_string_expr(e) {
+        lit = new mir.create_string_literal(mangled_name, meta, e.ty, e.span);
+    } else {
+        let arr = ast.as_array_string_expr(e);
+        let value = mir.buffer_from_ref(arr.escaped.ref(), false);
+        let string_ty = lookup_global_type(c, 6, "string");
+        lit = new mir.create_global_var(ident.empty(), mangled_name, meta, string_ty, value);
+    }
+
     c.add_global(lit);
     delete s;
 
