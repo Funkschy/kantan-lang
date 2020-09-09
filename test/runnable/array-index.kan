@@ -2,6 +2,8 @@ import "io";
 
 extern def malloc(size: usize): *void;
 
+let buf: [4]i8 = "   ";
+
 def main() {
     let arr = malloc(5 * 5 * sizeof string) as **string;
     defer delete arr;
@@ -52,6 +54,9 @@ def main() {
     let p = &nums;
     p[0][0][0] = 4;
     io.printf("%d\n", nums[0][0]);
+
+    buf[1] = 'a';
+    io.printf("%s\n", &buf[0]);
 }
 
 type Test struct {

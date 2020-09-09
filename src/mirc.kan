@@ -1362,6 +1362,11 @@ def (c: *MirCompiler) eval_expr(e: *ast.Expr): mir.ValueBuffer {
         return mir.buffer_from_ref(lit_name, true);
     }
 
+    if ast.is_array_string_expr(e) {
+        let arr = ast.as_array_string_expr(e);
+        return mir.buffer_from_ref(arr.escaped.ref(), false);
+    }
+
     if ast.is_int_expr(e) || ast.is_float_expr(e) {
         let lit = name.make_ref(e.span.len(), e.span.start);
         return mir.buffer_from_ref(lit, false);

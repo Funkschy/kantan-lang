@@ -241,6 +241,17 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
         );
     }
 
+    // currently just string arrays
+    if global.ty.is_array() && global.ty.as_array().inner.is_char() {
+        let null_terminate = true;
+        return llvm.const_string_in_context(
+            c.context.ctx,
+            global.value.data as string,
+            global.value.len as u32,
+            !null_terminate
+        );
+    }
+
     if global.ty.is_integer() {
         let llty = translate_type(c, global.ty);
         return llvm.const_int_of_string_and_size(
@@ -255,7 +266,7 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
         );
     }
 
-    dbg.assert(false, "invalid global type");
+    dbg.assert_fmt(false, "invalid global type %d", global.ty.kind);
     return null;
 }
 

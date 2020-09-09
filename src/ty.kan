@@ -94,6 +94,10 @@ def (t: *Type) is_signed(): bool {
     return t.is_integer() && t.as_integer().signed;
 }
 
+def (t: *Type) is_char(): bool {
+    return t.is_integer() && t.as_integer().signed && t.width == 1;
+}
+
 /////////// f32 type ///////////
 
 def new_f32(): *Type {
@@ -205,8 +209,7 @@ def is_string(t: *Type): bool {
         && as_ptr(t).count == 1
         && as_ptr(t).inner != null
         // is_i8
-        && as_ptr(t).inner.width == 1
-        && as_ptr(t).inner.is_integer();
+        && as_ptr(t).inner.is_char();
 }
 
 def (t: *Type) inner_type(): *Type {

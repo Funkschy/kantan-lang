@@ -1074,7 +1074,7 @@ def (e: *Expr) can_init_array(): bool {
 }
 
 def (e: *Expr) is_const_evaluatable(): bool {
-    if is_string_expr(e)
+    if is_string_expr(e) || is_array_string_expr(e)
        || is_int_expr(e) || is_float_expr(e)
        || is_undefined_expr(e) || is_null_expr(e) {
         return true;
