@@ -261,7 +261,7 @@ size_t ptr_to_int(void* ptr) {
 
 void *int_to_ptr(size_t i) {
     size_t s = i;
-    return *((void **)&s);
+    return (void *)s;
 }
 
 void get_sys(bool *is_linux, bool *is_darwin, bool *is_win32) {

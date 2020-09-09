@@ -53,12 +53,15 @@ C_OBJ_FILES = $(addprefix $(BUILD_FOLDER)/,$(C_SRC_FILES:.c=.c.o))
 LLVM_PATH = $(HOME)/Downloads/llvm/llvm-10.0.0.src/build
 LLVM_CONFIG = $(LLVM_PATH)/bin/llvm-config
 
-LLVM_LIB_NAMES = core target analysis support x86codegen webassemblycodegen linker passes
+LLVM_LIB_NAMES = x86codegen webassemblycodegen passes
 
 LLVM_C_FLAGS = $(shell $(LLVM_CONFIG) --cflags)
 LLVM_LD_FLAGS = $(shell $(LLVM_CONFIG) --ldflags)
 LLVM_LIBS = $(shell $(LLVM_CONFIG) --libs $(LLVM_LIB_NAMES))
 LLVM_SYS_LIBS = $(shell $(LLVM_CONFIG) --system-libs)
+
+LD_FLAGS = $(LLVM_LD_FLAGS) -fdata-sections -ffunction-sections
+LIBS = $(LLVM_LIBS) $(LLVM_SYS_LIBS) -Wl,--gc-sections
 
 KANTAN_STABLE = $(START_FOLDER)/../kantan -g
 KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDER)/suppress-llvm-errors.supp $(START_FOLDER)/compiler
@@ -67,19 +70,19 @@ KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
 
 $(BIN_NAME) : $(NEW_PREPROCESS_FILES) $(NEW_K_FILES) $(C_OBJ_FILES)
 	if $(KANTAN_STABLE) $(NEW_K_FILES) $(NEW_PREPROCESS_FILES) -o out.o; then \
-		g++ $(LLVM_LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
+		g++ $(LD_FLAGS) -o $(BIN_NAME) out.o $(C_OBJ_FILES) $(LIBS); \
 		rm out.o ; \
 	fi
 
 self : $(BIN_NAME)
 	$(KANTAN_KANTAN) $(NEW_K_FILES) $(NEW_PREPROCESS_FILES) -o out.o ; \
-	g++ $(LLVM_LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LLVM_LIBS) $(LLVM_SYS_LIBS); \
+	g++ $(LD_FLAGS) -o self-hosted out.o $(C_OBJ_FILES) $(LIBS); \
 	rm out.o ; \
 	mv self-hosted $(START_FOLDER)/self
 
 $(C_OBJ_FILES) : $(C_FILES)
 	for file in $(C_SRC_FILES) ; do \
-		gcc -Wall -c $$file -o $(BUILD_FOLDER)/$(addsuffix .o, $$file); \
+		gcc -O3 -Wall -c $$file -o $(BUILD_FOLDER)/$(addsuffix .o, $$file); \
 	done
 
 # This is needed because some Kantan files still need the C Preprocessor
