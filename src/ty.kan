@@ -212,6 +212,13 @@ def is_string(t: *Type): bool {
         && as_ptr(t).inner.is_char();
 }
 
+def (t: *Type) is_signature_pointer(): bool {
+    return is_ptr(t)
+        && as_ptr(t).count == 1
+        && as_ptr(t).inner != null
+        && is_signature(as_ptr(t).inner);
+}
+
 def (t: *Type) inner_type(): *Type {
     if is_ptr(t) {
         return as_ptr(t).inner;

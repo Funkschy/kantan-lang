@@ -257,13 +257,21 @@ def check(tc: *TypeChecker): CheckResult {
                 let imported_ty = imported.symbol.ty_or_null();
                 bind_type_private(tc, &imported.name, imported_ty);
 
-                if !imported_ty.is_user_defined() {
+                if !(imported_ty.is_user_defined() || imported_ty.is_signature_pointer()) {
                     continue;
+                }
+
+                let original_name: ident.Ident = undefined;
+                if imported_ty.is_signature_pointer() {
+                    let sig = ty.as_signature(ty.as_ptr(imported_ty).inner);
+                    original_name = sig.name;
+                } else {
+                    let user_defined = imported_ty.get_user_defined();
+                    original_name = user_defined.original_name;
                 }
 
                 // TODO: this feels like a dirty hack
                 ty.tychk_untouch(imported_ty);
-                let user_defined = imported_ty.get_user_defined();
                 waiting.update_all(
                     tc,
                     // use the current module as 'declared in' since the waiting types
@@ -271,7 +279,7 @@ def check(tc: *TypeChecker): CheckResult {
                     // the same module
                     m,
                     imported_ty,
-                    &user_defined.original_name
+                    &original_name
                 );
             }
         }
