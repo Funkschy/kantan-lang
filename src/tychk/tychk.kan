@@ -241,6 +241,41 @@ def check(tc: *TypeChecker): CheckResult {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
 
+        // resolve missing imports.
+        // This needs to be done for unqualified imports for struct fields
+        let num_imports = m.num_imports() as usize;
+        for let j: usize = 0; j < num_imports; j += 1 {
+            let imp = ast.as_import_stmt(m.import_at(j));
+            if imp.is_qualified() {
+                continue;
+            }
+
+            let mod_ty = ty.as_mod(imp.mod_ty);
+
+            let iter = mod_ty.types.iter();
+            for let imported = iter.next(); imported.present(); imported = iter.next() {
+                let imported_ty = imported.symbol.ty_or_null();
+                bind_type_private(tc, &imported.name, imported_ty);
+
+                if !imported_ty.is_user_defined() {
+                    continue;
+                }
+
+                // TODO: this feels like a dirty hack
+                ty.tychk_untouch(imported_ty);
+                let user_defined = imported_ty.get_user_defined();
+                waiting.update_all(
+                    tc,
+                    // use the current module as 'declared in' since the waiting types
+                    // did not see any module prefix and therefore wait for a type in
+                    // the same module
+                    m,
+                    imported_ty,
+                    &user_defined.original_name
+                );
+            }
+        }
+
         let wrm = tc.get_waiting_map(m);
         let iter = map.iter(&wrm.request_map);
         let next = map.iter_next(&iter);
@@ -421,7 +456,7 @@ def sorted_mods(mods: *mod.Map): *u32 {
 
     for let i: u32 = 0; i < num_mods; i += 1 {
         let m = mod.get_mod(mods, i);
-        *(import_nums + i) = mod.num_imports(m);
+        *(import_nums + i) = m.num_imports();
     }
 
     let sorted_mods = ms.sort(import_nums, num_mods);
@@ -590,7 +625,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
 
         if result.is_ok() {
             // You can only declare methods on user defined types (not on stuff like i32, f32 ...)
-            if !ty.is_user_defined(receiver_ty) {
+            if !receiver_ty.is_user_defined() {
                 let span = f_decl.receiver.ty.span();
                 push_primitive_receiver_type_error(tc, receiver_ty, span);
                 result = Result.Error;
@@ -707,7 +742,7 @@ def (tc: *TypeChecker) check_field(
     }
 
     let field_ty = data.ty;
-    let is_user_defined = ty.is_user_defined(field_ty);
+    let is_user_defined = field_ty.is_user_defined();
     if ty.is_initialized(field_ty) {
         defer tc.push_field_into_ty(t, field_name, field_ty);
 
@@ -1303,7 +1338,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
                 return null;
             }
 
-            if ty.get_user_defined(receiver_ty).declared_in != tc.ctx.mod {
+            if receiver_ty.get_user_defined().declared_in != tc.ctx.mod {
                 push_receiver_different_module_error(tc, fd.receiver.ty.span());
                 return null;
             }

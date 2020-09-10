@@ -1,0 +1,17 @@
+import "other1" as _;
+import "other2" as _;
+
+type Test struct {
+    o1: Other1,
+    o2: Other2
+}
+
+def main() {
+    import "other3" as _;
+    let o3: Other3 = Other3 { i: 42 };
+
+    let other1 = Other1 { i: 0 };
+    import "other1" as o1;
+
+    other1 = o1.Other1 { i: 1 };
+}

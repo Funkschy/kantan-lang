@@ -275,7 +275,7 @@ type UserDefinedType struct {
 
 // returns true, if duplicated
 def bind_method(t: *Type, name: ident.Ident, method: *Type): bool {
-    dbg.assert(is_user_defined(t), "Trying to bind method on non user defined type");
+    dbg.assert(t.is_user_defined(), "Trying to bind method on non user defined type");
     dbg.assert(method != null, "Trying to bind null method");
     dbg.assert(is_func(method), "Trying to bind non func type as method");
 
@@ -288,26 +288,26 @@ def bind_method(t: *Type, name: ident.Ident, method: *Type): bool {
     return false;
 }
 
-def is_user_defined(t: *Type): bool {
+def (t: *Type) is_user_defined(): bool {
     if is_ptr(t) {
         let ptr = as_ptr(t);
-        return ptr.count == 1 && is_user_defined(ptr.inner);
+        return ptr.count == 1 && ptr.inner.is_user_defined();
     }
 
     if t.is_array() {
-        return is_user_defined(t.as_array().inner);
+        return t.as_array().inner.is_user_defined();
     }
 
     return is_struct(t) || is_enum(t) || is_union(t);
 }
 
-def get_user_defined(t: *Type): *UserDefinedType {
+def (t: *Type) get_user_defined(): *UserDefinedType {
     if is_ptr(t) {
-        return get_user_defined(as_ptr(t).inner);
+        return as_ptr(t).inner.get_user_defined();
     }
 
     if t.is_array() {
-        return get_user_defined(t.as_array().inner);
+        return t.as_array().inner.get_user_defined();
     }
 
     return t.data as *UserDefinedType;
@@ -832,8 +832,8 @@ def free_user_defined_type(user_defined: *UserDefinedType) {
 }
 
 def (t: *Type) is_declared_in(m: *mod.Module): bool {
-    if is_user_defined(t) || is_ptr(t) && is_user_defined(as_ptr(t).inner) {
-        return get_user_defined(t).declared_in == m;
+    if t.is_user_defined() || is_ptr(t) && as_ptr(t).inner.is_user_defined() {
+        return t.get_user_defined().declared_in == m;
     }
 
     if is_signature(t) {
@@ -935,8 +935,8 @@ def lookup_type_in(t: *Type, name: *ident.Ident): symbol.Data {
 
 // looks for an ident in types with flag_value_scoped
 def get_value_scope(t: *Type): *scope.Scope {
-    if is_user_defined(t) {
-        return &get_user_defined(t).scope;
+    if t.is_user_defined() {
+        return &t.get_user_defined().scope;
     }
 
     if is_mod(t) {
@@ -1216,12 +1216,12 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         return s;
     }
 
-    if is_user_defined(t) {
+    if t.is_user_defined() {
         if use_mangled {
-            return get_user_defined(t).mangled_name.to_string();
+            return t.get_user_defined().mangled_name.to_string();
         }
 
-        return get_user_defined(t).original_name.to_string();
+        return t.get_user_defined().original_name.to_string();
     }
 
     return str.from(to_static_string(t));

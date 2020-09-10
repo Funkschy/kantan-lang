@@ -18,7 +18,8 @@ type Module struct {
     name: name.Owned, // injected after parsing
     source: *source.SourceFile,
     statements: ptrvec.Vec,
-    num_imports: u32,
+    // indices into 'Module.statements'
+    imports: vec.Vec, // vec.Vec<usize>
     ty: *ty.Type // the Type containing the bindings
 }
 
@@ -28,7 +29,7 @@ def create(src: *source.SourceFile): Module {
         name: name.make_owned(0, null),
         source: src,
         statements: ptrvec.create(),
-        num_imports: 0,
+        imports: vec.create(sizeof usize),
         ty: null
     };
 }
@@ -82,13 +83,17 @@ def get_special_stmt_at(mod: *Module, indices: *vec.Vec, i: usize): *ast.Stmt {
     return s;
 }
 
-def num_imports(mod: *Module): u32 {
-    return mod.num_imports;
+def (mod: *Module) import_at(i: usize): *ast.Stmt {
+    return get_special_stmt_at(mod, &mod.imports, i);
+}
+
+def (mod: *Module) num_imports(): u32 {
+    return mod.imports.len as u32;
 }
 
 def push_stmt(mod: *Module, stmt: *ast.Stmt) {
     if ast.is_import_stmt(stmt) {
-        mod.num_imports += 1;
+        mod.imports.push(&mod.statements.len as *void);
     }
 
     mod.statements.push_ptr(stmt as *void);
@@ -104,6 +109,7 @@ def free_m(mod: *Module) {
     }
 
     mod.statements.free();
+    mod.imports.free();
     ty.free_ty(mod.ty);
 
     name.free_owned(&mod.name);

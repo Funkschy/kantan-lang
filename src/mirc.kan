@@ -205,9 +205,9 @@ def lookup_global_type(c: *MirCompiler, len: usize, name: string): *ty.Type {
 }
 
 def lookup_or_declare_type(c: *MirCompiler, t: *ty.Type): *mir.UserDefinedType {
-    dbg.assert(ty.is_user_defined(t), "non user defined type passed to lookup");
+    dbg.assert(t.is_user_defined(), "non user defined type passed to lookup");
 
-    let defined = ty.get_user_defined(t);
+    let defined = t.get_user_defined();
     let mangled_name = name.ref(defined.mangled_name);
     let mir_type = lookup_user_defined_type(c, mangled_name);
 
@@ -268,13 +268,13 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 // everything, that uses an explicit type identifier (tyid.Type), needs to be declared,
 // since the type could be from another module
 def declare_type(c: *MirCompiler, t: *ty.Type) {
-    if ty.is_ptr(t) && ty.is_user_defined(ty.as_ptr(t).inner) {
+    if ty.is_ptr(t) && ty.as_ptr(t).inner.is_user_defined() {
         lookup_or_declare_type(c, ty.as_ptr(t).inner);
     }
 
     // the order here is important, since lookup_or_declare_type does an
     // explicit check for is_struct/is_union
-    if ty.is_user_defined(t) {
+    if t.is_user_defined() {
         lookup_or_declare_type(c, t);
     }
 

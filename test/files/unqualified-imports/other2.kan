@@ -1,0 +1,12 @@
+// add a bunch of imports to push this module further down the queue
+import "io";
+import "io";
+import "io";
+import "io";
+import "io";
+import "io";
+import "io";
+
+type Other2 struct {
+    i: i32
+}

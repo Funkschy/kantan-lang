@@ -1368,8 +1368,8 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         );
     }
 
-    if ty.is_user_defined(t) {
-        let type_data = ty.get_user_defined(t);
+    if t.is_user_defined() {
+        let type_data = t.get_user_defined();
         let name = type_data.mangled_name;
         let key = map.create_key(name.len, name.data);
 

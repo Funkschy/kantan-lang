@@ -337,7 +337,7 @@ def create_user_defined_type(
     meta: MetaData,
     is_extern: bool
 ): UserDefinedType {
-    dbg.assert(ty.is_user_defined(t), "UserDefinedType type was not user defined");
+    dbg.assert(t.is_user_defined(), "UserDefinedType type was not user defined");
 
     return UserDefinedType {
         name: mangled_name,
