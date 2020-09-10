@@ -240,6 +240,7 @@ def check(tc: *TypeChecker): CheckResult {
     for let i: u32 = 0; i < n; i += 1 {
         let idx = *(tc.sorted_mods + i);
         let m = mod.get_mod(tc.mods, idx);
+        tc.ctx = get_ctx(tc, idx);
 
         // resolve missing imports.
         // This needs to be done for unqualified imports for struct fields
