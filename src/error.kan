@@ -39,6 +39,7 @@ type CompileError enum {
     WrongArgType,
     InitInvalidType,
     InitArrayInvalidType,
+    ArrayInvalidLen,
     UnionInitInvalidCount,
     UnionInitInvalid,
     CouldNotInferType,

@@ -238,6 +238,7 @@ static char const *const error_texts[] = {
     "Wrong argument type. Expected '%s', but got '%s'",
     "Expected the name of a struct or union, but got '%s'",
     "Array initializer must be an array/string literal",
+    "Array length must be an int literal or '_'",
     "Unions can only be initialized with one value",
     "The field '%.*s' in '%.*s' was declared with type '%s', but was initialized with '%s'",
     "Could not infer type",

@@ -795,6 +795,14 @@ def is_sized(t: *Type): bool {
     return !std.flag_get(&t.flags, flag_unsized);
 }
 
+def (t: *Type) set_sized(value: bool) {
+    if value {
+        std.flag_unset(&t.flags, flag_unsized);
+    } else {
+        std.flag_set(&t.flags, flag_unsized);
+    }
+}
+
 // if the type is not unsized and the with is unknown it wasn't
 // constructed correctly
 def is_initialized(t: *Type): bool {
@@ -1192,7 +1200,12 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         let arr_ty = t.as_array();
 
         let len: usize = 0;
-        let s = std.l_format_str(&len, "[%lu]", arr_ty.len);
+        let s = "";
+        if arr_ty.len >= 0 {
+            s = std.l_format_str(&len, "[%lu]", arr_ty.len);
+        } else {
+            s = std.l_format_str(&len, "[_]");
+        }
         defer delete s;
         let s = str.from_l(s, len);
 

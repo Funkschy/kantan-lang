@@ -1,0 +1,6 @@
+import "io";
+
+def main() {
+    let arr: [_]i8 = "test";
+    io.printf("%s\n", &arr[0]);
+}

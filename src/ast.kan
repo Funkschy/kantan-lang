@@ -801,6 +801,10 @@ def as_ident_expr(e: *Expr): *IdentExpr {
     return e as *IdentExpr;
 }
 
+def (e: *Expr) is_underscore_ident(): bool {
+    return is_ident_expr(e) && ident.eq_lit(&as_ident_expr(e).ident, "_");
+}
+
 /////////// int expr ///////////
 
 // TODO(#10): hex, oct ...

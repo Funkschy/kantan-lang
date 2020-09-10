@@ -1,0 +1,9 @@
+def main() {
+    let s = "hello";            // correct
+    let s: [_]i8 = "hello";     // correct
+    let s: [6]i8 = "hello";     // correct
+
+    let s: [7]i8 = "hello";     // incorrect length
+    let s: [""]i8 = "hello";    // invalid length
+    let s: [6]u8 = "hello";     // invalid type
+}
