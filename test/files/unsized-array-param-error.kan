@@ -1,0 +1,7 @@
+let e = f("");
+
+def f(a: [_]i8): i32 {
+    return 0;
+}
+
+let k = f("");
