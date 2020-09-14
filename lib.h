@@ -185,6 +185,7 @@ static char const *const type_type_strings[] = {
     "error",
     "pointer",
     "array",
+    "slice",
     "bool",
     "int",
     "f32",

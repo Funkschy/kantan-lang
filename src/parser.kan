@@ -184,9 +184,13 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
 
     if peek(p).ty == l.TokenType.LBracket {
         consume(p, l.TokenType.LBracket);
-        let len_expr = expression(p, false);
-        if len_expr == null {
-            return false;
+
+        let len_expr: *ast.Expr = null;
+        if peek(p).ty != l.TokenType.RBracket {
+            len_expr = expression(p, false);
+            if len_expr == null {
+                return false;
+            }
         }
 
         if !consume(p, l.TokenType.RBracket) {
@@ -197,6 +201,12 @@ def consume_type(p: *Parser, dest: *tyid.Type): bool {
         if !consume_type(p, dest) {
             ast.expr_free(len_expr);
             return false;
+        }
+
+        // slice types don't have a length
+        if len_expr == null {
+            *dest = tyid.create_slice_ptr(*dest, pointer_count);
+            return true;
         }
 
         *dest = tyid.create_array_ptr(*dest, len_expr, pointer_count);

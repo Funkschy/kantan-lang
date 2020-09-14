@@ -1291,7 +1291,7 @@ def expr_to_name(e: *Expression): name.Owned {
 
         let len: usize = 0;
         let s = std.l_format_str(
-            &len, "gep(%.*s, %s)", addr_n.len, addr_n.data, idx_s.cstring()
+            &len, "index(%.*s, %s)", addr_n.len, addr_n.data, idx_s.cstring()
         );
 
         name.free_owned(&addr_n);

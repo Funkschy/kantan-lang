@@ -1,8 +1,148 @@
 import "../ty";
+import "../mod";
+import "../ast";
+import "../tyid";
 import "../ident";
 import "../symbol";
 import "../scope";
-import "tychk";
+import "tychk" as _;
+
+// never call this helper function directly, use resolve_tyid instead
+// if the ident has a '.' inside it like 'mymod.test', out_mod will be set to a
+// reference to the correspoding module (mymod) this will happen, even if out_mod
+// does not contain the actual type (test)
+def m_lookup_type(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): symbol.Data {
+    let len = ident.len(name);
+    let dot_index = ident.index_of(name, len, '.');
+    if dot_index < 0 {
+        // same module
+        if out_mod != null {
+            *out_mod = tc.ctx.mod;
+        }
+        return scope.lookup(&tc.ctx.types, name);
+    }
+
+    let dot_index = dot_index as usize;
+    let m = get_mod_by_alias(tc.ctx, dot_index, ident.start(name));
+    if m == null {
+        if out_mod != null {
+            *out_mod = null;
+        }
+        // io.printf("DBG DEBUG %.*s mod not found\n", len, ident.start(name));
+        return symbol.empty();
+    }
+
+    if out_mod != null {
+        *out_mod = m;
+    }
+
+    return m.lookup_type(len - dot_index - 1, ident.start(name) + dot_index + 1);
+}
+
+// never call this helper function directly, use resolve_tyid instead
+def checked_type_lookup(
+    tc: *TypeChecker,
+    name: *ident.Ident,
+    out_ty: **ty.Type,
+    out_mod: **mod.Module
+): Result {
+    let data = m_lookup_type(tc, name, out_mod);
+    if out_mod == null {
+        *out_ty = data.ty_or_null();
+        return Result.OK;
+    }
+
+    if *out_mod == null {
+        // TODO(#35): should just be module name
+        push_not_defined_error(tc, name, Kind.Types.to_string(), null);
+        return Result.Error;
+    }
+
+    *out_ty = data.ty_or_null();
+    return Result.OK;
+}
+
+
+type TypeLookupResult struct {
+    error: bool,
+    found_type: bool,
+    ty: *ty.Type,
+    module: *mod.Module
+}
+
+def resolve_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
+    if name.is_array() {
+        let result = resolve_tyid(tc, &name.data.array.inner);
+        if result.error {
+            return result;
+        }
+
+        let len_expr = name.data.array.len;
+        if !(ast.is_int_expr(len_expr) || len_expr.is_underscore_ident()) {
+            push_array_invalid_len_expr_error(tc, len_expr.span);
+            result.error = true;
+            result.ty = null;
+            return result;
+        }
+
+        if ast.is_int_expr(len_expr) {
+            let len = name.data.array.unchecked_len();
+            result.ty = tc.create_array_ty(len, result.ty);
+        } else {
+            result.ty = tc.create_array_ty(-1, result.ty);
+            // this should create an error, if the size is not later inferred
+            result.ty.set_sized(false);
+        }
+
+        if name.is_ptr() {
+            result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
+        }
+
+        return result;
+    }
+
+    if name.is_slice() {
+        let result = resolve_tyid(tc, &name.data.slice.inner);
+        if result.error {
+            return result;
+        }
+
+        result.ty = tc.create_slice_ty(result.ty);
+
+        if name.is_ptr() {
+            result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
+        }
+
+        return result;
+    }
+
+    let result = TypeLookupResult {
+        error: false, found_type: false, ty: null, module: null
+    };
+
+    let ident = name.ident();
+
+    if checked_type_lookup(tc, &ident, &result.ty, &result.module).is_error() {
+        push_not_defined_error(tc, &ident, Kind.Types.to_string(), null);
+        result.error = true;
+        return result;
+    }
+
+    result.found_type = result.ty != null;
+    result.error = false;
+
+    // if this is not the decl only_pass, the types should be resolved
+    if tc.pass != PassMode.TypeDecl && result.ty == null {
+        push_not_defined_error(tc, &ident, Kind.Types.to_string(), null);
+        return result;
+    }
+
+    if name.is_ptr() {
+        result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
+    }
+
+    return result;
+}
 
 type Kind enum {
     Types, Values, Both
@@ -18,11 +158,11 @@ def (kind: Kind) to_string(): string {
     return "value or type";
 }
 
-def value_name(tc: *tychk.TypeChecker, name: *ident.Ident): symbol.Data {
+def value_name(tc: *TypeChecker, name: *ident.Ident): symbol.Data {
     return scope.lookup(&tc.ctx.values, name);
 }
 
-def type_name(tc: *tychk.TypeChecker, name: *ident.Ident): symbol.Data {
+def type_name(tc: *TypeChecker, name: *ident.Ident): symbol.Data {
     return scope.lookup(&tc.ctx.types, name);
 }
 
@@ -57,7 +197,7 @@ def (d: *Data) to_string(): string {
     return "value of type";
 }
 
-def (d: *Data) lookup_ident(tc: *tychk.TypeChecker, name: *ident.Ident): symbol.Data {
+def (d: *Data) lookup_ident(tc: *TypeChecker, name: *ident.Ident): symbol.Data {
     if d == null {
         return value_name(tc, name);
     }

@@ -17,7 +17,7 @@ extern def type2str(kind: i32): string;
 type Kind enum {
     Error,
     Ptr,
-    Array,
+    Array, Slice,
     Bool,
     Integer,
     F32, F64,
@@ -161,6 +161,31 @@ def (t: *Type) as_array(): *Array {
     return t.data as *Array;
 }
 
+/////////// slice type ///////////
+
+type Slice struct {
+    inner: *Type
+}
+
+def new_slice(width: usize, inner: *Type): *Type {
+    let arr = new Slice { inner: inner };
+    let t = new_type(Kind.Slice, arr as *void);
+
+    // slices always have a size
+    std.flag_unset(&t.flags, flag_unsized);
+    t.width = width as i64 * 2; // pointer + length (usize)
+    t.align = width as u32;
+    return t;
+}
+
+def (t: *Type) is_slice(): bool {
+    return t.kind == Kind.Slice;
+}
+
+def (t: *Type) as_slice(): *Slice {
+    return t.data as *Slice;
+}
+
 /////////// pointer type ///////////
 
 // TODO(#22): remember to make the result of pointer subtraction dependent on the
@@ -224,6 +249,10 @@ def (t: *Type) inner_type(): *Type {
         return as_ptr(t).inner;
     }
 
+    if t.is_slice() {
+        return t.as_slice().inner;
+    }
+
     return t.as_array().inner;
 }
 
@@ -239,6 +268,14 @@ def (t: *Type) update_inner(inner: *Type) {
         t.align = arr_ty.inner.align;
         t.width = arr_ty.len * arr_ty.inner.width;
         return;
+    } else if t.is_slice() {
+        let slice_ty = t.as_slice();
+        if slice_ty.inner == null {
+            slice_ty.inner = inner;
+        } else {
+            slice_ty.inner.update_inner(inner);
+        }
+        return;
     } else if !is_ptr(t) {
         return;
     }
@@ -250,7 +287,7 @@ def (t: *Type) update_inner(inner: *Type) {
         p.count = p.count + as_ptr(inner).count;
     }
 
-    if p.inner != null && (is_ptr(p.inner) || p.inner.is_array()) {
+    if p.inner != null && (is_ptr(p.inner) || p.inner.is_array() || p.inner.is_slice()) {
         p.inner.update_inner(inner);
     } else {
         p.inner = inner;
@@ -266,7 +303,7 @@ def (t: *Type) update_inner(inner: *Type) {
 }
 
 def (t: *Type) is_indexable(): bool {
-    return t.is_array() || is_ptr(t);
+    return t.is_array() || t.is_slice() || is_ptr(t);
 }
 
 def (t: *Type) is_assignable(): bool {
@@ -305,6 +342,10 @@ def (t: *Type) is_user_defined(): bool {
         return t.as_array().inner.is_user_defined();
     }
 
+    if t.is_slice() {
+        return t.as_slice().inner.is_user_defined();
+    }
+
     return is_struct(t) || is_enum(t) || is_union(t);
 }
 
@@ -315,6 +356,10 @@ def (t: *Type) get_user_defined(): *UserDefinedType {
 
     if t.is_array() {
         return t.as_array().inner.get_user_defined();
+    }
+
+    if t.is_slice() {
+        return t.as_slice().inner.get_user_defined();
     }
 
     return t.data as *UserDefinedType;
@@ -907,7 +952,7 @@ def free_ty(t: *Type) {
         return;
     }
 
-    if t.is_integer() || is_ptr(t) || t.is_array() {
+    if t.is_integer() || is_ptr(t) || t.is_array() || t.is_slice() {
         delete t.data;
         return;
     }
@@ -1223,6 +1268,17 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         return s;
     }
 
+    if t.is_slice() {
+        let slice_ty = t.as_slice();
+        let s = str.from("[]");
+
+        let inner = to_string_mangled(slice_ty.inner, use_mangled);
+        defer inner.free();
+
+        s.push(inner.view());
+        return s;
+    }
+
     if t.is_user_defined() {
         if use_mangled {
             return t.get_user_defined().mangled_name.to_string();
@@ -1292,6 +1348,10 @@ def equals(first: *Type, second: *Type): bool {
     if first.is_array() {
         return first.as_array().len == second.as_array().len
             && equals(first.as_array().inner, second.as_array().inner);
+    }
+
+    if first.is_slice() {
+        return equals(first.as_slice().inner, second.as_slice().inner);
     }
 
     if first.is_integer() {

@@ -5,7 +5,7 @@ import "span";
 import "ident";
 
 type Kind enum {
-    Path, Array
+    Path, Array, Slice
 }
 
 type ArrayData struct {
@@ -21,8 +21,13 @@ def (a: *ArrayData) unchecked_len(): i64 {
     return strtol(value_span.start, &value_end, 10);
 }
 
+type SliceData struct {
+    inner: Type
+}
+
 type TypeData union {
     path: ident.Ident,
+    slice: *SliceData,
     array: *ArrayData
 }
 
@@ -61,6 +66,16 @@ def create_array_ptr(inner: Type, len: *ast.Expr, pointer_count: u32): Type {
     };
 }
 
+def create_slice_ptr(inner: Type, pointer_count: u32): Type {
+    return Type {
+        kind: Kind.Slice,
+        pointer_count: pointer_count,
+        data: TypeData {
+            slice: new SliceData { inner: inner }
+        }
+    };
+}
+
 def (t: *Type) is_empty(): bool {
     return t.pointer_count == 0 && t.kind == Kind.Path && ident.is_empty(&t.data.path);
 }
@@ -74,6 +89,10 @@ def (t: *Type) ident(): ident.Ident {
         return t.data.array.inner.ident();
     }
 
+    if t.kind == Kind.Slice {
+        return t.data.slice.inner.ident();
+    }
+
     return t.data.path;
 }
 
@@ -85,11 +104,20 @@ def (t: *Type) is_array(): bool {
     return t.kind == Kind.Array;
 }
 
+def (t: *Type) is_slice(): bool {
+    return t.kind == Kind.Slice;
+}
+
 def (t: *Type) free() {
     if t.kind == Kind.Array {
         ast.expr_free(t.data.array.len);
         t.data.array.inner.free();
         delete t.data.array;
+    }
+
+    if t.kind == Kind.Slice {
+        t.data.slice.inner.free();
+        delete t.data.slice;
     }
 }
 
@@ -103,6 +131,11 @@ def (t: *Type) to_string(): str.String {
         let inner = t.data.array.inner.to_string();
         defer inner.free();
         s.push(str.view(3, "[x]"));
+        s.push(inner.view());
+    } else if t.kind == Kind.Slice {
+        let inner = t.data.slice.inner.to_string();
+        defer inner.free();
+        s.push(str.view(2, "[]"));
         s.push(inner.view());
     } else {
         let ident = t.ident().to_string();

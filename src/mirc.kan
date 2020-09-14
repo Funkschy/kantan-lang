@@ -1060,6 +1060,22 @@ def index_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         }
     }
 
+    if index.left.ty.is_slice() {
+        let indices = vec.create(sizeof mir.Address);
+
+        let index_addr = expr_instruction(c, index.right, true);
+        indices.push(&index_addr as *void);
+
+        let inner = expr_instruction_decl(c, index.left, null, rhs, false);
+        let mir_index = mir.new_expr_index(inner, indices);
+        if rhs {
+            push_temp_assign(c, mir_index, index.left.ty, meta, &inner);
+            return mir.new_expr_unary_deref(inner);
+        }
+
+        return mir_index;
+    }
+
     let indices = vec.create(sizeof mir.Address);
 
     let current = e;

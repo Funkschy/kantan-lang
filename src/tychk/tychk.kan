@@ -474,61 +474,6 @@ def sorted_mods(mods: *mod.Map): *u32 {
     return sorted_mods;
 }
 
-// never call this helper function directly, use lookup_tyid instead
-// if the ident has a '.' inside it like 'mymod.test', out_mod will be set to a
-// reference to the correspoding module (mymod) this will happen, even if out_mod
-// does not contain the actual type (test)
-def m_lookup_type(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): symbol.Data {
-    let len = ident.len(name);
-    let dot_index = ident.index_of(name, len, '.');
-    if dot_index < 0 {
-        // same module
-        if out_mod != null {
-            *out_mod = tc.ctx.mod;
-        }
-        return scope.lookup(&tc.ctx.types, name);
-    }
-
-    let dot_index = dot_index as usize;
-    let m = get_mod_by_alias(tc.ctx, dot_index, ident.start(name));
-    if m == null {
-        if out_mod != null {
-            *out_mod = null;
-        }
-        // io.printf("DBG DEBUG %.*s mod not found\n", len, ident.start(name));
-        return symbol.empty();
-    }
-
-    if out_mod != null {
-        *out_mod = m;
-    }
-
-    return m.lookup_type(len - dot_index - 1, ident.start(name) + dot_index + 1);
-}
-
-// never call this helper function directly, use lookup_tyid instead
-def checked_type_lookup(
-    tc: *TypeChecker,
-    name: *ident.Ident,
-    out_ty: **ty.Type,
-    out_mod: **mod.Module
-): Result {
-    let data = m_lookup_type(tc, name, out_mod);
-    if out_mod == null {
-        *out_ty = data.ty_or_null();
-        return Result.OK;
-    }
-
-    if *out_mod == null {
-        // TODO(#35): should just be module name
-        push_not_defined_error(tc, name, lookup.Kind.Types.to_string(), null);
-        return Result.Error;
-    }
-
-    *out_ty = data.ty_or_null();
-    return Result.OK;
-}
-
 def (tc: *TypeChecker) create_ptr_ty(count: u32, inner: *ty.Type): *ty.Type {
     let ptr_width = tc.config.target.ptr_width_bytes;
     return push_tmp_ty(tc, ty.new_ptr(ptr_width, count, inner));
@@ -538,74 +483,13 @@ def (tc: *TypeChecker) create_array_ty(len: i64, inner: *ty.Type): *ty.Type {
     return push_tmp_ty(tc, ty.new_array(len, inner));
 }
 
-type TypeLookupResult struct {
-    error: bool,
-    found_type: bool,
-    ty: *ty.Type,
-    module: *mod.Module
-}
-
-def lookup_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
-    if name.is_array() {
-        let result = lookup_tyid(tc, &name.data.array.inner);
-        if result.error {
-            return result;
-        }
-
-        let len_expr = name.data.array.len;
-        if !(ast.is_int_expr(len_expr) || len_expr.is_underscore_ident()) {
-            push_array_invalid_len_expr_error(tc, len_expr.span);
-            result.error = true;
-            result.ty = null;
-            return result;
-        }
-
-        if ast.is_int_expr(len_expr) {
-            let len = name.data.array.unchecked_len();
-            result.ty = tc.create_array_ty(len, result.ty);
-        } else {
-            result.ty = tc.create_array_ty(-1, result.ty);
-            // this should create an error, if the size is not later inferred
-            result.ty.set_sized(false);
-        }
-
-        if name.is_ptr() {
-            result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
-        }
-
-        return result;
-    }
-
-    let result = TypeLookupResult {
-        error: false, found_type: false, ty: null, module: null
-    };
-
-    let ident = name.ident();
-
-    if checked_type_lookup(tc, &ident, &result.ty, &result.module).is_error() {
-        push_not_defined_error(tc, &ident, lookup.Kind.Types.to_string(), null);
-        result.error = true;
-        return result;
-    }
-
-    result.found_type = result.ty != null;
-    result.error = false;
-
-    // if this is not the decl only_pass, the types should be resolved
-    if tc.pass != PassMode.TypeDecl && result.ty == null {
-        push_not_defined_error(tc, &ident, lookup.Kind.Types.to_string(), null);
-        return result;
-    }
-
-    if name.is_ptr() {
-        result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
-    }
-
-    return result;
+def (tc: *TypeChecker) create_slice_ty(inner: *ty.Type): *ty.Type {
+    let ptr_width = tc.config.target.ptr_width_bytes;
+    return push_tmp_ty(tc, ty.new_slice(ptr_width, inner));
 }
 
 def check_func_tyid(tc: *TypeChecker, signature: *ty.Type, id: *tyid.Type, out: **ty.Type): Result {
-    let data = lookup_tyid(tc, id);
+    let data = lookup.resolve_tyid(tc, id);
     if data.error || !data.found_type {
         return Result.Error;
     }
@@ -656,7 +540,7 @@ def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type):
             continue;
         }
 
-        let data = lookup_tyid(tc, &p.ty);
+        let data = lookup.resolve_tyid(tc, &p.ty);
         if data.error || !data.found_type {
             result = Result.Error;
             continue;
@@ -731,7 +615,7 @@ def (tc: *TypeChecker) check_field(
     field_tyid: *tyid.Type,
     offset: i32
 ): FieldState {
-    let data = lookup_tyid(tc, field_tyid);
+    let data = lookup.resolve_tyid(tc, field_tyid);
 
     if data.error {
         // push fake field here, so that the offset is not out of bounds
@@ -1384,7 +1268,7 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
         let expected_ty: *ty.Type = null;
         if ast.has_type_decl(l_s) {
-            let lookup_data = lookup_tyid(tc, &l_s.ty);
+            let lookup_data = lookup.resolve_tyid(tc, &l_s.ty);
             if !lookup_data.found_type {
                 return null;
             }
@@ -2059,7 +1943,7 @@ def check_expr_expect(
     if ast.is_sizeof_expr(e) {
         let s_e = ast.as_sizeof_expr(e);
 
-        let lookup_data = lookup_tyid(tc, &s_e.ty);
+        let lookup_data = lookup.resolve_tyid(tc, &s_e.ty);
         if !lookup_data.found_type {
             return null;
         }
@@ -2079,7 +1963,7 @@ def check_expr_expect(
     if ast.is_as_expr(e) {
         let a_e = ast.as_as_expr(e);
 
-        let lookup_data = lookup_tyid(tc, &a_e.ty);
+        let lookup_data = lookup.resolve_tyid(tc, &a_e.ty);
         if !lookup_data.found_type {
             return null;
         }

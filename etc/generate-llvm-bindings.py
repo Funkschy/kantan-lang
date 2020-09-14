@@ -122,6 +122,7 @@ whitelist = set([
     'LLVMSizeOf',
     'LLVMStructCreateNamed',
     'LLVMStructSetBody',
+    'LLVMStructTypeInContext',
     'LLVMTypeOf',
     'LLVMValueAsMetadata',
     'LLVMVoidTypeInContext',

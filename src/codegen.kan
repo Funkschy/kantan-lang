@@ -1,4 +1,5 @@
 import "ty";
+import "str";
 import "dbg";
 import "mod";
 import "mir";
@@ -396,6 +397,23 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         return llvm.array_type(inner, arr_ty.len as u32);
     }
 
+    if t.is_slice() {
+        let slice_ty = t.as_slice();
+        let inner = translate_type(c, slice_ty.inner);
+        inner = llvm.array_type(inner, 0);
+
+        let ptr_ty = llvm.pointer_type(inner, 0);
+        let len_ty = c.size_ty();
+
+        let elem_types: [2]*llvm.Type = undefined;
+        elem_types[0] = ptr_ty;
+        elem_types[1] = len_ty;
+
+        return llvm.struct_type_in_context(
+            c.context.ctx, &elem_types[0], 2, false
+        );
+    }
+
     if ty.is_callable(t) {
         let f_ty = ty.callable_as_func(t);
         let num_params = f_ty.params.len as u32;
@@ -547,6 +565,12 @@ def translate_literal(
 
     delete copy;
     return llvm_lit;
+}
+
+// usize/isize type
+def (c: *ModuleCompiler) size_ty(): *llvm.Type {
+    let width = c.options.target.pointer_width_bits();
+    return llvm.int_type_in_context(c.context.ctx, width);
 }
 
 def compile_functions(c: *ModuleCompiler): void {
@@ -905,14 +929,22 @@ def compile_expr(
 
     if mir.is_expr_index(e) {
         let index = mir.as_expr_index(e);
-        dbg.assert(index.addr.ty.is_array(), "trying to index non array type");
+        dbg.assert(
+            index.addr.ty.is_array() || index.addr.ty.is_slice(),
+            "trying to index non array type"
+        );
 
         let left = translate_addr_load(c, func, &index.addr, false);
+        // access ptr field in slice and load the pointer to the array
+        if index.addr.ty.is_slice() {
+            let gep = llvm.build_struct_gep(c.builder, left, 0, "");
+            left = llvm.build_load(c.builder, gep, "");
+        }
 
-        let indices = ptrvec.with_cap(index.indices.len + 1);
+        let indices = ptrvec.with_cap(index.indices.len + 2);
         defer indices.free();
 
-        let int_ty = llvm.int32_type_in_context(c.context.ctx);
+        let int_ty = c.size_ty();
         indices.push_ptr(llvm.const_int(int_ty, 0, false) as *void);
         for let i: usize = 0; i < index.indices.len; i += 1 {
             let idx = translate_addr(c, func, index.indices.get_ptr(i) as *mir.Address);
@@ -995,9 +1027,7 @@ def compile_expr(
         let ty = translate_type(c, so.ty);
 
         let size = llvm.size_of(ty);
-        let width = c.options.target.pointer_width_bits();
-        let int_ty = llvm.int_type_in_context(c.context.ctx, width);
-        return llvm.build_int_cast(c.builder, size, int_ty, "");
+        return llvm.build_int_cast(c.builder, size, c.size_ty(), "");
     }
 
     if mir.is_expr_union_access(e) {
@@ -1065,8 +1095,7 @@ def compile_binary(
     } else if binary.kind == mir.BinaryKind.Sub {
         // pointer subtraction (both types have to be equal for mir.BinaryKind.Sub)
         if ty.is_ptr(binary.left.ty) {
-            let width = c.options.target.pointer_width_bits();
-            let int_ty = llvm.int_type_in_context(c.context.ctx, width);
+            let int_ty = c.size_ty();
 
             left = llvm.build_ptr_to_int(c.builder, left, int_ty, "");
             right = llvm.build_ptr_to_int(c.builder, right, int_ty, "");
@@ -1365,6 +1394,26 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
             t.width_in_bits(), t.align_in_bits(),
             inner,
             null, 0
+        );
+    }
+
+    // TODO: find a proper debug representation for slices
+    if t.is_slice() {
+        let slice_ty = t.as_slice();
+        let inner = dbg_translate_type(c, slice_ty.inner);
+
+        let name = str.from("*");
+        defer name.free();
+        let inner_name = ty.to_string(slice_ty.inner);
+        defer inner_name.free();
+        name.push(inner_name.view());
+
+        return llvm.di_builder_create_pointer_type(
+            c.dbg.builder,
+            inner,
+            t.width_in_bits(), t.align_in_bits(),
+            0,
+            name.cstring(), name.len()
         );
     }
 

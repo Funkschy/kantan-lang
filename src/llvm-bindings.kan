@@ -139,6 +139,8 @@ extern def LLVMDoubleTypeInContext(c: *Context): *Type;
 
 extern def LLVMFunctionType(return_type: *Type, param_types: **Type, param_count: u32, is_var_arg: i32): *Type;
 
+extern def LLVMStructTypeInContext(c: *Context, element_types: **Type, element_count: u32, packed: i32): *Type;
+
 extern def LLVMStructCreateNamed(c: *Context, name: string): *Type;
 
 extern def LLVMStructSetBody(struct_ty: *Type, element_types: **Type, element_count: u32, packed: i32): void;
@@ -184,6 +186,10 @@ def double_type_in_context(c: *Context): *Type {
 
 def function_type(return_type: *Type, param_types: **Type, param_count: u32, is_var_arg: bool): *Type {
     return LLVMFunctionType(return_type, param_types, param_count, std.bool_to_int(is_var_arg) as i32);
+}
+
+def struct_type_in_context(c: *Context, element_types: **Type, element_count: u32, packed: bool): *Type {
+    return LLVMStructTypeInContext(c, element_types, element_count, std.bool_to_int(packed) as i32);
 }
 
 def struct_create_named(c: *Context, name: string): *Type {
