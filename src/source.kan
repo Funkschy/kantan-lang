@@ -1,4 +1,5 @@
 import "std";
+import "str";
 import "path";
 import "file";
 import "span";
@@ -30,15 +31,13 @@ def empty_pos(): SourcePos {
 
 type SourceFile struct {
     is_std_lib: bool,
-    // TODO(#116): use str.String
-    len: usize,
-    code: string,
+    code: str.String,
     file: file.File,
     map: SourceMap
 }
 
 def (sf: *SourceFile) free() {
-    delete sf.code;
+    sf.code.free();
     sf.file.free();
     sf.map.free();
 }
@@ -48,23 +47,21 @@ def (sf: *SourceFile) name_dup(): string {
 }
 
 def (sf: *SourceFile) end(): string {
-    return sf.code + sf.len;
+    return sf.code.cstring() + sf.code.len();
 }
 
 def read(p: path.PathBuf, f: *SourceFile, is_std_lib: bool): error.CompileError {
     let new_file = file.create(p);
-    let s: string = null;
-    let len: usize = 0;
-    let res = new_file.read_to_string(&s, &len);
+    let s: str.String = undefined;
+    let res = new_file.read_to_string(&s);
 
     if res != error.CompileError.OK {
         return res;
     }
 
-    let map = map_from_source(s, len);
+    let map = map_from_source(&s);
     *f = SourceFile {
         is_std_lib: is_std_lib,
-        len: len,
         code: s,
         file: new_file,
         map: map
@@ -80,21 +77,22 @@ def (file: *SourceFile) line_info(
     out_line_nr: *u32,
     out_col: *u32
 ) {
+    let code = file.code.cstring();
     dbg.assert_fmt(
-        file.code <= target.start && target.end <= file.code + file.len,
+        code <= target.start && target.end <= file.end(),
         "invalid target (%p-%p) for source (%p-%p) in %.*s",
         target.start, target.end,
-        file.code, file.code + file.len,
+        file.code.cstring(), file.end(),
         file.file.path.inner.len, file.file.path.inner.inner
     );
 
     let last_nl = target.start;
 
     let ptr = target.start;
-    while ptr > file.code {
+    while ptr > code {
         if *ptr == '\n' {
             last_nl = ptr;
-            ptr = file.code; // there is currently no 'break' keyword
+            break;
         } else {
             ptr = ptr - 1;
         }
@@ -102,7 +100,7 @@ def (file: *SourceFile) line_info(
 
     // there was no new line => span is in first line of file
     if last_nl == target.start {
-        last_nl = file.code - 1; // we add a 1 later, which is correct in every other case
+        last_nl = code - 1; // we add a 1 later, which is correct in every other case
     }
 
     // the \n at the end of the line with span in it
@@ -146,7 +144,10 @@ type SourceMap struct {
     line_starts: ptrvec.Vec // ptrvec.Vec<string>
 }
 
-def map_from_source(code: string, len: usize): SourceMap {
+def map_from_source(code: *str.String): SourceMap {
+    let len = code.len();
+    let code = code.cstring();
+
     let line_estimate = len / 24; // assume that a line has 24 chars on avg
     let vec = ptrvec.with_cap(line_estimate);
     let pos = code;

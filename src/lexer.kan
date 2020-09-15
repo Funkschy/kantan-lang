@@ -151,20 +151,21 @@ type Lexer struct {
 }
 
 def create(src: *source.SourceFile): Lexer {
-    let span = span.create(src.code, src.code);
+    let code = src.code.cstring();
+    let span = span.create(code, code);
     let init_peek = Token { ty: TokenType.UnknownErr, span: span };
 
     return Lexer {
         has_peek: false,
         peek: init_peek,
         source: src,
-        start: src.code,
-        current: src.code
+        start: code,
+        current: code
     };
 }
 
 def end_pos(l: *Lexer): usize {
-    return l.source.len - 1;
+    return l.source.code.len() - 1;
 }
 
 def peek(l: *Lexer): Token {
@@ -189,10 +190,10 @@ def next_token(l: *Lexer): Token {
 
 def current_pos(l: *Lexer): usize {
     if l.has_peek {
-        return (l.peek.span.start - l.source.code) as usize;
+        return (l.peek.span.start - l.source.code.cstring()) as usize;
     }
 
-    return (l.current - l.source.code) as usize;
+    return (l.current - l.source.code.cstring()) as usize;
 }
 
 def current_ptr(l: *Lexer): string {
@@ -206,7 +207,7 @@ def current_ptr(l: *Lexer): string {
 def current(l: *Lexer): i32 {
     let c = 0;
     let read_bytes = current_pos(l);
-    std.read_char(l.current, l.source.len - read_bytes, &c);
+    std.read_char(l.current, l.source.code.len() - read_bytes, &c);
     return c;
 }
 
@@ -234,15 +235,15 @@ def check_keyword(l: *Lexer, start: usize, rest_len: usize, rest: string, ty: To
 }
 
 def ident_type(l: *Lexer): TokenType {
-    let bytes_until = (l.start - l.source.code) as usize;
+    let bytes_until = (l.start - l.source.code.cstring()) as usize;
     let start = 0;
-    let len = std.read_char(l.start, (l.source.len - bytes_until) as usize, &start) as usize;
+    let len = std.read_char(l.start, l.source.code.len() - bytes_until, &start);
 
     if start == 'l' {
         return check_keyword(l, 1, 2, "et", TokenType.Let);
     } else if start == 'i' && l.current - l.start > 1 {
         let next = 0;
-        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
 
         if next == 'f' {
             return check_keyword(l, 2, 0, "", TokenType.If);
@@ -251,9 +252,9 @@ def ident_type(l: *Lexer): TokenType {
         }
     } else if start == 'd' && l.current - l.start > 2 {
         let next = 0;
-        len += std.read_char(l.start + len, l.source.len - bytes_until - len, &next) as usize;
+        len += std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
         // read third char
-        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
 
         if next == 'f' {
             if l.current - l.start == 3 {
@@ -270,11 +271,11 @@ def ident_type(l: *Lexer): TokenType {
         }
     } else if start == 'e' && l.current - l.start > 3 {
         let next = 0;
-        len += std.read_char(l.start + len, l.source.len - bytes_until - len, &next) as usize;
+        len += std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
 
         if next == 'x' {
             // read third char
-            std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+            std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
 
             if next == 't' {
                 return check_keyword(l, 2, 4, "tern", TokenType.Extern);
@@ -288,7 +289,7 @@ def ident_type(l: *Lexer): TokenType {
         }
     } else if start == 'n' && l.current - l.start > 2 {
         let next = 0;
-        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
 
         if next == 'u' {
             return check_keyword(l, 2, 2, "ll", TokenType.Null);
@@ -297,7 +298,7 @@ def ident_type(l: *Lexer): TokenType {
         }
     } else if start == 's' && l.current - l.start > 5 {
         let next = 0;
-        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
 
         if next == 't' {
             return check_keyword(l, 2, 4, "ruct", TokenType.Struct);
@@ -306,9 +307,9 @@ def ident_type(l: *Lexer): TokenType {
         }
     } else if start == 'u' && l.current - l.start > 4 {
         let next = 0;
-        len += std.read_char(l.start + len, l.source.len - bytes_until - len, &next) as usize;
+        len += std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
         // read third char
-        std.read_char(l.start + len, l.source.len - bytes_until - len, &next);
+        std.read_char(l.start + len, l.source.code.len() - bytes_until - len, &next);
 
         if next == 'i' {
             return check_keyword(l, 1, 4, "nion", TokenType.Union);
@@ -466,7 +467,7 @@ def at_end(l: *Lexer): bool {
 def advance(l: *Lexer): i32 {
     let read_bytes = current_pos(l);
     let c = 0;
-    let len = std.read_char(l.current, (l.source.len - read_bytes) as usize, &c) as usize;
+    let len = std.read_char(l.current, l.source.code.len() - read_bytes, &c);
 
     l.current = l.current + len;
     return c;

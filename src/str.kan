@@ -4,32 +4,32 @@ type String struct {
     // don't access directly
     len_: usize,
     cap_: usize,
-    data_: string
+    data_: *i8
 }
 
 def create(): String {
     return from_l("", 0);
 }
 
-def from(s: string): String {
+def from(s: *i8): String {
     return from_l(s, std.strlen(s));
 }
 
-def from_l(s: string, len: usize): String {
+def from_l(s: *i8, len: usize): String {
     let max_storage = (sizeof *void as usize) * 3 - 2;
 
     let str: String = undefined;
 
     // on x64, we have 24 bytes - len (1 byte) - null terminator
     if len <= max_storage {
-        // least significant len bit == 0 => optimized string
+        // least significant len bit == 0 => optimized *i8
         str.len_ = len << 1;
 
         std.memcpy((&str as *void) + 1, s as *void, len);
         *(&str as *i8 + 1 + len) = '\0';
     } else {
         str.cap_ = len;
-        // least significant len bit == 1 => heap allocated string
+        // least significant len bit == 1 => heap allocated *i8
         str.len_ = (len << 1) | 1;
         str.data_ = std.strndup(s, len);
     }
@@ -37,15 +37,32 @@ def from_l(s: string, len: usize): String {
     return str;
 }
 
-def (s: *String) len(): usize {
-    if s.is_optimized() {
-        return *(&s.len_ as *i8) >> 1 as usize;
-    }
+def move_l(s: *i8, len: usize): String {
+    let max_storage = (sizeof *void as usize) * 3 - 2;
 
-    return s.len_ >> 1;
+    // don't optimize moved strings
+    let str: String = undefined;
+    str.cap_ = len;
+    // least significant len bit == 1 => heap allocated *i8
+    str.len_ = (len << 1) | 1;
+    str.data_ = s;
+
+    return str;
 }
 
-def (s: *String) cstring(): string {
+def (s: *String) len(): usize {
+    let len = s.len_;
+    let mask = ((~len & 1) << 7) - 1;
+    return len & mask >> 1;
+
+    // if s.is_optimized() {
+    //     return *(&s.len_ as *i8) >> 1 as usize;
+    // }
+
+    // return s.len_ >> 1;
+}
+
+def (s: *String) cstring(): *i8 {
     if s.is_optimized() {
         return (s as *i8) + 1;
     }
@@ -70,7 +87,7 @@ def (s: *String) push(other: View) {
             std.memcpy(data, s as *void + 1, len);
             std.memcpy(data + len, other.data as *void, other.len);
 
-            s.data_ = data as string;
+            s.data_ = data as *i8;
             *(s.data_ + new_len) = '\0';
 
             s.len_ = (new_len << 1) | 1;
@@ -94,7 +111,7 @@ def (s: *String) push(other: View) {
     std.memcpy(data + len, other.data as *void, other.len);
 
     delete s.data_;
-    s.data_ = data as string;
+    s.data_ = data as *i8;
     *(s.data_ + new_len) = '\0';
 
     s.len_ = (new_len << 1) | 1;
@@ -122,10 +139,10 @@ def (s: *String) free() {
 
 type View struct {
     len: usize,
-    data: string
+    data: *i8
 }
 
-def view(len: usize, s: string): View {
+def view(len: usize, s: *i8): View {
     return View {
         len: len, data: s
     };

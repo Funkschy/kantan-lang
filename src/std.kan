@@ -25,7 +25,7 @@ extern def snprintf(str: string, size: usize, fmt: string, ...): i32;
 extern def get_errno(): i32;
 extern def format_str(fmt: string, ...): string;
 extern def l_format_str(len: *usize, fmt: string, ...): string;
-extern def read_char(s: string, s_len: usize, dest: *i32): i32;
+extern def read_char(s: string, s_len: usize, dest: *i32): usize;
 extern def ptr_to_int(p: *void): usize;
 extern def int_to_ptr(i: usize): *void;
 extern def bool_to_int(b: bool): usize;

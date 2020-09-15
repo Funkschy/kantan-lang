@@ -128,7 +128,7 @@ char const *const err2str(int32_t err_code, ...) {
     return s;
 }
 
-int32_t read_char(char const *string, size_t s_len, int32_t *ch) {
+size_t read_char(char const *string, size_t s_len, int32_t *ch) {
     int32_t c_len = 1;
 
     if ((*string & 0xf8) == 0xf0) {
@@ -147,7 +147,7 @@ int32_t read_char(char const *string, size_t s_len, int32_t *ch) {
         memcpy(ch, string, c_len);
     }
 
-    return c_len;
+    return (size_t) c_len;
 }
 
 bool is_file(char const *path) {

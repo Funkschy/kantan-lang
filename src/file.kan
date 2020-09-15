@@ -1,3 +1,4 @@
+import "str";
 import "path";
 import "error";
 
@@ -15,10 +16,16 @@ def (f: *File) name_dup(): string {
     return path.to_string(&f.path.inner);
 }
 
-def (s: *File) read_to_string(dest: *string, len: *usize): error.CompileError {
+def (s: *File) read_to_string(dest: *str.String): error.CompileError {
     let path = path.to_string(&s.path.inner);
     defer delete path;
-    let ret_code = read_file(path, dest, len);
+
+    let content = "";
+    let len: usize = 0;
+    let ret_code = read_file(path, &content, &len);
+
+    *dest = str.move_l(content, len);
+
     return ret_code;
 }
 

@@ -1337,7 +1337,7 @@ def sync(p: *Parser): string {
 def inner_sync(p: *Parser): string {
     let previous = l.empty_token();
     if !advance(p, &previous) {
-        return p.lexer.source.code + l.end_pos(&p.lexer);
+        return p.lexer.source.code.cstring() + l.end_pos(&p.lexer);
     }
 
     let peeked = peek(p);

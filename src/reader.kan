@@ -50,7 +50,7 @@ def (m: *FileMap) get_ptr_from_span(span: span.Span): *source.SourceFile {
         let file = m.get_ptr_by_idx(i);
         dbg.assert(file != null, "file was null");
 
-        if span.start >= file.code && span.end <= file.code + file.len {
+        if span.start >= file.code.cstring() && span.end <= file.end() {
             return file;
         }
     }
