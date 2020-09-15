@@ -446,13 +446,12 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
 
         if ty.is_struct(value_ty) || ty.is_union(value_ty) {
             // structs must be zero initialized
-            // TODO(#115): this should use usize
-            let i64_ty = lookup_global_type(c, 3, "i64");
+            let usize_ty = lookup_global_type(c, 5, "usize");
             let i8_ty = lookup_global_type(c, 2, "i8");
 
             let storage = mir.make_addr_ref(name, value_ty);
             let value = mir.make_addr_const_value(i8_ty, 0);
-            let width = mir.make_addr_const_value(i64_ty, value_ty.width as i64);
+            let width = mir.make_addr_const_value(usize_ty, value_ty.width as i64);
 
             let args = vec.with_cap(sizeof mir.Address, 3);
             args.push(&storage as *void);
