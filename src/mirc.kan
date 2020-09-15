@@ -1289,7 +1289,7 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         let key = map.create_key(id.len(), id.start());
         let global = map.get(&c.global_names, key) as *mir.GlobalVar;
         if global != null {
-            *out = mir.make_addr_global(global.mangled_name.ref(), e.ty, false);
+            *out = mir.make_addr_global(global.mangled_name.ref(), e.ty);
             return true;
         }
 
@@ -1325,8 +1325,30 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
 
     if ast.is_string_expr(e) || ast.is_array_string_expr(e) {
         let name = string_lit(c, e);
-        let generate_memcy = ast.is_array_string_expr(e);
-        *out = mir.make_addr_global(name, e.ty, generate_memcy);
+
+        if ast.is_array_string_expr(e) {
+            let meta = get_meta(c, e.span);
+            let buffer = temp_addr(c, e.ty);
+            push_decl(c, mir.as_addr_name(&buffer).value, e.ty, meta);
+
+            let usize_ty = lookup_global_type(c, 5, "usize");
+
+            let dest = mir.make_addr_ref(mir.as_addr_name(&buffer).value, e.ty);
+            let value = mir.make_addr_global(name, e.ty);
+            let width = mir.make_addr_const_value(usize_ty, e.ty.width as i64);
+
+            let args = vec.with_cap(sizeof mir.Address, 3);
+            args.push(&dest as *void);
+            args.push(&value as *void);
+            args.push(&width as *void);
+            let memcpy = mir.new_intrinsic_call(mir.IntrinsicFunction.MemCpy, args, false);
+            push_assign(c, mir.create_addr_empty(), memcpy, meta);
+
+            *out = buffer;
+            return true;
+        }
+
+        *out = mir.make_addr_global(name, e.ty);
         return true;
     }
 

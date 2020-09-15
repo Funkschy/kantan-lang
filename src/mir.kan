@@ -623,28 +623,20 @@ def is_addr_const_value(a: *Address): bool {
 }
 
 type AddressGlobal struct {
-    generate_memcpy: bool,
     name: name.Ref
 }
 
-def make_addr_global(name: name.Ref, ty: *ty.Type, memcpy: bool): Address {
-    let len = name.len << 1;
-    // if this should generate a memcpy, the least significant bit is 1
-    len |= memcpy as usize;
-
-    let hi = std.int_to_ptr(len);
+def make_addr_global(name: name.Ref, ty: *ty.Type): Address {
+    let hi = std.int_to_ptr(name.len);
     let lo = name.data as *void;
     return create_addr(AddrKind.Global, ty, hi, lo);
 }
 
 def as_addr_global(a: *Address): AddressGlobal {
     let len = std.ptr_to_int(a.data_hi);
-    let memcpy = (len & 1) as bool;
-    len = len >> 1;
-
     let data = a.data_lo as string;
     let name = name.make_ref(len, data);
-    return AddressGlobal { generate_memcpy: memcpy, name: name };
+    return AddressGlobal { name: name };
 }
 
 def is_addr_global(a: *Address): bool {
@@ -924,11 +916,15 @@ def new_expr_call(callee: Address, args: vec.Vec, varargs: bool): Expression {
 }
 
 type IntrinsicFunction enum {
-    MemSet
+    MemSet, MemCpy
 }
 
 def (f: IntrinsicFunction) name(): name.Owned {
-    return name.make_copied(13, "kantan.memset");
+    if f == IntrinsicFunction.MemSet {
+        return name.make_copied(13, "kantan.memset");
+    }
+
+    return name.make_copied(13, "kantan.memcpy");
 }
 
 def new_intrinsic_call(f: IntrinsicFunction, args: vec.Vec, varargs: bool): Expression {

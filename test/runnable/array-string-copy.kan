@@ -1,0 +1,16 @@
+import "io";
+
+type Test struct {
+    s: [12]i8
+}
+
+def f(a: [5]i8) {
+    io.printf("%s\n", &a[0]);
+}
+
+def main() {
+    f("test");
+
+    let t = Test { s: "hello world" };
+    io.printf("%s\n", &t.s[0]);
+}

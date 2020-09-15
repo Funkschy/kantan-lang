@@ -767,26 +767,6 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst) {
             dbg_set_inst_location(c, null);
         }
 
-        let generate_memcpy = assign.dest.ty.is_array() && mir.is_expr_copy(&assign.value);
-        if generate_memcpy {
-            let addr = mir.as_expr_copy(&assign.value).addr;
-            generate_memcpy = mir.is_addr_global(&addr) && mir.as_addr_global(&addr).generate_memcpy;
-        }
-
-        // this should only be generated for the initialization of constant arrays
-        // e.g.
-        //  let s: [6]i8 = "hello";
-        //
-        // in this case, the string "hello" will be a global constant, but the variable s points
-        // to a mutable array on the stack, so we need to copy the value "hello" into s
-        if generate_memcpy {
-            let dest_ty = translate_type(c, assign.dest.ty);
-            let align = llvm.get_alignment(storage);
-            let size = llvm.size_of(dest_ty);
-            llvm.build_mem_cpy(c.builder, storage, align, value, align, size);
-            return;
-        }
-
         // this is a declared variable
         let store = llvm.build_store(c.builder, value, storage);
 
@@ -1220,16 +1200,30 @@ def compile_call(
     let call_value: *llvm.Value = null;
     if call.is_intrinsic() {
         let intrinsic = call.get_intrinsic();
-        dbg.assert(intrinsic == mir.IntrinsicFunction.MemSet, "invalid intrinsic");
-        dbg.assert(num_args == 3, "memset expects 3 arguments");
+        if intrinsic == mir.IntrinsicFunction.MemSet {
+            dbg.assert(num_args == 3, "memset expects 3 arguments");
 
-        call_value = llvm.build_mem_set(
-            c.builder,
-            args.get(0) as *llvm.Value,
-            args.get(1) as *llvm.Value,
-            args.get(2) as *llvm.Value,
-            0
-        );
+            call_value = llvm.build_mem_set(
+                c.builder,
+                args.get(0) as *llvm.Value,
+                args.get(1) as *llvm.Value,
+                args.get(2) as *llvm.Value,
+                0
+            );
+        } else {
+            dbg.assert(intrinsic == mir.IntrinsicFunction.MemCpy, "invalid intrinsic");
+            dbg.assert(num_args == 3, "memcpy expects 3 arguments");
+
+            call_value = llvm.build_mem_cpy(
+                c.builder,
+                args.get(0) as *llvm.Value,
+                mir.call_arg_at(call, 0).ty.align_in_bits(),
+                args.get(1) as *llvm.Value,
+                mir.call_arg_at(call, 1).ty.align_in_bits(),
+                args.get(2) as *llvm.Value
+            );
+
+        }
     } else {
         let llvm_func = translate_addr(c, func, &call.callee);
         dbg.assert(llvm_func != null, "llvm function not found");
