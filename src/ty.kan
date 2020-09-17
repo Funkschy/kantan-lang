@@ -303,7 +303,7 @@ def (t: *Type) update_inner(inner: *Type) {
 }
 
 def (t: *Type) is_indexable(): bool {
-    return t.is_array() || t.is_slice() || is_ptr(t);
+    return t.is_array() || t.is_slice();
 }
 
 def (t: *Type) is_assignable(): bool {

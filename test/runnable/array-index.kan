@@ -47,14 +47,6 @@ def main() {
     *i = 2;
     io.printf("%d\n", nums[0][0]);
 
-    let p: *[1]i32 = &nums[0];
-    p[0][0] = 3;
-    io.printf("%d\n", nums[0][0]);
-
-    let p = &nums;
-    p[0][0][0] = 4;
-    io.printf("%d\n", nums[0][0]);
-
     buf[1] = 'a';
     io.printf("%s\n", &buf[0]);
 }

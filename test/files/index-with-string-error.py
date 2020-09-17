@@ -12,7 +12,7 @@ class Test(Code):
             return self.create_error(msg)
 
         error = output.errors[0]
-        expected_rsn = "Expression of type \\'*i32\\' cannot be indexed with type \\'string\\'"
+        expected_rsn = "Expression of type \\'[2]i32\\' cannot be indexed with type \\'string\\'"
         actual_rsn = error.reason
         if expected_rsn not in actual_rsn:
             msg = 'wrong reason, expected <{}>, but got {}'.format(expected_rsn, actual_rsn)

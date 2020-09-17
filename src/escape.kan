@@ -28,20 +28,20 @@ def string_literal(start: string, end: string): name.Owned {
 
     let n = (end - start) as usize;
     while in_pos < n {
-        let c = start[in_pos];
+        let c = *(start + in_pos);
         let inc: usize = 1;
 
         if c == '\\' {
             // \x are 2 chars, but we replace it with 1 escaped byte
             actual_len -= 1;
-            let next = start[in_pos + 1];
+            let next = *(start + in_pos + 1);
             c = char_literal(next);
 
             // skip next
             inc = 2;
         }
 
-        value.data[out_pos] = c;
+        *(value.data + out_pos) = c;
         in_pos += inc;
         out_pos += 1;
     }

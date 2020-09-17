@@ -1,7 +1,7 @@
 import "io";
 
 def cut_end(s: string): *i8 {
-    s[3] = '\0';
+    *(s + 3) = '\0';
     return s;
 }
 

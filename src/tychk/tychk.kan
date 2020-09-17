@@ -1789,12 +1789,7 @@ def check_expr_expect(
         }
 
         idx_e.right = right;
-        if ty.is_ptr(left_ty) && ty.as_ptr(left_ty).count > 1 {
-            let p_ty = ty.as_ptr(left_ty);
-            e.ty = tc.create_ptr_ty(p_ty.count - 1, p_ty.inner);
-        } else {
-            e.ty = left_ty.inner_type();
-        }
+        e.ty = left_ty.inner_type();
 
         return e;
     }

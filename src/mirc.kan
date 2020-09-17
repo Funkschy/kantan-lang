@@ -1041,24 +1041,6 @@ def index_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let index = ast.as_index_expr(e);
     let meta = get_meta(c, e.span);
 
-    if ty.is_ptr(index.left.ty) {
-        let left_addr = expr_instruction(c, index.left, true);
-        let left_ty = left_addr.ty;
-
-        let right_addr = expr_instruction(c, index.right, true);
-
-        // generate ptr + index
-        let addition = mir.new_expr_binary(mir.BinaryKind.AddScalar, left_addr, right_addr);
-
-        // generate *(ptr + index)
-        if rhs {
-            push_temp_assign(c, addition, left_ty, meta, &left_addr);
-            return mir.new_expr_unary_deref(left_addr);
-        } else {
-            return addition;
-        }
-    }
-
     if index.left.ty.is_slice() {
         let indices = vec.create(sizeof mir.Address);
 
@@ -1355,7 +1337,7 @@ def rvalue_expr(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         let char_expr = ast.as_char_expr(e);
 
         if *char_expr.ptr == '\\' {
-            let next = char_expr.ptr[1];
+            let next = *(char_expr.ptr + 1);
             let c = escape.char_literal(next);
 
             *out = mir.make_addr_const_value(e.ty, c as i64);
@@ -1415,8 +1397,8 @@ def (c: *MirCompiler) eval_expr(e: *ast.Expr): mir.ValueBuffer {
         let buf = std.malloc(len);
         std.memcpy(buf + 1, inner.span.start as *void, inner.span.len());
         let buf = buf as string;
-        buf[0] = '-';
-        buf[len - 1] = '\0';
+        *buf = '-';
+        *(buf + len - 1) = '\0';
         return mir.buffer_from_owned(name.make_owned(len - 1, buf), false);
     }
 

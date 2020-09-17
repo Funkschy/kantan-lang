@@ -1,4 +1,4 @@
 def main() {
-    let p: *i32 = null;
+    let p: [2]i32 = undefined;
     p[""];
 }
