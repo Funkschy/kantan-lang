@@ -1,6 +1,6 @@
 extern def malloc(size: usize): *void;
 extern def calloc(num: usize, size: usize): *void;
-extern def free(obj: *void): void;
+extern def free(obj: *void);
 extern def strcmp(s1: string, s2: string): usize;
 extern def strncmp(s1: string, s2: string, n: usize): usize;
 extern def strndup(s: string, len: usize): string;
@@ -13,10 +13,10 @@ extern def strchr(haystack: string, needle: i32): string;
 extern def strrchr(haystack: string, needle: i32): string;
 extern def memcmp(first: *void, second: *void, size: usize): i32;
 extern def memset(p: *void, val: i32, n: usize): *void;
-extern def memcpy(dest: *void, src: *void, size: usize): void;
-extern def memmove(dest: *void, src: *void, size: usize): void;
+extern def memcpy(dest: *void, src: *void, size: usize);
+extern def memmove(dest: *void, src: *void, size: usize);
 extern def realloc(ptr: *void, size: usize): *void;
-extern def abort(): void;
+extern def abort();
 extern def strerror(err: i32): string;
 extern def getenv(name: string): string;
 extern def snprintf(str: string, size: usize, fmt: string, ...): i32;
@@ -31,8 +31,8 @@ extern def int_to_ptr(i: usize): *void;
 extern def bool_to_int(b: bool): usize;
 extern def int_to_bool(i: usize): bool;
 extern def int_num_digits(i: usize): usize;
-extern def flag_set(flags: *i32, flag: i32): void;
-extern def flag_unset(flags: *i32, flag: i32): void;
+extern def flag_set(flags: *i32, flag: i32);
+extern def flag_unset(flags: *i32, flag: i32);
 extern def flag_get(flags: *i32, flag: i32): bool;
 
 def find_char(haystack: string, needle: i8): string {

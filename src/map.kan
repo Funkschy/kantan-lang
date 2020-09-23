@@ -62,15 +62,13 @@ def with_cap(cap: usize): Map {
         return Map { len: 0, cap: 0, items: null };
     }
 
-    if cap % 2 != 0 {
-        cap = std.next_pow_of_2(cap as i64) as usize;
-    }
+    cap = std.next_pow_of_2(cap as i64) as usize;
 
     let items = std.calloc(cap, sizeof Item) as *Item;
     return Map { len: 0, cap: cap, items: items };
 }
 
-def free_m(m: *Map): void {
+def free_m(m: *Map) {
     if m.items == null {
         return;
     }
@@ -86,7 +84,7 @@ def key_eq(first: Key, second: Key): bool {
     return std.strncmp(first.value, second.value, first.len) == 0;
 }
 
-def insert_all(map: *Map, other: *Map): void {
+def insert_all(map: *Map, other: *Map) {
     for let i: usize = 0; i < other.cap; i += 1 {
         let item = other.items + i;
         if item.key.value != null {
@@ -134,61 +132,23 @@ def insert(map: *Map, key: Key, value: *void): *void {
 
     let replaced: *void = null;
     // linear probing
-    if probe_insert(map, index + 1, map.cap, key, value, &replaced) {
-        return replaced;
-    }
+    let n = map.cap + index;
+    let mask = map.cap - 1;
+    for let i = index + 1; i < n; i += 1 {
+        item = map.items + (i & mask);
 
-    probe_insert(map, 0, index, key, value, &replaced);
-    return replaced;
-}
-
-def probe_insert(
-    map: *Map,
-    start: usize,
-    len: usize,
-    key: Key,
-    value: *void,
-    out_old_val: **void
-): bool {
-    let i = start;
-    let item: *Item = null;
-    while i < len {
-        item = map.items + i;
-
-        let insert = false;
-        if item.key.value == null {
-            insert = true;
-        } else if key_eq(item.key, key) {
-            *out_old_val = item.value;
-            insert = true;
-        }
-
-        if insert {
-            *item = create_item(key, value);
-            map.len = map.len + 1;
-            return true;
-        }
-
-        i = i + 1;
-    }
-
-    return false;
-}
-
-def probe_get(map: *Map, start: usize, end: usize, key: Key): *Item {
-    let i = start;
-    let item: *Item = null;
-    while i < end {
-        item = map.items + i;
-        if item.key.value != null {
-            if key_eq(item.key, key) {
-                return item;
+        if item.key.value == null || key_eq(item.key, key) {
+            if item.key.value != null {
+                replaced = item.value;
             }
+
+            *item = create_item(key, value);
+            map.len += 1;
+            break;
         }
-        i = i + 1;
     }
 
-    return null;
+    return replaced;
 }
 
 def load_factor(map: *Map): f32 {
@@ -199,7 +159,7 @@ def load_factor(map: *Map): f32 {
     return map.len as f32 / (map.cap as f32);
 }
 
-def resize(map: *Map): void {
+def resize(map: *Map) {
     let cap = map.cap * 2;
     if cap == 0 {
         cap = 4;
@@ -227,19 +187,17 @@ def get_item(map: *Map, key: Key): *Item {
     let index = map.get_map_index(key.value, key.len);
     let item = map.items + index;
 
-    if item.key.value != null {
-        if key_eq(item.key, key) {
+    if item.key.value != null && key_eq(item.key, key) {
+        return item;
+    }
+
+    let n = map.cap + index;
+    let mask = map.cap - 1;
+    for let i = index + 1; i < n; i += 1 {
+        item = map.items + (i & mask);
+        if item.key.value != null && key_eq(item.key, key) {
             return item;
         }
-    }
-
-    let probe = probe_get(map, index + 1, map.cap, key);
-    if probe == null {
-        probe = probe_get(map, 0, index, key);
-    }
-
-    if probe != null {
-        return probe;
     }
 
     return null;
@@ -257,7 +215,7 @@ def get_and_remove(map: *Map, key: Key): *void {
     return value;
 }
 
-def dump(map: *Map): void {
+def dump(map: *Map) {
     let iter = iter(map);
     let item = iter_next(&iter);
     while item != null {
