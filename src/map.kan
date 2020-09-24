@@ -16,7 +16,7 @@ type Iter struct {
     map: *Map
 }
 
-def iter_next(iter: *Iter): *Item {
+def (iter: *Iter) next(): *Item {
     while iter.pos < iter.map.cap {
         let item = iter.map.items + iter.pos;
         iter.pos = iter.pos + 1;
@@ -27,7 +27,7 @@ def iter_next(iter: *Iter): *Item {
     return null;
 }
 
-def iter(map: *Map): Iter {
+def (map: *Map) iter(): Iter {
     return Iter{ pos: 0, map: map };
 }
 
@@ -68,7 +68,7 @@ def with_cap(cap: usize): Map {
     return Map { len: 0, cap: cap, items: items };
 }
 
-def free_m(m: *Map) {
+def (m: *Map) free() {
     if m.items == null {
         return;
     }
@@ -84,11 +84,11 @@ def key_eq(first: Key, second: Key): bool {
     return std.strncmp(first.value, second.value, first.len) == 0;
 }
 
-def insert_all(map: *Map, other: *Map) {
+def (map: *Map) insert_all(other: *Map) {
     for let i: usize = 0; i < other.cap; i += 1 {
         let item = other.items + i;
         if item.key.value != null {
-            insert(map, item.key, item.value);
+            map.insert(item.key, item.value);
         }
     }
 }
@@ -108,7 +108,7 @@ def (m: *Map) get_map_index(key: string, len: usize): usize {
 
 // inserts value into map at key
 // returns the replaced value or null
-def insert(map: *Map, key: Key, value: *void): *void {
+def (map: *Map) insert(key: Key, value: *void): *void {
     if map.items == null || load_factor(map) > 0.75 {
         resize(map);
     }
@@ -166,20 +166,20 @@ def resize(map: *Map) {
     }
 
     let new_map = with_cap(cap);
-    insert_all(&new_map, map);
-    free_m(map);
+    new_map.insert_all(map);
+    map.free();
     *map = new_map;
 }
 
-def get(map: *Map, key: Key): *void {
-    let item = get_item(map, key);
+def (map: *Map) get(key: Key): *void {
+    let item = map.get_item(key);
     if item == null {
         return null;
     }
     return item.value;
 }
 
-def get_item(map: *Map, key: Key): *Item {
+def (map: *Map) get_item(key: Key): *Item {
     if map.items == null {
         return null;
     }
@@ -203,8 +203,8 @@ def get_item(map: *Map, key: Key): *Item {
     return null;
 }
 
-def get_and_remove(map: *Map, key: Key): *void {
-    let item = get_item(map, key);
+def (map: *Map) get_and_remove(key: Key): *void {
+    let item = map.get_item(key);
     if item == null {
         return null;
     }
@@ -215,11 +215,11 @@ def get_and_remove(map: *Map, key: Key): *void {
     return value;
 }
 
-def dump(map: *Map) {
-    let iter = iter(map);
-    let item = iter_next(&iter);
+def (map: *Map) dump() {
+    let iter = map.iter();
+    let item = iter.next();
     while item != null {
         io.printf("%.*s: %p\n", item.key.len, item.key.value, item.value);
-        item = iter_next(&iter);
+        item = iter.next();
     }
 }

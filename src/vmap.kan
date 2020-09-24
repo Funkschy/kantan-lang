@@ -23,25 +23,25 @@ def create(elem_size: usize): Map {
     };
 }
 
-def len(m: *Map): usize {
+def (m: *Map) len(): usize {
     return m.values.len;
 }
 
-def free_m(m: *Map) {
-    map.free_m(&m.mappings);
+def (m: *Map) free() {
+    m.mappings.free();
     m.values.free();
 }
 
 // inserts value into map at key
-def insert(m: *Map, key: map.Key, value: *void) {
+def (m: *Map) insert(key: map.Key, value: *void) {
     let idx = m.values.len + 1;
-    map.insert(&m.mappings, key, std.int_to_ptr(idx));
+    m.mappings.insert(key, std.int_to_ptr(idx));
 
     m.values.push(value);
 }
 
-def get_ptr(m: *Map, key: map.Key): *void {
-    let idx_p = map.get(&m.mappings, key);
+def (m: *Map) get_ptr(key: map.Key): *void {
+    let idx_p = m.mappings.get(key);
     if idx_p == null {
         return null;
     }
@@ -50,10 +50,10 @@ def get_ptr(m: *Map, key: map.Key): *void {
     return m.values.get_ptr(idx);
 }
 
-def get_ptr_idx(m: *Map, idx: usize): *void {
+def (m: *Map) get_ptr_idx(idx: usize): *void {
     return m.values.get_ptr(idx);
 }
 
 def (m: *Map) dump() {
-    map.dump(&m.mappings);
+    m.mappings.dump();
 }

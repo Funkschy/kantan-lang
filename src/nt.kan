@@ -18,18 +18,18 @@ def create_scope(): NameScope {
 }
 
 def free_s(ns: *NameScope) {
-    map.free_m(&ns.bindings);
+    ns.bindings.free();
 }
 
 def bind_in(ns: *NameScope, original: name.Ref, idx: usize) {
     let key = map.create_key(original.len, original.data);
     // differentiate index 0 from null
-    map.insert(&ns.bindings, key, std.int_to_ptr(idx + 1));
+    ns.bindings.insert(key, std.int_to_ptr(idx + 1));
 }
 
 def get_in(ns: *NameScope, name: name.Ref, out: *usize): bool {
     let key = map.create_key(name.len, name.data);
-    let index = map.get(&ns.bindings, key);
+    let index = ns.bindings.get(key);
     if index == null {
         return false;
     }
@@ -79,7 +79,7 @@ def free_nt(nt: *NameTable): void {
     }
 
     nt.mangled_names.free();
-    map.free_m(&nt.in_scope);
+    nt.in_scope.free();
 }
 
 def top(nt: *NameTable): *NameScope {
@@ -125,13 +125,13 @@ def open_scope(nt: *NameTable) {
 
 def num_in_scope(nt: *NameTable, name: name.Ref): usize {
     let key = map.create_key(name.len, name.data);
-    return std.ptr_to_int(map.get(&nt.in_scope, key));
+    return std.ptr_to_int(nt.in_scope.get(key));
 }
 
 def set_in_scope(nt: *NameTable, name: name.Ref, count: usize) {
     let key = map.create_key(name.len, name.data);
     let count = std.int_to_ptr(count);
-    map.insert(&nt.in_scope, key, count);
+    nt.in_scope.insert(key, count);
 }
 
 def close_scope(nt: *NameTable) {

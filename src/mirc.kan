@@ -95,7 +95,7 @@ def create_mirc(m: *mod.Module, data: *CompilationData): MirCompiler {
 
 def free_compiler(c: *MirCompiler): void {
     nt.free_nt(&c.names);
-    map.free_m(&c.global_names);
+    c.global_names.free();
 }
 
 def compile(c: *MirCompiler): mir.Module {
@@ -116,22 +116,22 @@ def compile(c: *MirCompiler): mir.Module {
 
 def add_function(c: *MirCompiler, f: *mir.Func): void {
     let key = map.create_key(f.name.len, f.name.data);
-    map.insert(&c.functions, key, f as *void);
+    c.functions.insert(key, f as *void);
 }
 
 def add_user_defined_type(c: *MirCompiler, t: *mir.UserDefinedType): void {
     let key = map.create_key(t.name.len, t.name.data);
-    map.insert(&c.user_defined_types, key, t as *void);
+    c.user_defined_types.insert(key, t as *void);
 }
 
 def lookup_user_defined_type(c: *MirCompiler, mangled_name: name.Ref): *mir.UserDefinedType {
     let key = map.create_key(mangled_name.len, mangled_name.data);
-    return map.get(&c.user_defined_types, key) as *mir.UserDefinedType;
+    return c.user_defined_types.get(key) as *mir.UserDefinedType;
 }
 
 def lookup_function(c: *MirCompiler, mangled_name: name.Ref): *mir.Func {
     let key = map.create_key(mangled_name.len, mangled_name.data);
-    return map.get(&c.functions, key) as *mir.Func;
+    return c.functions.get(key) as *mir.Func;
 }
 
 def get_meta(c: *MirCompiler, s: span.Span): mir.MetaData {
@@ -1268,7 +1268,7 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
         }
 
         let key = map.create_key(id.len(), id.start());
-        let global = map.get(&c.global_names, key) as *mir.GlobalVar;
+        let global = c.global_names.get(key) as *mir.GlobalVar;
         if global != null {
             *out = mir.make_addr_global(global.mangled_name.ref(), e.ty);
             return true;
@@ -1424,10 +1424,10 @@ def (c: *MirCompiler) global_variable(n: ident.Ident, init: *ast.Expr): name.Ref
 
 def (c: *MirCompiler) add_global(global: *mir.GlobalVar) {
     let key = map.create_key(global.mangled_name.len, global.mangled_name.data);
-    map.insert(&c.globals, key, global as *void);
+    c.globals.insert(key, global as *void);
 
     key = map.create_key(global.original_name.len(), global.original_name.start());
-    map.insert(&c.global_names, key, global as *void);
+    c.global_names.insert(key, global as *void);
 }
 
 def label(c: *MirCompiler): mir.Label {

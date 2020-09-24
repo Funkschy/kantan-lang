@@ -31,7 +31,7 @@ def (s: *Scope) name(): n.Ref {
 }
 
 def free_s(s: *Scope) {
-    vmap.free_m(&s.bindings);
+    s.bindings.free();
 }
 
 def (s: *Scope) bind_public_ident(ident: *ident.Ident, ty: *ty.Type): symbol.WithVisibility {
@@ -53,8 +53,7 @@ def (s: *Scope) bind(
     visibility: symbol.Visibility
 ): symbol.WithVisibility {
     let value = symbol.create(ty, visibility);
-    vmap.insert(
-        &s.bindings,
+    s.bindings.insert(
         map.create_key(ident_len, ident),
         &value as *void
     );
@@ -66,7 +65,7 @@ def (s: *Scope) get_ident(ident: *ident.Ident): symbol.Data {
 }
 
 def (s: *Scope) get(key_len: usize, key: string): symbol.Data {
-    let ptr = vmap.get_ptr(&s.bindings, map.create_key(key_len, key)) as *symbol.WithVisibility;
+    let ptr = s.bindings.get_ptr(map.create_key(key_len, key)) as *symbol.WithVisibility;
     return ptr.or_empty().with_scope(s);
 }
 
@@ -85,16 +84,16 @@ type ScopeIter struct {
 }
 
 def (s: *Scope) iter(): ScopeIter {
-    return ScopeIter { inner: map.iter(&s.bindings.mappings), scope: s };
+    return ScopeIter { inner: s.bindings.mappings.iter(), scope: s };
 }
 
 def (i: *ScopeIter) next(): ScopeItem {
-    let next = map.iter_next(&i.inner);
+    let next = i.inner.next();
     let symbol: symbol.Data = undefined;
 
     // skip private symbols
     while next != null && (symbol = i.scope.get(next.key.len, next.key.value)).is_private() {
-        next = map.iter_next(&i.inner);
+        next = i.inner.next();
     }
 
     if next == null {

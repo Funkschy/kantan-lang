@@ -30,7 +30,7 @@ type Fields struct {
 }
 
 def free_fields(fs: *Fields) {
-    map.free_m(&fs.field_map);
+    fs.field_map.free();
     for let i: usize = 0; i < fs.fields.len; i += 1 {
         (fs.fields.get_ptr(i) as *Field).free();
     }
@@ -48,7 +48,7 @@ def create_fields(fields: vec.Vec): Fields {
         // add one, to be able to tell null apart from 0
         let index = std.int_to_ptr(i) + 1;
 
-        map.insert(&field_map, key, index);
+        field_map.insert(key, index);
     }
 
     return Fields { field_map: field_map, fields: fields };

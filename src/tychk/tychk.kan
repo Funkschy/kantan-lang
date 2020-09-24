@@ -99,12 +99,12 @@ def create_ctx(mod: *mod.Module, global_types: *scope.Scope, global_values: *sco
 def free_ctx(ctx: *Ctx) {
     scope.free_stack(&ctx.types, 2);
     scope.free_stack(&ctx.values, 2);
-    map.free_m(&ctx.imports);
+    ctx.imports.free();
     delete ctx;
 }
 
 def get_mod_by_alias(ctx: *Ctx, alias_len: usize, alias: string): *mod.Module {
-    return map.get(&ctx.imports, map.create_key(alias_len, alias)) as *mod.Module;
+    return ctx.imports.get(map.create_key(alias_len, alias)) as *mod.Module;
 }
 
 type TypeChecker struct {
@@ -286,8 +286,8 @@ def check(tc: *TypeChecker): CheckResult {
         }
 
         let wrm = tc.get_waiting_map(m);
-        let iter = map.iter(&wrm.request_map);
-        let next = map.iter_next(&iter);
+        let iter = wrm.request_map.iter();
+        let next = iter.next();
 
         while next != null {
             let incomplete_ty = m.lookup_type(next.key.len, next.key.value).sym.ty;
@@ -312,7 +312,7 @@ def check(tc: *TypeChecker): CheckResult {
                 }
             }
 
-            next = map.iter_next(&iter);
+            next = iter.next();
         }
     }
 
@@ -455,7 +455,7 @@ def get_err(tc: *TypeChecker, i: usize): *TypeError {
 }
 
 def add_import_alias(tc: *TypeChecker, ident: *ident.Ident, mod: *mod.Module) {
-    map.insert(&tc.ctx.imports, map.key_from_ident(ident), mod as *void);
+    tc.ctx.imports.insert(map.key_from_ident(ident), mod as *void);
 }
 
 // sorts the mods after the number of imports inside

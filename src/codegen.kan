@@ -67,14 +67,14 @@ def create_compiler(irmod: *mir.Module, options: *CompilationOptions): ModuleCom
     };
 }
 
-def free_compiler(c: *ModuleCompiler): void {
+def free_compiler(c: *ModuleCompiler) {
     llvm.dispose_builder(c.builder);
 
-    map.free_m(&c.user_types);
-    vmap.free_m(&c.functions);
+    c.user_types.free();
+    c.functions.free();
 }
 
-def free_context(ctx: *ModuleContext): void {
+def free_context(ctx: *ModuleContext) {
     llvm.dispose_module(ctx.llmod);
     llvm.context_dispose(ctx.ctx);
 }
@@ -130,8 +130,8 @@ def compile_mir_mod(irmod: *mir.Module, options: *CompilationOptions): ModuleCon
 
 def add_forward_declarations(c: *ModuleCompiler) {
     // add struct declarations
-    let t_iter = map.iter(&c.irmod.user_defined_types);
-    let item = map.iter_next(&t_iter);
+    let t_iter = c.irmod.user_defined_types.iter();
+    let item = t_iter.next();
     while item != null {
         let t = item.value as *mir.UserDefinedType;
         if ty.is_struct(t.ty) {
@@ -139,7 +139,7 @@ def add_forward_declarations(c: *ModuleCompiler) {
         } else if ty.is_union(t.ty) {
             lookup_or_declare_union(c, t.ty);
         }
-        item = map.iter_next(&t_iter);
+        item = t_iter.next();
     }
 
     // add globals
@@ -147,8 +147,8 @@ def add_forward_declarations(c: *ModuleCompiler) {
     // global variables, which reference other globals
     let ref_globals = ptrvec.with_cap(c.irmod.globals.len);
 
-    let g_iter = map.iter(&c.irmod.globals);
-    let item = map.iter_next(&g_iter);
+    let g_iter = c.irmod.globals.iter();
+    let item = g_iter.next();
     while item != null {
         let var = item.value as *mir.GlobalVar;
 
@@ -159,7 +159,7 @@ def add_forward_declarations(c: *ModuleCompiler) {
             c.init_global(var, storage);
         }
 
-        item = map.iter_next(&g_iter);
+        item = g_iter.next();
     }
 
     // TODO(#107): keep global order
@@ -172,12 +172,12 @@ def add_forward_declarations(c: *ModuleCompiler) {
     ref_globals.free();
 
     // add function declarations
-    let f_iter = map.iter(&c.irmod.functions);
-    let item = map.iter_next(&f_iter);
+    let f_iter = c.irmod.functions.iter();
+    let item = f_iter.next();
     while item != null {
         let f = item.value as *mir.Func;
         lookup_or_declare_function(c, f.ty);
-        item = map.iter_next(&f_iter);
+        item = f_iter.next();
     }
 }
 
@@ -277,7 +277,7 @@ def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): LLVMFunction {
     let f_ty = ty.as_func(t);
 
     let key = map.create_key(sig.mangled_name.len, sig.mangled_name.data);
-    let func_ptr = vmap.get_ptr(&c.functions, key) as *LLVMFunction;
+    let func_ptr = c.functions.get_ptr(key) as *LLVMFunction;
 
     if func_ptr == null {
         let func_type = translate_type(c, t);
@@ -287,7 +287,7 @@ def lookup_or_declare_function(c: *ModuleCompiler, t: *ty.Type): LLVMFunction {
         let func_val = llvm.add_function(c.context.llmod, name, func_type);
         let func = LLVMFunction { ty: func_type, val: func_val };
         func_ptr = &func;
-        vmap.insert(&c.functions, key, func_ptr as *void);
+        c.functions.insert(key, func_ptr as *void);
     }
 
     return *func_ptr;
@@ -299,14 +299,14 @@ def lookup_or_declare_struct(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     let name = s_ty.super.mangled_name;
     let key = map.create_key(name.len, name.data);
-    let struct_decl = map.get(&c.user_types, key) as *llvm.Type;
+    let struct_decl = c.user_types.get(key) as *llvm.Type;
 
     if struct_decl == null {
         let num_fields = s_ty.num_fields();
         let fields = ptrvec.with_cap(num_fields as usize);
 
         struct_decl = llvm.struct_create_named(c.context.ctx, name.data);
-        map.insert(&c.user_types, key, struct_decl as *void);
+        c.user_types.insert(key, struct_decl as *void);
         for let i: u32 = 0; i < num_fields; i += 1 {
             let field = s_ty.field_at(i);
 
@@ -328,13 +328,13 @@ def lookup_or_declare_union(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     let name = u_ty.super.mangled_name;
     let key = map.create_key(name.len, name.data);
-    let union_decl = map.get(&c.user_types, key) as *llvm.Type;
+    let union_decl = c.user_types.get(key) as *llvm.Type;
 
     if union_decl == null {
         union_decl = llvm.struct_create_named(c.context.ctx, name.data);
         let content = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), t.width as u32);
         llvm.struct_set_body(union_decl, &content, 1, false);
-        map.insert(&c.user_types, key, union_decl as *void);
+        c.user_types.insert(key, union_decl as *void);
     }
 
     return union_decl;
@@ -511,7 +511,7 @@ def translate_addr_load(
 def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
     let global = llvm.get_named_global(c.context.llmod, name.data);
     let key = map.create_key(name.len, name.data);
-    let mir_global = map.get(&c.irmod.globals, key) as *mir.GlobalVar;
+    let mir_global = c.irmod.globals.get(key) as *mir.GlobalVar;
 
     let num_indices: u32 = 1;
     if load {
@@ -573,13 +573,13 @@ def (c: *ModuleCompiler) size_ty(): *llvm.Type {
     return llvm.int_type_in_context(c.context.ctx, width);
 }
 
-def compile_functions(c: *ModuleCompiler): void {
-    let f_iter = map.iter(&c.irmod.functions);
-    let item = map.iter_next(&f_iter);
+def compile_functions(c: *ModuleCompiler) {
+    let f_iter = c.irmod.functions.iter();
+    let item = f_iter.next();
     while item != null {
         let f = item.value as *mir.Func;
         compile_function(c, f);
-        item = map.iter_next(&f_iter);
+        item = f_iter.next();
     }
 }
 
@@ -615,7 +615,7 @@ def create_function_data(
         }
 
         let key = map.create_key(bb_name.len, bb_name.data);
-        map.insert(&blocks, key, llvm_bb as *void);
+        blocks.insert(key, llvm_bb as *void);
     }
 
     let num_locals = irfunc.blocks.decls.len;
@@ -636,7 +636,7 @@ def create_function_data(
         let value_ptr = llvm.build_alloca(c.builder, ty, decl.name.data);
 
         let key = map.create_key(decl.name.len, decl.name.data);
-        map.insert(&locals, key, value_ptr as *void);
+        locals.insert(key, value_ptr as *void);
     }
 
     return FunctionData {
@@ -647,24 +647,24 @@ def create_function_data(
     };
 }
 
-def free_function_data(f: *FunctionData): void {
-    map.free_m(&f.blocks);
-    map.free_m(&f.locals);
+def free_function_data(f: *FunctionData) {
+    f.blocks.free();
+    f.locals.free();
 }
 
 def bb_by_label(f: *FunctionData, label: *mir.Label): *llvm.BasicBlock {
     let bb_name = mir.label_name(label);
     let key = map.create_key(bb_name.len, bb_name.data);
-    return map.get(&f.blocks, key) as *llvm.BasicBlock;
+    return f.blocks.get(key) as *llvm.BasicBlock;
 }
 
 def lookup(c: *ModuleCompiler, f: *FunctionData, var_name: name.Ref): *llvm.Value {
     let key = map.create_key(var_name.len, var_name.data);
-    let value = map.get(&f.locals, key) as *llvm.Value;
+    let value = f.locals.get(key) as *llvm.Value;
 
     // try to find a function with this name instead
     if value == null {
-        let func = vmap.get_ptr(&c.functions, key) as *LLVMFunction;
+        let func = c.functions.get_ptr(key) as *LLVMFunction;
         if func != null {
             value = func.val;
         }
@@ -677,12 +677,12 @@ def lookup(c: *ModuleCompiler, f: *FunctionData, var_name: name.Ref): *llvm.Valu
     return value;
 }
 
-def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvm.Value): void {
+def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvm.Value) {
     let key = map.create_key(var_name.len, var_name.data);
-    map.insert(&f.locals, key, value as *void);
+    f.locals.insert(key, value as *void);
 }
 
-def compile_function(c: *ModuleCompiler, func: *mir.Func): void {
+def compile_function(c: *ModuleCompiler, func: *mir.Func) {
     let llvm_func = lookup_or_declare_function(c, func.ty);
     dbg.assert_fmt(
         llvm_func.val != null && llvm_func.ty != null, "function not found '%s'", func.name.data
@@ -1416,12 +1416,12 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         let name = type_data.mangled_name;
         let key = map.create_key(name.len, name.data);
 
-        let cached = map.get(&c.dbg.types, key) as *llvm.MetaData;
+        let cached = c.dbg.types.get(key) as *llvm.MetaData;
         if cached != null {
             return cached;
         }
 
-        let definition = map.get(&c.irmod.user_defined_types, key) as *mir.UserDefinedType;
+        let definition = c.irmod.user_defined_types.get(key) as *mir.UserDefinedType;
         dbg.assert_fmt(definition != null, "user defined type %s does not exist", name.data);
 
         let scope: *llvm.MetaData = null;
@@ -1457,7 +1457,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 0, t.width_in_bits(), t.align_in_bits(),
                 definition.name.data, definition.name.len
             );
-            map.insert(&c.dbg.types, key, placeholder as *void);
+            c.dbg.types.insert(key, placeholder as *void);
 
             let field_types = ptrvec.with_cap(s_ty.num_fields() as usize);
             defer field_types.free();
@@ -1488,7 +1488,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 definition.name.data, definition.name.len
             );
 
-            map.insert(&c.dbg.types, key, llvm_struct_ty as *void);
+            c.dbg.types.insert(key, llvm_struct_ty as *void);
 
             return llvm_struct_ty;
         }
@@ -1527,7 +1527,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 definition.name.data, definition.name.len
             );
 
-            map.insert(&c.dbg.types, key, union_type as *void);
+            c.dbg.types.insert(key, union_type as *void);
             return union_type;
         }
 
@@ -1559,7 +1559,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
                 null // class ty
             );
 
-            map.insert(&c.dbg.types, key, enumeration as *void);
+            c.dbg.types.insert(key, enumeration as *void);
 
             enumerators.free();
             return enumeration;
@@ -1763,5 +1763,5 @@ def finalize(info: *DebugInfo) {
 def free_dbg_info(info: *DebugInfo) {
     llvm.dispose_di_builder(info.builder);
     info.scopes.free();
-    map.free_m(&info.types);
+    info.types.free();
 }

@@ -573,12 +573,12 @@ def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
     let key = vmap.key_from_ident(&name);
 
     // TODO(#119): instead of a fake "len" value, we should just have a len() compile time function
-    if vmap.get_ptr(&e_ty.values, key) != null || ident.eq_lit(&name, "len") {
+    if e_ty.values.get_ptr(key) != null || ident.eq_lit(&name, "len") {
         return true;
     }
 
     let value = EnumValue { name: name, value: value };
-    vmap.insert(&e_ty.values, key, &value as *void);
+    e_ty.values.insert(key, &value as *void);
 
     let field_type = t;
     // all enum values have the enum itself as their type
@@ -587,17 +587,17 @@ def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
 }
 
 def value_at(t: *Enum, i: u32): *EnumValue {
-    return vmap.get_ptr_idx(&t.values, i as usize) as *EnumValue;
+    return t.values.get_ptr_idx(i as usize) as *EnumValue;
 }
 
 def enum_value_by_name(t: *Enum, name: ident.Ident): i32 {
     // since there is no Ident for "len", we just cheat a bit
     if ident.eq_lit(&name, "len") {
-        return vmap.len(&t.values) as i32;
+        return t.values.len() as i32;
     }
 
     let key = vmap.key_from_ident(&name);
-    return (vmap.get_ptr(&t.values, key) as *EnumValue).value;
+    return (t.values.get_ptr(key) as *EnumValue).value;
 }
 
 /////////// func type ///////////
@@ -930,7 +930,7 @@ def free_ty(t: *Type) {
     if is_enum(t) {
         let e_ty = as_enum(t);
         free_user_defined_type(&e_ty.super);
-        vmap.free_m(&e_ty.values);
+        e_ty.values.free();
         delete t.data;
         return;
     }

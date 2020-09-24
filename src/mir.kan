@@ -43,45 +43,45 @@ def create_mod(
 
 def free_mod(m: *Module) {
     // free function names
-    let f_iter = map.iter(&m.functions);
-    let item = map.iter_next(&f_iter);
+    let f_iter = m.functions.iter();
+    let item = f_iter.next();
     while item != null {
         let f = item.value as *Func;
         free_func(f);
         delete f;
 
-        item = map.iter_next(&f_iter);
+        item = f_iter.next();
     }
 
     // free user defined types
-    let t_iter = map.iter(&m.user_defined_types);
-    let item = map.iter_next(&t_iter);
+    let t_iter = m.user_defined_types.iter();
+    let item = t_iter.next();
     while item != null {
         delete item.value;
-        item = map.iter_next(&t_iter);
+        item = t_iter.next();
     }
 
     // free globals
-    let g_iter = map.iter(&m.globals);
-    let item = map.iter_next(&g_iter);
+    let g_iter = m.globals.iter();
+    let item = g_iter.next();
     while item != null {
         let gv = item.value as *GlobalVar;
         gv.free();
         delete gv;
 
-        item = map.iter_next(&g_iter);
+        item = g_iter.next();
     }
 
-    map.free_m(&m.functions);
-    map.free_m(&m.user_defined_types);
-    map.free_m(&m.globals);
+    m.functions.free();
+    m.user_defined_types.free();
+    m.globals.free();
 
     m.scopes.free();
 }
 
 def dump_module(m: *Module): void {
-    let t_iter = map.iter(&m.user_defined_types);
-    let item = map.iter_next(&t_iter);
+    let t_iter = m.user_defined_types.iter();
+    let item = t_iter.next();
     while item != null {
         let t = item.value as *UserDefinedType;
 
@@ -144,11 +144,11 @@ def dump_module(m: *Module): void {
         }
 
         io.printf(" }\n");
-        item = map.iter_next(&t_iter);
+        item = t_iter.next();
     }
 
-    let g_iter = map.iter(&m.globals);
-    let item = map.iter_next(&g_iter);
+    let g_iter = m.globals.iter();
+    let item = g_iter.next();
     while item != null {
         let g = item.value as *GlobalVar;
 
@@ -173,11 +173,11 @@ def dump_module(m: *Module): void {
             quote_len, quote
         );
 
-        item = map.iter_next(&g_iter);
+        item = g_iter.next();
     }
 
-    let f_iter = map.iter(&m.functions);
-    let item = map.iter_next(&f_iter);
+    let f_iter = m.functions.iter();
+    let item = f_iter.next();
     while item != null {
         let f = item.value as *Func;
         if f.is_extern {
@@ -185,7 +185,7 @@ def dump_module(m: *Module): void {
         } else {
             bm_dump(&f.blocks);
         }
-        item = map.iter_next(&f_iter);
+        item = f_iter.next();
     }
 }
 
@@ -1799,15 +1799,15 @@ def create_block_map(func_name: name.Ref): BlockMap {
 def bm_push_block(bm: *BlockMap, bb: *BasicBlock): void {
     let name = label_name(&bb.label);
     let key = map.create_key(name.len, name.data);
-    vmap.insert(&bm.blocks, key, bb as *void);
+    bm.blocks.insert(key, bb as *void);
 }
 
 def free_block_map(bm: *BlockMap) {
-    for let i: usize = 0; i < vmap.len(&bm.blocks); i += 1 {
-        free_bb(vmap.get_ptr_idx(&bm.blocks, i) as *BasicBlock);
+    for let i: usize = 0; i < bm.blocks.len(); i += 1 {
+        free_bb(bm.blocks.get_ptr_idx(i) as *BasicBlock);
     }
 
-    vmap.free_m(&bm.blocks);
+    bm.blocks.free();
 
     for let i: usize = 0; i < bm.decls.len; i += 1 {
         free_inst(bm.decls.get_ptr(i) as *Inst);
@@ -1817,15 +1817,15 @@ def free_block_map(bm: *BlockMap) {
 }
 
 def bm_num_blocks(bm: *BlockMap): usize {
-    return vmap.len(&bm.blocks);
+    return bm.blocks.len();
 }
 
 def bm_get_bb_ptr(bm: *BlockMap, idx: usize): *BasicBlock {
-    return vmap.get_ptr_idx(&bm.blocks, idx) as *BasicBlock;
+    return bm.blocks.get_ptr_idx(idx) as *BasicBlock;
 }
 
 def bm_last_bb_ptr(bm: *BlockMap): *BasicBlock {
-    return bm_get_bb_ptr(bm, vmap.len(&bm.blocks) - 1);
+    return bm_get_bb_ptr(bm, bm.blocks.len() - 1);
 }
 
 def bm_decl_at(bm: *BlockMap, idx: usize): Inst {
@@ -1840,7 +1840,7 @@ def bm_push_instr_to_last_bb(bm: *BlockMap, inst: *Inst) {
 def bm_push_new_block(bm: *BlockMap) {
     let label_len: usize = 0;
     // TODO(#79): this id is not unique across modules
-    let label = std.l_format_str(&label_len, ".block%d", vmap.len(&bm.blocks));
+    let label = std.l_format_str(&label_len, ".block%d", bm.blocks.len());
     let new_bb = create_bb(create_label(name.make_owned(label_len, label)));
     bm_push_block(bm, &new_bb);
 }
@@ -1888,8 +1888,8 @@ def bm_push_instr(bm: *BlockMap, inst: *Inst) {
 }
 
 // dump BlockMap to stdout for debug purposes
-def bm_dump(bm: *BlockMap): void {
-    let first_bb = vmap.get_ptr_idx(&bm.blocks, 0) as *BasicBlock;
+def bm_dump(bm: *BlockMap) {
+    let first_bb = bm.blocks.get_ptr_idx(0) as *BasicBlock;
     let n = label_name(&first_bb.label);
     io.printf("%.*s:\n", n.len, n.data);
 
@@ -1900,8 +1900,8 @@ def bm_dump(bm: *BlockMap): void {
         name.free_owned(&n);
     }
 
-    for let i: usize = 0; i < vmap.len(&bm.blocks); i += 1 {
-        let bb = vmap.get_ptr_idx(&bm.blocks, i) as *BasicBlock;
+    for let i: usize = 0; i < bm.blocks.len(); i += 1 {
+        let bb = bm.blocks.get_ptr_idx(i) as *BasicBlock;
 
         let bb_name = label_name(&bb.label);
         if bb_name.data != n.data {
