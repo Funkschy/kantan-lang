@@ -268,8 +268,8 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 // everything, that uses an explicit type identifier (tyid.Type), needs to be declared,
 // since the type could be from another module
 def declare_type(c: *MirCompiler, t: *ty.Type) {
-    if ty.is_ptr(t) && ty.as_ptr(t).inner.is_user_defined() {
-        lookup_or_declare_type(c, ty.as_ptr(t).inner);
+    if t.is_ptr() && t.as_ptr().inner.is_user_defined() {
+        lookup_or_declare_type(c, t.as_ptr().inner);
     }
 
     // the order here is important, since lookup_or_declare_type does an
@@ -278,8 +278,8 @@ def declare_type(c: *MirCompiler, t: *ty.Type) {
         lookup_or_declare_type(c, t);
     }
 
-    if ty.is_ptr(t) && ty.is_func(ty.as_ptr(t).inner) {
-        let f_ty = ty.as_func(ty.as_ptr(t).inner);
+    if t.is_ptr() && ty.is_func(t.as_ptr().inner) {
+        let f_ty = ty.as_func(t.as_ptr().inner);
         declare_type(c, f_ty.ret);
 
         // Declare arguments
@@ -944,7 +944,7 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         let recv_expr = access.left; // receiver should be lhs of the callee access
         recv_addr = expr_instruction(c, recv_expr, true);
 
-        if ty.should_auto_ref_receiver(f_ty) && !ty.is_ptr(recv_addr.ty) {
+        if ty.should_auto_ref_receiver(f_ty) && !recv_addr.ty.is_ptr() {
             let ref_name = mir.as_addr_name(&recv_addr).value;
             // the recv_addr.ty is alredy a pointer, so this should be correct
             recv_addr = mir.make_addr_ref(ref_name, recv_addr.ty);
@@ -980,7 +980,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     }
 
     // the only other option currently is a module, which we can't really compile
-    if !ty.is_struct(access.left.ty) && !ty.is_ptr(access.left.ty) && !ty.is_union(access.left.ty) {
+    if !ty.is_struct(access.left.ty) && !access.left.ty.is_ptr() && !ty.is_union(access.left.ty) {
         return compile_expr(c, access.right as *ast.Expr, rhs);
     }
 
@@ -993,9 +993,9 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     }
     let left_ty = left_addr.ty;
 
-    if ty.is_ptr(left_ty) {
-        dbg.assert(!ty.is_string(left_ty), "strings are not accessible with '.'");
-        dbg.assert(!ty.is_ptr(ty.as_ptr(left_ty).inner), "invalid pointer count");
+    if left_ty.is_ptr() {
+        dbg.assert(!left_ty.is_string(), "strings are not accessible with '.'");
+        dbg.assert(!left_ty.as_ptr().inner.is_ptr(), "invalid pointer count");
 
         push_temp_assign(
             c,
@@ -1005,7 +1005,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
             &left_addr
         );
 
-        left_ty = ty.as_ptr(left_ty).inner;
+        left_ty = left_ty.as_ptr().inner;
     }
 
     if ty.is_union(left_ty) {
@@ -1458,7 +1458,7 @@ def cast_kind(e: *ast.Expr): mir.CastKind {
     let from = cast.expr.ty;
     let into = e.ty;
 
-    if ty.is_ptr(from) || ty.is_ptr(into) {
+    if from.is_ptr() || into.is_ptr() {
         return mir.CastKind.Bit;
     }
 

@@ -158,7 +158,7 @@ def dump_module(m: *Module): void {
         let quote = "";
         let quote_len = 0;
 
-        if ty.is_string(g.ty) && !g.value.is_name {
+        if g.ty.is_string() && !g.value.is_name {
             let c = '"';
             quote = &c as string;
             quote_len = 1;
@@ -459,7 +459,7 @@ def create_string_literal(
     t: *ty.Type,
     s: span.Span
 ): GlobalVar {
-    dbg.assert(ty.is_string(t), "trying to create_const_string for non string");
+    dbg.assert(t.is_string(), "trying to create_const_string for non string");
 
     let value = escape.string_literal(s.start, s.end);
 

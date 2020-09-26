@@ -203,7 +203,7 @@ def new_ptr(width: usize, inner: *Type): *Type {
 
     let t = new_type(Kind.Ptr, ptr as *void);
     // only auto deref once
-    if inner != null && !is_ptr(inner) {
+    if inner != null && !inner.is_ptr() {
         t.flags = inner.flags;
     }
 
@@ -214,30 +214,30 @@ def new_ptr(width: usize, inner: *Type): *Type {
     return t;
 }
 
-def is_ptr(t: *Type): bool {
+def (t: *Type) is_ptr(): bool {
     return t.kind == Kind.Ptr;
 }
 
-def as_ptr(t: *Type): *Ptr {
+def (t: *Type) as_ptr(): *Ptr {
     return t.data as *Ptr;
 }
 
-def is_string(t: *Type): bool {
-    return is_ptr(t)
-        && as_ptr(t).inner != null
+def (t: *Type) is_string(): bool {
+    return t.is_ptr()
+        && t.as_ptr().inner != null
         // is_i8
-        && as_ptr(t).inner.is_char();
+        && t.as_ptr().inner.is_char();
 }
 
 def (t: *Type) is_signature_pointer(): bool {
-    return is_ptr(t)
-        && as_ptr(t).inner != null
-        && is_signature(as_ptr(t).inner);
+    return t.is_ptr()
+        && t.as_ptr().inner != null
+        && is_signature(t.as_ptr().inner);
 }
 
 def (t: *Type) inner_type(): *Type {
-    if is_ptr(t) {
-        return as_ptr(t).inner;
+    if t.is_ptr() {
+        return t.as_ptr().inner;
     }
 
     if t.is_slice() {
@@ -267,20 +267,20 @@ def (t: *Type) update_inner(inner: *Type) {
             slice_ty.inner.update_inner(inner);
         }
         return;
-    } else if !is_ptr(t) {
+    } else if !t.is_ptr() {
         return;
     }
 
-    let p = as_ptr(t);
+    let p = t.as_ptr();
 
     if p.inner == null {
         p.inner = inner;
-    } else if is_ptr(p.inner) || p.inner.is_array() || p.inner.is_slice() {
+    } else if p.inner.is_ptr() || p.inner.is_array() || p.inner.is_slice() {
         p.inner.update_inner(inner);
     }
 
     // only auto deref once
-    if !is_ptr(p.inner) {
+    if !p.inner.is_ptr() {
         // use flags from inner type, except for unsized
         t.flags = inner.flags;
     }
@@ -319,10 +319,10 @@ def bind_method(t: *Type, name: ident.Ident, method: *Type): bool {
 }
 
 def (t: *Type) is_user_defined(): bool {
-    if is_ptr(t) {
-        let ptr = as_ptr(t);
+    if t.is_ptr() {
+        let ptr = t.as_ptr();
         // only recurse once
-        return !is_ptr(ptr.inner) && ptr.inner.is_user_defined();
+        return !ptr.inner.is_ptr() && ptr.inner.is_user_defined();
     }
 
     if t.is_array() {
@@ -337,8 +337,8 @@ def (t: *Type) is_user_defined(): bool {
 }
 
 def (t: *Type) get_user_defined(): *UserDefinedType {
-    if is_ptr(t) {
-        return as_ptr(t).inner.get_user_defined();
+    if t.is_ptr() {
+        return t.as_ptr().inner.get_user_defined();
     }
 
     if t.is_array() {
@@ -700,7 +700,7 @@ def patch_receiver_into_params(t: *Func) {
 }
 
 def should_auto_ref_receiver(t: *Func): bool {
-    return is_ptr(t.receiver.ty) && !is_ptr(as_ptr(t.receiver.ty).inner);
+    return t.receiver.ty.is_ptr() && !t.receiver.ty.as_ptr().inner.is_ptr();
 }
 
 // TODO(#33): this is inefficient
@@ -754,14 +754,14 @@ def as_func(t: *Type): *Func {
 
 def is_callable(t: *Type): bool {
     return is_func(t)
-        || (is_ptr(t) && !is_ptr(as_ptr(t).inner) && is_func(as_ptr(t).inner));
+        || (t.is_ptr() && !t.as_ptr().inner.is_ptr() && is_func(t.as_ptr().inner));
 }
 
 def callable_as_func(t: *Type): *Func {
     if is_func(t) {
         return as_func(t);
     }
-    return as_func(as_ptr(t).inner);
+    return as_func(t.as_ptr().inner);
 }
 
 /////////// mod type ///////////
@@ -871,7 +871,7 @@ def free_user_defined_type(user_defined: *UserDefinedType) {
 }
 
 def (t: *Type) is_declared_in(m: *mod.Module): bool {
-    if t.is_user_defined() || is_ptr(t) && as_ptr(t).inner.is_user_defined() {
+    if t.is_user_defined() || t.is_ptr() && t.as_ptr().inner.is_user_defined() {
         return t.get_user_defined().declared_in == m;
     }
 
@@ -939,7 +939,7 @@ def free_ty(t: *Type) {
         return;
     }
 
-    if t.is_integer() || is_ptr(t) || t.is_array() || t.is_slice() {
+    if t.is_integer() || t.is_ptr() || t.is_array() || t.is_slice() {
         delete t.data;
         return;
     }
@@ -982,8 +982,8 @@ def get_value_scope(t: *Type): *scope.Scope {
         return &as_mod(t).values;
     }
 
-    if is_ptr(t) {
-        return get_value_scope(as_ptr(t).inner);
+    if t.is_ptr() {
+        return get_value_scope(t.as_ptr().inner);
     }
 
     return null;
@@ -1015,12 +1015,12 @@ def (t: *Type) align_in_bits(): u32 {
 
 def is_comparable(t: *Type): bool {
     return t.is_num()
-        || is_ptr(t)
+        || t.is_ptr()
         || is_enum(t);
 }
 
 def can_be_casted(from: *Type, into: *Type): bool {
-    return (is_ptr(from) && is_ptr(into))
+    return from.is_ptr() && into.is_ptr()
         || (from.is_num() && into.is_num())
         || (from.is_integer() && is_bool(into))
         || (is_bool(from) && into.is_integer())
@@ -1209,12 +1209,12 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         return str.from_l(s, len);
     }
 
-    if is_ptr(t) {
-        if is_string(t) {
+    if t.is_ptr() {
+        if t.is_string() {
             return str.from("string");
         }
 
-        let ptr_ty = as_ptr(t);
+        let ptr_ty = t.as_ptr();
         let s = str.from("*");
 
         let inner = to_string_mangled(ptr_ty.inner, use_mangled);
@@ -1268,7 +1268,7 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
 
 def to_static_string(t: *Type): string {
     // since string is just an alias, this would normaly output 'pointer'
-    if is_string(t) {
+    if t.is_string() {
         return "string";
     }
 
@@ -1321,8 +1321,8 @@ def equals(first: *Type, second: *Type): bool {
         return true;
     }
 
-    if is_ptr(first) {
-        return equals(as_ptr(first).inner, as_ptr(second).inner);
+    if first.is_ptr() {
+        return equals(first.as_ptr().inner, second.as_ptr().inner);
     }
 
     if first.is_array() {

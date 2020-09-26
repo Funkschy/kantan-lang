@@ -190,7 +190,7 @@ def (c: *ModuleCompiler) add_global(global: *mir.GlobalVar): *llvm.Value {
     let llty: *llvm.Type = null;
     if global.value.is_name {
         llty = translate_type(c, global.ty);
-    } else if ty.is_string(global.ty) {
+    } else if global.ty.is_string() {
         let len = global.value.len as u32 + 1; // 1 for null terminator
         llty = llvm.array_type(llvm.int8_type_in_context(c.context.ctx), len);
     } else {
@@ -221,7 +221,7 @@ def (c: *ModuleCompiler) init_global(ir: *mir.GlobalVar, storage: *llvm.Value) {
         //     char s* = "test";
         //     s[1] = '\0';
         // currently Kantan should behave the same way
-        llvm.set_global_constant(storage, ty.is_string(ir.ty));
+        llvm.set_global_constant(storage, ir.ty.is_string());
     }
 
     llvm.set_initializer(storage, value);
@@ -232,7 +232,7 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
         return llvm.const_null(translate_type(c, global.ty));
     }
 
-    if ty.is_string(global.ty) {
+    if global.ty.is_string() {
         let null_terminate = true;
         return llvm.const_string_in_context(
             c.context.ctx,
@@ -373,8 +373,8 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         return lookup_or_declare_union(c, t);
     }
 
-    if ty.is_ptr(t) {
-        let p_ty = ty.as_ptr(t);
+    if t.is_ptr() {
+        let p_ty = t.as_ptr();
         if ty.is_void(p_ty.inner) {
             // llvm does not have a void pointer type
             return llvm.pointer_type(llvm.int8_type_in_context(c.context.ctx), 0);
@@ -508,7 +508,7 @@ def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
 
     let num_indices: u32 = 1;
     if load {
-        if mir_global.value.is_name || !ty.is_ptr(mir_global.ty) {
+        if mir_global.value.is_name || !mir_global.ty.is_ptr() {
             return llvm.build_load(c.builder, global, "");
         }
 
@@ -516,7 +516,7 @@ def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
         num_indices = 2;
     }
 
-    if !ty.is_ptr(mir_global.ty) {
+    if !mir_global.ty.is_ptr() {
         return global;
     }
 
@@ -1067,7 +1067,7 @@ def compile_binary(
         return llvm.build_add(c.builder, left, right, "");
     } else if binary.kind == mir.BinaryKind.Sub {
         // pointer subtraction (both types have to be equal for mir.BinaryKind.Sub)
-        if ty.is_ptr(binary.left.ty) {
+        if binary.left.ty.is_ptr() {
             let int_ty = c.size_ty();
 
             left = llvm.build_ptr_to_int(c.builder, left, int_ty, "");
@@ -1110,7 +1110,7 @@ def compile_binary(
     } else {
         let ptr = left;
         let scalar = right;
-        if ty.is_ptr(binary.right.ty) {
+        if binary.right.ty.is_ptr() {
             ptr = right;
             scalar = left;
         }
@@ -1344,8 +1344,8 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
 
     // pointers have to checked before user_defined, since pointers to user_defined are also
     // user defined, but they need to be translated differently here.
-    if ty.is_ptr(t) {
-        let ptr = ty.as_ptr(t);
+    if t.is_ptr() {
+        let ptr = t.as_ptr();
         let inner = dbg_translate_type(c, ptr.inner);
 
         let name = ty.to_string(t);
