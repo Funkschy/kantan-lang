@@ -191,26 +191,19 @@ def (t: *Type) as_slice(): *Slice {
 // TODO(#22): remember to make the result of pointer subtraction dependent on the
 //  pointers types
 type Ptr struct {
-    count: u32,
     inner: *Type
 }
 
 // TODO(#28): don't allow pointers to Mod or other non-runtime abstractions (e.g Types)
 //  should we actually check this here, or just in the typechecker itself?
-def new_ptr(width: usize, count: u32, inner: *Type): *Type {
-    if inner != null && is_ptr(inner) {
-        count = count + as_ptr(inner).count;
-        inner = as_ptr(inner).inner;
-    }
-
+def new_ptr(width: usize, inner: *Type): *Type {
     let ptr = new Ptr {
-        count: count,
         inner: inner
     };
 
     let t = new_type(Kind.Ptr, ptr as *void);
-    if inner != null && count < 2 {
-        // only auto deref once
+    // only auto deref once
+    if inner != null && !is_ptr(inner) {
         t.flags = inner.flags;
     }
 
@@ -231,7 +224,6 @@ def as_ptr(t: *Type): *Ptr {
 
 def is_string(t: *Type): bool {
     return is_ptr(t)
-        && as_ptr(t).count == 1
         && as_ptr(t).inner != null
         // is_i8
         && as_ptr(t).inner.is_char();
@@ -239,7 +231,6 @@ def is_string(t: *Type): bool {
 
 def (t: *Type) is_signature_pointer(): bool {
     return is_ptr(t)
-        && as_ptr(t).count == 1
         && as_ptr(t).inner != null
         && is_signature(as_ptr(t).inner);
 }
@@ -282,20 +273,15 @@ def (t: *Type) update_inner(inner: *Type) {
 
     let p = as_ptr(t);
 
-    if inner != null && is_ptr(inner) {
-        inner = as_ptr(inner).inner;
-        p.count = p.count + as_ptr(inner).count;
-    }
-
-    if p.inner != null && (is_ptr(p.inner) || p.inner.is_array() || p.inner.is_slice()) {
-        p.inner.update_inner(inner);
-    } else {
+    if p.inner == null {
         p.inner = inner;
+    } else if is_ptr(p.inner) || p.inner.is_array() || p.inner.is_slice() {
+        p.inner.update_inner(inner);
     }
 
     // only auto deref once
-    if p.count < 2 {
-        // use flags from inner type, except for unsized and decl
+    if !is_ptr(p.inner) {
+        // use flags from inner type, except for unsized
         t.flags = inner.flags;
     }
     // pointers always have a size
@@ -335,7 +321,8 @@ def bind_method(t: *Type, name: ident.Ident, method: *Type): bool {
 def (t: *Type) is_user_defined(): bool {
     if is_ptr(t) {
         let ptr = as_ptr(t);
-        return ptr.count == 1 && ptr.inner.is_user_defined();
+        // only recurse once
+        return !is_ptr(ptr.inner) && ptr.inner.is_user_defined();
     }
 
     if t.is_array() {
@@ -713,7 +700,7 @@ def patch_receiver_into_params(t: *Func) {
 }
 
 def should_auto_ref_receiver(t: *Func): bool {
-    return is_ptr(t.receiver.ty) && as_ptr(t.receiver.ty).count == 1;
+    return is_ptr(t.receiver.ty) && !is_ptr(as_ptr(t.receiver.ty).inner);
 }
 
 // TODO(#33): this is inefficient
@@ -767,7 +754,7 @@ def as_func(t: *Type): *Func {
 
 def is_callable(t: *Type): bool {
     return is_func(t)
-        || (is_ptr(t) && as_ptr(t).count == 1 && is_func(as_ptr(t).inner));
+        || (is_ptr(t) && !is_ptr(as_ptr(t).inner) && is_func(as_ptr(t).inner));
 }
 
 def callable_as_func(t: *Type): *Func {
@@ -1223,29 +1210,18 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
     }
 
     if is_ptr(t) {
-        let p_ty = as_ptr(t);
-        let count = p_ty.count;
-
-        let s_inner = str.create();
-        defer s_inner.free();
-
         if is_string(t) {
-            count = count - 1;
-            s_inner = str.from_l("string", 6);
-        } else {
-            s_inner = to_string_mangled(p_ty.inner, use_mangled);
+            return str.from("string");
         }
 
-        let asterisks = std.malloc(count as usize) as string;
-        std.memset(asterisks as *void, '*', count as usize);
+        let ptr_ty = as_ptr(t);
+        let s = str.from("*");
 
-        let len: usize = 0;
-        let s = std.l_format_str(&len, "%.*s%s", count, asterisks, s_inner.cstring());
-        defer delete s;
+        let inner = to_string_mangled(ptr_ty.inner, use_mangled);
+        defer inner.free();
 
-        delete asterisks;
-
-        return str.from_l(s, len);
+        s.push(inner.view());
+        return s;
     }
 
     if t.is_array() {
@@ -1345,6 +1321,10 @@ def equals(first: *Type, second: *Type): bool {
         return true;
     }
 
+    if is_ptr(first) {
+        return equals(as_ptr(first).inner, as_ptr(second).inner);
+    }
+
     if first.is_array() {
         return first.as_array().len == second.as_array().len
             && equals(first.as_array().inner, second.as_array().inner);
@@ -1359,25 +1339,5 @@ def equals(first: *Type, second: *Type): bool {
             && first.as_integer().target_dependent == second.as_integer().target_dependent;
     }
 
-    let was_pointer = false;
-    let first_ptr_count: u32 = 0;
-    let second_ptr_count: u32 = 0;
-
-    if is_ptr(first) {
-        let p_ty = as_ptr(first);
-        first_ptr_count = p_ty.count;
-        first = p_ty.inner;
-        was_pointer = true;
-    }
-    if is_ptr(second) {
-        let p_ty = as_ptr(second);
-        second_ptr_count = p_ty.count;
-        second = p_ty.inner;
-        was_pointer = true;
-    }
-
-    // either, at least one operand was a pointer, then we recursively call equals, or neither
-    // types were pointers, then we just compare their memory addresses, which should be unique
-    return ((!was_pointer && first == second) || (was_pointer && equals(first, second)))
-        && first_ptr_count == second_ptr_count;
+    return false;
 }

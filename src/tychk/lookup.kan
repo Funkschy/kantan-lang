@@ -71,6 +71,19 @@ type TypeLookupResult struct {
 }
 
 def resolve_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
+    if name.is_ptr() {
+        let inner = *name;
+        inner.pointer_count -= 1;
+
+        let result = resolve_tyid(tc, &inner);
+        if result.error {
+            return result;
+        }
+
+        result.ty = tc.create_ptr_ty(result.ty);
+        return result;
+    }
+
     if name.is_array() {
         let result = resolve_tyid(tc, &name.data.array.inner);
         if result.error {
@@ -94,10 +107,6 @@ def resolve_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
             result.ty.set_sized(false);
         }
 
-        if name.is_ptr() {
-            result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
-        }
-
         return result;
     }
 
@@ -108,11 +117,6 @@ def resolve_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
         }
 
         result.ty = tc.create_slice_ty(result.ty);
-
-        if name.is_ptr() {
-            result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
-        }
-
         return result;
     }
 
@@ -135,10 +139,6 @@ def resolve_tyid(tc: *TypeChecker, name: *tyid.Type): TypeLookupResult {
     if tc.pass != PassMode.TypeDecl && result.ty == null {
         push_not_defined_error(tc, &ident, Kind.Types.to_string(), null);
         return result;
-    }
-
-    if name.is_ptr() {
-        result.ty = tc.create_ptr_ty(name.pointer_count, result.ty);
     }
 
     return result;

@@ -375,19 +375,12 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
 
     if ty.is_ptr(t) {
         let p_ty = ty.as_ptr(t);
-        let t: *llvm.Type = null;
         if ty.is_void(p_ty.inner) {
             // llvm does not have a void pointer type
-            t = llvm.int8_type_in_context(c.context.ctx);
-        } else {
-            t = translate_type(c, p_ty.inner);
+            return llvm.pointer_type(llvm.int8_type_in_context(c.context.ctx), 0);
         }
 
-        for let i: u32 = 0; i < p_ty.count; i += 1 {
-            t = llvm.pointer_type(t, 0);
-        }
-
-        return t;
+        return llvm.pointer_type(translate_type(c, p_ty.inner), 0);
     }
 
     if t.is_array() {
@@ -1355,27 +1348,16 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         let ptr = ty.as_ptr(t);
         let inner = dbg_translate_type(c, ptr.inner);
 
-        let inner_name = ty.to_string(ptr.inner);
-        defer inner_name.free();
+        let name = ty.to_string(t);
+        defer name.free();
 
-        for let i: usize = 0; i < ptr.count as usize; i += 1 {
-            let star_count = i + 1;
-            let name = std.malloc(star_count + inner_name.len());
-            std.memset(name, '*', star_count);
-            std.memcpy(name + star_count, inner_name.cstring() as *void, inner_name.len());
-
-            inner = llvm.di_builder_create_pointer_type(
-                c.dbg.builder,
-                inner,
-                t.width_in_bits(), t.align_in_bits(),
-                0,
-                name as string, star_count + inner_name.len()
-            );
-
-            delete name;
-        }
-
-        return inner;
+        return llvm.di_builder_create_pointer_type(
+            c.dbg.builder,
+            inner,
+            t.width_in_bits(), t.align_in_bits(),
+            0,
+            name.cstring(), name.len()
+        );
     }
 
     // TODO(#118): add subranges for dbg array types
@@ -1396,7 +1378,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         let slice_ty = t.as_slice();
         let inner = dbg_translate_type(c, slice_ty.inner);
 
-        let name = str.from("*");
+        let name = str.from("[]");
         defer name.free();
         let inner_name = ty.to_string(slice_ty.inner);
         defer inner_name.free();

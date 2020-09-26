@@ -995,7 +995,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
 
     if ty.is_ptr(left_ty) {
         dbg.assert(!ty.is_string(left_ty), "strings are not accessible with '.'");
-        dbg.assert(ty.as_ptr(left_ty).count == 1, "invalid pointer count");
+        dbg.assert(!ty.is_ptr(ty.as_ptr(left_ty).inner), "invalid pointer count");
 
         push_temp_assign(
             c,

@@ -411,7 +411,7 @@ def create_global_types_scope(tc: *TypeChecker): scope.Scope {
     global.bind(3, "f32", push_tmp_ty(tc, ty.new_f32()), public);
     global.bind(3, "f64", push_tmp_ty(tc, ty.new_f64()), public);
 
-    global.bind(6, "string", push_tmp_ty(tc, ty.new_ptr(ptr_width, 1, i8_ty)), public);
+    global.bind(6, "string", push_tmp_ty(tc, ty.new_ptr(ptr_width, i8_ty)), public);
 
     global.bind(4, "void", push_tmp_ty(tc, ty.new_void()), public);
     global.bind(std.strlen(error_ty_name), error_ty_name, push_tmp_ty(tc, ty.new_error()), public);
@@ -474,9 +474,9 @@ def sorted_mods(mods: *mod.Map): *u32 {
     return sorted_mods;
 }
 
-def (tc: *TypeChecker) create_ptr_ty(count: u32, inner: *ty.Type): *ty.Type {
+def (tc: *TypeChecker) create_ptr_ty(inner: *ty.Type): *ty.Type {
     let ptr_width = tc.config.target.ptr_width_bytes;
-    return push_tmp_ty(tc, ty.new_ptr(ptr_width, count, inner));
+    return push_tmp_ty(tc, ty.new_ptr(ptr_width, inner));
 }
 
 def (tc: *TypeChecker) create_array_ty(len: i64, inner: *ty.Type): *ty.Type {
@@ -1157,7 +1157,7 @@ def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
         if fd.is_procedure() || fd.is_extern() {
             bind_value_public(tc, &fd.name, fd.signature);
         } else if fd.is_delegate() {
-            let func_ptr_ty = tc.create_ptr_ty(1, fd.signature);
+            let func_ptr_ty = tc.create_ptr_ty(fd.signature);
             bind_type_public(tc, &fd.name, func_ptr_ty);
             waiting.update_all(tc, tc.ctx.mod, func_ptr_ty, &fd.name);
         }
@@ -1914,12 +1914,7 @@ def check_expr_expect(
         let n_e = ast.as_new_expr(e);
         if expected != null && ty.is_ptr(expected) {
             let p = ty.as_ptr(expected);
-
-            if p.count == 1 {
-                expected = p.inner;
-            } else {
-                expected = tc.create_ptr_ty(p.count - 1, p.inner);
-            }
+            expected = p.inner;
         }
 
         let inner = check_expr_expect(tc, n_e.expr, expected, data);
@@ -1928,7 +1923,7 @@ def check_expr_expect(
             return null;
         }
 
-        let ptr = tc.create_ptr_ty(1, inner.ty);
+        let ptr = tc.create_ptr_ty(inner.ty);
         n_e.expr = inner;
         e.ty = ptr;
         return e;
@@ -2274,7 +2269,7 @@ def check_unary_expr(
         if lookup_data.was_type_decl() && is_method_ptr {
             let new_func_type = ty.as_func(expr.ty).as_normal_function();
             push_tmp_ty(tc, new_func_type);
-            return tc.create_ptr_ty(1, new_func_type);
+            return tc.create_ptr_ty(new_func_type);
         }
 
         if is_method_ptr {
@@ -2287,15 +2282,7 @@ def check_unary_expr(
             return null;
         }
 
-        let e_ty: *ty.Type = null;
-        if ty.is_ptr(expr.ty) {
-            let p_ty = ty.as_ptr(expr.ty);
-            e_ty = tc.create_ptr_ty(p_ty.count + 1, p_ty.inner);
-        } else {
-            e_ty = tc.create_ptr_ty(1, expr.ty);
-        }
-
-        return e_ty;
+        return tc.create_ptr_ty(expr.ty);
     }
 
     if lookup_data.was_type_decl() {
@@ -2314,12 +2301,7 @@ def check_unary_expr(
 
         let e_ty: *ty.Type = null;
         let p_ty = ty.as_ptr(expr.ty);
-        if p_ty.count <= 1 {
-            e_ty = p_ty.inner;
-        } else {
-            let ptr = tc.create_ptr_ty(p_ty.count - 1, p_ty.inner);
-            e_ty = ptr;
-        }
+        e_ty = p_ty.inner;
 
         if !ty.is_sized(e_ty) {
             push_deref_unsized_error(tc, e_ty, span);
