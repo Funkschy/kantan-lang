@@ -247,7 +247,7 @@ def check(tc: *TypeChecker): CheckResult {
         let num_imports = m.num_imports() as usize;
         for let j: usize = 0; j < num_imports; j += 1 {
             let imp = ast.as_import_stmt(m.import_at(j));
-            if imp.is_qualified() {
+            if imp.is_qualified() || imp.mod_ty == null {
                 continue;
             }
 
