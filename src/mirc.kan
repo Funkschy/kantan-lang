@@ -335,6 +335,10 @@ def compile_stmt(c: *MirCompiler, s: *ast.Stmt) {
         let decl_stmt = ast.as_func_decl_stmt(s);
         let decl = &decl_stmt.decl;
 
+        if decl.signature.is_template() {
+            return;
+        }
+
         open_func_scope(c);
         defer close_scope(c);
 

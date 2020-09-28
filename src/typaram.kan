@@ -1,0 +1,49 @@
+import "vmap";
+import "tyid";
+import "ident";
+
+type TypeParam struct {
+    name: ident.Ident
+}
+
+def from_ident(id: ident.Ident): TypeParam {
+    return TypeParam { name: id };
+}
+
+type List struct {
+    inner: vmap.Map
+}
+
+def create_list(): List {
+    return List { inner: vmap.create(sizeof TypeParam) };
+}
+
+def (l: *List) len(): usize {
+    return l.inner.len();
+}
+
+def (l: *List) push(p: *TypeParam) {
+    let key = vmap.key_from_ident(&p.name);
+    l.inner.insert(key, p as *void);
+}
+
+def (l: *List) get_ptr(idx: usize): *TypeParam {
+    return l.inner.get_ptr_idx(idx) as *TypeParam;
+}
+
+def (l: *List) contains(ty: *tyid.Type): bool {
+    if !ty.is_simple_path() {
+        return false;
+    }
+
+    let key = vmap.key_from_ident(&ty.data.path);
+    return l.inner.get_ptr(key) != null;
+}
+
+def (l: *List) clone(): List {
+    return List { inner: l.inner.clone() };
+}
+
+def (l: *List) free() {
+    l.inner.free();
+}

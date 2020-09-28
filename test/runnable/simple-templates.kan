@@ -1,0 +1,13 @@
+import "io";
+
+def [T] min(a: T, b: T): T {
+    if a < b {
+        return a;
+    }
+    return b;
+}
+
+def main() {
+    io.printf("%d\n", min(1, 2));
+    io.printf("%d\n", min(2, 1));
+}

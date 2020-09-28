@@ -4,11 +4,9 @@ import "ast";
 import "path";
 import "map";
 import "std";
-import "span";
 import "name";
 import "error";
 import "ident";
-import "scope";
 import "symbol";
 import "source";
 import "ptrvec";
@@ -19,7 +17,7 @@ type Module struct {
     source: *source.SourceFile,
     statements: ptrvec.Vec,
     // indices into 'Module.statements'
-    imports: vec.Vec, // vec.Vec<usize>
+    imports: vec.Vec, // vec.Vec[usize]
     ty: *ty.Type // the Type containing the bindings
 }
 

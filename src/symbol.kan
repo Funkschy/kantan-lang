@@ -10,6 +10,8 @@ def (data: *Data) present(): bool {
     return data != null && data.sym.present();
 }
 
+// returns true, if a symbol with the given name was found. This does not mean, that the type
+// is present aswell
 def (data: *Data) found(): bool {
     return data != null && data.sym.visibility != Visibility.NotFound;
 }

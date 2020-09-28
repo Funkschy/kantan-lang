@@ -137,6 +137,13 @@ def (s: *String) free() {
     delete s.data_;
 }
 
+def i64_to_string(i: i64): String {
+    // the longest i64 has 20 chars + 1 for \0
+    let buffer: [21]i8 = undefined;
+    std.snprintf(&buffer[0], 20 as usize, "%ld", i);
+    return from(&buffer[0]);
+}
+
 type View struct {
     len: usize,
     data: *i8

@@ -37,6 +37,10 @@ def free_fields(fs: *Fields) {
     fs.fields.free();
 }
 
+def (fs: *Fields) clone(): Fields {
+    return Fields { field_map: fs.field_map.clone(), fields: fs.fields.clone() };
+}
+
 def create_fields(fields: vec.Vec): Fields {
     let field_map = map.with_cap(fields.len);
 
@@ -73,6 +77,14 @@ def (s: *StructDecl) free() {
     free_fields(&s.fields);
 }
 
+def (s: *StructDecl) clone(): StructDecl {
+    return StructDecl {
+        name: s.name,
+        fields: s.fields.clone(),
+        struct_ty: s.struct_ty
+    };
+}
+
 def (s: *StructDecl) num_fields(): u32 {
     return s.fields.fields.len as u32;
 }
@@ -96,6 +108,14 @@ def (s: *UnionDecl) free() {
     free_fields(&s.fields);
 }
 
+def (u: *UnionDecl) clone(): UnionDecl {
+    return UnionDecl {
+        name: u.name,
+        fields: u.fields.clone(),
+        union_ty: u.union_ty
+    };
+}
+
 def (s: *UnionDecl) num_fields(): u32 {
     return s.fields.fields.len as u32;
 }
@@ -117,3 +137,12 @@ def create_enum(name: ident.Ident, values: vec.Vec): EnumDecl {
 def (e: *EnumDecl) free() {
     e.values.free();
 }
+
+def (e: *EnumDecl) clone(): EnumDecl {
+    return EnumDecl {
+        name: e.name,
+        values: e.values.clone(),
+        enum_ty: e.enum_ty
+    };
+}
+

@@ -372,7 +372,14 @@ def check_mod(tc: *TypeChecker, m: *mod.Module, idx: u32, mode: PassMode): Resul
     let ret = Result.OK;
 
     for let i: usize = 0; i < mod.num_stmts(m); i += 1 {
-        let result = check_stmt(tc, mod.get_stmt_at(m, i));
+        let stmt = mod.get_stmt_at(m, i);
+        // templates are added to the end of the ast, so as soon as we see one, we can stop
+        // typechecking
+        if stmt.is_expanded_template {
+            break;
+        }
+
+        let result = check_stmt(tc, stmt);
 
         if result != null {
             mod.set_stmt_at(m, i, result);
@@ -499,7 +506,22 @@ def check_func_tyid(tc: *TypeChecker, signature: *ty.Type, id: *tyid.Type, out: 
 }
 
 def fill_func_def(tc: *TypeChecker, f_decl: *func.FuncDef, signature: *ty.Type): Result {
-    let f_ty = ty.as_func(signature);
+    // only needed for type params, but not harmful otherwise
+    open_scope(tc);
+    defer close_scope(tc);
+
+    let f_ty: *ty.Func = null;
+    if signature.is_template() {
+        let template = signature.as_template();
+        f_ty = ty.as_func(template.inner);
+
+        for let i: usize = 0; i < template.type_params.len; i += 1 {
+            let param = template.type_param_at(i);
+            bind_type_public(tc, &param.as_template_param().name, param);
+        }
+    } else {
+        f_ty = ty.as_func(signature);
+    }
 
     let result = Result.OK;
     let ret_ty: *ty.Type = null;
@@ -930,20 +952,10 @@ def declare_enum(tc: *TypeChecker, ed: *record.EnumDecl): *ty.Type {
     return definition;
 }
 
-def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
-    let signature = fd.signature;
-    if signature == null {
-        return null;
-    }
+// runs in PassMode.TypeDecl
+def declare_func(tc: *TypeChecker, function: *ast.Stmt): *ty.Type {
+    let fd = &ast.as_func_decl_stmt(function).decl;
 
-    if fill_func_def(tc, fd, signature).is_error() {
-        return null;
-    }
-
-    return signature;
-}
-
-def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     if !fd.is_method() && lookup.value_name(tc, &fd.name).present() {
         push_duplicate_def_error(tc, &fd.name);
         return null;
@@ -955,7 +967,8 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
     let mangled_name = mangle_func_name(tc, fd);
     ty.init_signature(signature, fd.name, mangled_name, tc.ctx.mod, fd.is_extern());
 
-    if ident.eq_lit(&fd.name, "main") {
+    let is_main = fd.is_main();
+    if is_main {
         if tc.main_func != null {
             // TODO(#94): custom error for duplicated main function
             //  with reference to original
@@ -969,6 +982,30 @@ def declare_func(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
         // "demangle" main name
         name.free_owned(&sig.mangled_name);
         sig.mangled_name = name.make_copied(4, "main");
+    }
+
+    if fd.num_type_params() > 0 {
+        if is_main {
+            // TODO: add proper error
+            push_internal_error(tc, fd.name.span, "main function may not be generic");
+            return null;
+        }
+
+        signature = push_tmp_ty(tc, ty.new_template(signature, function, &fd.type_params));
+    }
+
+    return signature;
+}
+
+// runs in PassMode.FuncAndGlobalDecl
+def check_func_decl(tc: *TypeChecker, fd: *func.FuncDef): *ty.Type {
+    let signature = fd.signature;
+    if signature == null {
+        return null;
+    }
+
+    if fill_func_def(tc, fd, signature).is_error() {
+        return null;
     }
 
     return signature;
@@ -997,6 +1034,7 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     let last_func = tc.ctx.current_func;
     tc.ctx.current_func = f_ty;
     open_scope(tc);
+    defer close_scope(tc);
 
     if f_ty.is_method {
         bind_value_public(tc, &f_ty.receiver.name, f_ty.receiver.ty);
@@ -1010,7 +1048,6 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
 
     if f_s.block == null {
         push_internal_error(tc, f_s.decl.name.span, "func body is null");
-        close_scope(tc);
         tc.ctx.current_func = last_func;
         return null;
     }
@@ -1018,7 +1055,6 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     // check function body
     let body = check_stmt(tc, f_s.block as *ast.Stmt);
     if body == null {
-        close_scope(tc);
         return null;
     }
     f_s.block = body as *ast.BlockStmt;
@@ -1026,13 +1062,11 @@ def check_func_body(tc: *TypeChecker, f_s: *ast.FuncDeclStmt): *ast.BlockStmt {
     if !ty.is_void(f_ty.ret) {
         if tc.check_for_return_stmt(f_s.block) == Result.Error {
             push_missing_return_error(tc, f_s.decl.name.span);
-            close_scope(tc);
             tc.ctx.current_func = last_func;
             return null;
         }
     }
 
-    close_scope(tc);
     tc.ctx.current_func = last_func;
 
     return f_s.block;
@@ -1146,13 +1180,13 @@ def check_decl_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
 
     if ast.is_func_decl_stmt(s) {
         let f_s = ast.as_func_decl_stmt(s);
-        let fd = &f_s.decl;
 
-        let signature = declare_func(tc, fd);
+        let signature = declare_func(tc, s);
         if signature == null {
             return null;
         }
 
+        let fd = &f_s.decl;
         fd.signature = signature;
         if fd.is_procedure() || fd.is_extern() {
             bind_value_public(tc, &fd.name, fd.signature);
@@ -1235,6 +1269,11 @@ def check_stmt(tc: *TypeChecker, s: *ast.Stmt): *ast.Stmt {
                 push_receiver_different_module_error(tc, fd.receiver.ty.span());
                 return null;
             }
+        }
+
+        // templated functions are only checked when they are invoked
+        if fd.signature.is_template() {
+            return s;
         }
 
         // only resolve the block in the actual pass
@@ -1987,6 +2026,7 @@ def check_expr_expect(
             return null;
         }
 
+        let is_template_invocation = f_ty.is_template();
         let func = ty.callable_as_func(f_ty);
 
         if func.is_method {
@@ -2029,13 +2069,41 @@ def check_expr_expect(
             }
         }
 
+        let mono_map = ty.empty_monomorphization_map();
+        defer mono_map.free();
+        if is_template_invocation {
+            mono_map = f_ty.as_template().monomorphization_map();
+        }
+
         for let i: u32 = 0; i < actual_num_args; i += 1 {
             let arg = ast.get_arg_at(&c_e.args, i);
 
-            if !func.is_varargs {
-                let param = func.param_at(i);
+            if func.is_varargs {
+                let checked_arg = check_expr(tc, arg);
+                if checked_arg == null {
+                    return null;
+                }
+                ast.set_arg_at(&c_e.args, i, checked_arg);
+                continue;
+            }
 
-                let checked_arg = check_expr_expect(tc, arg, param.ty, null);
+            let param = func.param_at(i);
+            let checked_arg: *ast.Expr = null;
+
+            if is_template_invocation && param.ty.contains_template_param() {
+                // if this is a template argument, we don't assume any type
+                checked_arg = check_expr(tc, arg);
+                if checked_arg == null {
+                    return null;
+                }
+
+                if !mono_map.bind(param.ty, checked_arg.ty) {
+                    push_internal_error(tc, checked_arg.span, "cannot bind template arg kekw");
+                    return null;
+                }
+
+            } else {
+                checked_arg = check_expr_expect(tc, arg, param.ty, null);
                 if checked_arg == null {
                     return null;
                 }
@@ -2046,16 +2114,53 @@ def check_expr_expect(
                     );
                     return null;
                 }
-
-                ast.set_arg_at(&c_e.args, i, checked_arg);
-            } else {
-                let checked_arg = check_expr(tc, arg);
-                if checked_arg == null {
-                    return null;
-                }
-                ast.set_arg_at(&c_e.args, i, checked_arg);
-
             }
+
+            ast.set_arg_at(&c_e.args, i, checked_arg);
+        }
+
+        // FIXME: how should this work for function pointers?
+        if is_template_invocation {
+            let signature = mono_map.get_previously_resolved_signature();
+
+            if signature == null {
+                open_scope(tc);
+                defer close_scope(tc);
+
+                let func_decl_stmt = mono_map.cloned_stmt();
+
+                let f_s = ast.as_func_decl_stmt(func_decl_stmt);
+                let fd = &f_s.decl;
+
+                // bind the concrete types for this template
+                let iter = mono_map.iter();
+                for let item = iter.next(); item != null; item = iter.next() {
+                    let name = item.key.as_ident();
+                    let bound_type = item.value as *ty.Type;
+                    bind_type_public(tc, &name, bound_type);
+                }
+
+                // since this clears the mono_map, it has to happen after we bind the template types
+                signature = mono_map.into_cloned_signature();
+                // add cloned function into the ast
+                mod.push_stmt(ty.as_signature(signature).declared_in, func_decl_stmt);
+
+                fd.signature = signature;
+                fill_func_def(tc, fd, signature);
+
+                if fd.is_procedure() || fd.is_method() {
+                    let block = check_func_body(tc, f_s);
+                    if block == null {
+                        return null;
+                    }
+
+                    f_s.block = block;
+                }
+            }
+
+            // TODO: generate actual code
+            callee.ty = signature;
+            func = ty.callable_as_func(signature);
         }
 
         c_e.callee = callee;

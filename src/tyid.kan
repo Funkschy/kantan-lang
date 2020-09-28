@@ -96,6 +96,15 @@ def (t: *Type) ident(): ident.Ident {
     return t.data.path;
 }
 
+// just a single name without any dots
+def (t: *Type) is_simple_path(): bool {
+    if t.kind != Kind.Path {
+        return false;
+    }
+
+    return t.data.path.index_of('.') < 0;
+}
+
 def (t: *Type) is_ptr(): bool {
     return t.pointer_count > 0;
 }
@@ -106,6 +115,28 @@ def (t: *Type) is_array(): bool {
 
 def (t: *Type) is_slice(): bool {
     return t.kind == Kind.Slice;
+}
+
+def (t: *Type) clone(): Type {
+    let new_type = *t;
+
+    if t.kind == Kind.Array {
+        let array_data = new ArrayData {
+            len: t.data.array.len.clone(),
+            inner: t.data.array.inner.clone()
+        };
+        new_type.data.array = array_data;
+        return new_type;
+    }
+
+    if t.kind == Kind.Slice {
+        let slice_data = new SliceData {
+            inner: t.data.slice.inner.clone()
+        };
+        new_type.data.slice = slice_data;
+    }
+
+    return new_type;
 }
 
 def (t: *Type) free() {

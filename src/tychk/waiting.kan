@@ -60,8 +60,7 @@ def patch_waiting_for(tc: *tychk.TypeChecker, waiting_for: *ident.Ident, waiting
         return;
     }
 
-    let len = waiting_for.len();
-    let dot_index = ident.index_of(waiting_for, len, '.');
+    let dot_index = waiting_for.index_of('.');
     if dot_index > 0 {
         let ident_mod = tychk.get_mod_by_alias(tc.ctx, dot_index as usize, waiting_for.start());
         if ident_mod != waiting_for_mod {

@@ -183,6 +183,8 @@ static size_t const len_stmt_strings = sizeof(stmt_type_strings) / sizeof(char *
 // Type types
 static char const *const type_type_strings[] = {
     "error",
+    "template",
+    "template parameter",
     "pointer",
     "array",
     "slice",
@@ -220,6 +222,7 @@ static char const *const error_texts[] = {
     "Illegal type identifier '%.*s': %s",
     "Invalid escape sequence '%.*s'",
     "Expected 1 receiver for Method, but got %u",
+    "Expected at least 1 type parameter for function, but got %u",
     // type errors
     "Duplicate definition of '%.*s'",
     "No %s called '%.*s' in %.*s",

@@ -12,14 +12,14 @@ import "tychk" as _;
 // reference to the correspoding module (mymod) this will happen, even if out_mod
 // does not contain the actual type (test)
 def m_lookup_type(tc: *TypeChecker, name: *ident.Ident, out_mod: **mod.Module): symbol.Data {
-    let len = ident.len(name);
-    let dot_index = ident.index_of(name, len, '.');
+    let len = name.len();
+    let dot_index = name.index_of('.');
     if dot_index < 0 {
         // same module
         if out_mod != null {
             *out_mod = tc.ctx.mod;
         }
-        return scope.lookup(&tc.ctx.types, name);
+        return type_name(tc, name);
     }
 
     let dot_index = dot_index as usize;

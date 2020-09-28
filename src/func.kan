@@ -6,6 +6,7 @@ import "span";
 import "tyid";
 import "ident";
 import "lexer";
+import "typaram";
 
 type Param struct {
     name: ident.Ident,
@@ -18,6 +19,10 @@ def create_param(name: ident.Ident, ty: tyid.Type): Param {
 
 def is_varargs_param(p: *Param): bool {
     return std.memcmp(ident.start(&p.name) as *void, "..." as *void, 3) == 0;
+}
+
+def (p: *Param) clone(): Param {
+    return Param { name: p.name, ty: p.ty.clone() };
 }
 
 def (p: *Param) free() {
@@ -39,6 +44,15 @@ def free_pl(pl: *ParamList) {
     pl.params.free();
 }
 
+def (pl: *ParamList) clone(): ParamList {
+    let new_params = vec.with_cap(sizeof Param, pl.params.len);
+    for let i: usize = 0; i < pl.params.len; i += 1 {
+        let p = (pl.params.get_ptr(i) as *Param).clone();
+        new_params.push(&p as *void);
+    }
+    return ParamList { params: new_params };
+}
+
 def add_param(pl: *ParamList, p: *Param) {
     pl.params.push(p as *void);
 }
@@ -54,12 +68,14 @@ type FuncDef struct {
     receiver: Param,
     ret_ty: tyid.Type,
     params: ParamList,
+    type_params: typaram.List,
     signature: *ty.Type
 }
 
 def create_func(
     name: lexer.Token,
     params: ParamList,
+    type_params: typaram.List,
     ret_ty: tyid.Type,
     kind: Kind
 ): FuncDef {
@@ -72,6 +88,7 @@ def create_func(
         receiver: undefined,
         ret_ty: ret_ty,
         params: params,
+        type_params: type_params,
         signature: null
     };
 }
@@ -80,6 +97,7 @@ def create_method(
     name: lexer.Token,
     receiver: Param,
     params: ParamList,
+    type_params: typaram.List,
     ret_ty: tyid.Type
 ): FuncDef {
     return FuncDef {
@@ -89,8 +107,13 @@ def create_method(
         receiver: receiver,
         ret_ty: ret_ty,
         params: params,
+        type_params: type_params,
         signature: null
     };
+}
+
+def (f: *FuncDef) is_main(): bool {
+    return ident.eq_lit(&f.name, "main");
 }
 
 def (f: *FuncDef) get_param_ptr(i: u32): *Param {
@@ -99,6 +122,14 @@ def (f: *FuncDef) get_param_ptr(i: u32): *Param {
 
 def (f: *FuncDef) num_params(): u32 {
     return f.params.params.len as u32;
+}
+
+def (f: *FuncDef) get_type_param_ptr(i: u32): *typaram.TypeParam {
+    return f.type_params.get_ptr(i as usize);
+}
+
+def (f: *FuncDef) num_type_params(): u32 {
+    return f.type_params.len() as u32;
 }
 
 def (f: *FuncDef) is_extern(): bool {
@@ -121,10 +152,22 @@ def (f: *FuncDef) is_procedure(): bool {
     return f.kind == Kind.Procedure;
 }
 
+def (f: *FuncDef) clone(): FuncDef {
+    let new_def = *f;
+    new_def.params = f.params.clone();
+    if f.kind == Kind.Method {
+        new_def.receiver = f.receiver.clone();
+    }
+    new_def.ret_ty = f.ret_ty.clone();
+    new_def.type_params = f.type_params.clone();
+    return new_def;
+}
+
 def (f: *FuncDef) free() {
     free_pl(&f.params);
     if f.kind == Kind.Method {
         f.receiver.free();
     }
     f.ret_ty.free();
+    f.type_params.free();
 }

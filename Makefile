@@ -38,6 +38,7 @@ K_FILES = src/ast.kan \
 		  src/tychk/tychk.kan \
 		  src/tychk/waiting.kan \
 		  src/tyid.kan \
+		  src/typaram.kan \
 		  src/vec.kan \
 		  src/vmap.kan
 PREPROCCESSOR_FILES = src/parser.kan src/transform.kan

@@ -19,6 +19,7 @@ type CompileError enum {
     InvalidTypeIdent,
     InvalidEscapeSequence,
     InvalidReceiverCount,
+    InvalidTypeParamCount,
 
     // type errors
     DuplicateDefintion,

@@ -16,6 +16,7 @@ import "error";
 import "ptrvec";
 import "source";
 import "record";
+import "typaram";
 import "lexer" as l;
 import "precedence" as prec;
 
@@ -579,6 +580,7 @@ def parse_func_def(p: *Parser, kind: func.Kind): *ast.Stmt {
     let is_extern = kind == func.Kind.Extern;
     let has_receiver = false;
     let receiver: func.Param = undefined;
+    let type_params = typaram.create_list();
 
     // Receivers are only allow on non extern functions
     if peek(p).ty == l.TokenType.LParen && !is_extern && !is_delegate {
@@ -603,6 +605,23 @@ def parse_func_def(p: *Parser, kind: func.Kind): *ast.Stmt {
         receiver = *(receiver_list.get_ptr(0) as *func.Param);
         has_receiver = true;
         receiver_list.free();
+    } else if peek(p).ty == l.TokenType.LBracket && !is_extern {
+        CONSUME_TOK_RET_NULL(l_bracket, l.TokenType.LBracket);
+        let closing_bracket = l.empty_token();
+        type_params = p.parse_type_params(&closing_bracket);
+
+        if closing_bracket.is_err() {
+            return null;
+        }
+
+        // There must be at least one type parameter if a type param list was declared
+        let len = type_params.len() as u32;
+        if len < 1 {
+            type_params.free();
+            let error = create_invalid_type_param_count_error(p, &l_bracket, len);
+            push_err(p, error);
+            return null;
+        }
     }
 
     let ident = l.empty_token();
@@ -655,6 +674,7 @@ def parse_func_def(p: *Parser, kind: func.Kind): *ast.Stmt {
             ident,
             receiver,
             param_list,
+            type_params,
             ret_ty,
             ast.as_block_stmt(block)
         );
@@ -665,6 +685,7 @@ def parse_func_def(p: *Parser, kind: func.Kind): *ast.Stmt {
         func_span,
         ident,
         param_list,
+        type_params,
         ret_ty,
         ast.as_block_stmt(block)
     );
@@ -983,6 +1004,39 @@ def parse_param_list(p: *Parser, closing_paren: *l.Token, allow_va: bool): vec.V
     }
 
     return params;
+}
+
+def (p: *Parser) parse_type_params(closing_bracket: *l.Token): typaram.List {
+#define FAIL() values.free(); return typaram.create_list()
+
+    let values = typaram.create_list();
+
+    let peeked = peek(p);
+    while peeked.ty != l.TokenType.EOF && peeked.ty != l.TokenType.RBracket {
+        let ident_token = l.empty_token();
+        if !consume_ident(p, &ident_token) {
+            FAIL();
+        }
+
+        let ident = ident.create(ident_token);
+        let param = typaram.from_ident(ident);
+        values.push(&param);
+
+        peeked = peek(p);
+
+        // consume separator
+        if peek(p).ty != l.TokenType.RBracket && !consume(p, l.TokenType.Comma) {
+            FAIL();
+        }
+    }
+
+    if !consume_token(p, l.TokenType.RBracket, closing_bracket) {
+        FAIL();
+    }
+
+    return values;
+
+#undef FAIL
 }
 
 // returns false on error
@@ -1391,6 +1445,13 @@ def create_invalid_recv_count_error(p: *Parser, l_paren: *l.Token, count: u32): 
     return create_error(
         l_paren.span,
         error.err2str(error.CompileError.InvalidReceiverCount, count)
+    );
+}
+
+def create_invalid_type_param_count_error(p: *Parser, l_bracket: *l.Token, count: u32): ParseError {
+    return create_error(
+        l_bracket.span,
+        error.err2str(error.CompileError.InvalidTypeParamCount, count)
     );
 }
 

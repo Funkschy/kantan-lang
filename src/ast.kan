@@ -9,6 +9,7 @@ import "lexer";
 import "ident";
 import "ptrvec";
 import "record";
+import "typaram";
 
 /////////// kinds ///////////
 
@@ -99,7 +100,7 @@ type ExprStmt struct {
 }
 
 def new_expr_stmt(e: *Expr): *Stmt {
-    return (new ExprStmt { s: Stmt { tag: StmtKind.Expr, span: e.span }, expr: e }) as *Stmt;
+    return (new ExprStmt { s: stmt(StmtKind.Expr, e.span), expr: e }) as *Stmt;
 }
 
 def is_expr_stmt(s: *Stmt): bool {
@@ -119,7 +120,7 @@ type DeleteStmt struct {
 
 def new_delete_stmt(span: span.Span, expr: *Expr): *Stmt {
     return (new DeleteStmt {
-        s: Stmt { tag: StmtKind.Delete, span: span },
+        s: stmt(StmtKind.Delete, span),
         expr: expr
     }) as *Stmt;
 }
@@ -141,7 +142,7 @@ type ReturnStmt struct {
 
 def new_return_stmt(span: span.Span, expr: *Expr): *Stmt {
     return (new ReturnStmt {
-        s: Stmt { tag: StmtKind.Return, span: span },
+        s: stmt(StmtKind.Return, span),
         expr: expr
     }) as *Stmt;
 }
@@ -162,7 +163,7 @@ type ContinueStmt struct {
 
 def new_continue_stmt(span: span.Span): *Stmt {
     return (new ContinueStmt {
-        s: Stmt { tag: StmtKind.Continue, span: span }
+        s: stmt(StmtKind.Continue, span)
     }) as *Stmt;
 }
 
@@ -182,7 +183,7 @@ type BreakStmt struct {
 
 def new_break_stmt(span: span.Span): *Stmt {
     return (new BreakStmt {
-        s: Stmt { tag: StmtKind.Break, span: span }
+        s: stmt(StmtKind.Break, span)
     }) as *Stmt;
 }
 
@@ -201,10 +202,10 @@ type DeferStmt struct {
     stmt: *Stmt
 }
 
-def new_defer_stmt(span: span.Span, stmt: *Stmt): *Stmt {
+def new_defer_stmt(span: span.Span, defered: *Stmt): *Stmt {
     return (new DeferStmt {
-        s: Stmt { tag: StmtKind.Defer, span: span },
-        stmt: stmt
+        s: stmt(StmtKind.Defer, span),
+        stmt: defered
     }) as *Stmt;
 }
 
@@ -227,7 +228,7 @@ type WhileStmt struct {
 
 def new_while_stmt(span: span.Span, condition: *Expr, block: *BlockStmt): *Stmt {
     return (new WhileStmt {
-        s: Stmt { tag: StmtKind.While, span: span },
+        s: stmt(StmtKind.While, span),
         condition: condition,
         block: block,
         end_block: null
@@ -260,7 +261,7 @@ def new_for_stmt(
     block: *BlockStmt
 ): *Stmt {
     return (new ForStmt {
-        s: Stmt { tag: StmtKind.For, span: span },
+        s: stmt(StmtKind.For, span),
         initializer: initializer,
         condition: condition,
         increment: increment,
@@ -287,7 +288,7 @@ type IfStmt struct {
 
 def new_if_stmt(span: span.Span, condition: *Expr, block: *BlockStmt, else_stmt: *Stmt): *Stmt {
     return (new IfStmt {
-        s: Stmt { tag: StmtKind.If, span: span },
+        s: stmt(StmtKind.If, span),
         condition: condition,
         block: block,
         else_stmt: else_stmt
@@ -311,7 +312,7 @@ type BlockStmt struct {
 
 def new_block_stmt(span: span.Span, statements: ptrvec.Vec): *Stmt {
     return (new BlockStmt{
-        s: Stmt { tag: StmtKind.Block, span: span },
+        s: stmt(StmtKind.Block, span),
         stmts: statements
     }) as *Stmt;
 }
@@ -353,12 +354,13 @@ def new_func_decl_stmt(
     span: span.Span,
     ident: lexer.Token,
     params: func.ParamList,
+    type_params: typaram.List,
     ret_ty: tyid.Type,
     block: *BlockStmt
 ): *Stmt {
     return (new FuncDeclStmt {
-        s: Stmt { tag: StmtKind.FuncDecl, span: span },
-        decl: func.create_func(ident, params, ret_ty, kind),
+        s: stmt(StmtKind.FuncDecl, span),
+        decl: func.create_func(ident, params, type_params, ret_ty, kind),
         block: block
     }) as *Stmt;
 }
@@ -368,12 +370,13 @@ def new_method_decl_stmt(
     ident: lexer.Token,
     receiver: func.Param,
     params: func.ParamList,
+    type_params: typaram.List,
     ret_ty: tyid.Type,
     block: *BlockStmt
 ): *Stmt {
     return (new FuncDeclStmt {
-        s: Stmt { tag: StmtKind.FuncDecl, span: span },
-        decl: func.create_method(ident, receiver, params, ret_ty),
+        s: stmt(StmtKind.FuncDecl, span),
+        decl: func.create_method(ident, receiver, params, type_params, ret_ty),
         block: block
     }) as *Stmt;
 }
@@ -395,7 +398,7 @@ type StructDeclStmt struct {
 
 def new_struct_decl_stmt(span: span.Span, name: ident.Ident, fields: vec.Vec): *Stmt {
     return (new StructDeclStmt {
-        s: Stmt { tag: StmtKind.StructDecl, span: span },
+        s: stmt(StmtKind.StructDecl, span),
         decl: record.create_struct(name, fields)
     }) as *Stmt;
 }
@@ -417,7 +420,7 @@ type UnionDeclStmt struct {
 
 def new_union_decl_stmt(span: span.Span, name: ident.Ident, fields: vec.Vec): *Stmt {
     return (new UnionDeclStmt {
-        s: Stmt { tag: StmtKind.UnionDecl, span: span },
+        s: stmt(StmtKind.UnionDecl, span),
         decl: record.create_union(name, fields)
     }) as *Stmt;
 }
@@ -445,7 +448,7 @@ def new_enum_decl_stmt(
     start_value: *Expr
 ): *Stmt {
     return (new EnumDeclStmt {
-        s: Stmt { tag: StmtKind.EnumDecl, span: span },
+        s: stmt(StmtKind.EnumDecl, span),
         decl: record.create_enum(name, values),
         start_value: start_value
     }) as *Stmt;
@@ -470,7 +473,7 @@ type ImportStmt struct {
 
 def new_import_stmt(span: span.Span, mod_name: ident.Ident, alias: ident.Ident): *Stmt {
     return (new ImportStmt {
-        s: Stmt { tag: StmtKind.Import, span: span },
+        s: stmt(StmtKind.Import, span),
         mod: mod_name,
         alias: alias,
         mod_ty: null
@@ -504,7 +507,7 @@ type LetStmt struct {
 
 def new_let_stmt(span: span.Span, ident_token: lexer.Token, ty: tyid.Type, value: *Expr): *Stmt {
     return (new LetStmt {
-        s: Stmt { tag: StmtKind.Let, span: span },
+        s: stmt(StmtKind.Let, span),
         value: value,
         ident: ident.create(ident_token),
         ty: ty
@@ -527,7 +530,13 @@ def has_type_decl(s: *LetStmt): bool {
 
 type Stmt struct {
     tag: StmtKind,
+    // statements that were cloned during typechecking due to template expansion
+    is_expanded_template: bool,
     span: span.Span
+}
+
+def stmt(tag: StmtKind, span: span.Span): Stmt {
+    return Stmt { tag: tag, is_expanded_template: false, span: span };
 }
 
 def stmt_free(s: *Stmt): void {
@@ -590,6 +599,118 @@ def stmt_free(s: *Stmt): void {
     }
 
     delete s;
+}
+
+def (s: *Stmt) clone(): *Stmt {
+    if s == null {
+        return null;
+    }
+
+    if is_expr_stmt(s) {
+        let e_stmt = as_expr_stmt(s);
+        return new_expr_stmt(e_stmt.expr.clone());
+    }
+
+    if is_let_stmt(s) {
+        let let_stmt = new *as_let_stmt(s);
+        let_stmt.value = let_stmt.value.clone();
+        return let_stmt as *Stmt;
+    }
+
+    if is_import_stmt(s) {
+        return (new *as_import_stmt(s)) as *Stmt;
+    }
+
+    if is_func_decl_stmt(s) {
+        let f_decl = new *as_func_decl_stmt(s);
+        f_decl.decl = f_decl.decl.clone();
+        f_decl.block = (f_decl.block as *Stmt).clone() as *BlockStmt;
+        return f_decl as *Stmt;
+    }
+
+    if is_struct_decl_stmt(s) {
+        let s_stmt = new *as_struct_decl_stmt(s);
+        s_stmt.decl = s_stmt.decl.clone();
+        return s_stmt as *Stmt;
+    }
+
+    if is_enum_decl_stmt(s) {
+        let e_stmt = new *as_enum_decl_stmt(s);
+        e_stmt.decl = e_stmt.decl.clone();
+        e_stmt.start_value = e_stmt.start_value.clone();
+        return e_stmt as *Stmt;
+    }
+
+    if is_union_decl_stmt(s) {
+        let u_stmt = new *as_union_decl_stmt(s);
+        u_stmt.decl = u_stmt.decl.clone();
+        return u_stmt as *Stmt;
+    }
+
+    if is_block_stmt(s) {
+        let block_stmt = new *as_block_stmt(s);
+        let stmts = ptrvec.with_cap(block_stmt.stmts.len);
+
+        for let i: usize = 0; i < block_stmt.stmts.len; i += 1 {
+            let s = block_stmt.stmts.get(i) as *Stmt;
+            stmts.set(i, s.clone() as *void);
+        }
+
+        block_stmt.stmts = stmts;
+        return block_stmt as *Stmt;
+    }
+
+    if is_if_stmt(s) {
+        let if_stmt = new *as_if_stmt(s);
+        if_stmt.condition = if_stmt.condition.clone();
+        if_stmt.block = (if_stmt.block as *Stmt).clone() as *BlockStmt;
+        if_stmt.else_stmt = if_stmt.else_stmt.clone();
+        return if_stmt as *Stmt;
+    }
+
+    if is_while_stmt(s) {
+        let while_stmt = new *as_while_stmt(s);
+        while_stmt.condition = while_stmt.condition.clone();
+        while_stmt.block = (while_stmt.block as *Stmt).clone() as *BlockStmt;
+        while_stmt.end_block = (while_stmt.end_block as *Stmt).clone() as *BlockStmt;
+        return while_stmt as *Stmt;
+    }
+
+    if is_delete_stmt(s) {
+        let delete_stmt = new *as_delete_stmt(s);
+        delete_stmt.expr = delete_stmt.expr.clone();
+        return delete_stmt as *Stmt;
+    }
+
+    if is_return_stmt(s) {
+        let return_stmt = new *as_return_stmt(s);
+        return_stmt.expr = return_stmt.expr.clone();
+        return return_stmt as *Stmt;
+    }
+
+    if is_continue_stmt(s) {
+        return (new *as_continue_stmt(s)) as *Stmt;
+    }
+
+    if is_break_stmt(s) {
+        return (new *as_break_stmt(s)) as *Stmt;
+    }
+
+    if is_defer_stmt(s) {
+        let defered = as_defer_stmt(s).stmt.clone();
+        return new_defer_stmt(s.span, defered);
+    }
+
+    if is_for_stmt(s) {
+        let for_stmt = new *as_for_stmt(s);
+        for_stmt.initializer = for_stmt.initializer.clone();
+        for_stmt.condition = for_stmt.condition.clone();
+        for_stmt.increment = for_stmt.increment.clone();
+        for_stmt.block = (for_stmt.block as *Stmt).clone() as *BlockStmt;
+        return for_stmt as *Stmt;
+    }
+
+    return null;
 }
 
 /////////// access expr ///////////
@@ -1141,6 +1262,126 @@ def expr_free(e: *Expr): void {
     delete e;
 }
 
+def (e: *Expr) clone(): *Expr {
+    if e == null {
+        return null;
+    }
+
+    if is_int_expr(e) {
+        return (new *as_int_expr(e)) as *Expr;
+    }
+
+    if is_float_expr(e) {
+        return (new *as_float_expr(e)) as *Expr;
+    }
+
+    if is_null_expr(e) {
+        return (new *as_null_expr(e)) as *Expr;
+    }
+
+    if is_undefined_expr(e) {
+        return (new *as_undefined_expr(e)) as *Expr;
+    }
+
+    if is_string_expr(e) {
+        return (new *as_string_expr(e)) as *Expr;
+    }
+
+    if is_array_string_expr(e) {
+        let array_string = new *as_array_string_expr(e);
+        array_string.escaped = array_string.escaped.clone();
+        return (array_string) as *Expr;
+    }
+
+    if is_char_expr(e) {
+        return (new *as_char_expr(e)) as *Expr;
+    }
+
+    if is_ident_expr(e) {
+        return (new *as_ident_expr(e)) as *Expr;
+    }
+
+    if is_sizeof_expr(e) {
+        return (new *as_sizeof_expr(e)) as *Expr;
+    }
+
+    if is_new_expr(e) {
+        let n_expr = new *as_new_expr(e);
+        n_expr.expr = n_expr.expr.clone();
+        return n_expr as *Expr;
+    }
+
+    if is_as_expr(e) {
+        let a_expr = new *as_as_expr(e);
+        a_expr.expr = a_expr.expr.clone();
+        return a_expr as *Expr;
+    }
+
+    if is_assign_expr(e) {
+        let a_expr = new *as_assign_expr(e);
+
+        a_expr.left = a_expr.left.clone();
+        a_expr.right = a_expr.right.clone();
+
+        return a_expr as *Expr;
+    }
+
+    if is_access_expr(e) {
+        let a_expr = new *as_access_expr(e);
+
+        a_expr.left = a_expr.left.clone();
+        a_expr.right = (a_expr.right as *Expr).clone() as *IdentExpr;
+
+        return a_expr as *Expr;
+    }
+
+    if is_unary_expr(e) {
+        let u_expr = new *as_unary_expr(e);
+
+        u_expr.right = u_expr.right.clone();
+
+        return u_expr as *Expr;
+    }
+
+    if is_binary_expr(e) {
+        let b_expr = new *as_binary_expr(e);
+
+        b_expr.left = b_expr.left.clone();
+        b_expr.right = b_expr.right.clone();
+
+        return b_expr as *Expr;
+    }
+
+    if is_call_expr(e) {
+        let c_expr = new *as_call_expr(e);
+
+        c_expr.callee = c_expr.callee.clone();
+        c_expr.args = c_expr.args.clone();
+
+        return c_expr as *Expr;
+    }
+
+    if is_init_expr(e) {
+        let i_expr = new *as_init_expr(e);
+
+        i_expr.identifier = i_expr.identifier.clone();
+        i_expr.inits = i_expr.inits.clone();
+
+        return i_expr as *Expr;
+    }
+
+    if is_index_expr(e) {
+        let idx_expr = new *as_index_expr(e);
+
+        idx_expr.left = idx_expr.left.clone();
+        idx_expr.right = idx_expr.right.clone();
+
+        return idx_expr as *Expr;
+    }
+
+    return null;
+}
+
 /////////// ArgList ///////////
 // TODO(#18): should be in own file, but can't because compiler can't handle circular imports
 
@@ -1175,6 +1416,14 @@ def free_al(al: *ArgList): void {
     }
 
     al.args.free();
+}
+
+def (al: *ArgList) clone(): ArgList {
+    let new_args = ptrvec.with_cap(al.args.len);
+    for let i: usize = 0; i < al.args.len; i += 1 {
+        new_args.push_ptr(get_arg_at(al, i as u32).clone() as *void);
+    }
+    return ArgList { args: new_args };
 }
 
 /////////// InitList ///////////
@@ -1223,6 +1472,16 @@ def (il: *InitList) get_ptr(i: u32): *Init {
 
 def push_init(il: *InitList, init: Init) {
     il.inits.push(&init as *void);
+}
+
+def (il: *InitList) clone(): InitList {
+    let new_inits = vec.with_cap(sizeof Init, il.inits.len);
+    for let i: usize = 0; i < il.inits.len; i += 1 {
+        let init = *init_at(il, i as u32);
+        init.expr = init.expr.clone();
+        new_inits.push(&init as *void);
+    }
+    return InitList { inits: new_inits };
 }
 
 def free_il(il: *InitList) {

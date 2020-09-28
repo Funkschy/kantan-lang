@@ -180,6 +180,11 @@ def dump_module(m: *Module): void {
     let item = f_iter.next();
     while item != null {
         let f = item.value as *Func;
+        let sig_string = ty.to_string(f.ty);
+        defer sig_string.free();
+
+        io.printf("// %s\n", sig_string.cstring());
+
         if f.is_extern {
             io.printf("extern def %.*s\n", f.name.len, f.name.data);
         } else {

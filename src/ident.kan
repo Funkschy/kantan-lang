@@ -77,8 +77,9 @@ def eq_value(first: *Ident, second: *Ident): bool {
 }
 
 // -1 if not found
-def index_of(id: *Ident, ident_len: usize, c: i8): isize {
-    for let i: usize = 0; i < ident_len; i += 1 {
+def (id: *Ident) index_of(c: i8): isize {
+    let len = id.len();
+    for let i: usize = 0; i < len; i += 1 {
         if char_at(id, i) == '.' {
             return i as isize;
         }

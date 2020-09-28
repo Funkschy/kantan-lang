@@ -27,6 +27,18 @@ def make_copied(len: usize, data: string): Owned {
     return make_owned(len, std.strndup(data, len));
 }
 
+def (n: *Owned) pushed(s: str.View): Owned {
+    defer free_owned(n);
+
+    let len = n.len + s.len;
+    let buffer = std.malloc(len + 1);
+    std.memcpy(buffer, n.data as *void, n.len);
+    std.memcpy(buffer + n.len, s.data as *void, s.len);
+    let buffer = buffer as *i8;
+    *(buffer + len) = '\0';
+    return make_owned(len, buffer);
+}
+
 def (n: *Owned) clone(): Owned {
     return make_copied(n.len, n.data);
 }

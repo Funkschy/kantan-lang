@@ -1,8 +1,10 @@
+import "ast";
 import "str";
 import "dbg";
 import "std";
 import "mod";
 import "vec";
+import "map";
 import "vmap";
 import "span";
 import "name";
@@ -10,12 +12,14 @@ import "scope";
 import "ident";
 import "symbol";
 import "ptrvec";
+import "typaram";
 
 extern def type2str(kind: i32): string;
 
 // the order is important, if it is changed, the order of strings in lib.h also has to change
 type Kind enum {
     Error,
+    Template, TemplateParam,
     Ptr,
     Array, Slice,
     Bool,
@@ -294,6 +298,244 @@ def (t: *Type) is_indexable(): bool {
 
 def (t: *Type) is_assignable(): bool {
     return !t.is_array() && is_sized(t);
+}
+
+type TemplateParam struct {
+    name: ident.Ident
+}
+
+def new_template_param(name: ident.Ident): *Type {
+    return new_type(Kind.TemplateParam, (new TemplateParam { name: name }) as *void);
+}
+
+def (t: *Type) is_template_param(): bool {
+    return t.kind == Kind.TemplateParam;
+}
+
+def (t: *Type) contains_template_param(): bool {
+    if t.is_template_param() {
+        return true;
+    }
+
+    if t.is_ptr() || t.is_array() || t.is_slice() {
+        return t.inner_type().contains_template_param();
+    }
+
+    return false;
+}
+
+def (t: *Type) template_param_get_name(): ident.Ident {
+    if t.is_template_param() {
+        return t.as_template_param().name;
+    }
+
+    return t.inner_type().template_param_get_name();
+}
+
+// This resolves the smalles common type of the template and the substitution
+// e.g.
+//
+// param: ***T
+// arg: **i8
+// -> null
+//
+// param: **T
+// arg: **i8
+// -> i8
+//
+// param: *T
+// arg: **i8
+// -> *i8
+//
+// param: T
+// arg: **i8
+// -> **i8
+//
+// param: T
+// arg: i8
+// -> i8
+def (param: *Type) try_substitute(arg: *Type): *Type {
+    if param.is_ptr() {
+        if !arg.is_ptr() {
+            return null;
+        }
+
+        return param.as_ptr().inner.try_substitute(arg.as_ptr().inner);
+    }
+
+    if param.is_array() {
+        if !arg.is_array() {
+            return null;
+        }
+
+        return param.as_array().inner.try_substitute(arg.as_array().inner);
+    }
+
+    if param.is_slice() {
+        if !arg.is_slice() {
+            return null;
+        }
+
+        return param.as_slice().inner.try_substitute(arg.as_slice().inner);
+    }
+
+    return arg;
+}
+
+def (t: *Type) as_template_param(): *TemplateParam {
+    return t.data as *TemplateParam;
+}
+
+type MonomorphizationMap struct {
+    inner: map.Map, // map.Map[ident.Ident, *Type]
+    template_type: *Template
+}
+
+def empty_monomorphization_map(): MonomorphizationMap {
+    return MonomorphizationMap { inner: map.create(), template_type: null };
+}
+
+// def [T] f(*T, [][]T) {}
+def (m: *MonomorphizationMap) bind(param: *Type, arg: *Type): bool {
+    // just a simple substitution like N -> i32
+    if param.is_template_param() {
+        let key = map.key_from_ident(&param.as_template_param().name);
+        let bound = m.inner.get(key) as *Type;
+        if bound == null {
+            m.inner.insert(key, arg as *void);
+            return true;
+        }
+
+        return equals(bound, arg);
+    }
+
+    let template_param_name = param.template_param_get_name();
+    let smallest_common = param.try_substitute(arg);
+
+    let key = map.key_from_ident(&template_param_name);
+    let bound = m.inner.get(key) as *Type;
+    if bound == null {
+        m.inner.insert(key, smallest_common as *void);
+        return true;
+    }
+
+    if !equals(bound, smallest_common) {
+        return false;
+    }
+
+    m.inner.insert(key, smallest_common as *void);
+    return true;
+}
+
+def (m: *MonomorphizationMap) get_previously_resolved_signature(): *Type {
+    let n = m.template_type.instance_maps.len;
+    for let i: usize = 0; i < n; i += 1 {
+        let other = m.template_type.instance_maps.get_ptr(i) as *MonomorphizationMap;
+        if m.equals(other) {
+            return other.template_type.instances.get(i) as *Type;
+        }
+    }
+
+    return null;
+}
+
+def (m: *MonomorphizationMap) equals(other: *MonomorphizationMap): bool {
+    if m.inner.len != other.inner.len {
+        return false;
+    }
+
+    let iter = m.inner.iter();
+    for let item = iter.next(); item != null; item = iter.next() {
+        let bound = other.inner.get(item.key);
+
+        if bound == null {
+            return false;
+        }
+
+        if !equals(item.value as *Type, bound as *Type) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+def (m: *MonomorphizationMap) into_cloned_signature(): *Type {
+    dbg.assert(is_signature(m.template_type.inner), "Cannot convert non sig template to sig");
+    let signature = as_signature(m.template_type.inner);
+    let signature = signature.clone();
+
+    let number = m.template_type.instances.len as i64;
+    let number = str.i64_to_string(number);
+    defer number.free();
+
+    let sig = as_signature(signature);
+    sig.mangled_name = sig.mangled_name.pushed(number.view());
+
+    m.template_type.instances.push_ptr(signature as *void);
+    // move monomap into template instances
+    m.template_type.instance_maps.push(m as *void);
+    // invalidate old map, so we don't double free it
+    m.inner = map.create();
+
+    return signature;
+}
+
+def (m: *MonomorphizationMap) cloned_stmt(): *ast.Stmt {
+    let clone = m.template_type.statement.clone();
+    clone.is_expanded_template = true;
+    return clone;
+}
+
+def (m: *MonomorphizationMap) iter(): map.Iter {
+    return m.inner.iter();
+}
+
+def (m: *MonomorphizationMap) free() {
+    m.inner.free();
+}
+
+type Template struct {
+    type_params: ptrvec.Vec, // ptrvec.Vec[*Type]
+    // the instanciated versions of this template
+    instances: ptrvec.Vec, // ptrvec.Vec[*Type]
+    instance_maps: vec.Vec, // vec.Vec[MonomorphizationMap]
+    statement: *ast.Stmt,
+    inner: *Type
+}
+
+def new_template(inner: *Type, stmt: *ast.Stmt, type_params: *typaram.List): *Type {
+    let params = ptrvec.with_cap(type_params.len());
+    for let i: usize = 0; i < type_params.len(); i += 1 {
+        let param = new_template_param(type_params.get_ptr(i).name);
+        params.push_ptr(param as *void);
+    }
+
+    let template = new Template {
+        type_params: params,
+        instances: ptrvec.create(),
+        instance_maps: vec.create(sizeof MonomorphizationMap),
+        statement: stmt,
+        inner: inner
+    };
+
+    return new_type(Kind.Template, template as *void);
+}
+
+def (t: *Template) monomorphization_map(): MonomorphizationMap {
+    return MonomorphizationMap { inner: map.with_cap(t.type_params.len), template_type: t };
+}
+
+def (t: *Template) type_param_at(idx: usize): *Type {
+    return t.type_params.get(idx) as *Type;
+}
+
+def (t: *Type) is_template(): bool {
+    return t.kind == Kind.Template;
+}
+
+def (t: *Type) as_template(): *Template {
+    return t.data as *Template;
 }
 
 type UserDefinedType struct {
@@ -613,6 +855,22 @@ def as_signature(t: *Type): *Signature {
     return t.data as *Signature;
 }
 
+def (s: *Signature) clone(): *Type {
+    let new_func = new *as_func(s.func);
+    let new_func = new_type(Kind.Func, new_func as *void);
+    std.flag_set(&new_func.flags, flag_unsized);
+
+    let mangled_name = s.mangled_name.clone();
+
+    let new_sig = new *s;
+    new_sig.func = new_func;
+    new_sig.mangled_name = mangled_name;
+
+    let t = new_type(Kind.Signature, new_sig as *void);
+    std.flag_set(&t.flags, flag_unsized);
+    return t;
+}
+
 type Func struct {
     is_extern: bool,
     is_varargs: bool,
@@ -754,12 +1012,15 @@ def as_func(t: *Type): *Func {
 
 def is_callable(t: *Type): bool {
     return is_func(t)
-        || (t.is_ptr() && !t.as_ptr().inner.is_ptr() && is_func(t.as_ptr().inner));
+        || (t.is_ptr() && !t.as_ptr().inner.is_ptr() && is_func(t.as_ptr().inner))
+        || t.is_template() && is_callable(t.as_template().inner);
 }
 
 def callable_as_func(t: *Type): *Func {
     if is_func(t) {
         return as_func(t);
+    } else if t.is_template() {
+        return as_func(t.as_template().inner);
     }
     return as_func(t.as_ptr().inner);
 }
@@ -931,6 +1192,27 @@ def free_ty(t: *Type) {
         return;
     }
 
+    if t.is_template() {
+        let template = t.as_template();
+        for let i: usize = 0; i < template.type_params.len; i += 1 {
+            free_ty(template.type_params.get(i) as *Type);
+        }
+        template.type_params.free();
+
+        for let i: usize = 0; i < template.instances.len; i += 1 {
+            free_ty(template.instances.get(i) as *Type);
+        }
+        template.instances.free();
+
+        for let i: usize = 0; i < template.instance_maps.len; i += 1 {
+            let mono_map = template.instance_maps.get_ptr(i) as *MonomorphizationMap;
+            mono_map.free();
+        }
+        template.instance_maps.free();
+        delete t.data;
+        return;
+    }
+
     if is_mod(t) {
         let m_ty = as_mod(t);
         scope.free_s(&m_ty.values);
@@ -939,7 +1221,7 @@ def free_ty(t: *Type) {
         return;
     }
 
-    if t.is_integer() || t.is_ptr() || t.is_array() || t.is_slice() {
+    if t.is_integer() || t.is_ptr() || t.is_array() || t.is_slice() || t.is_template_param() {
         delete t.data;
         return;
     }
@@ -1261,6 +1543,11 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
         }
 
         return t.get_user_defined().original_name.to_string();
+    }
+
+    if t.is_template_param() {
+        let param = t.as_template_param();
+        return str.from_l(param.name.start(), param.name.len());
     }
 
     return str.from(to_static_string(t));

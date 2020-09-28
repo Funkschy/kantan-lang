@@ -44,6 +44,11 @@ def key_from_ident(i: *ident.Ident): Key {
     return create_key(ident.len(i), ident.start(i));
 }
 
+def (k: Key) as_ident(): ident.Ident {
+    let span = span.create(k.value, k.value + k.len);
+    return ident.from_span(span);
+}
+
 type Item struct {
     key: Key,
     value: *void
@@ -66,6 +71,12 @@ def with_cap(cap: usize): Map {
 
     let items = std.calloc(cap, sizeof Item) as *Item;
     return Map { len: 0, cap: cap, items: items };
+}
+
+def (m: *Map) clone(): Map {
+    let new_map = with_cap(m.cap);
+    std.memcpy(new_map.items as *void, m.items as *void, new_map.cap * sizeof *Item);
+    return new_map;
 }
 
 def (m: *Map) free() {

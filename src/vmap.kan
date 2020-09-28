@@ -54,6 +54,13 @@ def (m: *Map) get_ptr_idx(idx: usize): *void {
     return m.values.get_ptr(idx);
 }
 
+def (m: *Map) clone(): Map {
+    return Map {
+        mappings: m.mappings.clone(),
+        values: m.values.clone()
+    };
+}
+
 def (m: *Map) dump() {
     m.mappings.dump();
 }

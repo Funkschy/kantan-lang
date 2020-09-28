@@ -84,6 +84,13 @@ def (v: *Vec) resize() {
     }
 }
 
+def (v: *Vec) clone(): Vec {
+    let new_v = *v;
+    new_v.elements = std.malloc(v.cap * v.elem_size);
+    std.memcpy(new_v.elements, v.elements, v.cap * v.elem_size);
+    return new_v;
+}
+
 def (v: *Vec) free() {
     delete v.elements;
 }
