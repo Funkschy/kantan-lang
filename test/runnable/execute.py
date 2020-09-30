@@ -53,13 +53,12 @@ def compile(filename):
     if isdir(filename):
         files = list(map(lambda f: join(test_path, filename ,f), listdir(filename)))
 
-    return subprocess.run([compiler, '-g', '-O1','-o', 'out.o'] + files, stdout=subprocess.PIPE).returncode
+    exe_output = join(kantan_path, 'test.exe')
+    return subprocess.run([compiler, '-g', '-O1','-o', exe_output] + files, stdout=subprocess.PIPE).returncode
 
 
 def execute():
-    obj_file = join(kantan_path, 'out.o')
     exe_output = join(kantan_path, 'test.exe')
-    subprocess.run(['gcc', obj_file, '-o', exe_output], stdout=subprocess.PIPE)
 
     return subprocess.run(
             exe_output,

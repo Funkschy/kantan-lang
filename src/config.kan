@@ -107,6 +107,8 @@ def from_options(options: *opt.Options): Config {
     let gen_asm = false;
     let gen_obj = false;
 
+    let temp_out = path.create(out_name, out_len);
+
     let output_filename = options.output_filename;
     if output_filename != null {
         let len = std.strlen(output_filename);
@@ -115,22 +117,20 @@ def from_options(options: *opt.Options): Config {
             gen_obj = std.strcmp(output_filename + (len - 2), ".o") == 0;
         }
 
+        out_name = output_filename;
+        out_len = len;
+
         if gen_asm || gen_obj {
-            out_name = output_filename;
-            out_len = len;
+            temp_out = path.create(out_name, out_len);
         }
-    }
-
-    let invoke_linker = false;
-    let temp_out = path.create(out_name, out_len);
-
-    // we currently use the system linker, which ofc only works on the same system
-    if !(gen_asm || gen_obj) && is_same_target_as_os {
+    } else {
+        // the default executable name
         out_name = "a.out";
         out_len = 5;
-        invoke_linker = true;
     }
 
+    // we currently use the system linker, which ofc only works on the same system
+    let invoke_linker = !(gen_asm || gen_obj) && is_same_target_as_os;
     let out = path.create(out_name, out_len);
 
     let kind = OutputKind.EXE;

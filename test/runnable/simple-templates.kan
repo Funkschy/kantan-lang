@@ -1,5 +1,21 @@
 import "io";
 
+type S struct {}
+
+def (s: S) print() {
+    io.printf("S\n");
+}
+
+type T struct {}
+
+def (t: T) print() {
+    io.printf("T\n");
+}
+
+def [T] f(t: T) {
+    t.print();
+}
+
 def [T] min(a: T, b: T): T {
     if a < b {
         return a;
@@ -10,4 +26,7 @@ def [T] min(a: T, b: T): T {
 def main() {
     io.printf("%d\n", min(1, 2));
     io.printf("%d\n", min(2, 1));
+
+    f(S{});
+    f(T{});
 }
