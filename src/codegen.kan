@@ -508,7 +508,7 @@ def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
 
     let num_indices: u32 = 1;
     if load {
-        if mir_global.value.is_name || !mir_global.ty.is_ptr() {
+        if mir_global.value.is_name || !mir_global.ty.is_string() {
             return llvm.build_load(c.builder, global, "");
         }
 
@@ -516,7 +516,7 @@ def (c: *ModuleCompiler) get_global(name: name.Ref, load: bool): *llvm.Value {
         num_indices = 2;
     }
 
-    if !mir_global.ty.is_ptr() {
+    if !mir_global.ty.is_string() {
         return global;
     }
 
