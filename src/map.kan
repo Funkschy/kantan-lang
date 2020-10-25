@@ -75,7 +75,7 @@ def with_cap(cap: usize): Map {
 
 def (m: *Map) clone(): Map {
     let new_map = with_cap(m.cap);
-    std.memcpy(new_map.items as *void, m.items as *void, new_map.cap * sizeof *Item);
+    std.memcpy(new_map.items as *void, m.items as *void, new_map.cap * sizeof Item);
     return new_map;
 }
 
