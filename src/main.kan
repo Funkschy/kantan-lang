@@ -163,7 +163,7 @@ def print_type_errors(tc: *tychk.TypeChecker, fm: *reader.FileMap, abs_path: *pa
     }
 }
 
-def print_spanned(line_info: source.LineSpan, file: *source.SourceFile) {
+def print_spanned(line_info: source.LineSpan) {
     io.printf(" | ");
     let s = line_info.span;
 
@@ -218,7 +218,7 @@ def print_error(err_text: string, span: span.Span, file: *source.SourceFile, abs
         line_info.pos.col
     );
 
-    print_spanned(line_info, file);
+    print_spanned(line_info);
     io.printf("\n");
 
     delete name;
