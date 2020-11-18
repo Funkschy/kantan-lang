@@ -938,7 +938,7 @@ def call_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
     let call = ast.as_call_expr(e);
     let func_addr = expr_instruction(c, call.callee, rhs);
     let varargs = ty.callable_as_func(call.callee.ty).is_varargs;
-    let f_ty = ty.as_func(call.callee.ty);
+    let f_ty = ty.callable_as_func(call.callee.ty);
     let is_method = f_ty.is_method;
 
     let n = call.args.count();

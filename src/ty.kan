@@ -1021,8 +1021,10 @@ def callable_as_func(t: *Type): *Func {
         return as_func(t);
     } else if t.is_template() {
         return as_func(t.as_template().inner);
+    } else if t.is_ptr() && t.as_ptr().inner != null && is_func(t.as_ptr().inner) {
+        return as_func(t.as_ptr().inner);
     }
-    return as_func(t.as_ptr().inner);
+    return null;
 }
 
 /////////// mod type ///////////

@@ -2369,7 +2369,7 @@ def check_unary_expr(
         }
 
         let is_method_ptr = ty.is_func(expr.ty) && ty.as_func(expr.ty).is_method;
-        if lookup_data.was_type_decl() && is_method_ptr {
+        if is_method_ptr && lookup_data.was_type_decl() {
             let new_func_type = ty.as_func(expr.ty).as_normal_function();
             push_tmp_ty(tc, new_func_type);
             return tc.create_ptr_ty(new_func_type);
