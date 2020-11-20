@@ -2,6 +2,7 @@
 let system_separator: i8  = 47; // '/'
 
 import "std";
+import "str";
 import "dbg";
 import "error";
 
@@ -93,6 +94,14 @@ def count_overlap(first: *Path, second: *Path): usize {
     return len;
 }
 
+def (p: Path) drop(n: usize): Path {
+    if n >= p.len {
+        return create("", 0);
+    }
+
+    return create(p.inner + n, p.len - n);
+}
+
 // TODO(#16): windows support
 //  this functions uses the posix only "realpath" function
 // this function resolves stuff like .. or . in place
@@ -123,6 +132,10 @@ def is_root(p: *Path): bool {
 
 def to_string(p: *Path): string {
     return std.strndup(p.inner, p.len);
+}
+
+def (p: *Path) to_string(): str.String {
+    return str.from_l(p.inner, p.len);
 }
 
 def get_cwd(): PathBuf {

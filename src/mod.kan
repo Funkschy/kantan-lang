@@ -178,17 +178,12 @@ def map_free(mm: *Map) {
 }
 
 def get_abs_import_path(
-    current: *Module,
-    imp: *ast.ImportStmt,
+    current_path: path.Path,
+    imp_path: path.Path,
     dest: *path.PathBuf
 ): error.CompileError {
-    let len = ident.len(&imp.mod);
-    let imp_path = path.create(ident.start(&imp.mod), len);
-    let current_path = get_path(current);
-    let dir = path.parent(&current_path);
-
     return path.merge_abs_rel_suffix(
-        &dir, &imp_path, source.kantan_file_ending(null), dest
+        &current_path, &imp_path, source.kantan_file_ending(null), dest
     );
 }
 
@@ -215,17 +210,28 @@ def try_get_mod_from_import(
         return imported_mod;
     }
 
+    let lookup_relative_to = get_path(mod);
+    lookup_relative_to = path.parent(&lookup_relative_to);
+
+    let relative_path = path.create(imp.mod.start(), imp.mod.len());
+
+    // if the imported path starts with ':' we use the projects base path as our absolute path
+    // instead of the current module
+    if imp.mod.index_of(':') == 0 {
+        lookup_relative_to = mm.proj_root;
+        // remove ':'
+        relative_path = relative_path.drop(1);
+    }
+
     // if not in stdlib, try absolute path
     let abs = path.buf_from(path.empty());
-    let ret_val = get_abs_import_path(mod, imp, &abs);
+    let ret_val = get_abs_import_path(lookup_relative_to, relative_path, &abs);
 
     if ret_val != error.CompileError.OK {
-        let mod_path = get_path(mod);
-        let p = path.parent(&mod_path);
-        let mod_s = path.to_string(&p);
-        defer delete mod_s;
+        let mod_s = lookup_relative_to.to_string();
+        defer mod_s.free();
 
-        let imp_s = imp.mod.to_string();
+        let imp_s = relative_path.to_string();
         defer imp_s.free();
 
         if errdest != null {
@@ -235,7 +241,7 @@ def try_get_mod_from_import(
                 "%s: %s%s%s",
                 // TODO(#114): handle file errors in a platform independent way
                 std.strerror(ret_val as i32),
-                mod_s,
+                mod_s.cstring(),
                 imp_s.cstring(),
                 file_ending
             );

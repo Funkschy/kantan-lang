@@ -1,0 +1,5 @@
+import "inner/inner";
+
+def main() {
+    inner.f();
+}

@@ -764,21 +764,29 @@ def get_import_alias(tc: *TypeChecker, imp: *ast.ImportStmt): ident.Ident {
         return imp.alias;
     }
 
-    let old_span = imp.mod.span;
     let p = path.empty();
-    if path.from_str_len(ident.start(&imp.mod), ident.len(&imp.mod), &p).is_not_ok() {
+    let import_ident = imp.mod;
+
+    // if the imported path starts with ':' we use the projects base path as our absolute path
+    // instead of the current module
+    // so we have to remove it here or otherwise the alias would include ':'
+    if import_ident.index_of(':') == 0 {
+        import_ident = import_ident.drop(1);
+    }
+
+    if path.from_str_len(import_ident.start(), import_ident.len(), &p).is_not_ok() {
         return ident.empty();
     }
 
     let lsp = path.last_separator_ptr(&p);
     if lsp == null {
         // there is no separator
-        return imp.mod;
+        return import_ident;
     }
     lsp = lsp + 1; // skip the actual separator
 
-    let offset = lsp - ident.start(&imp.mod);
-    let start = old_span.start + offset;
+    let offset = lsp - p.inner;
+    let start = import_ident.start() + offset;
     let end = start + p.len - offset;
 
     let new_span = span.create(start, end);

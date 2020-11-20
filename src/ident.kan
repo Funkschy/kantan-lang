@@ -80,11 +80,20 @@ def eq_value(first: *Ident, second: *Ident): bool {
 def (id: *Ident) index_of(c: i8): isize {
     let len = id.len();
     for let i: usize = 0; i < len; i += 1 {
-        if char_at(id, i) == '.' {
+        if char_at(id, i) == c {
             return i as isize;
         }
     }
     return -1;
+}
+
+def (i: Ident) drop(n: usize): Ident {
+    if n >= i.len() {
+        return from_span(span.empty());
+    }
+
+    let s = span.create(i.span.start + 1, i.span.end);
+    return from_span(s);
 }
 
 // this does a strdup and needs to be freed

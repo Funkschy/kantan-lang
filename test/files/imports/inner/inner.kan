@@ -1,0 +1,6 @@
+// this is equivalent to import "../lib"; in this case
+import ":lib";
+
+def f() {
+    let s: string = lib.greeting();
+}
