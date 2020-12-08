@@ -41,19 +41,22 @@ K_FILES = src/ast.kan \
 		  src/typaram.kan \
 		  src/vec.kan \
 		  src/vmap.kan
-PREPROCCESSOR_FILES = src/parser.kan src/transform.kan
 
-C_SRC_FILES = lib.c posixlink.c
-C_FILES = $(C_SRC_FILES) lib.h
-BUILD_FOLDER = build
-START_FOLDER = $(shell pwd)
+START_FOLDER := $(shell pwd)
+
+LLVM_PATH ?= $(HOME)/Downloads/llvm/llvm-10.0.0.src/build
+KANTAN_STABLE ?= $(START_FOLDER)/../kantan -g
+
+BUILD_FOLDER := build
+PREPROCCESSOR_FILES := src/parser.kan src/transform.kan
+C_SRC_FILES := lib.c posixlink.c
+C_FILES := $(C_SRC_FILES) lib.h
+
 NEW_PREPROCESS_FILES = $(addprefix $(BUILD_FOLDER)/, $(PREPROCCESSOR_FILES))
 NEW_K_FILES = $(addprefix $(BUILD_FOLDER)/, $(K_FILES))
 C_OBJ_FILES = $(addprefix $(BUILD_FOLDER)/,$(C_SRC_FILES:.c=.c.o))
 
-LLVM_PATH = $(HOME)/Downloads/llvm/llvm-10.0.0.src/build
 LLVM_CONFIG = $(LLVM_PATH)/bin/llvm-config
-
 LLVM_LIB_NAMES = x86codegen webassemblycodegen passes
 
 LLVM_C_FLAGS = $(shell $(LLVM_CONFIG) --cflags)
@@ -64,7 +67,6 @@ LLVM_SYS_LIBS = $(shell $(LLVM_CONFIG) --system-libs)
 LD_FLAGS = $(LLVM_LD_FLAGS) -fdata-sections -ffunction-sections
 LIBS = $(LLVM_LIBS) $(LLVM_SYS_LIBS) -Wl,--gc-sections
 
-KANTAN_STABLE = $(START_FOLDER)/../kantan -g
 KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDER)/suppress-llvm-errors.supp $(START_FOLDER)/compiler
 KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
 KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
