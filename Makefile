@@ -69,7 +69,7 @@ LIBS = $(LLVM_LIBS) $(LLVM_SYS_LIBS) -Wl,--gc-sections
 
 KANTAN_KANTAN_MEMCHECK = valgrind --leak-check=full --suppressions=$(START_FOLDER)/suppress-llvm-errors.supp $(START_FOLDER)/compiler
 KANTAN_KANTAN_MASSIF = valgrind --tool=massif --massif-out-file=../massif.out $(START_FOLDER)/compiler
-KANTAN_KANTAN = $(KANTAN_KANTAN_MEMCHECK) -g
+KANTAN_KANTAN = $(START_FOLDER)/$(BIN_NAME) -g -O3
 
 $(BIN_NAME) : $(NEW_PREPROCESS_FILES) $(NEW_K_FILES) $(C_OBJ_FILES)
 	if $(KANTAN_STABLE) $(NEW_K_FILES) $(NEW_PREPROCESS_FILES) -o out.o; then \
