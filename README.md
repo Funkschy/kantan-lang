@@ -33,7 +33,7 @@ Don't worry, in the future the stdlib will be installed alongside the compiler, 
 There is also a [vscode plugin](https://github.com/Funkschy/vscode-kantan), which adds support for syntax highlighting and graphical debugging.
 Alternatively, install the [vim plugin](https://github.com/Funkschy/kantan.vim), which you can use to get syntax highlighting in vim/nvim.
 
-## Building from scratch
+## Building the compiler yourself
 Compiling the compiler from scratch is a bit more complicated. To compile the Kantan compiler you need to have the gcc/g++, llvm, gpp(preprocessor, not c++) and make installed. After installing those, you need to execute
 ```make
 make self KANTAN_STABLE="path to your stable kantan" LLVM_PATH="path to your llvm-10 installation"
@@ -44,6 +44,8 @@ You probably want to do
 rm compiler
 mv self kantan
 ```
+Bootstrapping will be pretty hard. That would require using the [rust version of the compiler](https://github.com/Funkschy/kantan)
+and basically building a bunch of commits in this repo one after another. I would not recommend trying.
 
 ## Syntax
 
