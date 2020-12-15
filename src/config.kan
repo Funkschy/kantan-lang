@@ -5,7 +5,7 @@ import "path";
 import "target";
 import "ptrvec";
 
-extern def get_sys(linux: *bool, darwin: *bool, win32: *bool);
+extern def get_sys(linux: *bool, darwin: *bool, win32: *bool, bsd: *bool);
 
 type TargetConfig struct {
     ptr_width_bytes: usize,
@@ -38,8 +38,9 @@ def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
     let linux = false;
     let darwin = false;
     let win32 = false;
+    let bsd = false;
 
-    get_sys(&linux, &darwin, &win32);
+    get_sys(&linux, &darwin, &win32, &bsd);
 
     if options.target_os == null {
         if darwin {
@@ -59,6 +60,12 @@ def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
         if win32 {
             config.sys = target.Sys.Win32;
             config.abi = target.Abi.Msvc;
+            return true;
+        }
+
+        if bsd {
+            config.sys = target.Sys.None;
+            config.abi = target.Abi.SysV;
             return true;
         }
     }

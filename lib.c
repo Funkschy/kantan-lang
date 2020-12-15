@@ -264,12 +264,14 @@ void *int_to_ptr(size_t i) {
     return (void *)s;
 }
 
-void get_sys(bool *is_linux, bool *is_darwin, bool *is_win32) {
+void get_sys(bool *is_linux, bool *is_darwin, bool *is_win32, bool *is_bsd) {
 #if defined(linux) || defined(__linux__)
     if (is_linux) *is_linux = true;
 #elif defined(darwin) || defined(__APPLE__)
     if (is_darwin) *is_darwin = true;
 #elif defined(WIN32) || defined(_WIN32)
     if (is_win32) *is_win32 = true;
+#elif defined(__FreeBSD__)
+    if (is_bsd) *is_bsd = true;
 #endif
 }
