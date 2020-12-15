@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 
@@ -33,7 +34,7 @@ bool find_single(
     return false;
 }
 
-bool find_linux_crt(struct paths *paths) {
+bool find_crt(struct paths *paths) {
     char const *const possible_dirs[] = {
         "/usr/lib64/",
         "/usr/lib/x86_64-linux-gnu/",
@@ -78,7 +79,7 @@ bool find_linux_crt(struct paths *paths) {
 
 int link_obj_file(char *const obj_name, char *const exe_name) {
 #if defined(__APPLE__) || defined(__MACH__)
-    char *const args[] = {
+    char *args[] = {
         "/usr/bin/ld",
         "-o",
         exe_name,
@@ -86,14 +87,19 @@ int link_obj_file(char *const obj_name, char *const exe_name) {
         "/usr/lib/libSystem.B.dylib",
         NULL
     };
+
+    char *const ld_path = getenv("LD_PATH");
+    if (ld_path != NULL) {
+        args[0] = ld_path;
+    }
 #endif
 
 #if defined (__linux__)
     struct paths paths = {};
-    find_linux_crt(&paths);
+    find_crt(&paths);
 
     // see https://dev.gentoo.org/~vapier/crt.txt
-    char *const args[] = {
+    char *args[] = {
         "/usr/bin/ld",
         "-o",
         exe_name,
@@ -106,12 +112,41 @@ int link_obj_file(char *const obj_name, char *const exe_name) {
         paths.crtn, // epilogs for .init & .fini sections
         NULL
     };
+
+    char *const ld_path = getenv("LD_PATH");
+    if (ld_path != NULL) {
+        args[0] = ld_path;
+    }
+#endif
+
+#if defined (__FreeBSD__)
+    struct paths paths = {};
+    find_crt(&paths);
+
+    char *args[] = {
+        "/usr/bin/ld",
+        "-o",
+        exe_name,
+        "-dynamic-linker",
+        "/libexec/ld-elf.so.1",
+        paths.crt1, // _start function (only exe)
+        paths.crti, // prologs for .init & .fini sections
+        "-L/usr/lib -lc",
+        obj_name,
+        paths.crtn, // epilogs for .init & .fini sections
+        NULL
+    };
+
+    char *const ld_path = getenv("LD_PATH");
+    if (ld_path != NULL) {
+        args[0] = ld_path;
+    }
 #endif
 
     pid_t pid;
     if ((pid = fork()) == 0) {
         if (execve(args[0], args, NULL) == -1) {
-            perror("ERROR");
+            perror("ERROR could not link");
             return -1;
         }
     }

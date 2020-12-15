@@ -17,7 +17,7 @@ type Sys enum {
 }
 
 type Abi enum {
-    None, Empty, Gnu, Msvc
+    None, Empty, Gnu, SysV, Msvc
 }
 
 def (a: Arch) to_string(): str.String {
@@ -88,6 +88,9 @@ def (s: Sys) to_string(): str.String {
 def (a: Abi) to_string(): str.String {
     if a == Abi.Gnu {
         return str.from("gnu");
+    }
+    if a == Abi.SysV {
+        return str.from("sysv");
     }
     if a == Abi.Msvc {
         return str.from("msvc");
