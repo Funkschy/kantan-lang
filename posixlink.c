@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#if defined (__linux__)
+#if defined (__linux__) || defined(__FreeBSD__)
 
 #define BUF_LEN sizeof("/usr/lib/x86_64-linux-gnu/") + 6
 #define OBJ_NAME_LEN 6
