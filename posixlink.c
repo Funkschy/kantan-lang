@@ -131,7 +131,8 @@ int link_obj_file(char *const obj_name, char *const exe_name) {
         "/libexec/ld-elf.so.1",
         paths.crt1, // _start function (only exe)
         paths.crti, // prologs for .init & .fini sections
-        "-L/usr/lib -lc",
+        "-L/usr/lib",
+        "-lc",
         obj_name,
         paths.crtn, // epilogs for .init & .fini sections
         NULL
