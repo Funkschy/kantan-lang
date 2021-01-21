@@ -269,7 +269,11 @@ def lookup_or_declare_function(c: *MirCompiler, t: *ty.Type): *mir.Func {
 // since the type could be from another module
 def declare_type(c: *MirCompiler, t: *ty.Type) {
     if t.is_ptr() && t.as_ptr().inner.is_user_defined() {
-        lookup_or_declare_type(c, t.as_ptr().inner);
+        declare_type(c, t.as_ptr().inner);
+    }
+
+    if t.is_array() && t.as_array().inner.is_user_defined() {
+        declare_type(c, t.as_array().inner);
     }
 
     // the order here is important, since lookup_or_declare_type does an
