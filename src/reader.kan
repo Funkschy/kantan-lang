@@ -81,7 +81,8 @@ def (m: *FileMap) add_std_lib(rel_path: *path.Path, std_dir: string): FileAddRes
 
         let res = m.add_file(rel_path, full_file_name, true);
         if res.is_not_ok() {
-            return FileAddResult { file_name: file_name, err_code: res };
+            // swallow errors in stdlib finding for now
+            continue;
         }
 
         let idx = m.num_files() - 1;
