@@ -1,4 +1,6 @@
-import "str";
+import ":std/str";
+import ":std/map";
+
 import "std";
 import "span";
 import "name";
@@ -16,8 +18,16 @@ def from_span(span: span.Span): Ident {
     return Ident { span: span };
 }
 
+def from_key(key: map.Key): Ident {
+    return Ident { span: span.create(key.value, key.value + key.len) };
+}
+
 def empty(): Ident {
     return create(lexer.empty_token());
+}
+
+def (i: *Ident) as_key(): map.Key {
+    return map.create_key(i.len(), i.start());
 }
 
 def is_empty(i: *Ident): bool {

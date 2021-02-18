@@ -1,12 +1,12 @@
 import "std";
-import "str";
+import ":std/str";
 import "path";
 import "file";
 import "span";
 import "error";
-import "ptrvec";
+import ":std/ptrvec";
 
-import "dbg";
+import ":std/dbg";
 
 def kantan_file_ending(len: *usize): string {
     if len != null {
@@ -78,7 +78,7 @@ def (file: *SourceFile) line_info(
     out_col: *u32
 ) {
     let code = file.code.cstring();
-    dbg.assert_fmt(
+    std.assert_fmt(
         code <= target.start && target.end <= file.end(),
         "invalid target (%p-%p) for source (%p-%p) in %.*s",
         target.start, target.end,

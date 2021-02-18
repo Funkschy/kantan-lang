@@ -1,17 +1,17 @@
 import "ast";
-import "str";
-import "dbg";
+import ":std/str";
+import ":std/dbg";
 import "std";
 import "mod";
-import "vec";
-import "map";
-import "vmap";
+import ":std/vec";
+import ":std/map";
+import ":std/vmap";
 import "span";
 import "name";
 import "scope";
 import "ident";
 import "symbol";
-import "ptrvec";
+import ":std/ptrvec";
 import "typaram";
 
 extern def type2str(kind: i32): string;
@@ -399,7 +399,7 @@ def empty_monomorphization_map(): MonomorphizationMap {
 def (m: *MonomorphizationMap) bind(param: *Type, arg: *Type): bool {
     // just a simple substitution like N -> i32
     if param.is_template_param() {
-        let key = map.key_from_ident(&param.as_template_param().name);
+        let key = param.as_template_param().name.as_key();
         let bound = m.inner.get(key) as *Type;
         if bound == null {
             m.inner.insert(key, arg as *void);
@@ -412,7 +412,7 @@ def (m: *MonomorphizationMap) bind(param: *Type, arg: *Type): bool {
     let template_param_name = param.template_param_get_name();
     let smallest_common = param.try_substitute(arg);
 
-    let key = map.key_from_ident(&template_param_name);
+    let key = template_param_name.as_key();
     let bound = m.inner.get(key) as *Type;
     if bound == null {
         m.inner.insert(key, smallest_common as *void);
@@ -799,7 +799,7 @@ def (t: *Enum) num_values(): u32 {
 // returns true, if the value was already in the enum
 def push_enum_value(t: *Type, name: ident.Ident, value: i32): bool {
     let e_ty = as_enum(t);
-    let key = vmap.key_from_ident(&name);
+    let key = name.as_key();
 
     // TODO(#119): instead of a fake "len" value, we should just have a len() compile time function
     if e_ty.values.get_ptr(key) != null || ident.eq_lit(&name, "len") {
@@ -825,7 +825,7 @@ def enum_value_by_name(t: *Enum, name: ident.Ident): i32 {
         return t.values.len() as i32;
     }
 
-    let key = vmap.key_from_ident(&name);
+    let key = name.as_key();
     return (t.values.get_ptr(key) as *EnumValue).value;
 }
 
@@ -1439,19 +1439,19 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
     if t.is_integer() {
         let s = str.from("");
         if t.is_signed() {
-            s.push(str.view(1, "i"));
+            s.push(str.view("i", 1));
         } else {
-            s.push(str.view(1, "u"));
+            s.push(str.view("u", 1));
         }
 
         if t.as_integer().target_dependent {
-            s.push(str.view(4, "size"));
+            s.push(str.view("size", 4));
             return s;
         }
 
         let buffer: i32 = 0;
         let len = std.snprintf(&buffer as string, 3 as usize, "%lu", t.width_in_bits()) as usize;
-        s.push(str.view(len, &buffer as string));
+        s.push(str.view(&buffer as string, len));
         return s;
     }
 
@@ -1470,7 +1470,7 @@ def to_string_mangled(t: *Type, use_mangled: bool): str.String {
 
         for let i: u32 = 0; i < f_ty.params.len as u32; i += 1 {
             if i > 0 {
-                params_string.push(str.view(2, ", "));
+                params_string.push(str.view(", ", 2));
             }
 
             let p = f_ty.param_at(i);

@@ -2,8 +2,8 @@
 let system_separator: i8  = 47; // '/'
 
 import "std";
-import "str";
-import "dbg";
+import ":std/str";
+import ":std/dbg";
 import "error";
 
 extern def getcwd(buf: string, buf_size: usize): string;

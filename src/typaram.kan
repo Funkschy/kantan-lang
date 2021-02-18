@@ -1,4 +1,4 @@
-import "vmap";
+import ":std/vmap";
 import "tyid";
 import "ident";
 
@@ -23,8 +23,7 @@ def (l: *List) len(): usize {
 }
 
 def (l: *List) push(p: *TypeParam) {
-    let key = vmap.key_from_ident(&p.name);
-    l.inner.insert(key, p as *void);
+    l.inner.insert(p.name.as_key(), p as *void);
 }
 
 def (l: *List) get_ptr(idx: usize): *TypeParam {
@@ -36,8 +35,7 @@ def (l: *List) contains(ty: *tyid.Type): bool {
         return false;
     }
 
-    let key = vmap.key_from_ident(&ty.data.path);
-    return l.inner.get_ptr(key) != null;
+    return l.inner.get_ptr(ty.data.path.as_key()) != null;
 }
 
 def (l: *List) clone(): List {

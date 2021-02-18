@@ -1,6 +1,6 @@
-import "str";
+import ":std/str";
 import "mod";
-import "dbg";
+import ":std/dbg";
 import "std";
 import "path";
 import "ident";
@@ -47,6 +47,11 @@ def (n: *Owned) ref(): Ref {
     return ref(*n);
 }
 
+def (n: *Owned) as_view(): str.View {
+    return str.view(n.data, n.len);
+}
+
+
 def (n: *Owned) to_string(): str.String {
     return str.from_l(n.data, n.len);
 }
@@ -62,6 +67,10 @@ def make_ref(len: usize, data: string): Ref {
 
 def ref(owned: Owned): Ref {
     return make_ref(owned.len, owned.data);
+}
+
+def (n: *Ref) as_view(): str.View {
+    return str.view(n.data, n.len);
 }
 
 def (n: *Ref) clone(): Owned {

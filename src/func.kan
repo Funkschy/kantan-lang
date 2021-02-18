@@ -1,6 +1,6 @@
 import "ty";
-import "dbg";
-import "vec";
+import ":std/dbg";
+import ":std/vec";
 import "std";
 import "span";
 import "tyid";

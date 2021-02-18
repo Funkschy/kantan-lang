@@ -1,11 +1,15 @@
 import "std";
 import "opt";
-import "str";
+import ":std/str";
 import "path";
 import "target";
-import "ptrvec";
+import ":std/ptrvec";
 
-extern def get_sys(linux: *bool, darwin: *bool, win32: *bool, bsd: *bool);
+type OS enum {
+    None, Unknown, Linux, Darwin, Win32
+}
+
+extern def get_os(os: *OS);
 
 type TargetConfig struct {
     ptr_width_bytes: usize,
@@ -35,15 +39,11 @@ def (c: *Config) free() {
 }
 
 def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
-    let linux = false;
-    let darwin = false;
-    let win32 = false;
-    let bsd = false;
-
-    get_sys(&linux, &darwin, &win32, &bsd);
+    let os = OS.None;
+    get_os(&os);
 
     if options.target_os == null {
-        if darwin {
+        if os == OS.Darwin {
             config.sys = target.Sys.Darwin;
             config.vendor = target.Vendor.Apple;
             config.abi = target.Abi.Empty;
@@ -51,21 +51,15 @@ def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
         }
 
         config.vendor = target.Vendor.PC;
-        if linux {
+        if os == OS.Linux {
             config.sys = target.Sys.Linux;
             config.abi = target.Abi.SysV;
             return true;
         }
 
-        if win32 {
+        if os == OS.Win32 {
             config.sys = target.Sys.Win32;
             config.abi = target.Abi.Msvc;
-            return true;
-        }
-
-        if bsd {
-            config.sys = target.Sys.None;
-            config.abi = target.Abi.SysV;
             return true;
         }
     }
@@ -74,20 +68,20 @@ def fill_os_info(options: *opt.Options, config: *TargetConfig): bool {
         config.sys = target.Sys.Darwin;
         config.vendor = target.Vendor.Apple;
         config.abi = target.Abi.Empty;
-        return darwin;
+        return os == OS.Darwin;
     }
 
     config.vendor = target.Vendor.PC;
     if std.strcmp(options.target_os, "linux") == 0 {
         config.sys = target.Sys.Linux;
         config.abi = target.Abi.SysV;
-        return linux;
+        return os == OS.Linux;
     }
 
     if std.strcmp(options.target_os, "win32") == 0 {
         config.sys = target.Sys.Win32;
         config.abi = target.Abi.Msvc;
-        return win32;
+        return os == OS.Win32;
     }
 
     return false;

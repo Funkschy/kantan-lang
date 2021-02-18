@@ -1,6 +1,6 @@
 import "ast";
 import "std";
-import "str";
+import ":std/str";
 import "span";
 import "ident";
 
@@ -155,18 +155,18 @@ def (t: *Type) free() {
 def (t: *Type) to_string(): str.String {
     let s = str.from("");
     for let i: u32 = 0; i < t.pointer_count; i += 1 {
-        s.push(str.view(1, "*"));
+        s.push(str.view("*", 1));
     }
 
     if t.kind == Kind.Array {
         let inner = t.data.array.inner.to_string();
         defer inner.free();
-        s.push(str.view(3, "[x]"));
+        s.push(str.view("[x]", 3));
         s.push(inner.view());
     } else if t.kind == Kind.Slice {
         let inner = t.data.slice.inner.to_string();
         defer inner.free();
-        s.push(str.view(2, "[]"));
+        s.push(str.view("[]", 2));
         s.push(inner.view());
     } else {
         let ident = t.ident().to_string();

@@ -1,13 +1,13 @@
 import "ty";
 import "std";
-import "vec";
+import ":std/vec";
 import "func";
 import "span";
 import "name";
 import "tyid";
 import "lexer";
 import "ident";
-import "ptrvec";
+import ":std/ptrvec";
 import "record";
 import "typaram";
 

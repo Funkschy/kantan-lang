@@ -1,6 +1,6 @@
-import "io";
+import ":std/io";
 import "std";
-import "dbg";
+import ":std/dbg";
 import "opt";
 
 import "config";

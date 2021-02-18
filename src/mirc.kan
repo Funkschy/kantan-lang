@@ -1,12 +1,12 @@
 import "ty";
 import "nt";
-import "vec";
+import ":std/vec";
 import "mod";
 import "mir";
 import "ast";
-import "map";
+import ":std/map";
 import "std";
-import "dbg";
+import ":std/dbg";
 import "span";
 import "name";
 import "path";
@@ -145,7 +145,7 @@ def get_meta_mod(c: *MirCompiler, s: span.Span, mod: *mod.Module): mir.MetaData 
 
 def scope_at(c: *MirCompiler, id: isize): mir.Scope {
     let s = c.scopes.with_id(id);
-    dbg.assert_fmt(s != null, "no scope at %d", id);
+    std.assert_fmt(s != null, "no scope at %d", id);
     return *s;
 }
 
@@ -1026,7 +1026,7 @@ def access_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         return mir.new_expr_copy(a);
     }
 
-    dbg.assert_fmt(
+    std.assert_fmt(
         ty.is_struct(left_ty),
         "Expected struct, but got %s",
         ty.to_static_string(left_ty)
@@ -1184,7 +1184,7 @@ def complex_expr(c: *MirCompiler, e: *ast.Expr, rhs: bool): mir.Expression {
         return init_expr(c, e, rhs);
     }
 
-    // dbg.assert_fmt(false, "expr kind %d not handled", e.tag);
+    // std.assert_fmt(false, "expr kind %d not handled", e.tag);
     return mir.empty_expr();
 }
 
@@ -1282,7 +1282,7 @@ def address_expression(c: *MirCompiler, e: *ast.Expr, out: *mir.Address): bool {
             return true;
         }
 
-        dbg.assert_fmt(false, "undefined: %.*s", ref_name.len, ref_name.data);
+        std.assert_fmt(false, "undefined: %.*s", ref_name.len, ref_name.data);
     }
 
     return rvalue_expr(c, e, out);

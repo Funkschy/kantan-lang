@@ -1,6 +1,6 @@
-import "dbg";
+import ":std/dbg";
 import "std";
-import "str";
+import ":std/str";
 import "path";
 import "llvm-bindings" as llvm;
 
@@ -47,7 +47,7 @@ def (a: Arch) register() {
         return;
     }
 
-    dbg.assert_fmt(0 == 1, "unknown target architecture: %d", a);
+    std.assert_fmt(0 == 1, "unknown target architecture: %d", a);
 }
 
 def (a: Arch) pointer_width_bits(): u32 {
@@ -138,7 +138,7 @@ def create_and_register_target(a: Arch, v: Vendor, sys: Sys, abi: Abi): Target {
         }
 
         if i > 0 {
-            triple.push(str.view(1, "-"));
+            triple.push(str.view("-", 1));
         }
 
         triple.push(part.view());

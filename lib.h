@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-static char const *const builtin_files[] = {
+static char *const builtin_files[] = {
     "io.kan"
 };
 
@@ -11,12 +11,12 @@ size_t num_builtin_files() {
     return len_builtin_files;
 }
 
-char const *const *get_builtin_files() {
+char *const *get_builtin_files() {
     return builtin_files;
 }
 
 // TOKEN types
-static char const *const token_strings[] = {
+static char *const token_strings[] = {
     "unknown token",
     "invalid char literal",
     "invalid escape sequence",
@@ -96,7 +96,7 @@ static char const *const token_strings[] = {
 static size_t const len_token_strings = sizeof(token_strings) / sizeof(char *);
 
 // BINARY types
-static char const *const binary_type_ops[] = {
+static char *const binary_type_ops[] = {
     "error",
     "+",  // BINARY_ADD
     "-",  // BINARY_SUB
@@ -121,7 +121,7 @@ static char const *const binary_type_ops[] = {
 static size_t const len_binary_strings = sizeof(binary_type_ops) / sizeof(char *);
 
 // UNARY types
-static char const *const unary_type_ops[] = {
+static char *const unary_type_ops[] = {
     "error",
     "&",
     "*",
@@ -133,7 +133,7 @@ static char const *const unary_type_ops[] = {
 static size_t const len_unary_strings = sizeof(unary_type_ops) / sizeof(char *);
 
 // EXPR types
-static char const *const expr_type_strings[] = {
+static char *const expr_type_strings[] = {
     "error",
     "int literal",
     "float literal",
@@ -158,7 +158,7 @@ static char const *const expr_type_strings[] = {
 static size_t const len_expr_strings = sizeof(expr_type_strings) / sizeof(char *);
 
 // STMT types
-static char const *const stmt_type_strings[] = {
+static char *const stmt_type_strings[] = {
     "error",
     "expression",
     "let",
@@ -181,7 +181,7 @@ static char const *const stmt_type_strings[] = {
 static size_t const len_stmt_strings = sizeof(stmt_type_strings) / sizeof(char *);
 
 // Type types
-static char const *const type_type_strings[] = {
+static char *const type_type_strings[] = {
     "error",
     "template",
     "template parameter",
@@ -204,7 +204,7 @@ static char const *const type_type_strings[] = {
 static size_t const len_type_strings = sizeof(type_type_strings) / sizeof(char *);
 
 // ERROR types
-static char const *const error_texts[] = {
+static char *const error_texts[] = {
     NULL,
     "Internal error: '%s'",
     // file errors
@@ -274,7 +274,7 @@ static char const *const error_texts[] = {
 static size_t const len_err_strings = sizeof(error_texts) / sizeof(char *);
 
 // MIR binary kinds
-static char const *const mir_binary_kind_strings[] = {
+static char *const mir_binary_kind_strings[] = {
     NULL,
     "+",  // MIR_BIN_ADD
     "-",  // MIR_BIN_SUB
@@ -301,7 +301,7 @@ static char const *const mir_binary_kind_strings[] = {
 static size_t const len_mir_binary_kind_strings = sizeof(mir_binary_kind_strings) / sizeof(char *);
 
 // MIR unary kinds
-static char const *const mir_unary_kind_strings[] = {
+static char *const mir_unary_kind_strings[] = {
     NULL,
     "!", // MIR_UNARY_BOOL_NEG
     "-", // MIR_UNARY_INT_NEG

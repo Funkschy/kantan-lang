@@ -1,4 +1,4 @@
-import "str";
+import ":std/str";
 import "path";
 import "error";
 

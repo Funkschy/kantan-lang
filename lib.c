@@ -18,43 +18,43 @@ int32_t get_errno() {
     return errno;
 }
 
-char const *const get_str(int32_t index, size_t len, char const *const * array) {
-    if (index < 0 || index > len) {
+char *get_str(int32_t index, size_t len, char * const * const array) {
+    if (index < 0 || (size_t)index > len) {
         return array[0];
     }
 
     return array[index];
 }
 
-char const *const tok2str(int32_t type) {
+char *tok2str(int32_t type) {
     return get_str(type, len_token_strings, token_strings);
 }
 
-char const *const binary2str(int32_t op) {
+char *binary2str(int32_t op) {
     return get_str(op, len_binary_strings, binary_type_ops);
 }
 
-char const *const unary2str(int32_t op) {
+char *unary2str(int32_t op) {
     return get_str(op, len_unary_strings, unary_type_ops);
 }
 
-char const *const mir_binary2str(int32_t op) {
+char *mir_binary2str(int32_t op) {
     return get_str(op, len_mir_binary_kind_strings, mir_binary_kind_strings);
 }
 
-char const *const mir_unary2str(int32_t op) {
+char *mir_unary2str(int32_t op) {
     return get_str(op, len_mir_unary_kind_strings, mir_unary_kind_strings);
 }
 
-char const *const expr2str(int32_t type) {
+char *expr2str(int32_t type) {
     return get_str(type, len_expr_strings, expr_type_strings);
 }
 
-char const *const stmt2str(int32_t type) {
+char *stmt2str(int32_t type) {
     return get_str(type, len_stmt_strings, stmt_type_strings);
 }
 
-char const *const type2str(int32_t type) {
+char *type2str(int32_t type) {
     return get_str(type, len_type_strings, type_type_strings);
 }
 
@@ -81,7 +81,7 @@ void assert_fmt(bool condition, char const *fmt, ...) {
 #endif
 }
 
-char const *const l_format_str(size_t *len, char const *fmt, ...) {
+char *l_format_str(size_t *len, char const *fmt, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, fmt);
@@ -96,7 +96,7 @@ char const *const l_format_str(size_t *len, char const *fmt, ...) {
     return s;
 }
 
-char const *const format_str(char const *fmt, ...) {
+char *format_str(char const *fmt, ...) {
     char *s = NULL;
     va_list args;
     va_start(args, fmt);
@@ -110,8 +110,8 @@ char const *const format_str(char const *fmt, ...) {
     return s;
 }
 
-char const *const err2str(int32_t err_code, ...) {
-    if (err_code < 0 || err_code > len_err_strings) {
+char *err2str(int32_t err_code, ...) {
+    if (err_code < 0 || (size_t)err_code > len_err_strings) {
         return error_texts[0];
     }
 
@@ -139,7 +139,7 @@ size_t read_char(char const *string, size_t s_len, int32_t *ch) {
         c_len = 2;
     }
 
-    if (c_len > s_len) {
+    if ((size_t)c_len > s_len) {
         return s_len;
     }
 
@@ -264,14 +264,18 @@ void *int_to_ptr(size_t i) {
     return (void *)s;
 }
 
-void get_sys(bool *is_linux, bool *is_darwin, bool *is_win32, bool *is_bsd) {
+enum OS {
+    NONE, UNKNOWN, LINUX, DARWIN, WIN32
+};
+
+void get_os(int32_t *os) {
 #if defined(linux) || defined(__linux__)
-    if (is_linux) *is_linux = true;
+    *os = (int32_t) LINUX;
 #elif defined(darwin) || defined(__APPLE__)
-    if (is_darwin) *is_darwin = true;
+    *os = (int32_t) DARWIN;
 #elif defined(WIN32) || defined(_WIN32)
-    if (is_win32) *is_win32 = true;
-#elif defined(__FreeBSD__)
-    if (is_bsd) *is_bsd = true;
+    *os = (int32_t) WIN32;
+#else
+    *os = (int32_t) NONE;
 #endif
 }

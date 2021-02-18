@@ -1,13 +1,13 @@
-import "io";
+import ":std/io";
 import "ty";
 import "std";
-import "str";
-import "vec";
-import "str";
-import "map";
-import "dbg";
+import ":std/str";
+import ":std/vec";
+import ":std/str";
+import ":std/map";
+import ":std/dbg";
 import "mod";
-import "vmap";
+import ":std/vmap";
 import "span";
 import "name";
 import "ident";
@@ -569,7 +569,7 @@ def make_addr_name(value: name.Ref, ty: *ty.Type): Address {
 }
 
 def clone_addr_name(a: *Address): Address {
-    dbg.assert_fmt(is_addr_name(a), "addr should be name, but was %d", a.kind);
+    std.assert_fmt(is_addr_name(a), "addr should be name, but was %d", a.kind);
     let name = as_addr_name(a);
     return make_addr_name(name.value, a.ty);
 }
@@ -1236,13 +1236,13 @@ def expr_to_name(e: *Expression): name.Owned {
 
         for let i: u32 = 0; i < call.args.len as u32; i += 1 {
             if i > 0 {
-                args_string.push(str.view(2, ", "));
+                args_string.push(str.view(", ", 2));
             }
 
             let arg = call_arg_at(call, i);
             let arg_n = addr_to_name(arg);
 
-            args_string.push(str.view(arg_n.len as usize, arg_n.data));
+            args_string.push(str.view(arg_n.data, arg_n.len as usize));
             name.free_owned(&arg_n);
         }
 
@@ -1284,9 +1284,9 @@ def expr_to_name(e: *Expression): name.Owned {
         for let i: usize = 0; i < index.indices.len; i += 1 {
             let idx_n = addr_to_name(index.indices.get_ptr(i) as *Address);
             if i > 0 {
-                idx_s.push(str.view(2, ", "));
+                idx_s.push(str.view(", ", 2));
             }
-            idx_s.push(str.view(idx_n.len, idx_n.data));
+            idx_s.push(idx_n.as_view());
             name.free_owned(&idx_n);
         }
 
@@ -1323,13 +1323,13 @@ def expr_to_name(e: *Expression): name.Owned {
 
         for let i: u32 = 0; i < init.args.len as u32; i += 1 {
             if i > 0 {
-                args_string.push(str.view(2, ", "));
+                args_string.push(str.view(", ", 2));
             }
 
             let arg = init_arg_at(init, i);
             let arg_n = addr_to_name(arg);
 
-            args_string.push(str.view(arg_n.len as usize, arg_n.data));
+            args_string.push(arg_n.as_view());
             name.free_owned(&arg_n);
         }
 

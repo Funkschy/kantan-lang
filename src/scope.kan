@@ -1,10 +1,10 @@
 import "ty";
-import "map";
+import ":std/map";
 import "span";
-import "vmap";
+import ":std/vmap";
 import "ident";
 import "symbol";
-import "ptrvec";
+import ":std/ptrvec";
 import "name" as n;
 
 type Scope struct {

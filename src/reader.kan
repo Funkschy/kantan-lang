@@ -1,6 +1,6 @@
-import "vec";
+import ":std/vec";
 import "std";
-import "dbg";
+import ":std/dbg";
 import "path";
 import "span";
 import "file";

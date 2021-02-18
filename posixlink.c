@@ -95,7 +95,7 @@ int link_obj_file(char *const obj_name, char *const exe_name) {
 #endif
 
 #if defined (__linux__)
-    struct paths paths = {};
+    struct paths paths = {0};
     find_crt(&paths);
 
     // see https://dev.gentoo.org/~vapier/crt.txt
@@ -120,7 +120,7 @@ int link_obj_file(char *const obj_name, char *const exe_name) {
 #endif
 
 #if defined (__FreeBSD__)
-    struct paths paths = {};
+    struct paths paths = {0};
     find_crt(&paths);
 
     char *args[] = {

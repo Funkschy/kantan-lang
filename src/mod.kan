@@ -1,15 +1,15 @@
 import "ty";
-import "vec";
+import ":std/vec";
 import "ast";
 import "path";
-import "map";
+import ":std/map";
 import "std";
 import "name";
 import "error";
 import "ident";
 import "symbol";
 import "source";
-import "ptrvec";
+import ":std/ptrvec";
 
 type Module struct {
     idx: u32, // index in modmap used for faster access

@@ -34,6 +34,7 @@ extern def int_num_digits(i: usize): usize;
 extern def flag_set(flags: *i32, flag: i32);
 extern def flag_unset(flags: *i32, flag: i32);
 extern def flag_get(flags: *i32, flag: i32): bool;
+extern def assert_fmt(condition: bool, fmt: string, ...);
 
 def find_char(haystack: string, needle: i8): string {
     return strchr(haystack, needle as i32);

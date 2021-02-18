@@ -1,10 +1,10 @@
 import "../ty";
-import "../str";
+import ":std/str";
 import "../ast";
-import "../vec";
+import ":std/vec";
 import "../mod";
-import "../map";
-import "../dbg";
+import ":std/map";
+import ":std/dbg";
 import "../span";
 import "../tyid";
 import "../name";
@@ -16,7 +16,7 @@ import "../ident";
 import "../escape";
 import "../config";
 import "../record";
-import "../ptrvec";
+import ":std/ptrvec";
 import "../symbol";
 import "../modsort" as ms;
 
@@ -25,7 +25,7 @@ import "waiting";
 
 import "../std";
 // TODO(#21): only for debug purposes
-import "io";
+import ":std/io";
 
 extern def stmt2str(kind: i32): string;
 
@@ -462,7 +462,7 @@ def get_err(tc: *TypeChecker, i: usize): *TypeError {
 }
 
 def add_import_alias(tc: *TypeChecker, ident: *ident.Ident, mod: *mod.Module) {
-    tc.ctx.imports.insert(map.key_from_ident(ident), mod as *void);
+    tc.ctx.imports.insert(ident.as_key(), mod as *void);
 }
 
 // sorts the mods after the number of imports inside
@@ -2143,7 +2143,7 @@ def check_expr_expect(
                 // bind the concrete types for this template
                 let iter = mono_map.iter();
                 for let item = iter.next(); item != null; item = iter.next() {
-                    let name = item.key.as_ident();
+                    let name = ident.from_key(item.key);
                     let bound_type = item.value as *ty.Type;
                     bind_type_public(tc, &name, bound_type);
                 }

@@ -1,11 +1,11 @@
-import "io";
+import ":std/io";
 
 import "../ty";
 import "../mod";
 import "../std";
-import "../dbg";
-import "../vec";
-import "../map";
+import ":std/dbg";
+import ":std/vec";
+import ":std/map";
 import "../tyid";
 import "../span";
 import "../ident";
@@ -64,7 +64,7 @@ def patch_waiting_for(tc: *tychk.TypeChecker, waiting_for: *ident.Ident, waiting
     if dot_index > 0 {
         let ident_mod = tychk.get_mod_by_alias(tc.ctx, dot_index as usize, waiting_for.start());
         if ident_mod != waiting_for_mod {
-            dbg.assert_fmt(
+            std.assert_fmt(
                 ident_mod != null,
                 "Result.Error: alias '%.*s' was null\n", dot_index, waiting_for.start()
             );
@@ -104,7 +104,7 @@ def (wrm: *RequestMap) add_request(request: Request) {
     let requests: *vec.Vec = null;
 
     let wanted_ident = request.waiting_for_ident();
-    let key = map.key_from_ident(wanted_ident);
+    let key = wanted_ident.as_key();
     let request_idx = wrm.request_map.get(key);
     let idx: usize = -1;
 
@@ -128,8 +128,7 @@ def (wrm: *RequestMap) add_request(request: Request) {
 }
 
 def (wrm: *RequestMap) get_waiting(ident: *ident.Ident): *vec.Vec {
-    let key = map.key_from_ident(ident);
-    let request_idx = wrm.request_map.get_and_remove(key);
+    let request_idx = wrm.request_map.get_and_remove(ident.as_key());
 
     if request_idx == null || std.ptr_to_int(request_idx) == 0 {
         return null;

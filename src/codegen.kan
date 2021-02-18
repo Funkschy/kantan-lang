@@ -1,17 +1,17 @@
 import "ty";
-import "str";
-import "dbg";
+import ":std/str";
+import ":std/dbg";
 import "mod";
 import "mir";
-import "map";
+import ":std/map";
 import "std";
-import "vmap";
+import ":std/vmap";
 import "path";
 import "llvm-bindings" as llvm;
 import "name";
 import "ident";
 import "target";
-import "ptrvec";
+import ":std/ptrvec";
 
 type CompilationOptions struct {
     // if the context is null, a new one will be created for this module
@@ -267,7 +267,7 @@ def (c: *ModuleCompiler) create_global_value(global: *mir.GlobalVar): *llvm.Valu
         );
     }
 
-    dbg.assert_fmt(false, "invalid global type %d", global.ty.kind);
+    std.assert_fmt(false, "invalid global type %d", global.ty.kind);
     return null;
 }
 
@@ -430,7 +430,7 @@ def translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.Type {
         return func_type;
     }
 
-    dbg.assert_fmt(false, "unhandled type %d", t.kind);
+    std.assert_fmt(false, "unhandled type %d", t.kind);
     return null;
 }
 
@@ -454,7 +454,7 @@ def translate_addr_load(
 
         // don't load functions, since they are unsized (we need to load function pointers though)
         if load && !ty.is_func(a.ty) {
-            dbg.assert_fmt(
+            std.assert_fmt(
                 variable != null, "variable %s was null", addr_name.value.data
             );
             return llvm.build_load(c.builder, variable, "");
@@ -497,7 +497,7 @@ def translate_addr_load(
         return llvm.get_undef(translate_type(c, a.ty));
     }
 
-    dbg.assert_fmt(false, "invalid address kind %d", a.kind);
+    std.assert_fmt(false, "invalid address kind %d", a.kind);
     return null;
 }
 
@@ -677,7 +677,7 @@ def add_variable(f: *FunctionData, var_name: name.Ref, value: *llvm.Value) {
 
 def compile_function(c: *ModuleCompiler, func: *mir.Func) {
     let llvm_func = lookup_or_declare_function(c, func.ty);
-    dbg.assert_fmt(
+    std.assert_fmt(
         llvm_func.val != null && llvm_func.ty != null, "function not found '%s'", func.name.data
     );
 
@@ -827,7 +827,7 @@ def compile_inst(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst) {
         return;
     }
 
-    dbg.assert_fmt(false, "invalid instruction kind %d", inst.kind);
+    std.assert_fmt(false, "invalid instruction kind %d", inst.kind);
 }
 
 def compile_struct_init_assign(c: *ModuleCompiler, func: *FunctionData, inst: *mir.Inst) {
@@ -1011,7 +1011,7 @@ def compile_expr(
         return llvm.build_bit_cast(c.builder, union_addr, dest_ptr_ty, "");
     }
 
-    dbg.assert_fmt(false, "invalid expression kind %d", e.kind);
+    std.assert_fmt(false, "invalid expression kind %d", e.kind);
     return null;
 }
 
@@ -1039,7 +1039,7 @@ def compile_unary(
         return llvm.build_not(c.builder, value, "");
     }
 
-    dbg.assert_fmt(false, "Invalid unary kind: %d", unary.kind);
+    std.assert_fmt(false, "Invalid unary kind: %d", unary.kind);
     return null;
 }
 
@@ -1158,7 +1158,7 @@ def compile_binary_float(
         return llvm.build_f_cmp(c.builder, 6, left, right, "");
     }
 
-    dbg.assert_fmt(false, "Invalid binary float kind: %d", binary.kind);
+    std.assert_fmt(false, "Invalid binary float kind: %d", binary.kind);
     return null;
 }
 
@@ -1404,7 +1404,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         }
 
         let definition = c.irmod.user_defined_types.get(key) as *mir.UserDefinedType;
-        dbg.assert_fmt(definition != null, "user defined type %s does not exist", name.data);
+        std.assert_fmt(definition != null, "user defined type %s does not exist", name.data);
 
         let scope: *llvm.MetaData = null;
         let file = c.dbg.file;
@@ -1553,7 +1553,7 @@ def dbg_translate_type(c: *ModuleCompiler, t: *ty.Type): *llvm.MetaData {
         return dbg_create_subroutine_type(c, f_ty);
     }
 
-    dbg.assert_fmt(false, "unhandled type %d", t.kind);
+    std.assert_fmt(false, "unhandled type %d", t.kind);
     return null;
 }
 
@@ -1572,7 +1572,7 @@ def dbg_get_scope(info: *DebugInfo, meta: mir.MetaData): *llvm.MetaData {
             parent = info.scopes.get(i as usize) as *llvm.MetaData;
         }
 
-        dbg.assert_fmt(
+        std.assert_fmt(
             parent != null,
             "no parent scope with id %d (for %d)",
             scope.parent,

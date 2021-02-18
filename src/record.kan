@@ -1,7 +1,7 @@
 import "ident";
 import "tyid";
-import "map";
-import "vec";
+import ":std/map";
+import ":std/vec";
 import "std";
 import "span";
 import "ty";
@@ -48,11 +48,10 @@ def create_fields(fields: vec.Vec): Fields {
         let field = empty_field();
         fields.get(i, &field as *void);
 
-        let key = map.key_from_ident(&field.ident);
         // add one, to be able to tell null apart from 0
         let index = std.int_to_ptr(i) + 1;
 
-        field_map.insert(key, index);
+        field_map.insert(field.ident.as_key(), index);
     }
 
     return Fields { field_map: field_map, fields: fields };

@@ -5,3 +5,4 @@ self
 .vscode
 a.out
 build
+*.o
