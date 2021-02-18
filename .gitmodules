@@ -1,6 +1,6 @@
 [submodule "test/kantan-test"]
 	path = test/kantan-test
-	url = git@github.com:Funkschy/kantan-test.git
+	url = https://github.com/Funkschy/kantan-test.git
 [submodule "src/std"]
 	path = src/std
 	url = https://github.com/Funkschy/kantan-std
