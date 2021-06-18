@@ -3,18 +3,18 @@ import requests
 import re
 
 links = [
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/core.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/linker.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/analysis.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/target.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/target_machine.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/bit_reader.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/bit_writer.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/pass_manager.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/pass_manager_builder.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/scalar.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/transforms/util.rs',
-    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/master/src/debuginfo.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/core.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/linker.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/analysis.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/target.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/target_machine.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/bit_reader.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/bit_writer.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/transforms/pass_manager.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/transforms/pass_manager_builder.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/transforms/scalar.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/transforms/util.rs',
+    'https://gitlab.com/taricorp/llvm-sys.rs/-/raw/llvm-10.0/src/debuginfo.rs',
 ]
 
 
@@ -69,6 +69,7 @@ whitelist = set([
     'LLVMBuildStore',
     'LLVMBuildStructGEP',
     'LLVMBuildSub',
+    'LLVMBuildTrunc',
     'LLVMBuildXor',
     'LLVMBuildZExt',
     'LLVMConstInt',
