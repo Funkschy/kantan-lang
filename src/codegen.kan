@@ -959,18 +959,25 @@ def compile_expr(
         let into_float = cast.into.is_float();
 
         if from_int && into_int {
+            let from_signed = cast.addr.ty.as_integer().signed;
+            let into_signed = cast.into.as_integer().signed;
+
             // dest < from: trunc
             if cast.into.width < cast.addr.ty.width {
                 return llvm.build_trunc(c.builder, addr, into, "");
             }
 
-            // unsigned -> signed: zext
-            if !cast.addr.ty.as_integer().signed && cast.into.as_integer().signed {
+            // if from <= dest:
+
+            if from_signed {
+                // signed -> unsigned: sext
+                // signed -> signed: sext
+                return llvm.build_int_cast(c.builder, addr, into, "");
+            } else {
+                // unsigned -> unsigned: zext
+                // unsigned -> signed: zext
                 return llvm.build_z_ext(c.builder, addr, into, "");
             }
-
-            // signed -> unsigned: sext
-            return llvm.build_int_cast(c.builder, addr, into, "");
         }
 
         if from_int && into_float {
